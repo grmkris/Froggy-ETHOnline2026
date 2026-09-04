@@ -2,6 +2,8 @@
 
 Written 4 Sep 2026, at the end of the bootstrap session. Submission is **Sun 13 Sep 12:00 EDT**.
 
+**Deployed:** https://app-production-58dd.up.railway.app (Railway project `froggy`, one environment, one replica). Verified live: `/health`, the SPA, a real 402 and its paid round trip, the app socket delivering mandate and wallet state, the freeze toggling both ways, and the browser socket bringing Chromium up to render a page.
+
 ## What works right now
 
 The whole spine runs, on this box and in a container, with **no API keys**.
@@ -55,7 +57,7 @@ Drop the values into `~/.config/secrets.env` for local work, and onto the Railwa
 
 - **Make the repository public.** Every track requires it.
 - Record the demo video. Hedera wants ≤5 minutes showing the paid request executing; The Graph wants 2–4 minutes.
-- The README already carries the architecture argument. Add the diagram Hedera and Arc both ask for.
+- The README carries the architecture argument and the diagram both Hedera and Arc ask for.
 
 ## Things that will bite
 
