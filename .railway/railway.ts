@@ -35,10 +35,13 @@ export default defineRailway((ctx) => {
   const restart = { restartPolicyMaxRetries: 3 };
 
   const db = postgres("Postgres", { region });
+  // Railway's own default. Left alone rather than shrunk: a smaller volume is
+  // a destructive change for no benefit, and this database holds a spend ledger
+  // that should outlive the demo.
   const postgresVolume = volume("postgres-volume", {
     allowOnlineResize: true,
     region,
-    sizeMB: 5000,
+    sizeMB: 50_000,
   });
 
   /**

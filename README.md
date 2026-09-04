@@ -57,6 +57,10 @@ bun run e2e
 - **Page text is fenced.** It reaches the model prefixed as data, from a string constant that cannot be edited away in a prompt.
 - **Freeze aborts the run first, then takes the page.** The other order gives the next queued tool call the page back 1.5 seconds later.
 
+## Where this is
+
+`docs/handover.md` — what works, what is stubbed, what to build next, and the demo in the order it should be shown.
+
 ## Known limits
 
 - The Chrome profile is persistent, so the agent browses as _you_. That is the point and also the risk; it lives in `CHROME_PROFILE_DIR` and deleting it signs the agent out of everything.
