@@ -1,0 +1,191 @@
+/**
+ * The browser socket, client side.
+ *
+ * The single most important property: **frames never touch React state.** At
+ * thirty frames a second a `setState` per frame would re-render the whole
+ * workspace thirty times a second, and the chat pane would stutter every time
+ * the page repainted. This hook owns the canvas bitmap directly and publishes
+ * only the low-rate JSON state through React.
+ *
+ * Ported in spirit from invok's `use-browser-ws.ts`, including the parts that
+ * are only obvious after they have gone wrong once.
+ */
+
+import {
+  decodeBrowserServerMessage,
+  decodeScreencastFrame,
+  encodeBrowserClientMessage,
+} from "@froggy/protocol";
+import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
+import { Result } from "effect";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
+
+import { socketUrl } from "../environment";
+
+const PING_INTERVAL_MS = 15_000;
+const MAX_BACKOFF_MS = 5000;
+
+export interface BrowserStream {
+  readonly connected: boolean;
+  readonly send: (message: BrowserClientMessage) => void;
+  readonly state: BrowserState | null;
+}
+
+/**
+ * A canvas painter, outside React entirely.
+ *
+ * Deliberately not a hook and not in the effect body. Frames arrive at thirty a
+ * second; a `setState` per frame would re-render the whole workspace thirty
+ * times a second and the chat pane would stutter every time the page repainted.
+ * This closure owns the bitmap and React never learns a frame arrived.
+ */
+const createPainter = (
+  canvasRef: RefObject<HTMLCanvasElement | null>
+): ((data: ArrayBuffer) => Promise<void>) => {
+  // Latest-frame-wins. A slow decode must never queue, or a client that falls
+  // behind delivers a slideshow of moments that have already passed.
+  let decoding = false;
+  let queued: ArrayBuffer | null = null;
+
+  const draw = async (data: ArrayBuffer): Promise<void> => {
+    const frame = decodeScreencastFrame(new Uint8Array(data));
+    if (frame === null) {
+      return;
+    }
+    // A fresh copy: `frame.jpeg` is a view into the socket message, and the
+    // bitmap outlives it.
+    const bitmap = await createImageBitmap(
+      new Blob([new Uint8Array(frame.jpeg)], { type: "image/jpeg" })
+    );
+    const canvas = canvasRef.current;
+    if (canvas !== null) {
+      // Assigning width clears the canvas, so only on a real size change.
+      if (canvas.width !== frame.meta.w || canvas.height !== frame.meta.h) {
+        canvas.width = frame.meta.w;
+        canvas.height = frame.meta.h;
+      }
+      canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    }
+    bitmap.close();
+  };
+
+  const paint = async (data: ArrayBuffer): Promise<void> => {
+    if (decoding) {
+      queued = data;
+      return;
+    }
+    decoding = true;
+    try {
+      await draw(data);
+    } catch {
+      // A truncated frame is superseded by the next one. Tearing down a stream
+      // over one bad packet is a worse outcome than one dropped frame.
+    } finally {
+      decoding = false;
+      const next = queued;
+      queued = null;
+      if (next !== null) {
+        void paint(next);
+      }
+    }
+  };
+
+  return paint;
+};
+
+export const useBrowserSocket = (
+  canvasRef: RefObject<HTMLCanvasElement | null>
+): BrowserStream => {
+  const [state, setState] = useState<BrowserState | null>(null);
+  const [connected, setConnected] = useState(false);
+  const socketRef = useRef<WebSocket | null>(null);
+
+  const send = useCallback((message: BrowserClientMessage) => {
+    const socket = socketRef.current;
+    if (socket?.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    socket.send(encodeBrowserClientMessage(message));
+  }, []);
+
+  useEffect(() => {
+    let closed = false;
+    let attempt = 0;
+    let socket: WebSocket | null = null;
+    let ping: ReturnType<typeof setInterval> | null = null;
+    let reconnect: ReturnType<typeof setTimeout> | null = null;
+
+    const paint = createPainter(canvasRef);
+
+    const open = (): void => {
+      if (closed) {
+        return;
+      }
+      socket = new WebSocket(socketUrl("/ws/browser"));
+      socket.binaryType = "arraybuffer";
+      socketRef.current = socket;
+
+      socket.addEventListener("open", () => {
+        attempt = 0;
+        setConnected(true);
+        ping = setInterval(() => {
+          socket?.send(
+            encodeBrowserClientMessage({
+              sentAt: Date.now(),
+              type: "ping",
+              v: 1,
+            })
+          );
+        }, PING_INTERVAL_MS);
+      });
+
+      socket.addEventListener("message", (event: MessageEvent<unknown>) => {
+        if (event.data instanceof ArrayBuffer) {
+          void paint(event.data);
+          return;
+        }
+        const decoded = decodeBrowserServerMessage(String(event.data));
+        if (Result.isFailure(decoded)) {
+          return;
+        }
+        if (decoded.success.type === "browser.state") {
+          setState(decoded.success.state);
+        }
+      });
+
+      socket.addEventListener("close", (event) => {
+        setConnected(false);
+        if (ping !== null) {
+          clearInterval(ping);
+        }
+        // 4004 is terminal — the server does not know this browser and never
+        // will, so retrying is a busy loop against a certain refusal.
+        if (closed || event.code === 4004) {
+          return;
+        }
+        attempt += 1;
+        reconnect = setTimeout(
+          open,
+          Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS)
+        );
+      });
+    };
+
+    open();
+
+    return () => {
+      closed = true;
+      if (ping !== null) {
+        clearInterval(ping);
+      }
+      if (reconnect !== null) {
+        clearTimeout(reconnect);
+      }
+      socket?.close();
+      socketRef.current = null;
+    };
+  }, [canvasRef]);
+
+  return { connected, send, state };
+};

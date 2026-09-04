@@ -1,0 +1,174 @@
+/**
+ * The HTTP surface.
+ *
+ * A hand-written router rather than a framework. The route table is nine
+ * entries and a framework would add a dependency, a matching algorithm and a
+ * middleware concept to serve them — while the two things this server actually
+ * needs from its HTTP layer, a WebSocket upgrade and a streaming response, are
+ * exactly the two things frameworks make harder to reach.
+ *
+ * Split out of `index.ts` so the process lifecycle and the request handling are
+ * separately readable: one is about acquiring Chrome and a socket, the other is
+ * about answering questions.
+ */
+
+import type { SessionId } from "@froggy/domain";
+import { Schema } from "effect";
+
+import { handleChat } from "./chat";
+import type { ChatRequest } from "./chat";
+import type { Environment } from "./environment";
+import { handleOracleRequest } from "./oracle-route";
+import type { ChatRunRegistry } from "./runs";
+import type { Services } from "./services";
+import type { WorkspaceSession } from "./session";
+
+export const ORACLE_PATH = "/oracle/snapshot";
+
+/**
+ * What `POST /api/chat` accepts.
+ *
+ * `messages` stays `Unknown` on purpose: the shape is the AI SDK's `UIMessage`
+ * union, which is large, versioned by the SDK, and validated by the SDK's own
+ * conversion on the next line. Re-declaring it here would be a second copy of
+ * someone else's type that only ever drifts.
+ */
+const ChatBody = Schema.Struct({ messages: Schema.Array(Schema.Unknown) });
+const decodeChatBody = Schema.decodeUnknownResult(ChatBody);
+
+/** Every JSON response this server sends. Named so the shapes stay enumerable. */
+type ResponseBody =
+  | { readonly error: string }
+  | {
+      readonly modes: Environment["modes"];
+      readonly runtime: string;
+      readonly status: string;
+    }
+  | { readonly receipts: WorkspaceSession["history"] }
+  | { readonly stopped: boolean }
+  | Awaited<ReturnType<WorkspaceSession["walletSummary"]>>;
+
+const json = (body: ResponseBody, status = 200): Response =>
+  Response.json(body, { headers: { "cache-control": "no-store" }, status });
+
+export interface RouterDeps {
+  readonly environment: Environment;
+  readonly oracleUrl: string;
+  readonly runs: ChatRunRegistry;
+  readonly services: Services;
+  readonly session: WorkspaceSession;
+  readonly sessionId: SessionId;
+}
+
+/**
+ * Serve the built SPA, with any unknown path falling back to `index.html`.
+ *
+ * Empty `staticDirectory` means development, where Vite serves the client and
+ * proxies here — so an unmatched path is a genuine 404 rather than a route the
+ * client will recognise.
+ */
+const serveStatic = async (
+  directory: string,
+  pathname: string
+): Promise<Response> => {
+  if (directory === "") {
+    return json({ error: "Not found." }, 404);
+  }
+  const file = Bun.file(
+    `${directory}${pathname === "/" ? "/index.html" : pathname}`
+  );
+  if (await file.exists()) {
+    return new Response(file);
+  }
+  return new Response(Bun.file(`${directory}/index.html`));
+};
+
+const handleApi = async (
+  deps: RouterDeps,
+  request: Request,
+  pathname: string
+): Promise<Response | null> => {
+  if (pathname === "/api/chat" && request.method === "POST") {
+    const decoded = decodeChatBody(await request.json());
+    if (decoded._tag === "Failure") {
+      return json({ error: "Malformed chat request." }, 400);
+    }
+    return await handleChat(
+      {
+        oracleUrl: deps.oracleUrl,
+        runs: deps.runs,
+        services: deps.services,
+        session: deps.session,
+      },
+      {
+        // SAFETY: the envelope is decoded above; the elements are the AI SDK's
+        // `UIMessage` union, which `convertToModelMessages` validates on the
+        // very next hop. Restating that union here would be a second copy of a
+        // type the SDK owns and versions.
+        messages: decoded.success
+          .messages as unknown as ChatRequest["messages"],
+        sessionId: deps.sessionId,
+      }
+    );
+  }
+
+  if (pathname === "/api/chat/stop" && request.method === "POST") {
+    return json({ stopped: deps.runs.abort(deps.sessionId) });
+  }
+
+  if (pathname === "/api/chat/stream") {
+    const replay = deps.runs.get(deps.sessionId)?.replay() ?? null;
+    // 204 rather than an empty 200: `useChat({resume:true})` reads "nothing to
+    // resume" from the status, and an empty body would look like a stream that
+    // ended the instant it opened.
+    if (replay === null) {
+      return new Response(null, { status: 204 });
+    }
+    return new Response(replay.pipeThrough(new TextEncoderStream()), {
+      headers: { "content-type": "text/event-stream" },
+    });
+  }
+
+  if (pathname === "/api/receipts") {
+    return json({ receipts: deps.session.history });
+  }
+
+  if (pathname === "/api/wallet") {
+    return json(await deps.session.walletSummary());
+  }
+
+  return null;
+};
+
+export const handleRequest = async (
+  deps: RouterDeps,
+  request: Request
+): Promise<Response> => {
+  const { pathname } = new URL(request.url);
+
+  if (pathname === "/health") {
+    return json({
+      modes: deps.environment.modes,
+      runtime: "bun",
+      status: "ok",
+    });
+  }
+
+  if (pathname === ORACLE_PATH) {
+    return await handleOracleRequest(
+      {
+        gate: deps.services.oracle,
+        graph: deps.services.graph,
+        publicUrl: deps.oracleUrl,
+      },
+      request
+    );
+  }
+
+  const api = await handleApi(deps, request, pathname);
+  if (api !== null) {
+    return api;
+  }
+
+  return await serveStatic(deps.environment.staticDirectory, pathname);
+};

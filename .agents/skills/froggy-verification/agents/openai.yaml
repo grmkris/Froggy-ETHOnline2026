@@ -1,0 +1,3 @@
+name: froggy-verification
+description: Verify a change to this repository, from the local gate through the live checks that no stub can stand in for before submission.
+instructions: ../SKILL.md

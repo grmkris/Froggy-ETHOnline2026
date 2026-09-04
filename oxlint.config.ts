@@ -1,0 +1,130 @@
+import { defineConfig } from "oxlint";
+import antiSlop from "ultracite/oxlint/anti-slop";
+import core from "ultracite/oxlint/core";
+import react from "ultracite/oxlint/react";
+import tanstack from "ultracite/oxlint/tanstack";
+
+export default defineConfig({
+  extends: [core, react, tanstack, antiSlop],
+  ignorePatterns: [...core.ignorePatterns, "tools/spikes/**"],
+  // Package boundaries are declared once in tools/graph.ts. Running them as a
+  // lint rule puts them in the editor and in `check:fast`, not only in `check`.
+  jsPlugins: ["./tools/oxlint/boundaries.ts"],
+  rules: {
+    "boundaries/no-cross-boundary-import": "error",
+    "eslint/sort-keys": "off",
+    "eslint/default-case": "off",
+    // Effect Schema's contract idiom declares a value and its type under one
+    // name (`const X = Schema...; export type X = typeof X.Type`). That is a
+    // deliberate repository-wide pattern, not a local inconvenience, and `tsc`
+    // still reports a genuine value/value redeclaration as TS2451.
+    "eslint/no-redeclare": "off",
+    // With `Schema.TaggedError` and `Context.Service`, `class` is a declaration
+    // keyword rather than an OOP design choice, so a per-file limit of 1 is the
+    // wrong shape here. 3 keeps a real ceiling.
+    "eslint/max-classes-per-file": ["error", 3],
+    // False positive against Effect's tagged-error idiom: the rule reads
+    // `class E extends Schema.TaggedError<E>()(...)` as a bare `Error` call and
+    // demands `new`, where `new` would be a syntax error. It fires on every
+    // tagged error in the repository, so this is a systematic mismatch rather
+    // than a local exception.
+    "unicorn/throw-new-error": "off",
+  },
+  overrides: [
+    {
+      /**
+       * The Privy loader.
+       *
+       * Privy is imported dynamically so a build with no app id neither loads
+       * it nor fails on it, and the bridge component therefore calls hooks off
+       * a module object rather than off a static import. React Compiler cannot
+       * prove those are the same functions across renders — it is right that it
+       * cannot, and the guarantee comes from elsewhere: the module is loaded
+       * once, stored in state, and never replaced, so every render after the
+       * first sees the identical object.
+       *
+       * The alternative is a hard dependency on Privy in the bundle, which
+       * would make an unconfigured build a blank page instead of a signed-out
+       * one. This is one file and two rules.
+       */
+      files: ["apps/web/src/lib/privy.tsx"],
+      rules: {
+        "react/hooks": "off",
+        "react/todo": "off",
+        // A dynamically imported module has no static type. Asserting the three
+        // exports this file calls is the narrowing, and there is nothing more
+        // precise available to assert from.
+        "typescript/no-unsafe-type-assertion": "off",
+      },
+    },
+    {
+      /**
+       * Bridges to third-party SDK types.
+       *
+       * Both files hand a value to an SDK whose type is large, versioned by
+       * that SDK, and validated by it on the very next call — the AI SDK's
+       * `UIMessage` union in one, its Standard Schema interface in the other.
+       * Restating either as an Effect Schema would be a second copy of someone
+       * else's type, free to drift, and drifting silently: the SDK would keep
+       * accepting what it accepts while our copy said otherwise.
+       *
+       * The envelope around each is still decoded. What is asserted is only the
+       * part the SDK itself immediately checks.
+       */
+      files: ["apps/server/src/router.ts", "apps/server/src/std.ts"],
+      rules: {
+        "anti-slop/no-chained-type-assertions": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+      },
+    },
+    {
+      /**
+       * Test assertions.
+       *
+       * A spec narrows a response body precisely so the expectations below it
+       * can fail. Parsing it first would move the failure from the assertion —
+       * where it is readable — into a decoder, where it is not.
+       */
+      files: ["e2e/**/*.ts", "**/*.test.ts"],
+      rules: {
+        "typescript/no-unsafe-type-assertion": "off",
+      },
+    },
+    {
+      /**
+       * The Chrome DevTools Protocol boundary.
+       *
+       * The anti-slop rules ask for a parsed domain type at every I/O edge, and
+       * they are right almost everywhere — every other wire format in this
+       * repository is an Effect Schema. CDP is the exception: it is a foreign
+       * protocol with several hundred methods whose payloads are defined by
+       * Chrome's own JSON specification, and schematising the handful we use
+       * would create a second, partial definition that a Chrome update could
+       * silently invalidate. So this package narrows each payload at the call
+       * site that knows the command, against the protocol documentation, and
+       * `CdpPayload` names the boundary rather than pretending it is parsed.
+       *
+       * The scope is one directory and the rules are listed individually, so
+       * this is a stated exception rather than a hole.
+       */
+      files: ["packages/browser/src/**/*.ts", "packages/browser/types/*.d.ts"],
+      rules: {
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+      },
+    },
+    {
+      // Vendored shadcn CLI output. The generator owns this file's style and
+      // will reimpose it on the next `shadcn add`, so matching repository style
+      // here would be undone rather than preserved.
+      files: ["packages/ui/src/components/**/*.{ts,tsx}"],
+      rules: {
+        "eslint/func-style": "off",
+        "import/consistent-type-specifier-style": "off",
+        "react/function-component-definition": "off",
+      },
+    },
+  ],
+});

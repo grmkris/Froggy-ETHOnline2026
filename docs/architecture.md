@@ -12,7 +12,7 @@ The human sees a live screencast and can click into the same page (login, passke
 
 Telegram is how you **arrive** (bot deep link → magic link → the web app), not the app itself.
 
-This is Harness’s distinctive bet — *there is no agent browser and user browser, there is one `BrowserSession`* — applied to money.
+This is Harness’s distinctive bet — _there is no agent browser and user browser, there is one `BrowserSession`_ — applied to money.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -35,16 +35,16 @@ Shipped in 2026, all **signer + policy**, none of them a shared browser:
 - Coinbase Agentic Wallets, Privy agent wallets, MetaMask Agent Wallet
 - Cloudflare virtual wallets, Binance Agentic Wallet
 - SingIt (Telegram budget, no browser)
-- MoonPay PayBox (wallet *inside* Claude, no page you can grab)
+- MoonPay PayBox (wallet _inside_ Claude, no page you can grab)
 
 Playwright MCP / Browser-Use give an agent a browser, but it is **headless, not yours**, and it has no leash.
 
 We sit on the empty cell:
 
-| | No real browser | Real browser you can watch |
-|---|---|---|
-| No spend policy | ChatGPT with a plugin | Harness / Invok today |
-| Spend policy | every “agent wallet” | **this** |
+|                 | No real browser       | Real browser you can watch |
+| --------------- | --------------------- | -------------------------- |
+| No spend policy | ChatGPT with a plugin | Harness / Invok today      |
+| Spend policy    | every “agent wallet”  | **this**                   |
 
 The agent can use the **actual web**: x402 402s, WebMCP tools on a page, a checkout Claude Commerce would have handed off, a Uniswap UI, a Graph explorer. The wallet is what makes that safe.
 
@@ -120,7 +120,7 @@ Harness is archived. Invok is the maintained port. Code to copy **patterns from*
 `~/code/invok/apps/invok-api/src/browser/local/`
 
 | File | What it is |
-|---|---|
+| --- | --- |
 | `local-backend.ts` | `new Bun.WebView({ backend: { type: "chrome", argv }, dataStore })` |
 | `tabs.ts` | a tab IS a WebView; later tabs are `Target.createTarget` on the same Chrome |
 | `popups.ts` | site `window.open` adopted as a tab we own (Bun cannot attach to foreign targets) |
@@ -190,8 +190,8 @@ Model: one provider, env key. Not a multi-provider registry.
 
 WebMCP two directions (both cheap if the workspace exists):
 
-- **Producer:** our web app registers `document.modelContext` tools (`get_balance`, `set_policy`, `pay`) so Claude-in-Chrome can drive *us*. That was the original “WebMCP so Claude can drive the wallet” line.
-- **Consumer:** our agent, in *its* Chrome, discovers WebMCP tools on other sites instead of clicking. Stretch.
+- **Producer:** our web app registers `document.modelContext` tools (`get_balance`, `set_policy`, `pay`) so Claude-in-Chrome can drive _us_. That was the original “WebMCP so Claude can drive the wallet” line.
+- **Consumer:** our agent, in _its_ Chrome, discovers WebMCP tools on other sites instead of clicking. Stretch.
 
 Producer is the prize-shaped one (demo: Claude talks to our page). Consumer is the “we have a browser” payoff.
 
@@ -219,7 +219,7 @@ Hedera still requires **we host** the gated service, not only consume someone el
 New repo, not a fork of starters/harness/invok.
 
 | Piece | Choice | Why |
-|---|---|---|
+| --- | --- | --- |
 | Runtime | Bun | `Bun.WebView`, `Bun.serve`, matches Harness/Invok |
 | API | one Bun process, HTTP + two WS (app JSON, browser binary) | Harness split sockets for a reason |
 | UI | Vite + React 19 + Tailwind. Steal pane grammar, not 83MB embed | starters `packages/ui` or a fresh shadcn |
@@ -239,7 +239,7 @@ New repo, not a fork of starters/harness/invok.
 One person owns Chrome or this fails.
 
 | Day | Browser | Wallet / prizes |
-|---|---|---|
+| --- | --- | --- |
 | 0–1 | Bun process, Vite shell, `Bun.WebView` one tab, screencast to a canvas | Privy login, one address on screen |
 | 2 | snapshot + click/fill + arbitration (human can grab the page) | Telegram bot → magic link |
 | 3 | — | Host x402 service on Hedera testnet; pay it once from the host, not the page |

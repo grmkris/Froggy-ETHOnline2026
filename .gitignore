@@ -1,9 +1,24 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.vite/
+playwright-report/
+test-results/
+blob-report/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
-node_modules
-dist
+
+# Foundry
+packages/contracts/cache/
+packages/contracts/out/
+packages/contracts/broadcast/
+
+# Recorded realtime ledgers
+.ledger/
+
+# Local tools
 .DS_Store
 *.log
-.turbo
-.cache

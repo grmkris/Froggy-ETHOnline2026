@@ -1,0 +1,136 @@
+/**
+ * The CDP seam.
+ *
+ * Every other file in this package talks to a `CdpTab` and nothing else, so the
+ * decision to drive Chrome through `Bun.WebView` lives here alone. Swapping in
+ * a spawned Chrome with a raw DevTools WebSocket — which is what would be
+ * needed to run headless in a container — means writing one more implementation
+ * of this interface and changing nothing else.
+ *
+ * Two Bun-specific facts shape the whole file:
+ *
+ *   1. **One in-flight `cdp()` per view.** A second call while one is pending
+ *      throws `Invalid state: a cdp() is already pending`. So commands queue,
+ *      per view — the lock is per view, not per process, so a second tab still
+ *      answers while the first is busy.
+ *   2. **Bun consumes `Page.loadEventFired` and `Page.frameNavigated`** for its
+ *      own navigation tracking; they never reach a listener. What a tab can see
+ *      is `Page.domContentEventFired` and Bun's own navigation callback.
+ */
+
+import { bestEffort } from "./best-effort";
+import { CdpTimeoutError } from "./errors";
+
+const DEFAULT_SEND_TIMEOUT_MS = 30_000;
+
+const EMPTY_PAYLOAD: CdpPayload = {};
+
+/**
+ * A CDP payload, going out or coming in.
+ *
+ * Named rather than left as `unknown` because it is a real contract: the
+ * DevTools Protocol is JSON objects both ways, and every command in this
+ * package knows the shape it expects. It is not *parsed* here — a schema per
+ * CDP method would be a second protocol definition to keep in sync with
+ * Chrome's — so the narrowing happens at each call site, next to the command
+ * whose documentation says what comes back.
+ */
+export type CdpPayload = Readonly<Record<string, unknown>>;
+
+export interface CdpView extends EventTarget {
+  readonly cdp: <T = unknown>(
+    method: string,
+    params?: CdpPayload
+  ) => Promise<T>;
+}
+
+interface CdpSendOptions {
+  readonly timeoutMs?: number;
+}
+
+export interface CdpTab {
+  readonly on: (
+    method: string,
+    handler: (params: CdpPayload) => void
+  ) => () => void;
+  readonly send: <T = unknown>(
+    method: string,
+    params?: CdpPayload,
+    options?: CdpSendOptions
+  ) => Promise<T>;
+}
+
+/**
+ * Race a command against a deadline.
+ *
+ * Every command carries one. Without it a wedged renderer — a synchronous
+ * `alert()`, a page in a tight loop — stalls not just that call but every
+ * command queued behind it, and the pane goes quiet with no error to show.
+ */
+const withDeadline = async <T>(
+  method: string,
+  work: Promise<T>,
+  timeoutMs: number
+): Promise<T> => {
+  const expiry = Promise.withResolvers<never>();
+  const timer = setTimeout(() => {
+    expiry.reject(new CdpTimeoutError(method, timeoutMs));
+  }, timeoutMs);
+  try {
+    return await Promise.race([work, expiry.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+export const webViewCdp = (view: CdpView): CdpTab => {
+  // The serialisation point. Every command chains onto the previous one's
+  // settlement, so `Bun.WebView` never sees two at once.
+  let tail: Promise<unknown> = Promise.resolve();
+
+  const send = async <T>(
+    method: string,
+    params?: CdpPayload,
+    options: CdpSendOptions = {}
+  ): Promise<T> => {
+    const timeoutMs = options.timeoutMs ?? DEFAULT_SEND_TIMEOUT_MS;
+    const previous = tail;
+    const next = (async () => {
+      // A rejected predecessor must not poison the chain: every later command
+      // would inherit the rejection and the tab would look permanently dead
+      // after one bad call. So the wait for the previous command is
+      // best-effort, and only this command's own result is returned.
+      await bestEffort(previous);
+      return await withDeadline(method, view.cdp<T>(method, params), timeoutMs);
+    })();
+    tail = next;
+    return await next;
+  };
+
+  const on = (
+    method: string,
+    handler: (params: CdpPayload) => void
+  ): (() => void) => {
+    const listener = (event: Event): void => {
+      // Bun delivers CDP events as `MessageEvent`s. Anything else on this
+      // EventTarget is not a protocol event, so it becomes an empty payload
+      // rather than being forwarded as a lie about its shape.
+      // SAFETY: `MessageEvent.data` on a Bun WebView CDP event is the
+      // protocol's parameter object, typed `any` by the DOM lib. It is narrowed
+      // per-command at each call site rather than parsed here — see
+      // docs/decisions/0004.
+      const data: unknown =
+        event instanceof MessageEvent ? event.data : EMPTY_PAYLOAD;
+      // SAFETY: `MessageEvent.data` on a Bun WebView CDP event is the
+      // protocol's parameter object. It is narrowed per-command at each call
+      // site rather than parsed here — see docs/decisions/0004.
+      handler(data as CdpPayload);
+    };
+    view.addEventListener(method, listener);
+    return () => {
+      view.removeEventListener(method, listener);
+    };
+  };
+
+  return { on, send };
+};

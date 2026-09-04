@@ -1,7 +1,6 @@
 # Agentic wallet — ETHOnline 2026 brainstorm
 
-Status: **partially locked** (4 Sep, round 2). Research lives here; the product shape lives in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
-Clock: ETHOnline is **4–16 Sep 2026**. Submission **Sun 13 Sep 12:00 EDT**. Today is 4 Sep. About **nine days**.
+Status: **partially locked** (4 Sep, round 2). Research lives here; the product shape lives in [`ARCHITECTURE.md`](./ARCHITECTURE.md). Clock: ETHOnline is **4–16 Sep 2026**. Submission **Sun 13 Sep 12:00 EDT**. Today is 4 Sep. About **nine days**.
 
 ---
 
@@ -10,7 +9,7 @@ Clock: ETHOnline is **4–16 Sep 2026**. Submission **Sun 13 Sep 12:00 EDT**. To
 These override the original “Telegram Mini App is the product” line in `summary.md`.
 
 | Decision | Call |
-|---|---|
+| --- | --- |
 | Primary surface | **Web app** (Harness-shaped workspace: chat + live browser + wallet pane) |
 | Telegram | **Onboarding + later approvals**, not a Mini App as the product |
 | Agent computer | **Own Chrome**, spawned in-process with **Bun + `Bun.WebView`**, CDP, screencast, human/agent arbitration — same bet as Harness / Invok |
@@ -32,7 +31,7 @@ From `summary.md`, minus the Mini App assumption:
 - Funded via on-ramp; agent executes swaps / payments / bookings.
 - Ship **open source** with a **white-label** path later (Starbucks-style branded apps, yield on balances).
 - Cap at **three sponsors**: Privy, The Graph, Hedera.
-- Explore **WebMCP** so Claude can drive the wallet (now: our site *exposes* tools, and our agent *consumes* tools on other sites).
+- Explore **WebMCP** so Claude can drive the wallet (now: our site _exposes_ tools, and our agent _consumes_ tools on other sites).
 - **Session keys** / Privy policies for scoped spend.
 - **x402** native; inference funded from the wallet (minirouter.sh shape).
 - Graph **agentic query** (Jonas’s prior layer): ask questions, surface traders, one-click copy-trade.
@@ -55,7 +54,7 @@ Sources: [Rifat Ahmed, Jun 2026](https://x.com/Rifat_EE/status/20703787093041606
 The control set that keeps showing up, almost verbatim:
 
 | Control | Why it exists |
-|---|---|
+| --- | --- |
 | Per-tx cap | Stops one catastrophic send |
 | Session / daily rolling cap | Stops death-by-a-thousand micropayments |
 | Allowlisted tokens, chains, contracts, counterparties | Prompt injection invents addresses you have never seen |
@@ -122,7 +121,7 @@ MoonPay PayBox already puts a vault **inside Claude and ChatGPT** with passkey a
 Shipped in 2026, before this hackathon:
 
 | Product | What it is | Gap we can still own |
-|---|---|---|
+| --- | --- | --- |
 | [Coinbase Agentic Wallets](https://www.coinbase.com/en-ca/developer-platform/discover/launches/agentic-wallets) (11 Feb) | MPC, session caps, x402, gasless Base, `npx awal` | Infra, not a consumer app |
 | [Privy agent wallets](https://docs.privy.io/wallets/overview/solutions/agent-wallets) | Agent-owned **or** delegated signing + policies + x402/MPP + Agent CLI | Same — SDK |
 | [MetaMask Agent Wallet](https://metamask.io/en-GB/news/introducing-metamask-agent-wallet) (6 Aug) | Guard / Beast mode, simulation, MEV, spend limits | Extension users, not Telegram |
@@ -149,7 +148,7 @@ White space that is still real:
 Team cap is Privy + Graph + Hedera. That is correct. Arc mainnet is 16 Sep; submit is 13 Sep. Skip Arc as a primary.
 
 | Track | $ | Qual that actually bites | How this product hits it |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Hedera — AI & Agentic Payments** | $2k × up to 3 | **Host a live x402-gated service on Hedera** (Blocky402) **and** an agent that pays it end-to-end | Wallet hosts a paid data/inference/query service; the **user’s agent** is the consumer. Extra points: ERC-8004, HCS audit, streamed / scheduled txs |
 | **Graph — Best AI use case (from scratch)** | $2.5 / 1.5 / 1k | Graph is **load-bearing**, live provider (Studio / Market), reasoning not a raw dump. Starter kits OK; project-specific prior code is not | Agent asks in English → Subgraph MCP / Agent0 / Messari standardized schema → decision → spend. Copy-trade is the story; **one composed query** is the qual |
 | **Graph — composable / standardized** | $2.5 / 1.5 / 1k | Compose ≥2 Graph products **or** a standardized schema (Messari). Mocked data DQ | Same query across lending/DEX subgraphs, or Subgraph MCP + Agent0 ERC-8004 subgraphs |
@@ -200,7 +199,7 @@ Everything else is a **skill** behind that sentence.
 ### Cut list (for nine days)
 
 | Keep in the demo | Park (README / stretch) |
-|---|---|
+| --- | --- |
 | Privy embedded wallet + **policy** (per-tx, daily, allowlist) | White-label / Starbucks |
 | One on-ramp **or** a prefunded faucet for judges | Yield on balances |
 | x402 pay of a **service we host on Hedera** | Superfluid / Streamflow ads tab |
@@ -310,7 +309,7 @@ From [the anatomy post](https://claude.com/blog/the-anatomy-of-effective-commerc
 ## 8. What we can steal from this machine
 
 | Piece | Where | Use |
-|---|---|---|
+| --- | --- | --- |
 | Privy guest → smart wallet → batched `sendCalls` | `humanhook/apps/web/src/lib/keep.tsx` | User wallet, Base Sepolia lessons |
 | Server auth of Privy tokens, smart vs signer | `humanhook/.../dish-auth.ts` | API that the agent cannot spoof |
 | Telegram bot onboarding | `boter/` | Pairing `t.me/bot?start=`, **not** Mini Apps |
@@ -381,6 +380,7 @@ Surface, Telegram Mini App, and “does the agent get a browser?” are **closed
 ## 12. Sources
 
 ### Market / wallets
+
 - https://metamask.io/news/what-is-an-agentic-wallet
 - https://metamask.io/en-GB/news/introducing-metamask-agent-wallet
 - https://www.coinbase.com/en-ca/developer-platform/discover/launches/agentic-wallets
@@ -394,6 +394,7 @@ Surface, Telegram Mini App, and “does the agent get a browser?” are **closed
 - https://decrypt.co/374687/moonpays-paybox-crypto-wallet-claude-chatgpt
 
 ### X (demand)
+
 - https://x.com/0xblockboy/status/2020639766963016041 — authorize once, x402 many times
 - https://x.com/Rifat_EE/status/2070378709304160683 — one bad prompt empties the wallet
 - https://x.com/teneo_protocol/status/2032071142232461752 — session key, no pop-ups
@@ -403,6 +404,7 @@ Surface, Telegram Mini App, and “does the agent get a browser?” are **closed
 - https://x.com/2038277897Zheng/status/2095904282507874400 — x402 / ERC-8004 / why
 
 ### x402 / Hedera / Graph
+
 - https://docs.hedera.com/solutions/ai/x402
 - https://hedera.com/blog/hedera-and-the-x402-payment-standard/
 - https://hedera.com/blog/x402-bounty-on-hedera-winners-announced/
@@ -414,12 +416,14 @@ Surface, Telegram Mini App, and “does the agent get a browser?” are **closed
 - https://minirouter.sh/
 
 ### Claude commerce
+
 - https://claude.com/solutions/commerce
 - https://claude.com/blog/claude-for-commerce-agents
 - https://claude.com/blog/the-anatomy-of-effective-commerce-agents
 - https://github.com/anthropics/commerce-agents
 
 ### Local prior art
+
 - `ARCHITECTURE.md` (this repo) — web workspace + Bun.WebView browser
 - `summary.md`, `prizes.md` (this repo)
 - `~/code/humanhook` — Privy smart wallets

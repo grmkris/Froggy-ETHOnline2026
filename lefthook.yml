@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css,md,yml,yaml}"
+      run: bunx oxfmt --write {staged_files}
+      stage_fixed: true
+    lint:
+      run: bun run lint
+    graph:
+      run: bun run graph
+
+pre-push:
+  commands:
+    check:
+      run: bun run check

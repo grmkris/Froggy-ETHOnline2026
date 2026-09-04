@@ -1,0 +1,178 @@
+/**
+ * The policy engine. One function decides whether money may move.
+ *
+ * `authorize` is pure: mandate in, spend history in, decision out. No I/O, no
+ * clock of its own, no model. That is what makes the jailbreak demo honest —
+ * the refusal is a value computed from data, and there is no prompt anywhere in
+ * this file for an attacker to talk to.
+ *
+ * Order of evaluation is part of the contract, not an implementation detail.
+ * The kill switch is checked before anything else, provenance before caps, and
+ * the approval threshold last — so a spend that is over the human-approval line
+ * *and* outside the allowlist is refused outright rather than being offered to
+ * the human as a decision they might click through.
+ */
+
+import { isPayable, normalizePayeeId, formatUsd } from "@froggy/domain";
+import type {
+  DenialCode,
+  Mandate,
+  MandateRule,
+  PolicyDecision,
+  RuleId,
+  SpendIntent,
+} from "@froggy/domain";
+
+/** A spend that already happened, for the rolling-window arithmetic. */
+export interface LedgerEntry {
+  readonly at: number;
+  readonly usdMicros: number;
+}
+
+export interface AuthorizeInput {
+  readonly intent: SpendIntent;
+  readonly mandate: Mandate;
+  readonly now: number;
+  /** Reserved and settled spends. Refused ones must not count against the cap. */
+  readonly recent: readonly LedgerEntry[];
+}
+
+const deny = (
+  code: DenialCode,
+  message: string,
+  ruleId?: RuleId
+): PolicyDecision =>
+  ruleId === undefined
+    ? { _tag: "deny", code, message }
+    : { _tag: "deny", code, message, ruleId };
+
+const rulesOfKind = <K extends MandateRule["_tag"]>(
+  mandate: Mandate,
+  kind: K
+): Extract<MandateRule, { _tag: K }>[] =>
+  mandate.rules.filter(
+    (rule): rule is Extract<MandateRule, { _tag: K }> => rule._tag === kind
+  );
+
+/**
+ * Host matching is exact or a single-label suffix, never a substring.
+ *
+ * A substring check would let `evil-oracle.example.com.attacker.test` satisfy an
+ * allowlist entry of `oracle.example.com`, which is a classic and completely
+ * silent bypass.
+ */
+const hostAllowed = (host: string, allowed: readonly string[]): boolean => {
+  const candidate = host.toLowerCase();
+  return allowed.some((entry) => {
+    const target = entry.toLowerCase();
+    return candidate === target || candidate.endsWith(`.${target}`);
+  });
+};
+
+export const authorize = (input: AuthorizeInput): PolicyDecision => {
+  const { intent, mandate, now, recent } = input;
+  const satisfied: RuleId[] = [];
+
+  // 1. The kill switch. Before everything, and not rule-shaped: freezing is a
+  //    property of the mandate itself, so there is no rule to delete to undo it.
+  if (mandate.frozen) {
+    return deny(
+      "frozen",
+      "The wallet is frozen. Unfreeze it in the wallet pane to allow spending again."
+    );
+  }
+
+  // 2. Where the payee came from. A well-formed address is not a trusted one:
+  //    this is the check that stops an address a page suggested from being paid.
+  if (!isPayable(intent.payee.provenance)) {
+    return deny(
+      "untrusted_provenance",
+      `Refusing to pay ${intent.payee.id}: it came from ${intent.payee.provenance === "page" ? "page content" : "the model"}, not from your allowlist or this server. Add it to the mandate if you meant it.`
+    );
+  }
+
+  for (const rule of rulesOfKind(mandate, "expiry")) {
+    if (now > rule.notAfter) {
+      return deny("expired", "This mandate has expired.", rule.id);
+    }
+    satisfied.push(rule.id);
+  }
+
+  for (const rule of rulesOfKind(mandate, "network_allowlist")) {
+    if (!rule.networks.includes(intent.amount.asset.network)) {
+      return deny(
+        "network_not_allowed",
+        `${intent.amount.asset.network} is not in this mandate's network allowlist.`,
+        rule.id
+      );
+    }
+    satisfied.push(rule.id);
+  }
+
+  for (const rule of rulesOfKind(mandate, "payee_allowlist")) {
+    const allowed = rule.payeeIds.map(normalizePayeeId);
+    if (!allowed.includes(normalizePayeeId(intent.payee.id))) {
+      return deny(
+        "payee_not_allowed",
+        `${intent.payee.id} is not on the payee allowlist.`,
+        rule.id
+      );
+    }
+    satisfied.push(rule.id);
+  }
+
+  if (intent.host !== undefined) {
+    for (const rule of rulesOfKind(mandate, "host_allowlist")) {
+      if (!hostAllowed(intent.host, rule.hosts)) {
+        return deny(
+          "host_not_allowed",
+          `${intent.host} is not on the paid-host allowlist.`,
+          rule.id
+        );
+      }
+      satisfied.push(rule.id);
+    }
+  }
+
+  for (const rule of rulesOfKind(mandate, "per_tx_cap")) {
+    if (intent.usdMicros > rule.maxUsdMicros) {
+      return deny(
+        "per_tx_cap_exceeded",
+        `${formatUsd(intent.usdMicros)} is over the ${formatUsd(rule.maxUsdMicros)} per-transaction cap.`,
+        rule.id
+      );
+    }
+    satisfied.push(rule.id);
+  }
+
+  for (const rule of rulesOfKind(mandate, "window_cap")) {
+    const since = now - rule.windowMs;
+    const spent = recent
+      .filter((entry) => entry.at >= since)
+      .reduce((total, entry) => total + entry.usdMicros, 0);
+    if (spent + intent.usdMicros > rule.maxUsdMicros) {
+      return deny(
+        "window_cap_exceeded",
+        `${formatUsd(intent.usdMicros)} would exceed the ${formatUsd(rule.maxUsdMicros)} rolling cap — ${formatUsd(spent)} already spent in the window.`,
+        rule.id
+      );
+    }
+    satisfied.push(rule.id);
+  }
+
+  // 3. Last: within every limit, but is it big enough to want a human?
+  //    Deliberately after the caps, so "ask" is only ever offered for a spend
+  //    that would otherwise have been allowed.
+  for (const rule of rulesOfKind(mandate, "approval_threshold")) {
+    if (intent.usdMicros > rule.overUsdMicros) {
+      return {
+        _tag: "ask",
+        question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
+        ruleId: rule.id,
+      };
+    }
+    satisfied.push(rule.id);
+  }
+
+  return { _tag: "allow", satisfied };
+};

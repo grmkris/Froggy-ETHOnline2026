@@ -1,0 +1,3 @@
+name: froggy-browser
+description: Work on the shared Chrome, the screencast, arbitration, page input, or snapshots without breaking human handoff or leaking page content into decisions.
+instructions: ../SKILL.md

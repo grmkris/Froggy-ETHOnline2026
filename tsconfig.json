@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./apps/web" },
+    { "path": "./apps/server" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/domain" },
+    { "path": "./packages/protocol" },
+    { "path": "./packages/browser" },
+    { "path": "./packages/wallet" },
+    { "path": "./packages/payments" },
+    { "path": "./packages/graph" },
+    { "path": "./packages/database" },
+    { "path": "./tools" },
+    { "path": "./e2e" }
+  ],
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}

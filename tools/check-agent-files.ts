@@ -1,0 +1,53 @@
+const skillRoot = ".agents/skills";
+const skillDirectoryGlob = new Bun.Glob("*/SKILL.md");
+const names = new Set<string>();
+const errors: string[] = [];
+let count = 0;
+
+for await (const relativePath of skillDirectoryGlob.scan({
+  cwd: skillRoot,
+  onlyFiles: true,
+})) {
+  count += 1;
+  const path = `${skillRoot}/${relativePath}`;
+  const source = await Bun.file(path).text();
+  const [folder] = relativePath.split("/");
+  const nameMatch = /^name:\s*(?<name>[^\n]+)$/mu.exec(source);
+  const descriptionMatch = /^description:\s*(?<description>.+)$/mu.exec(source);
+  const name = nameMatch?.groups?.["name"]?.trim();
+  const description = descriptionMatch?.groups?.["description"]?.trim();
+
+  if (folder === undefined) {
+    errors.push(`${path}: missing skill folder`);
+  } else if (name === undefined || name !== folder) {
+    errors.push(`${path}: frontmatter name must match '${folder}'`);
+  } else if (names.has(name)) {
+    errors.push(`${path}: duplicate skill name '${name}'`);
+  } else {
+    names.add(name);
+  }
+
+  if (
+    description === undefined ||
+    description.length < 20 ||
+    description.length > 220
+  ) {
+    errors.push(`${path}: description must be 20-220 characters`);
+  }
+  if (source.includes("TODO")) {
+    errors.push(`${path}: unfinished TODO placeholder`);
+  }
+}
+
+if (count === 0) {
+  errors.push(`${skillRoot}: no repository skills found`);
+}
+
+if (errors.length > 0) {
+  for (const error of errors) {
+    console.error(error);
+  }
+  process.exitCode = 1;
+} else {
+  console.info(`Agent file check passed (${count} skills)`);
+}
