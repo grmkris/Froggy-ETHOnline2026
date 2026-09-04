@@ -75,12 +75,16 @@ ENV FROGGY_CHROME=/usr/bin/chromium
 # is copied so `workspace:*` resolution through the root symlinks keeps working.
 COPY --from=builder /app /app
 
-# The agent's Chrome profile. Mounted as a volume in production so a redeploy
-# does not sign the agent out of everything — which is the product, and also the
-# part of it worth thinking hard about.
+# The agent's Chrome profile, under a path a volume gets mounted at, so a
+# redeploy does not sign the agent out of everything — which is the product, and
+# also the part of it worth thinking hard about.
+#
+# Deliberately no `VOLUME` instruction: Railway rejects one outright ("docker
+# VOLUME is not supported, use Railway Volumes"), because it owns the mount. The
+# volume is declared in .railway/railway.ts instead, and without it this path is
+# simply container-local and the profile does not survive a restart.
 ENV CHROME_PROFILE_DIR=/data/chrome-profile
 ENV STATIC_DIR=/app/apps/web/dist
-VOLUME /data
 
 EXPOSE 3001
 
