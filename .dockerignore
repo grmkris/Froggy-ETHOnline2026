@@ -1,0 +1,24 @@
+# The repo root is the build context, because `workspace:*` resolution needs the
+# whole workspace. Only sources and manifests belong in it.
+#
+# Note: this file is not in the Railway service's `watchPatterns`, so a change
+# here needs a touch of a watched path to reach a deploy.
+.git
+.github
+.agents
+.claude
+.vscode
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+.froggy
+docs
+e2e
+test-results
+playwright-report
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example

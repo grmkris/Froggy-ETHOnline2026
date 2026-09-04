@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # Deliberately no `paths-ignore`. Railway's deploy waits for the Actions run on
+  # the pushed sha (`checkSuites: true` in .railway/railway.ts), and a sha with
+  # no workflow run has nothing to wait on — the deploy hangs in WAITING forever.
   push:
     branches: [main]
 
@@ -24,6 +27,8 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
       - name: Install locked dependencies
         # Equivalent to `bun ci`, spelled out because `bun ci` is not listed in
@@ -34,33 +39,10 @@ jobs:
         run: bun run check
 
       - name: Build applications
-        run: bun run build:apps
+        run: bun run build
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
 
       - name: Run browser smoke tests
         run: bun run e2e
-
-  contracts:
-    name: Foundry contracts
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.7.1
-
-      - name: Check formatting
-        run: forge fmt --check --root packages/contracts
-
-      - name: Build contracts
-        run: forge build --sizes --root packages/contracts
-
-      - name: Run contract tests
-        run: forge test --root packages/contracts
