@@ -47,6 +47,36 @@ const modeOf = (
     ? "live"
     : "stub";
 
+/**
+ * Origins the WebSocket upgrade will accept.
+ *
+ * A WebSocket upgrade bypasses CORS entirely, and the browser socket types into
+ * a Chrome logged into the user's sites — so this list is the only thing
+ * standing between a hostile page and a remote-control handle on that browser.
+ * It is built from configuration rather than hardcoded, because a hardcoded
+ * port is how a preview deployment silently loses both sockets.
+ *
+ * The loopback pair is included so a local dev server on the same origin works
+ * without configuration, whichever host name the developer typed.
+ */
+const allowedOrigins = (
+  appOrigin: string,
+  extra: string
+): readonly string[] => {
+  const listed = extra
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== "");
+  return [
+    ...new Set([
+      appOrigin,
+      appOrigin.replace("localhost", "127.0.0.1"),
+      appOrigin.replace("127.0.0.1", "localhost"),
+      ...listed,
+    ]),
+  ];
+};
+
 const secret = (name: string, fallback: string) =>
   Config.redacted(name).pipe(Config.withDefault(Redacted.make(fallback)));
 
@@ -80,6 +110,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
     const appOrigin = yield* Config.string("APP_ORIGIN").pipe(
       Config.withDefault("http://localhost:3000")
+    );
+    // Extra origins the sockets will accept, comma-separated. Needed whenever
+    // the page is served from somewhere other than `APP_ORIGIN` — a second dev
+    // port, a preview deployment, a phone on the same network.
+    const extraOrigins = yield* Config.string("EXTRA_ORIGINS").pipe(
+      Config.withDefault("")
     );
     const staticDirectory = yield* Config.string("STATIC_DIR").pipe(
       Config.withDefault("")
@@ -160,11 +196,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     };
 
     return {
-      allowedOrigins: [
-        appOrigin,
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-      ],
+      allowedOrigins: allowedOrigins(appOrigin, extraOrigins),
       anthropicApiKey: anthropicKey,
       appOrigin,
       chromeProfileDirectory,

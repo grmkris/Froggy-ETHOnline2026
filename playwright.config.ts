@@ -22,7 +22,11 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "PORT=3101 bun run --cwd apps/server start",
+      // `APP_ORIGIN` is what the sockets trust, and the page is served from
+      // 3100 — a mismatch here costs both sockets and nothing else, which is a
+      // quiet enough failure to be worth pinning in the test setup.
+      command:
+        "PORT=3101 APP_ORIGIN=http://127.0.0.1:3100 bun run --cwd apps/server start",
       port: 3101,
       reuseExistingServer: process.env["CI"] === undefined,
       timeout: 30_000,

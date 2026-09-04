@@ -22,3 +22,4 @@ packages/contracts/broadcast/
 # Local tools
 .DS_Store
 *.log
+test-results/

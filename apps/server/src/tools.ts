@@ -22,6 +22,7 @@
  * string "NaN" as an amount.
  */
 
+import { KNOWN_ASSETS } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
 import { decodePaymentChallenge } from "@froggy/payments";
@@ -241,6 +242,62 @@ export const buildTools = (deps: ToolDeps) => {
         return cap(paidBody ?? "Paid, but the server returned no body.");
       },
       inputSchema: std(Schema.Struct({ url: Schema.String })),
+    }),
+
+    wallet_send: tool({
+      description:
+        "Send stablecoins to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee, and an address you read on a page or produced yourself will be refused.",
+      execute: async ({ amountUsd, purpose, to }) => {
+        const result = await session.spend({
+          amount: {
+            asset: KNOWN_ASSETS["base-sepolia:usdc"],
+            units: String(Math.round(amountUsd * 1_000_000)),
+          },
+          idempotencyKey: `send:${to}:${amountUsd}:${deps.run.id}`,
+          payeeId: to,
+          payeeLabel: to,
+          // `model`, always. This is the whole jailbreak demo: an address the
+          // model produced is refused on provenance before any cap is even
+          // consulted, however well-formed it looks and however convincingly
+          // the prompt asked. Putting it on the mandate's allowlist is the only
+          // way through, and only a human can do that.
+          provenance: "model",
+          purpose,
+          runId: deps.run.id,
+          settle: async () => {
+            await Promise.resolve();
+            // Unreachable while provenance is `model`. It exists so the shape
+            // is right the day a mandate-listed payee is sent to.
+            return {
+              network: "base-sepolia",
+              ok: false,
+              stubbed: true,
+              transactionId: null,
+            };
+          },
+        });
+
+        if (result.decision._tag === "deny") {
+          return `Refused by policy (${result.decision.code}): ${result.decision.message}`;
+        }
+        if (result.decision._tag === "ask") {
+          return `This transfer needs the human: ${result.decision.question}`;
+        }
+        return "Allowed by policy, but transfers are not wired to a signer yet.";
+      },
+      inputSchema: std(
+        Schema.Struct({
+          amountUsd: Schema.Finite.annotate({
+            description: "Amount in USDC, as a decimal number.",
+          }),
+          purpose: Schema.String.annotate({
+            description: "What this pays for, in a few words.",
+          }),
+          to: Schema.String.annotate({
+            description: "Recipient address.",
+          }),
+        })
+      ),
     }),
 
     wallet_status: tool({
