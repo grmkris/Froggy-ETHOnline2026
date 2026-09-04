@@ -12,5 +12,7 @@ export { inputCommand } from "./input";
 export type { FrameSubscriber } from "./screencast";
 export { BrowserSession } from "./session";
 export type { BrowserSessionOptions } from "./session";
+export { clearStaleProfileLock } from "./profile";
+export type { StaleLockResult } from "./profile";
 export { PAGE_CONTENT_FENCE } from "./snapshot";
 export type { Snapshot } from "./snapshot";

@@ -20,6 +20,7 @@ import { chromeArgv, detectChrome } from "./chrome-detect";
 import { BrowserStartError, looksLikeCrash } from "./errors";
 import { dispatchInput } from "./input";
 import { watchPopupTargets } from "./popups";
+import { clearStaleProfileLock } from "./profile";
 import { Screencast } from "./screencast";
 import type { FrameSubscriber } from "./screencast";
 import { SnapshotCapture } from "./snapshot";
@@ -388,6 +389,19 @@ export class BrowserSession {
       throw new BrowserStartError(this.error);
     }
     this.chromePath = found?.path ?? "";
+
+    // A lock left by a killed Chrome makes every subsequent start die with
+    // "closed the pipe". The profile is on a persistent volume so that logins
+    // survive a redeploy, which means a killed container hands its lock to the
+    // next one — without this the browser works exactly once per volume.
+    const lock = clearStaleProfileLock(this.options.profileDirectory);
+    if (lock.heldBy !== null) {
+      this.status = "crashed";
+      this.error = `Another Chrome is using this profile (${lock.heldBy}).`;
+      this.options.onStateChange?.(this.state());
+      throw new BrowserStartError(this.error);
+    }
+
     try {
       const tab = await this.tabs.openTab(url);
       this.detachPopupWatchers.push(
