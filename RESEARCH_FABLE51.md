@@ -4,13 +4,9 @@ Companion to `docs/PLAN.md` and `docs/architecture.md`. Those files are the team
 
 How it was produced: nine research dimensions ran in parallel (demand, competition, segments, build-in-public, feasibility, prizes, retention, safety, hackathon meta). Every high-impact claim was then attacked by two independent verifiers (one fetched the cited sources, one hunted for counter-evidence). A critic listed contradictions and gaps, and six gap studies settled them, including live Docker runs of `Bun.WebView`, live HTTP probes of Blocky402 and The Graph's x402 gateways, and unpacking the `@x402/hedera` and Privy npm packages. Full digests with every URL live in `research_FABLE51/`. Facts below are VERIFIED unless marked INFERRED.
 
-Sibling files: `PRODUCT_FABLE51.md` (the refined product), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
+Sibling files: `PRODUCT_FABLE51.md` (the refined product), `PIVOT_ASSESSMENT_FABLE51.md` (the KIMI ideas validated against the same evidence), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
 
 ---
-
-## 0. The code that landed while this was written
-
-Late on 4 Sep, eight commits turned the planning repo into Froggy: a Bun monorepo (`apps/server`, `apps/web`, `packages/browser|wallet|payments|graph|domain|protocol|ui|database`), deployed at https://app-production-58dd.up.railway.app with every external service stubbed and each stub marked on the wallet pane and on every receipt. `docs/handover.md` is the authoritative description of what works. The research below was done against the plan, and most of it lands on the code unchanged; where a handover claim conflicts with a verified fact, `PRODUCT_FABLE51.md` carries the code-level audit and the corrected item list. The two that matter most: the handover's "Privy-signed Hedera payment, one leash across two chains" cannot be policy-gated (section 4.2), and the Graph client's single subgraph id does not qualify for the composable track (section 4.4).
 
 ## 1. Ten things that change the plan
 
