@@ -151,9 +151,16 @@ export const createSocketHandlers = (deps: SocketDeps) => {
         }
         try {
           await deps.services.browser.handleClientMessage(message);
-        } catch {
-          // A browser command that fails has already updated the session's own
-          // status; the socket has nothing useful to add and must not close.
+        } catch (error) {
+          // The session has already recorded a start failure in its own status,
+          // which is what the pane renders. But a command that fails for any
+          // other reason used to vanish here with nothing anywhere — and a
+          // browser that silently does nothing is the hardest thing in this
+          // system to debug from the outside.
+          console.warn(
+            `browser ${message.type} failed:`,
+            error instanceof Error ? error.message : error
+          );
         }
         return;
       }

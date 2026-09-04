@@ -232,6 +232,10 @@ export const BrowserPane = ({
   const mode = state?.interaction ?? "idle";
   const status = state?.status ?? "idle";
 
+  const handleStart = (): void => {
+    onSend({ type: "browser.start", v: 1 });
+  };
+
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -286,9 +290,8 @@ export const BrowserPane = ({
             <div className="max-w-md space-y-3">
               <p>{overlayMessage(status, state?.error ?? null, connected)}</p>
               <Button
-                onClick={() => {
-                  onSend({ type: "browser.start", v: 1 });
-                }}
+                disabled={status === "starting"}
+                onClick={handleStart}
                 size="sm"
               >
                 {status === "unavailable" ? "Check again" : "Start the browser"}

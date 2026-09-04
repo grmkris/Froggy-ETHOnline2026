@@ -34,6 +34,52 @@ bun run e2e:install        # one-time local Chromium
 bun run e2e
 ```
 
+## How it hangs together
+
+```mermaid
+flowchart TB
+  human([human])
+  model([model])
+
+  subgraph browser["packages/browser — the shared Chrome"]
+    chrome[Chromium via Bun.WebView]
+    arb{{"arbitration<br/>agent · human · idle"}}
+  end
+
+  subgraph server["apps/server — the only place these meet"]
+    loop[agent loop]
+    session[session]
+  end
+
+  subgraph leash["packages/wallet — the leash"]
+    policy[["authorize()<br/>pure, no model"]]
+    ledger[(spend ledger)]
+  end
+
+  graph[["packages/graph<br/>why it spent"]]
+  pay[["packages/payments<br/>how it paid"]]
+  oracle[/"GET /oracle/snapshot<br/>402, Hedera x402"/]
+
+  human -->|clicks, types, freezes| arb
+  human -->|asks| loop
+  arb --> chrome
+  loop -->|browser tools| arb
+  loop -->|graph_query| graph
+  loop -->|"x402_fetch · wallet_send"| session
+  session --> policy
+  policy -->|allow| pay
+  policy -.->|"deny · ask"| human
+  session --> ledger
+  graph -.->|evidence| session
+  pay --> oracle
+  oracle --> graph
+  model --- loop
+
+  chrome x--x policy
+```
+
+The dashed cross is the point: `packages/browser` cannot import `packages/wallet` and the reverse is forbidden too. The browser is where hostile content lives; the wallet is where signing happens. `tools/graph.ts` enforces it.
+
 ## What is where
 
 |  |  |
