@@ -68,11 +68,23 @@ export class Screencast {
     this.deps = deps;
   }
 
+  /**
+   * Chrome only casts while somebody is subscribed.
+   *
+   * Encoding thirty JPEGs a second for nobody is the single largest idle cost
+   * a running browser has, and with one Chrome per user that cost is paid per
+   * user. The first subscriber starts the cast; the last one leaving stops it.
+   */
   subscribe(subscriber: FrameSubscriber): () => void {
     this.subscribers.add(subscriber);
     this.resendLatest(subscriber);
+    if (this.subscribers.size === 1) {
+      void this.sync();
+    }
     return () => {
-      this.subscribers.delete(subscriber);
+      if (this.subscribers.delete(subscriber) && this.subscribers.size === 0) {
+        void this.sync();
+      }
     };
   }
 
@@ -120,7 +132,7 @@ export class Screencast {
   }
 
   private async reconcile(): Promise<void> {
-    const target = this.deps.activeTab();
+    const target = this.subscribers.size > 0 ? this.deps.activeTab() : null;
     if (target === this.castTab) {
       return;
     }

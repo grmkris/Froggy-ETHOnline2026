@@ -8,10 +8,19 @@ export {
   CdpTimeoutError,
   looksLikeCrash,
 } from "./errors";
+export { BrowserFrozenError } from "./frozen";
+export type { BrowserHandle } from "./handle";
 export { inputCommand } from "./input";
 export type { FrameSubscriber } from "./screencast";
+export { PRIVATE_URL_PATTERNS } from "./private-network";
+export { RemoteBrowser } from "./remote";
+export type { RemoteBrowserOptions } from "./remote";
 export { BrowserSession } from "./session";
-export type { BrowserSessionOptions } from "./session";
+export type { BrowserSessionOptions, Viewport } from "./session";
+export { spawnBrowserWorker } from "./worker-host";
+export type { WorkerExit, WorkerLink } from "./worker-host";
+export { serveWorker } from "./worker-serve";
+export type { WorkerTransport } from "./worker-serve";
 export { clearStaleProfileLock } from "./profile";
 export type { StaleLockResult } from "./profile";
 export { PAGE_CONTENT_FENCE } from "./snapshot";

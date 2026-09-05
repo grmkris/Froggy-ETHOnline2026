@@ -139,6 +139,11 @@ export const BrowserState = Schema.Struct({
   activeTabId: Schema.NullOr(TabId),
   /** Populated when `status` is `crashed` or `unavailable`; the pane shows it verbatim. */
   error: Schema.NullOr(Schema.String),
+  /**
+   * The wallet's kill switch has reached the browser: the agent's commands are
+   * refused and the page stops loading. The human can still drive it.
+   */
+  frozen: Schema.Boolean,
   interaction: InteractionMode,
   status: BrowserStatus,
   tabs: Schema.Array(TabSummary),

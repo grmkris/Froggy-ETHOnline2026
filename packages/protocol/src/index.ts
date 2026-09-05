@@ -27,6 +27,14 @@ export {
   TabSummary,
 } from "./browser";
 export {
+  decodeWorkerCommand,
+  decodeWorkerEvent,
+  WaitReason,
+  WorkerCommand,
+  WorkerEvent,
+  WorkerReply,
+} from "./worker";
+export {
   tokenFromProtocolHeader,
   WS_PROTOCOL,
   WS_TOKEN_PREFIX,

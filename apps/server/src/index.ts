@@ -67,6 +67,7 @@ class FroggyServer extends Context.Service<
       const quotes = createQuotes(services.rates);
 
       const workspaces = new Workspaces({
+        blockPrivateNetwork: environment.blockPrivateNetwork,
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
         modes: environment.modes,
@@ -175,7 +176,7 @@ class FroggyServer extends Context.Service<
         (running) =>
           Effect.promise(async () => {
             await running.stop(true);
-            workspaces.closeAll();
+            await workspaces.closeAll();
             await services.shutdown();
           })
       );

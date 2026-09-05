@@ -10,3 +10,10 @@ docs/research/
 docs/plan/IDEAS.md
 docs/plan/IDEAS_KIMI.md
 docs/plan/IDEAS_V3_KIMI.md
+
+# Skill mirrors that a workspace tool drops into every repository it opens.
+# Not part of this build and not tracked; kept out of the formatter so the gate
+# does not depend on files nobody here wrote.
+.claude/
+.codex/
+.grok/

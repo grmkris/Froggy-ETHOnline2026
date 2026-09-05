@@ -14,6 +14,7 @@ import type { TabSummary } from "@froggy/protocol";
 import { bestEffort } from "./best-effort";
 import { webViewCdp } from "./cdp";
 import type { CdpPayload, CdpTab } from "./cdp";
+import { PRIVATE_URL_PATTERNS } from "./private-network";
 
 export interface TabView extends EventTarget {
   readonly cdp: <T = unknown>(
@@ -37,6 +38,11 @@ export interface Tab {
 }
 
 export interface TabRegistryDeps {
+  /**
+   * Have Chrome refuse requests into the private network from every tab.
+   * Off only for local development, where the app itself is on `localhost`.
+   */
+  readonly blockPrivateNetwork: boolean;
   readonly createView: () => TabView;
   readonly onStateChange: () => void;
 }
@@ -103,6 +109,14 @@ export class TabRegistry {
     const tab: Tab = { cdp, id, loading: true, title: "", url, view };
     this.tabs.set(id, tab);
     await bestEffort(cdp.send("Page.enable"));
+    if (this.deps.blockPrivateNetwork) {
+      // Enforced by Chrome for every request the tab makes, so a redirect or a
+      // subresource cannot reach what a check on the typed URL never saw.
+      await bestEffort(cdp.send("Network.enable"));
+      await bestEffort(
+        cdp.send("Network.setBlockedURLs", { urls: PRIVATE_URL_PATTERNS })
+      );
+    }
     cdp.on("Page.domContentEventFired", () => {
       this.scheduleRefresh(tab);
     });

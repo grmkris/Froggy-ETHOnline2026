@@ -83,6 +83,20 @@ const allowedOrigins = (
   ];
 };
 
+const isLoopback = (origin: string): boolean => {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]" ||
+      hostname.endsWith(".localhost")
+    );
+  } catch {
+    return false;
+  }
+};
+
 const secret = (name: string, fallback: string) =>
   Config.redacted(name).pipe(Config.withDefault(Redacted.make(fallback)));
 
@@ -124,6 +138,13 @@ export interface Environment {
   /** Trusted browser origins for WebSocket upgrades. See `ws-router.ts`. */
   readonly allowedOrigins: readonly string[];
   readonly appOrigin: string;
+  /**
+   * Whether the agent's Chrome refuses the private network. On everywhere the
+   * app is not itself on a loopback address — which is to say, everywhere but
+   * a developer's laptop, where the oracle page the agent must reach is on
+   * `localhost`.
+   */
+  readonly blockPrivateNetwork: boolean;
   readonly chromeProfileDirectory: string;
   readonly databaseUrl: string;
   readonly graphApiKey: string;
@@ -274,6 +295,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       allowedOrigins: allowedOrigins(appOrigin, extraOrigins),
       anthropicApiKey: anthropicKey,
       appOrigin,
+      blockPrivateNetwork: !isLoopback(appOrigin),
       chromeProfileDirectory,
       databaseUrl: Redacted.value(databaseUrl),
       graphApiKey: Redacted.value(graphApiKey),

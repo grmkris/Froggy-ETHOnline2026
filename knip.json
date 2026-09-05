@@ -1,5 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": ["tools/spikes/**", ".railway/railway.ts"],
-  "ignoreDependencies": ["railway"]
+  "ignoreDependencies": ["railway"],
+  "workspaces": {
+    "packages/browser": {
+      "entry": ["src/index.ts", "src/worker.ts"]
+    }
+  }
 }

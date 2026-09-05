@@ -18,6 +18,8 @@ import type { WaitReason } from "./arbitration";
 import { bestEffort } from "./best-effort";
 import { chromeArgv, detectChrome } from "./chrome-detect";
 import { BrowserStartError, looksLikeCrash } from "./errors";
+import { BrowserFrozenError } from "./frozen";
+import type { BrowserHandle } from "./handle";
 import { dispatchInput } from "./input";
 import { watchPopupTargets } from "./popups";
 import { clearStaleProfileLock } from "./profile";
@@ -37,6 +39,11 @@ export interface Viewport {
 const DEFAULT_VIEWPORT: Viewport = { height: 800, width: 1280 };
 
 export interface BrowserSessionOptions {
+  /**
+   * Have Chrome refuse the private network from every tab. Defaults to on;
+   * local development turns it off because the app itself is on `localhost`.
+   */
+  readonly blockPrivateNetwork?: boolean;
   /** Chrome profile directory. Persistent, so the agent shops as *you*. */
   readonly profileDirectory: string;
   /** Injected in tests so the whole session can run against a fake view. */
@@ -67,7 +74,7 @@ const spawnWebView = (options: {
     width: options.viewport.width,
   });
 
-export class BrowserSession {
+export class BrowserSession implements BrowserHandle {
   readonly viewport: Viewport;
 
   private readonly options: BrowserSessionOptions;
@@ -79,6 +86,8 @@ export class BrowserSession {
   private readonly detachPopupWatchers: (() => void)[] = [];
   private status: BrowserState["status"] = "idle";
   private error: string | null = null;
+  /** The kill switch, as the browser sees it. Set from outside, never by a tool. */
+  private frozenReason: string | null = null;
   private chromePath: string | null = null;
   /** De-dupes concurrent `start()`: the second caller awaits the first. */
   private starting: Promise<void> | null = null;
@@ -91,6 +100,7 @@ export class BrowserSession {
     };
     this.arbiter = new Arbitrator({ onStateChange: publish });
     this.tabs = new TabRegistry({
+      blockPrivateNetwork: options.blockPrivateNetwork ?? true,
       createView: () => this.createView(),
       onStateChange: () => {
         publish();
@@ -107,6 +117,7 @@ export class BrowserSession {
     return {
       activeTabId: this.tabs.activeTabId,
       error: this.error,
+      frozen: this.frozenReason !== null,
       interaction: this.arbiter.interaction.mode,
       status: this.status,
       tabs: this.tabs.list(),
@@ -137,6 +148,43 @@ export class BrowserSession {
       }
     })();
     await this.starting;
+  }
+
+  /**
+   * Close Chrome so its profile survives.
+   *
+   * `Bun.WebView` ends Chrome with a kill on process exit, and a killed Chrome
+   * does not flush cookies or local storage — the next start finds the user
+   * signed out of everything. `Browser.close` first is what makes a
+   * persistent profile actually persist; `close()` then tears down the
+   * in-process state.
+   */
+  async shutdown(): Promise<void> {
+    const tab = this.tabs.activeTab;
+    if (tab !== null && this.status === "running") {
+      await bestEffort(tab.cdp.send("Browser.close", {}, { timeoutMs: 3000 }));
+    }
+    this.close();
+  }
+
+  /**
+   * Freeze: the agent may no longer drive this browser.
+   *
+   * The page stops loading so a navigation in flight does not complete under
+   * a wallet that has just been frozen, and every later agent command is
+   * refused. Human input is untouched. Like `takePage`, callers abort the run
+   * first — the gate here catches whatever was already queued.
+   */
+  async freeze(reason: string): Promise<void> {
+    this.frozenReason = reason;
+    await bestEffort(this.tabs.activeTab?.cdp.send("Page.stopLoading"));
+    this.options.onStateChange?.(this.state());
+  }
+
+  async unfreeze(): Promise<void> {
+    await Promise.resolve();
+    this.frozenReason = null;
+    this.options.onStateChange?.(this.state());
   }
 
   close(): void {
@@ -243,6 +291,7 @@ export class BrowserSession {
   }
 
   async agentNavigate(url: string): Promise<WaitReason> {
+    this.assertNotFrozen();
     const { wait } = await this.arbiter.withAgentControl(async () => {
       await this.navigate(url);
     });
@@ -250,6 +299,7 @@ export class BrowserSession {
   }
 
   async agentSnapshot(): Promise<{ snapshot: Snapshot; wait: WaitReason }> {
+    this.assertNotFrozen();
     await this.start();
     const { value, wait } = await this.arbiter.withAgentControl(async () => {
       const tab = this.tabs.activeTab;
@@ -262,6 +312,7 @@ export class BrowserSession {
   }
 
   async agentClick(ref: string): Promise<{ ok: boolean; note: string }> {
+    this.assertNotFrozen();
     const resolved = this.snapshots.resolve(ref);
     if (resolved === null) {
       // A ref that misses is the correct outcome of a stale snapshot, and the
@@ -278,6 +329,7 @@ export class BrowserSession {
   }
 
   async agentType(text: string): Promise<void> {
+    this.assertNotFrozen();
     await this.arbiter.withAgentControl(async () => {
       const tab = this.tabs.activeTab;
       if (tab === null) {
@@ -292,6 +344,12 @@ export class BrowserSession {
   }
 
   // -- internals -----------------------------------------------------------
+
+  private assertNotFrozen(): void {
+    if (this.frozenReason !== null) {
+      throw new BrowserFrozenError(this.frozenReason);
+    }
+  }
 
   private async clickNode(
     ref: SnapshotRef

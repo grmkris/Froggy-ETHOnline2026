@@ -238,6 +238,11 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           // freeze is a statement about one wallet.
           if (message.frozen) {
             deps.runs.abort(workspace.session.id);
+            // The browser hears it too: the page stops loading and the
+            // agent's commands are refused, while the person keeps the wheel.
+            detached("browser freeze", async () => {
+              await workspace.browser.freeze("the wallet is frozen");
+            });
             // Then the outer layer: take the signature away at Privy, so the
             // agent could not sign even if every check in our code were
             // bypassed. Allowed to fail — a stale token is ordinary — as long
@@ -247,6 +252,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
             });
           } else {
             deps.grants.note(ws.data.userId, ws.data.accessToken);
+            detached("browser unfreeze", async () => {
+              await workspace.browser.unfreeze();
+            });
           }
           publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
           return;

@@ -22,7 +22,7 @@
  * string "NaN" as an amount.
  */
 
-import type { BrowserSession } from "@froggy/browser";
+import type { BrowserHandle } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
@@ -63,7 +63,7 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
 
 export interface ToolDeps {
   /** This caller's own Chrome. One per signed-in user, never shared. */
-  readonly browser: BrowserSession;
+  readonly browser: BrowserHandle;
   readonly run: ChatRun;
   readonly services: Services;
   readonly session: WorkspaceSession;

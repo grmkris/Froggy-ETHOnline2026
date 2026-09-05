@@ -65,6 +65,7 @@ const createRegistry = (maxBrowsers = 0) => {
   const browsers: TestBrowser[] = [];
   const profiles: string[] = [];
   const workspaces = new Workspaces({
+    blockPrivateNetwork: true,
     createBrowser: (options: BrowserSessionOptions) => {
       const browser = new TestBrowser(options);
       browsers.push(browser);

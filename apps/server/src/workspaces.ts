@@ -19,8 +19,8 @@
  * putting a ceiling on it later is configuration, not a refactor.
  */
 
-import { BrowserSession } from "@froggy/browser";
-import type { BrowserSessionOptions } from "@froggy/browser";
+import { RemoteBrowser, spawnBrowserWorker } from "@froggy/browser";
+import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { SessionId } from "@froggy/domain";
 import type {
   Amount,
@@ -48,7 +48,7 @@ export class BrowserLimitReachedError extends Error {
 }
 
 export interface Workspace {
-  readonly browser: BrowserSession;
+  readonly browser: BrowserHandle;
   readonly session: WorkspaceSession;
   readonly userId: UserId;
 }
@@ -59,7 +59,9 @@ export interface WorkspaceDeps {
    * the cap, which only means anything once a Chrome is actually running — is
    * exercisable without one. Same idiom as `BrowserSessionOptions.createView`.
    */
-  readonly createBrowser?: (options: BrowserSessionOptions) => BrowserSession;
+  readonly createBrowser?: (options: BrowserSessionOptions) => BrowserHandle;
+  /** Off only for local development, where the app itself is on `localhost`. */
+  readonly blockPrivateNetwork: boolean;
   readonly ledger: SpendLedger;
   /** 0 means unlimited. */
   readonly maxBrowsers: number;
@@ -126,14 +128,30 @@ export class Workspaces {
       },
       { hosts: [this.deps.oracleHost], payeeIds: [this.deps.oraclePayTo] }
     );
+    const profileDirectory = profileDirectoryFor(this.deps.profileRoot, userId);
+    const onStateChange = (state: BrowserState): void => {
+      this.deps.onBrowserState(userId, state);
+    };
+    // One worker *process* per user, not one `BrowserSession` per user in
+    // this process: `Bun.WebView` runs one Chrome per process and the first
+    // view's profile applies to every later one, so two users in one process
+    // would share a profile however many sessions were constructed.
     const build =
       this.deps.createBrowser ??
-      ((options: BrowserSessionOptions) => new BrowserSession(options));
+      ((options: BrowserSessionOptions) =>
+        new RemoteBrowser({
+          onStateChange: options.onStateChange ?? onStateChange,
+          spawn: () =>
+            spawnBrowserWorker({
+              blockPrivateNetwork: options.blockPrivateNetwork ?? true,
+              profileDirectory: options.profileDirectory,
+              viewport: options.viewport ?? { height: 800, width: 1280 },
+            }),
+        }));
     const browser = build({
-      onStateChange: (state) => {
-        this.deps.onBrowserState(userId, state);
-      },
-      profileDirectory: profileDirectoryFor(this.deps.profileRoot, userId),
+      blockPrivateNetwork: this.deps.blockPrivateNetwork,
+      onStateChange,
+      profileDirectory,
     });
     const workspace: Workspace = { browser, session, userId };
     this.workspaces.set(userId, workspace);
@@ -160,9 +178,11 @@ export class Workspaces {
     return workspace;
   }
 
-  closeAll(): void {
-    for (const workspace of this.workspaces.values()) {
-      workspace.browser.close();
-    }
+  async closeAll(): Promise<void> {
+    await Promise.all(
+      [...this.workspaces.values()].map(async (workspace) => {
+        await workspace.browser.close();
+      })
+    );
   }
 }

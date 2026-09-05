@@ -13,7 +13,7 @@
  * finishes truncated.
  */
 
-import type { BrowserSession } from "@froggy/browser";
+import type { BrowserHandle } from "@froggy/browser";
 import type { SessionId } from "@froggy/domain";
 import {
   convertToModelMessages,
@@ -69,7 +69,7 @@ export interface ChatRequest {
 }
 
 export interface ChatDeps {
-  readonly browser: BrowserSession;
+  readonly browser: BrowserHandle;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
