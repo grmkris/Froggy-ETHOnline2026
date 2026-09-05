@@ -38,5 +38,5 @@ Do not pivot. Build the agentic wallet: a web workspace where the agent drives a
 ## Status
 
 - Research, pivot assessment, product spec, prize audit, target groups, build-in-public plan, the Day 1 checklist and the implementation audit are complete and committed. The audit puts the plan's Day 3 milestone about 155 hours away, so `CODE_STATE_FABLE51.md` section 6 re-cuts Days 3-5.
-- Two open decisions are the team's: whether the third builder is in (plan for no), and worker-per-user versus puppeteer-core contexts for hosted isolation (recommendation: puppeteer-core, decided after the Saturday measurement).
+- One open decision is the team's: worker-per-user versus puppeteer-core contexts for hosted isolation (recommendation: puppeteer-core, decided after the Saturday measurement). The third-builder question is resolved — Hemang is in as of Sat 5 Sep and owns role B.
 - Everything marked INFERRED in the docs is a fact we could not verify with a fetch or a probe; each has a fallback written next to it.

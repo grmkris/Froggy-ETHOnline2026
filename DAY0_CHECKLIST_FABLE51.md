@@ -6,13 +6,13 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 
 ---
 
-## A. Decisions before 10:00 (Jonas runs the thread, all three answer)
+## A. Decisions before 10:00 (Jonas convenes and records; **every technical call is Kristjan's**, not a three-way vote)
 
 | Decision | Recommendation | Pass |
 | --- | --- | --- |
-| Is the third builder in? | Plan for no | A name is written next to every Day 1-5 row of the plan in `PRODUCT_FABLE51.md`; if no, every stretch item is marked cancelled |
-| Hosted browser isolation: worker-per-user or puppeteer-core browser contexts | puppeteer-core contexts for hosting, Bun.WebView for local dev (engineering refuter's hour estimates: 14-16 versus 20-24) | The Chrome owner writes the choice and the Sunday 12:00 cut line into the plan after the measurement below |
-| Rule (b) chain | Base Sepolia USDC to the treasury plus a labelled credit as the default; the Hedera-EVM 296 spike is a 30-minute box at most, decision at 18:00, never revisited | One line in PRIVY.md: chain, rule, spike result |
+| ~~Is the third builder in?~~ **Answered: yes, Hemang** | Hemang owns role B full-time | Done: his name is on every Day 1-5 role-B row in `PRODUCT_FABLE51.md`. No stretch item is cancelled for headcount |
+| Hosted browser isolation: worker-per-user or puppeteer-core browser contexts | puppeteer-core contexts for hosting, Bun.WebView for local dev (engineering refuter's hour estimates: 14-16 versus 20-24). **Kristjan's call** | Kristjan writes the choice and the Sunday 12:00 cut line into the plan after the measurement below |
+| Rule (b) chain | Base Sepolia USDC to the treasury plus a labelled credit as the default; the Hedera-EVM 296 spike is a 30-minute box at most, decision at 18:00, never revisited. **Kristjan decides on Hemang's spike result**; watch the 8-vs-18 decimal mismatch between the Hedera EVM and its JSON-RPC | One line in PRIVY.md: chain, rule, spike result |
 | Real USDC | $5 now, $5 reserve, demo wallet only, team money | The demo wallet address and the funding tx in PRIVY.md |
 | Name | Keep the repo's name; the tagline carries the browser | The tagline (under 100 characters) pasted into the README header |
 | Privy B2B | Tick only if the Intents box ships | Noted in PRIZE_AUDIT section 5 |
@@ -28,7 +28,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 
 ---
 
-## C. Accounts and keys (the third builder; else Kristjan takes the Privy items and Jonas takes the Hedera accounts, settlement and Graph curls with Kristjan reviewing; 2-3 hours)
+## C. Accounts and keys (Hemang; 2-3 hours)
 
 | Item | How | Pass |
 | --- | --- | --- |
