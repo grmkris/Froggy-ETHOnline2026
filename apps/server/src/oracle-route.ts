@@ -13,6 +13,7 @@
 
 import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
 import type { GraphClient } from "@froggy/graph";
+import { encodeSettlementHeader } from "@froggy/payments";
 import type { OracleGate } from "@froggy/payments";
 
 /** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. */
@@ -69,9 +70,16 @@ export const handleOracleRequest = async (
   const snapshot = await deps.graph.lendingMarkets(symbol);
   const headers = new Headers({ "cache-control": "no-store" });
   if (settled.transactionId !== null) {
-    // The x402 convention for handing the settlement back to the payer, and
-    // what the agent puts on its receipt.
-    headers.set("x-payment-response", settled.transactionId);
+    // The x402 convention for handing the settlement back to the payer: the
+    // base64 `SettleResponse` envelope, which is what the agent — ours or
+    // anyone's — puts on its receipt.
+    headers.set(
+      "x-payment-response",
+      encodeSettlementHeader({
+        network: requirements.network,
+        transactionId: settled.transactionId,
+      })
+    );
   }
 
   return Response.json(

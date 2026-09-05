@@ -53,6 +53,8 @@ export {
   UsdMicros,
   usdMicros,
 } from "./money";
+export { isPrivateAddress, isPrivateHostname, publicHttpUrl } from "./url";
+export type { PublicUrlCheck } from "./url";
 export {
   Evidence,
   EvidenceDeployment,

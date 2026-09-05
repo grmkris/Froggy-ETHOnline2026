@@ -23,17 +23,21 @@
  */
 
 import type { BrowserHandle } from "@froggy/browser";
-import { KNOWN_ASSETS } from "@froggy/domain";
+import { KNOWN_ASSETS, publicHttpUrl } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
   describeDeployments,
   snapshotHash,
 } from "@froggy/graph";
-import { decodePaymentChallenge } from "@froggy/payments";
+import {
+  decodePaymentChallenge,
+  decodeSettlementHeader,
+} from "@froggy/payments";
 import { tool } from "ai";
 import { Schema } from "effect";
 
+import { OutboundRefusedError, readCapped, safeFetch } from "./outbound";
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
@@ -122,13 +126,22 @@ export const buildTools = (deps: ToolDeps) => {
   const { browser, services, session } = deps;
   /** Per-turn, because `buildTools` is called once per turn. Not module state. */
   let lastEvidence: Evidence | undefined;
+  // Local development runs the app on `localhost`, and the oracle the agent
+  // must reach is on it too. Everywhere else the private network is off limits.
+  const outbound = { allowPrivate: !services.environment.blockPrivateNetwork };
 
   return {
     browser_navigate: tool({
       description:
         "Open a URL in the shared browser. The human is watching this exact page and can take it from you at any moment — narrate what you are doing.",
       execute: async ({ url }) => {
-        await browser.agentNavigate(url);
+        // Checked here, in the tool, so the model reads a refusal rather than
+        // a thrown error, and before the worker is asked anything.
+        const check = publicHttpUrl(url, outbound);
+        if (!check.ok) {
+          return `Refused: ${check.reason}. The browser opens public http(s) pages only.`;
+        }
+        await browser.agentNavigate(check.url.toString());
         const { snapshot } = await browser.agentSnapshot();
         return cap(snapshot.text);
       },
@@ -219,12 +232,11 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit.",
       execute: async ({ url }) => {
-        let target: URL;
-        try {
-          target = new URL(url);
-        } catch {
-          return "That is not a URL.";
+        const check = publicHttpUrl(url, outbound);
+        if (!check.ok) {
+          return `Refused before sending: ${check.reason}. Nothing was requested.`;
         }
+        const target = check.url;
         // Checked before the request, not after it. The old order fetched the
         // model's URL first and consulted the policy only once a 402 came
         // back — so a prompt injection could make this server issue an
@@ -234,9 +246,17 @@ export const buildTools = (deps: ToolDeps) => {
         if (!session.allowsHost(target.host)) {
           return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested.`;
         }
-        const first = await fetch(url);
+        let first: Response;
+        try {
+          first = await safeFetch(url, {}, outbound);
+        } catch (error) {
+          if (error instanceof OutboundRefusedError) {
+            return error.message;
+          }
+          throw error;
+        }
         if (first.status !== 402) {
-          return cap(await first.text());
+          return cap(await readCapped(first));
         }
 
         // SAFETY: a 402 body is the x402 `PaymentRequired` envelope by
@@ -291,15 +311,23 @@ export const buildTools = (deps: ToolDeps) => {
                 transactionId: null,
               };
             }
-            const paid = await fetch(url, {
-              headers: { "x-payment": attempt.header },
-            });
-            paidBody = await paid.text();
+            const paid = await safeFetch(
+              url,
+              { headers: { "x-payment": attempt.header } },
+              outbound
+            );
+            paidBody = await readCapped(paid);
+            // The settlement comes back as x402's base64 envelope; an older
+            // seller's bare id is accepted too. Neither is trusted as more
+            // than a transaction reference for the receipt.
+            const settlement = decodeSettlementHeader(
+              paid.headers.get("x-payment-response")
+            );
             return {
-              network: "hedera:testnet",
+              network: settlement?.network ?? "hedera:testnet",
               ok: paid.ok,
               stubbed: attempt.stubbed,
-              transactionId: paid.headers.get("x-payment-response"),
+              transactionId: settlement?.transactionId ?? null,
             };
           },
         };
