@@ -11,7 +11,7 @@ import { describe, expect, test } from "bun:test";
 
 import { BrowserSession } from "@froggy/browser";
 import type { BrowserSessionOptions } from "@froggy/browser";
-import { userId } from "@froggy/domain";
+import { parQuote, userId } from "@froggy/domain";
 import type { BrowserState, ServiceModes } from "@froggy/protocol";
 import { memoryLedger } from "@froggy/wallet";
 
@@ -80,6 +80,7 @@ const createRegistry = (maxBrowsers = 0) => {
     oracleHost: "froggy.test",
     oraclePayTo: "0.0.1",
     profileRoot: "/tmp/froggy-test",
+    quote: (_asset, now) => parQuote(now),
   });
   return { browsers, profiles, workspaces };
 };

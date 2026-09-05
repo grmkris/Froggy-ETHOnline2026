@@ -97,6 +97,8 @@ export interface Environment {
   readonly graphGatewayUrl: string;
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
+  /** Where the HBAR/USD rate every cap is computed from comes from. */
+  readonly hederaMirrorNodeUrl: string;
   readonly hederaPrivateKey: string;
   /** Concurrent Chromes allowed across all users. 0 means unlimited. */
   readonly maxBrowsers: number;
@@ -185,6 +187,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const hederaFacilitatorUrl = yield* Config.string(
       "HEDERA_FACILITATOR_URL"
     ).pipe(Config.withDefault("https://api.testnet.blocky402.com"));
+    const hederaMirrorNodeUrl = yield* Config.string(
+      "HEDERA_MIRROR_NODE_URL"
+    ).pipe(Config.withDefault("https://mainnet-public.mirrornode.hedera.com"));
 
     const anthropicApiKey = yield* secret(
       "ANTHROPIC_API_KEY",
@@ -238,6 +243,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       graphGatewayUrl,
       hederaAccountId,
       hederaFacilitatorUrl,
+      hederaMirrorNodeUrl,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,
       modes,

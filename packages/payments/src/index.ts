@@ -3,6 +3,12 @@ export type { LiveOracleOptions } from "./oracle";
 export { liveHederaPayer, STUB_ACCOUNT_ID, stubHederaPayer } from "./payer";
 export type { LivePayerOptions } from "./payer";
 export {
+  liveHbarRates,
+  STUB_USD_MICROS_PER_HBAR,
+  stubHbarRates,
+} from "./rates";
+export type { HbarRate, LiveRateOptions, RateSource } from "./rates";
+export {
   decodePaymentChallenge,
   HBAR_ASSET,
   HEDERA_TESTNET,

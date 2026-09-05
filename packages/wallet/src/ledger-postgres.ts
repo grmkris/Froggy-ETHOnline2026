@@ -28,7 +28,7 @@ import { and, eq, gte, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
 
-import type { SpendLedger, SpendRow } from "./ledger";
+import type { Reservation, SpendLedger, SpendRow } from "./ledger";
 
 /** Swallow a settled rejection. Named so the intent is not a bare empty arrow. */
 const noop = (): void => undefined;
@@ -118,7 +118,9 @@ export const postgresLedger = (sql: Sql): SpendLedger => {
 
         const [first] = inserted;
         if (first !== undefined) {
-          return toRow(first);
+          // Our insert won the unique index. We are the one caller allowed to
+          // move money for this key, in this process or any other.
+          return { created: true, row: toRow(first) } satisfies Reservation;
         }
 
         // Lost the race, or this key has been seen before. Either way the
@@ -140,7 +142,7 @@ export const postgresLedger = (sql: Sql): SpendLedger => {
             `Spend ${row.idempotencyKey} neither inserted nor found.`
           );
         }
-        return toRow(found);
+        return { created: false, row: toRow(found) } satisfies Reservation;
       }),
 
     settle: async (id, status) => {

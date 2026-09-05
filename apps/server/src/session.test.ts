@@ -14,6 +14,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   KNOWN_ASSETS,
+  parQuote,
   RunId,
   SessionId,
   SpendId,
@@ -21,6 +22,7 @@ import {
   userId,
 } from "@froggy/domain";
 import type { ServiceModes } from "@froggy/protocol";
+import { memoryLedger } from "@froggy/wallet";
 import type { SpendLedger } from "@froggy/wallet";
 
 import { WorkspaceSession } from "./session";
@@ -60,6 +62,7 @@ const sessionWith = (ledger: SpendLedger): WorkspaceSession =>
       modes: MODES,
       onPolicyDecision: noop,
       onReceipt: noop,
+      quote: (_asset, now) => parQuote(now),
     },
     { hosts: ["froggy.test"], payeeIds: ["0.0.1"] }
   );
@@ -119,12 +122,85 @@ describe("spending with an unreadable ledger", () => {
   });
 });
 
+describe("two tool calls with the same idempotency key", () => {
+  test("settle exactly once", async () => {
+    // The reproduced bug: both callers saw a row in state `reserved`, neither
+    // could tell the other had written it, and both paid. "settle() ran 2
+    // time(s)". Ownership, not status, is what has to be checked.
+    const session = sessionWith(memoryLedger());
+    let settlements = 0;
+
+    const spend = async () =>
+      await session.spend({
+        amount: { asset: KNOWN_ASSETS["hedera:testnet:hbar"], units: "1" },
+        idempotencyKey: "same-key",
+        payeeId: "0.0.1",
+        payeeLabel: "the oracle",
+        provenance: "server",
+        purpose: "a snapshot",
+        runId: RunId.generate(),
+        settle: async () => {
+          settlements += 1;
+          await Promise.resolve();
+          return {
+            network: "hedera:testnet",
+            ok: true,
+            stubbed: false,
+            transactionId: `0.0.1@${settlements}`,
+          };
+        },
+      });
+
+    const [first, second] = await Promise.all([spend(), spend()]);
+
+    expect(settlements).toBe(1);
+    // And the loser still gets a truthful receipt: same transaction, because
+    // it joined the winner's settlement rather than starting its own.
+    expect(second.receipt.settlement?.transactionId).toBe(
+      first.receipt.settlement?.transactionId
+    );
+  });
+
+  test("a later retry does not pay again", async () => {
+    const session = sessionWith(memoryLedger());
+    let settlements = 0;
+
+    const spend = async () =>
+      await session.spend({
+        amount: { asset: KNOWN_ASSETS["hedera:testnet:hbar"], units: "1" },
+        idempotencyKey: "retried",
+        payeeId: "0.0.1",
+        payeeLabel: "the oracle",
+        provenance: "server",
+        purpose: "a snapshot",
+        runId: RunId.generate(),
+        settle: async () => {
+          settlements += 1;
+          await Promise.resolve();
+          return {
+            network: "hedera:testnet",
+            ok: true,
+            stubbed: false,
+            transactionId: "0.0.1@1",
+          };
+        },
+      });
+
+    await spend();
+    await spend();
+
+    // The sequential case: the SDK retries, a reconnect replays, a model that
+    // never saw the result tries again.
+    expect(settlements).toBe(1);
+  });
+});
+
 describe("a session that can read its ledger", () => {
   test("carries no note", async () => {
     const summary = await sessionWith({
       reserve: async (row) => {
         await Promise.resolve();
-        return { ...row, status: "reserved" };
+        return { created: true, row: { ...row, status: "reserved" } };
       },
       settle: async () => {
         await Promise.resolve();
@@ -146,5 +222,30 @@ describe("a session that can read its ledger", () => {
 
     expect(summary.ledgerNote).toBeNull();
     expect(summary.windowSpentUsdMicros).toBe(2500);
+  });
+});
+
+describe("allowsHost", () => {
+  const session = sessionWith(memoryLedger());
+
+  test("allows a host the mandate lists", () => {
+    expect(session.allowsHost("froggy.test")).toBe(true);
+  });
+
+  test("refuses anything else", () => {
+    // The SSRF surface: `x402_fetch` used to send the request first and ask
+    // the policy only once a 402 came back, so a prompt injection could aim
+    // this server at a metadata endpoint or anything on the private network.
+    expect(session.allowsHost("169.254.169.254")).toBe(false);
+    expect(session.allowsHost("evil.example")).toBe(false);
+  });
+
+  test("refuses everything when there is no allowlist rule", () => {
+    const bare = sessionWith(memoryLedger());
+    bare.updateMandate({ ...bare.currentMandate, rules: [] });
+
+    // "No rule" must read as "nothing is allowed". The other reading is how
+    // an empty policy quietly becomes a permissive one.
+    expect(bare.allowsHost("froggy.test")).toBe(false);
   });
 });

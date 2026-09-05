@@ -18,6 +18,7 @@ import { Context, Effect, Layer } from "effect";
 import { authenticate, bearerFromProtocols } from "./auth";
 import { describeModes, loadEnvironment } from "./environment";
 import { AgentGrants } from "./grants";
+import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createServices } from "./services";
@@ -52,6 +53,19 @@ class FroggyServer extends Context.Service<
         >
       > = {};
 
+      // Fetched once at boot, so the first payment is not the first time
+      // anyone asks what an HBAR is worth. A failure here is not fatal: the
+      // quote is simply null and spends in HBAR are refused until it lands.
+      const rateReady = yield* Effect.promise(
+        async () => await services.rates.refresh()
+      );
+      if (!rateReady) {
+        yield* Effect.logWarning(
+          "Could not read the HBAR/USD rate. HBAR spends will be refused until it does."
+        );
+      }
+      const quotes = createQuotes(services.rates);
+
       const workspaces = new Workspaces({
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
@@ -79,6 +93,7 @@ class FroggyServer extends Context.Service<
         oracleHost: new URL(oracleUrl).host,
         oraclePayTo: services.oracle.payTo,
         profileRoot: environment.chromeProfileDirectory,
+        quote: quotes.quote,
       });
 
       const grants = new AgentGrants({

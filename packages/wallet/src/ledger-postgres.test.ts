@@ -61,21 +61,28 @@ const suite = (sql: Sql, connectionUrl: string): void => {
 
     it("reserves before anything is paid", async () => {
       const reserved = await ledger.reserve(row("reserve", 10_000));
-      expect(reserved.status).toBe("reserved");
-      expect(reserved.usdMicros).toBe(usdMicros(10_000));
+      expect(reserved.created).toBe(true);
+      expect(reserved.row.status).toBe("reserved");
+      expect(reserved.row.usdMicros).toBe(usdMicros(10_000));
     });
 
     it("hands back the same row for a repeated key", async () => {
       const first = await ledger.reserve(row("repeat", 10_000));
       const second = await ledger.reserve(row("repeat", 10_000));
-      expect(second.id).toBe(first.id);
+      expect(second.row.id).toBe(first.row.id);
+      // Only the first caller may pay. Before this field existed, both saw a
+      // row in state `reserved` and both went on to settle.
+      expect(first.created).toBe(true);
+      expect(second.created).toBe(false);
     });
 
     it("settles a row it reserved", async () => {
       const reserved = await ledger.reserve(row("settle", 10_000));
-      await ledger.settle(reserved.id, "settled");
+      await ledger.settle(reserved.row.id, "settled");
       const rows = await ledger.since(alice, NOW - 1000);
-      expect(rows.find((r) => r.id === reserved.id)?.status).toBe("settled");
+      expect(rows.find((r) => r.id === reserved.row.id)?.status).toBe(
+        "settled"
+      );
     });
 
     it("keeps one user's spend out of another's total", async () => {
@@ -86,11 +93,11 @@ const suite = (sql: Sql, connectionUrl: string): void => {
 
     it("excludes a refusal from the window", async () => {
       const refused = await ledger.reserve(row("refused", 5000));
-      await ledger.settle(refused.id, "refused");
+      await ledger.settle(refused.row.id, "refused");
       const rows = await ledger.since(alice, NOW - 1000);
       // A refusal never consumed anything. Counting it would let a rejected
       // spend eat the allowance it was denied.
-      expect(rows.some((r) => r.id === refused.id)).toBe(false);
+      expect(rows.some((r) => r.id === refused.row.id)).toBe(false);
     });
 
     it("excludes a spend older than the window", async () => {
@@ -99,7 +106,7 @@ const suite = (sql: Sql, connectionUrl: string): void => {
         at: NOW - 100_000,
       });
       const rows = await ledger.since(alice, NOW - 1000);
-      expect(rows.some((r) => r.id === old.id)).toBe(false);
+      expect(rows.some((r) => r.id === old.row.id)).toBe(false);
     });
 
     it("survives two pools racing one key", async () => {
@@ -111,8 +118,10 @@ const suite = (sql: Sql, connectionUrl: string): void => {
           second.reserve(row("cross-process", 7000)),
         ]);
         // Neither ledger's promise chain can see the other's. Only the unique
-        // index on `(user_id, idempotency_key)` makes this one row.
-        expect(a.id).toBe(b.id);
+        // index on `(user_id, idempotency_key)` makes this one row — and only
+        // one of the two is told it may move money.
+        expect(a.row.id).toBe(b.row.id);
+        expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
       } finally {
         await other.end({ timeout: 5 });
       }

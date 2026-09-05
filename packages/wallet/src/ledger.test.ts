@@ -24,7 +24,8 @@ describe("memoryLedger", () => {
     // Written first on purpose: a ledger updated after settlement cannot see an
     // in-flight spend, so two concurrent tool calls would each read a stale
     // total and jointly break a cap that each of them passed.
-    expect(reserved.status).toBe("reserved");
+    expect(reserved.row.status).toBe("reserved");
+    expect(reserved.created).toBe(true);
   });
 
   it("hands back the same row for a repeated idempotency key", async () => {
@@ -35,7 +36,10 @@ describe("memoryLedger", () => {
 
     // The retry story: the SDK retries, a reconnect replays, a model that never
     // saw the result tries again. Without this each of those is a second payment.
-    expect(second.id).toBe(first.id);
+    expect(second.row.id).toBe(first.row.id);
+    // And only the first is allowed to pay.
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
   });
 
   it("keeps different keys apart", async () => {
@@ -44,13 +48,13 @@ describe("memoryLedger", () => {
 
     const second = await ledger.reserve(row("two", 10_000));
 
-    expect(second.id).not.toBe(first.id);
+    expect(second.row.id).not.toBe(first.row.id);
   });
 
   it("counts reserved and settled spends against the window", async () => {
     const ledger = memoryLedger();
     const reserved = await ledger.reserve(row("a", 10_000));
-    await ledger.settle(reserved.id, "settled");
+    await ledger.settle(reserved.row.id, "settled");
     await ledger.reserve(row("b", 5000));
 
     const rows = await ledger.since(user, NOW - 1000);
@@ -61,7 +65,7 @@ describe("memoryLedger", () => {
   it("does not count a refusal against the window", async () => {
     const ledger = memoryLedger();
     const reserved = await ledger.reserve(row("a", 10_000));
-    await ledger.settle(reserved.id, "refused");
+    await ledger.settle(reserved.row.id, "refused");
 
     const rows = await ledger.since(user, NOW - 1000);
 
@@ -96,7 +100,9 @@ describe("memoryLedger", () => {
     ]);
 
     // Two tool calls arriving together must not both win: the read-then-write
-    // of the idempotency map has to be indivisible per user.
-    expect(a.id).toBe(b.id);
+    // of the idempotency map has to be indivisible per user, and exactly one
+    // of them is told it may move money.
+    expect(a.row.id).toBe(b.row.id);
+    expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
   });
 });

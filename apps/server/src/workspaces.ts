@@ -22,7 +22,13 @@
 import { BrowserSession } from "@froggy/browser";
 import type { BrowserSessionOptions } from "@froggy/browser";
 import { SessionId } from "@froggy/domain";
-import type { PolicyDecision, Receipt, UserId } from "@froggy/domain";
+import type {
+  Amount,
+  PolicyDecision,
+  Quote,
+  Receipt,
+  UserId,
+} from "@froggy/domain";
 import type { BrowserState, ServiceModes } from "@froggy/protocol";
 import type { SpendLedger } from "@froggy/wallet";
 
@@ -65,6 +71,8 @@ export interface WorkspaceDeps {
   readonly oracleHost: string;
   readonly oraclePayTo: string;
   readonly profileRoot: string;
+  /** What an asset is worth. Null refuses the spend; see `quotes.ts`. */
+  readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
 }
 
 /**
@@ -108,6 +116,7 @@ export class Workspaces {
       {
         ledger: this.deps.ledger,
         modes: this.deps.modes,
+        quote: this.deps.quote,
         onPolicyDecision: (decision) => {
           this.deps.onPolicyDecision(userId, decision);
         },

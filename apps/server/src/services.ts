@@ -16,10 +16,12 @@
 
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
-import type { OracleGate, Payer } from "@froggy/payments";
+import type { OracleGate, Payer, RateSource } from "@froggy/payments";
 import {
+  liveHbarRates,
   liveHederaPayer,
   liveOracleGate,
+  stubHbarRates,
   stubHederaPayer,
   stubOracleGate,
 } from "@froggy/payments";
@@ -41,6 +43,8 @@ export interface Services {
   readonly oracle: OracleGate;
   readonly payer: Payer;
   readonly privy: PrivyServer;
+  /** What an HBAR is worth. Refreshed at boot; null when nothing knows. */
+  readonly rates: RateSource;
   /** Releases anything this module acquired. Called from the server's scope. */
   readonly shutdown: () => Promise<void>;
 }
@@ -76,6 +80,11 @@ export const createServices = (options: ServiceOptions): Services => {
         })
       : stubHederaPayer();
 
+  const rates =
+    environment.modes.hedera === "live"
+      ? liveHbarRates({ mirrorNodeUrl: environment.hederaMirrorNodeUrl })
+      : stubHbarRates();
+
   const privy =
     environment.modes.privy === "live"
       ? livePrivyServer({
@@ -102,6 +111,7 @@ export const createServices = (options: ServiceOptions): Services => {
     oracle,
     payer,
     privy,
+    rates,
     shutdown: async () => {
       await sql?.end({ timeout: 5 });
     },

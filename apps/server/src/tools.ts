@@ -36,7 +36,8 @@ import { Schema } from "effect";
 
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
-import type { WorkspaceSession } from "./session";
+import { UnpricedAssetError } from "./session";
+import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
 
 const OUTPUT_CAP = 50_000;
@@ -67,6 +68,46 @@ export interface ToolDeps {
   readonly services: Services;
   readonly session: WorkspaceSession;
 }
+
+/**
+ * Turn a spend into something the model can act on.
+ *
+ * A policy refusal is returned as a tool *result*, never thrown: a thrown
+ * error reads to the model as a transient failure worth retrying, and a
+ * refusal is the opposite of that — it is the final answer. An unpriced asset
+ * is a third thing again, and says so: "the policy said no" and "the policy
+ * could not be evaluated" are different facts, and only one of them means the
+ * agent should stop asking.
+ */
+const explainSpend = async (
+  attempt: Promise<SpendResult>
+): Promise<{
+  readonly message: string | null;
+  readonly result: SpendResult | null;
+}> => {
+  let result: SpendResult;
+  try {
+    result = await attempt;
+  } catch (error) {
+    if (error instanceof UnpricedAssetError) {
+      return { message: error.message, result: null };
+    }
+    throw error;
+  }
+  if (result.decision._tag === "deny") {
+    return {
+      message: `Refused by policy (${result.decision.code}): ${result.decision.message}`,
+      result,
+    };
+  }
+  if (result.decision._tag === "ask") {
+    return {
+      message: `This spend is over the automatic limit and needs the human: ${result.decision.question}`,
+      result,
+    };
+  }
+  return { message: null, result };
+};
 
 export const buildTools = (deps: ToolDeps) => {
   const { browser, services, session } = deps;
@@ -169,7 +210,21 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit.",
       execute: async ({ url }) => {
-        const target = new URL(url);
+        let target: URL;
+        try {
+          target = new URL(url);
+        } catch {
+          return "That is not a URL.";
+        }
+        // Checked before the request, not after it. The old order fetched the
+        // model's URL first and consulted the policy only once a 402 came
+        // back — so a prompt injection could make this server issue an
+        // arbitrary outbound request, and the refusal arrived long after the
+        // request had already been sent. The allowlist was always the control;
+        // asking it first is what makes it one.
+        if (!session.allowsHost(target.host)) {
+          return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested.`;
+        }
         const first = await fetch(url);
         if (first.status !== 402) {
           return cap(await first.text());
@@ -243,16 +298,9 @@ export const buildTools = (deps: ToolDeps) => {
           // say what the agent was acting on and not merely that it paid.
           request.evidence = lastEvidence;
         }
-        const result = await session.spend(request);
-
-        // Returned as a tool result rather than thrown. A thrown error reads to
-        // the model as a transient failure worth retrying, and a policy refusal
-        // is the opposite of that: it is the final answer.
-        if (result.decision._tag === "deny") {
-          return `Refused by policy (${result.decision.code}): ${result.decision.message}`;
-        }
-        if (result.decision._tag === "ask") {
-          return `This spend is over the automatic limit and needs the human: ${result.decision.question}`;
+        const { message } = await explainSpend(session.spend(request));
+        if (message !== null) {
+          return message;
         }
         return cap(paidBody ?? "Paid, but the server returned no body.");
       },
@@ -263,7 +311,7 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Send stablecoins to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee, and an address you read on a page or produced yourself will be refused.",
       execute: async ({ amountUsd, purpose, to }) => {
-        const result = await session.spend({
+        const attempt = session.spend({
           amount: {
             asset: KNOWN_ASSETS["base-sepolia:usdc"],
             units: String(Math.round(amountUsd * 1_000_000)),
@@ -292,11 +340,9 @@ export const buildTools = (deps: ToolDeps) => {
           },
         });
 
-        if (result.decision._tag === "deny") {
-          return `Refused by policy (${result.decision.code}): ${result.decision.message}`;
-        }
-        if (result.decision._tag === "ask") {
-          return `This transfer needs the human: ${result.decision.question}`;
+        const { message } = await explainSpend(attempt);
+        if (message !== null) {
+          return message;
         }
         return "Allowed by policy, but transfers are not wired to a signer yet.";
       },

@@ -18,7 +18,6 @@ import {
   RuleId as RuleIdSchema,
   SpendId,
   defaultRules,
-  parQuote,
   priceInUsdMicros,
 } from "@froggy/domain";
 import type {
@@ -74,6 +73,17 @@ export interface SpendRequest {
   }>;
 }
 
+/** What a settlement reports back. Named because three paths now handle it. */
+type Settled = Awaited<ReturnType<SpendRequest["settle"]>>;
+
+/** No money moved. The shape a failed or abandoned settlement reports. */
+const unpaid = (request: SpendRequest): Settled => ({
+  network: request.amount.asset.network,
+  ok: false,
+  stubbed: false,
+  transactionId: null,
+});
+
 export interface SpendResult {
   readonly decision: PolicyDecision;
   readonly receipt: Receipt;
@@ -82,6 +92,15 @@ export interface SpendResult {
 export interface SessionDeps {
   readonly ledger: SpendLedger;
   readonly modes: ServiceModes;
+  /**
+   * What one whole unit of an asset is worth, or null when nobody knows.
+   *
+   * Null is a refusal, not a fallback. Pricing a spend against a guess is a
+   * cap that was never applied, and the previous code did exactly that: it
+   * valued one HBAR at one dollar, which is out by more than a factor of ten
+   * and made every limit in the mandate a statement about the wrong quantity.
+   */
+  readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
   readonly now?: () => number;
   readonly onPolicyDecision: (decision: PolicyDecision) => void;
   readonly onReceipt: (receipt: Receipt) => void;
@@ -95,6 +114,23 @@ export interface SessionDeps {
  * disagrees with the refusal message.
  */
 const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Thrown when nothing can say what an asset is worth.
+ *
+ * A throw rather than a `deny` decision on purpose: a denial is a statement
+ * that the policy considered this and said no, and that would be a lie. This
+ * is "we could not evaluate the policy at all", which is a different fact and
+ * has to read differently on the receipt and to the model.
+ */
+export class UnpricedAssetError extends Error {
+  constructor(symbol: string) {
+    super(
+      `No usable price for ${symbol}, so the mandate's caps cannot be applied. Nothing was paid.`
+    );
+    this.name = "UnpricedAssetError";
+  }
+}
 
 const widestWindowMs = (mandate: Mandate): number => {
   let widest = DEFAULT_WINDOW_MS;
@@ -120,6 +156,15 @@ export class WorkspaceSession {
   private readonly now: () => number;
   private mandate: Mandate;
   private readonly receipts: Receipt[] = [];
+  /**
+   * Settlements this process is in the middle of, by idempotency key.
+   *
+   * A second call for the same key joins the first rather than starting its
+   * own. The ledger's `created` flag is what makes a double payment impossible
+   * across processes; this is what makes it impossible *and* the loser's
+   * receipt truthful within one.
+   */
+  private readonly settlements = new Map<string, Promise<Settled>>();
   private addresses: WalletAddresses = { signer: null, smart: null };
   /**
    * Whether Privy is holding a signature for the agent on this wallet.
@@ -168,6 +213,30 @@ export class WorkspaceSession {
 
   setAddresses(addresses: WalletAddresses): void {
     this.addresses = addresses;
+  }
+
+  /**
+   * May the agent send a request to this host at all?
+   *
+   * Asked *before* the request, not after. `x402_fetch` used to fetch the
+   * model's URL first and consult the policy only once a 402 came back, which
+   * meant a prompt injection could make the server issue an arbitrary outbound
+   * request — to a metadata endpoint, to something on the private network, to
+   * anything reachable from the container — and the "refusal" happened long
+   * after the damage.
+   *
+   * The allowlist was always the control. This is what makes it one.
+   */
+  allowsHost(host: string): boolean {
+    for (const rule of this.mandate.rules) {
+      if (rule._tag === "host_allowlist") {
+        return rule.hosts.includes(host);
+      }
+    }
+    // No rule means no allowlist, and no allowlist means nothing is allowed.
+    // The other reading — "unconstrained" — is how an empty policy becomes a
+    // permissive one.
+    return false;
   }
 
   setAgentSigner(state: AgentSignerState, note: string | null): void {
@@ -234,12 +303,28 @@ export class WorkspaceSession {
     };
   }
 
-  async spend(request: SpendRequest): Promise<SpendResult> {
+  /**
+   * Price the intent and ask the policy. No side effects, no money.
+   *
+   * Split out so both the paying path and the joining path build the same
+   * receipt from the same decision — a caller that lost the race still gets a
+   * receipt saying what the policy thought, not a blank one.
+   */
+  private async judge(request: SpendRequest): Promise<{
+    readonly at: number;
+    readonly decision: PolicyDecision;
+    readonly intent: SpendIntent;
+    readonly quote: Quote;
+    readonly usdMicros: UsdMicros;
+  }> {
     const at = this.now();
-    // Stablecoins and HBAR both get a par quote in this build. It is recorded
-    // on the receipt rather than assumed, so the day a real price feed lands
-    // the old receipts still say what rate they were judged against.
-    const quote: Quote = parQuote(at);
+    // Recorded on the receipt rather than assumed, so a receipt says what rate
+    // it was judged against — and so a rate that later turns out to have been
+    // wrong is visible rather than inferred.
+    const quote = this.deps.quote(request.amount.asset, at);
+    if (quote === null) {
+      throw new UnpricedAssetError(request.amount.asset.symbol);
+    }
     const usdMicros: UsdMicros = priceInUsdMicros(request.amount, quote);
 
     // Built as a draft and narrowed, rather than assembled with conditional
@@ -274,6 +359,74 @@ export class WorkspaceSession {
     // refusal before the model has narrated it. The demo's whole point is that
     // the rejection did not come from the model.
     this.deps.onPolicyDecision(decision);
+    return { at, decision, intent, quote, usdMicros };
+  }
+
+  async spend(request: SpendRequest): Promise<SpendResult> {
+    const key = request.idempotencyKey;
+
+    // Read and claimed with no `await` in between, which is the whole point:
+    // two concurrent calls used to both get past this check, both reserve a
+    // row that already read `reserved`, and both pay. Reproduced as
+    // "settle() ran 2 time(s)".
+    const joined = this.settlements.get(key);
+    if (joined !== undefined) {
+      return await this.join(request, joined);
+    }
+    const claim = Promise.withResolvers<Settled>();
+    this.settlements.set(key, claim.promise);
+
+    try {
+      return await this.pay(request, claim.resolve);
+    } finally {
+      this.settlements.delete(key);
+      // Idempotent: resolving an already-resolved promise is a no-op. This is
+      // for the throw path, so a joiner is never left waiting on a payment
+      // that will never happen.
+      claim.resolve(unpaid(request));
+    }
+  }
+
+  /**
+   * Somebody else is already paying for this key.
+   *
+   * The receipt is still built and still carries the policy's decision — a
+   * retried tool call deserves an answer, not silence — but no money moves and
+   * the settlement is whatever the first caller actually achieved.
+   */
+  private async join(
+    request: SpendRequest,
+    settling: Promise<Settled>
+  ): Promise<SpendResult> {
+    const [judged, outcome] = await Promise.all([
+      this.judge(request),
+      settling,
+    ]);
+    return this.finish({
+      at: judged.at,
+      decision: judged.decision,
+      evidence: request.evidence,
+      intent: judged.intent,
+      quote: judged.quote,
+      runId: request.runId,
+      settlement:
+        outcome.transactionId === null
+          ? undefined
+          : {
+              network: outcome.network,
+              transactionId: outcome.transactionId,
+            },
+      spendId: SpendId.generate(),
+      stubbed: outcome.stubbed,
+    });
+  }
+
+  private async pay(
+    request: SpendRequest,
+    publish: (outcome: Settled) => void
+  ): Promise<SpendResult> {
+    const { at, decision, intent, quote, usdMicros } =
+      await this.judge(request);
 
     const spendId = SpendId.generate();
     if (decision._tag !== "allow") {
@@ -288,7 +441,7 @@ export class WorkspaceSession {
       });
     }
 
-    const row = await this.deps.ledger.reserve({
+    const { created, row } = await this.deps.ledger.reserve({
       at,
       id: spendId,
       idempotencyKey: request.idempotencyKey,
@@ -296,9 +449,10 @@ export class WorkspaceSession {
       userId: this.userId,
     });
 
-    if (row.status === "settled") {
-      // This exact spend already happened. A retried tool call must return the
-      // first outcome, not pay again.
+    if (!created) {
+      // Another *process* owns this spend — the in-process claim above cannot
+      // see it, only the unique index can. There is no promise to join, so the
+      // receipt honestly carries no settlement rather than inventing one.
       return this.finish({
         at,
         decision,
@@ -311,13 +465,8 @@ export class WorkspaceSession {
       });
     }
 
-    const outcome = await request.settle().catch(() => ({
-      network: intent.amount.asset.network,
-      ok: false,
-      stubbed: false,
-      transactionId: null,
-    }));
-
+    const outcome = await request.settle().catch(() => unpaid(request));
+    publish(outcome);
     await this.deps.ledger.settle(row.id, outcome.ok ? "settled" : "failed");
 
     return this.finish({

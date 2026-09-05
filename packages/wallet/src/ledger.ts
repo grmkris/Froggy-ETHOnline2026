@@ -34,13 +34,30 @@ export interface SpendRow {
   readonly userId: UserId;
 }
 
+/**
+ * The result of reserving.
+ *
+ * `created` is the load-bearing field, and it exists because the previous
+ * shape could not express the thing that actually matters. Two concurrent tool
+ * calls with the same key both used to get back a row in state `reserved` —
+ * neither could tell that the other had written it — so both went on to pay.
+ * Reproduced: `settle() ran 2 time(s)`.
+ *
+ * Now exactly one caller is told it created the row, and only that caller is
+ * allowed to move money. The other has, by definition, nothing to do.
+ */
+export interface Reservation {
+  /** True for the caller whose insert won. Only that caller may settle. */
+  readonly created: boolean;
+  readonly row: SpendRow;
+}
+
 export interface SpendLedger {
   /**
    * Reserve capacity for a spend, or hand back the existing row when this key
-   * has been seen. The caller must treat a returned `settled` row as "already
-   * paid" and not pay again.
+   * has been seen. Only the caller that `created` the row may pay.
    */
-  readonly reserve: (row: Omit<SpendRow, "status">) => Promise<SpendRow>;
+  readonly reserve: (row: Omit<SpendRow, "status">) => Promise<Reservation>;
   readonly settle: (id: SpendId, status: SpendStatus) => Promise<void>;
   /** Rows inside the window that should count against a cap. */
   readonly since: (
@@ -98,13 +115,13 @@ export const memoryLedger = (): SpendLedger => {
         if (existingId !== undefined) {
           const existing = rows.get(existingId);
           if (existing !== undefined) {
-            return existing;
+            return { created: false, row: existing };
           }
         }
-        const created: SpendRow = { ...row, status: "reserved" };
-        rows.set(created.id, created);
-        byKey.set(key, created.id);
-        return created;
+        const fresh: SpendRow = { ...row, status: "reserved" };
+        rows.set(fresh.id, fresh);
+        byKey.set(key, fresh.id);
+        return { created: true, row: fresh };
       }),
 
     settle: async (id, status) => {
