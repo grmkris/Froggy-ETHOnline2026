@@ -22,6 +22,7 @@
  * string "NaN" as an amount.
  */
 
+import type { BrowserSession } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
@@ -56,13 +57,15 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
 };
 
 export interface ToolDeps {
+  /** This caller's own Chrome. One per signed-in user, never shared. */
+  readonly browser: BrowserSession;
   readonly run: ChatRun;
   readonly services: Services;
   readonly session: WorkspaceSession;
 }
 
 export const buildTools = (deps: ToolDeps) => {
-  const { services, session } = deps;
+  const { browser, services, session } = deps;
   /** Per-turn, because `buildTools` is called once per turn. Not module state. */
   let lastEvidence: Evidence | undefined;
 
@@ -71,8 +74,8 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Open a URL in the shared browser. The human is watching this exact page and can take it from you at any moment — narrate what you are doing.",
       execute: async ({ url }) => {
-        await services.browser.agentNavigate(url);
-        const { snapshot } = await services.browser.agentSnapshot();
+        await browser.agentNavigate(url);
+        const { snapshot } = await browser.agentSnapshot();
         return cap(snapshot.text);
       },
       inputSchema: std(
@@ -88,7 +91,7 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Read the current page as an accessibility tree with @eN refs you can click.",
       execute: async () => {
-        const { snapshot, wait } = await services.browser.agentSnapshot();
+        const { snapshot, wait } = await browser.agentSnapshot();
         // The model is told when the human was mid-interaction: a snapshot taken
         // during a click may describe a page that has already moved on, and
         // acting on it silently is how an agent clicks the wrong thing.
@@ -104,7 +107,7 @@ export const buildTools = (deps: ToolDeps) => {
     browser_click: tool({
       description: "Click an @eN ref from the most recent snapshot.",
       execute: async ({ ref }) => {
-        const result = await services.browser.agentClick(ref);
+        const result = await browser.agentClick(ref);
         return result.note;
       },
       inputSchema: std(
@@ -117,7 +120,7 @@ export const buildTools = (deps: ToolDeps) => {
     browser_type: tool({
       description: "Type text into the focused element on the page.",
       execute: async ({ text }) => {
-        await services.browser.agentType(text);
+        await browser.agentType(text);
         return `Typed ${text.length} characters.`;
       },
       inputSchema: std(Schema.Struct({ text: Schema.String })),

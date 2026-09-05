@@ -40,7 +40,7 @@ export const AppShell = (): React.ReactElement => {
               local identity
             </Badge>
           ) : null}
-          {identity.authenticated ? (
+          {identity.authenticated && !identity.stubbed ? (
             <Button onClick={handleSignOut} size="sm" variant="outline">
               Sign out
             </Button>

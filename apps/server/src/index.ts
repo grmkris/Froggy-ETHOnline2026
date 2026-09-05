@@ -12,17 +12,17 @@
  */
 
 import { BunRuntime } from "@effect/platform-bun";
-import { SessionId } from "@froggy/domain";
-import type { AppServerMessage, BrowserState } from "@froggy/protocol";
+import { WS_PROTOCOL } from "@froggy/protocol";
 import { Context, Effect, Layer } from "effect";
 
+import { authenticate, bearerFromProtocols } from "./auth";
 import { describeModes, loadEnvironment } from "./environment";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createServices } from "./services";
-import { WorkspaceSession } from "./session";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
+import { Workspaces } from "./workspaces";
 
 class FroggyServer extends Context.Service<
   FroggyServer,
@@ -34,69 +34,62 @@ class FroggyServer extends Context.Service<
       const environment = yield* loadEnvironment();
 
       const runs = new ChatRunRegistry();
-      // One session per process. This is a hackathon build with a single
-      // workspace; the multi-tenant version keys these by the Privy DID and
-      // changes nothing else, which is why the session is already an object
-      // rather than a pile of module state.
-      const sessionId = SessionId.generate();
+      const services = createServices({ environment });
+      const oracleUrl = `${environment.appOrigin}${ORACLE_PATH}`;
 
       /**
-       * The session publishes decisions and receipts, and the browser publishes
-       * its state — but the sockets that carry them need the session to read a
-       * mandate from, so the two would otherwise have to reference each other
-       * before either exists. A pair of sinks, registered once the sockets are
-       * built, breaks that without a cast or a forward reference.
+       * Workspaces publish (a decision, a receipt, a browser frame) and sockets
+       * subscribe — but a socket needs a workspace to read a mandate from, so
+       * the two would otherwise have to reference each other before either
+       * exists. A pair of sinks, filled in once the sockets are built, breaks
+       * that without a cast or a forward reference.
        */
-      const appSinks: ((message: AppServerMessage) => void)[] = [];
-      const browserSinks: ((state: BrowserState) => void)[] = [];
-      const publishApp = (message: AppServerMessage): void => {
-        for (const sink of appSinks) {
-          sink(message);
-        }
-      };
+      const sinks: Partial<
+        Pick<
+          ReturnType<typeof createSocketHandlers>,
+          "publishApp" | "publishBrowserState"
+        >
+      > = {};
 
-      const services = createServices({
-        environment,
-        onBrowserStateChange: (state) => {
-          for (const sink of browserSinks) {
-            sink(state);
-          }
+      const workspaces = new Workspaces({
+        ledger: services.ledger,
+        maxBrowsers: environment.maxBrowsers,
+        modes: environment.modes,
+        onBrowserState: (userId, state) => {
+          sinks.publishBrowserState?.(userId, state);
         },
+        onPolicyDecision: (userId, decision) => {
+          sinks.publishApp?.(userId, {
+            decision,
+            type: "policy.decision",
+            v: 1,
+          });
+        },
+        onReceipt: (userId, receipt) => {
+          sinks.publishApp?.(userId, {
+            receipt,
+            type: "receipt.appended",
+            v: 1,
+          });
+        },
+        // The server's own oracle is on every mandate's allowlist from the
+        // first moment, so there is never a window where an allowlist exists
+        // but is empty and therefore means nothing.
+        oracleHost: new URL(oracleUrl).host,
+        oraclePayTo: services.oracle.payTo,
+        profileRoot: environment.chromeProfileDirectory,
       });
 
-      const oracleUrl = `${environment.appOrigin}${ORACLE_PATH}`;
-      const session = new WorkspaceSession(
-        sessionId,
-        {
-          ledger: services.ledger,
-          modes: environment.modes,
-          onPolicyDecision: (decision) => {
-            publishApp({ decision, type: "policy.decision", v: 1 });
-          },
-          onReceipt: (receipt) => {
-            publishApp({ receipt, type: "receipt.appended", v: 1 });
-          },
-        },
-        {
-          // The server's own oracle is on the allowlist from the first moment,
-          // so there is never a window where an allowlist exists but is empty
-          // and therefore means nothing.
-          hosts: [new URL(oracleUrl).host],
-          payeeIds: [services.oracle.payTo],
-        }
-      );
-
-      const sockets = createSocketHandlers({ runs, services, session });
-      appSinks.push(sockets.broadcastApp);
-      browserSinks.push(sockets.broadcastBrowserState);
+      const sockets = createSocketHandlers({ runs, services, workspaces });
+      sinks.publishApp = sockets.publishApp;
+      sinks.publishBrowserState = sockets.publishBrowserState;
 
       const routerDeps = {
         environment,
         oracleUrl,
         runs,
         services,
-        session,
-        sessionId,
+        workspaces,
       };
 
       const server = yield* Effect.acquireRelease(
@@ -105,7 +98,7 @@ class FroggyServer extends Context.Service<
             fetch(
               request,
               bunServer
-            ): Promise<Response> | Response | undefined {
+            ): Promise<Response | undefined> | Response | undefined {
               const { pathname } = new URL(request.url);
               if (pathname !== "/ws/app" && pathname !== "/ws/browser") {
                 return handleRequest(routerDeps, request);
@@ -121,10 +114,29 @@ class FroggyServer extends Context.Service<
               ) {
                 return new Response("Untrusted origin.", { status: 403 });
               }
-              const kind = pathname === "/ws/app" ? "app" : "browser";
-              return bunServer.upgrade(request, { data: { kind } })
-                ? undefined
-                : new Response("Upgrade failed.", { status: 400 });
+              // Async, so the upgrade is returned as a promise. Bun accepts
+              // that: the socket is not established until this resolves, and
+              // the token is verified against a cached JWKS with no network
+              // call, so the wait is microseconds.
+              return authenticate(services, bearerFromProtocols(request)).then(
+                (userId) => {
+                  if (userId === null) {
+                    return new Response("Sign in to use this.", {
+                      status: 401,
+                    });
+                  }
+                  const kind = pathname === "/ws/app" ? "app" : "browser";
+                  return bunServer.upgrade(request, {
+                    data: { kind, userId },
+                    // Echoed so the browser's `WebSocket` accepts the handshake:
+                    // a client that offered subprotocols requires the server to
+                    // select one of them. Never the token — the client knows it.
+                    headers: { "sec-websocket-protocol": WS_PROTOCOL },
+                  })
+                    ? undefined
+                    : new Response("Upgrade failed.", { status: 400 });
+                }
+              );
             },
             port: environment.port,
             websocket: sockets.handlers,
@@ -133,7 +145,7 @@ class FroggyServer extends Context.Service<
         (running) =>
           Effect.promise(async () => {
             await running.stop(true);
-            services.browser.close();
+            workspaces.closeAll();
           })
       );
 

@@ -27,6 +27,15 @@ export default defineConfig({
       // quiet enough failure to be worth pinning in the test setup.
       command:
         "PORT=3101 APP_ORIGIN=http://127.0.0.1:3100 bun run --cwd apps/server start",
+      // Pinned to the stub identity. This box exports real Privy credentials
+      // for development, and inheriting them put the server into live mode,
+      // where it correctly refused the test's local token — an e2e failure
+      // caused entirely by whose shell it ran in. The placeholders are how
+      // `environment.ts` spells "unset".
+      env: {
+        PRIVY_APP_ID: "REPLACE_ME_PRIVY_APP_ID",
+        PRIVY_APP_SECRET: "REPLACE_ME_PRIVY_APP_SECRET",
+      },
       port: 3101,
       reuseExistingServer: process.env["CI"] === undefined,
       timeout: 30_000,
@@ -37,6 +46,9 @@ export default defineConfig({
       command:
         "API_URL=http://127.0.0.1:3101 bun run dev -- --host 127.0.0.1 --port 3100",
       cwd: "apps/web",
+      // No app id, so the client never loads Privy and uses the local identity
+      // — the same token path a real sign-in takes, against the stub verifier.
+      env: { VITE_PRIVY_APP_ID: "" },
       port: 3100,
       reuseExistingServer: process.env["CI"] === undefined,
       timeout: 30_000,

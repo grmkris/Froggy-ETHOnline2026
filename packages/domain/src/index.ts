@@ -9,6 +9,8 @@ export {
   Provenance,
   TRUSTED_PROVENANCE,
 } from "./address";
+export { decodeUserId, UserId } from "./identity";
+export type { Caller } from "./identity";
 export {
   MandateId,
   makeIdSchema,

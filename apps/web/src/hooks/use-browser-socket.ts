@@ -15,6 +15,7 @@ import {
   decodeBrowserServerMessage,
   decodeScreencastFrame,
   encodeBrowserClientMessage,
+  wsProtocols,
 } from "@froggy/protocol";
 import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
@@ -22,9 +23,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { socketUrl } from "../environment";
+import { useSessionToken } from "../lib/session-token";
 
 const PING_INTERVAL_MS = 15_000;
 const MAX_BACKOFF_MS = 5000;
+
+/** Exponential, capped. Shared by both reconnect paths in the effect below. */
+const backoffMs = (attempt: number): number =>
+  Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS);
 
 export interface BrowserStream {
   readonly connected: boolean;
@@ -100,6 +106,7 @@ export const useBrowserSocket = (
   const [state, setState] = useState<BrowserState | null>(null);
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const { canConnect, getToken } = useSessionToken();
 
   const send = useCallback((message: BrowserClientMessage) => {
     const socket = socketRef.current;
@@ -118,11 +125,24 @@ export const useBrowserSocket = (
 
     const paint = createPainter(canvasRef);
 
-    const open = (): void => {
+    const open = async (): Promise<void> => {
       if (closed) {
         return;
       }
-      socket = new WebSocket(socketUrl("/ws/browser"));
+      // Fetched per attempt, not once: a reconnect after a long sleep needs
+      // the refreshed token, and the old one would be refused forever.
+      const token = await getToken();
+      if (closed) {
+        return;
+      }
+      if (token === null) {
+        attempt += 1;
+        reconnect = setTimeout(() => {
+          void open();
+        }, backoffMs(attempt));
+        return;
+      }
+      socket = new WebSocket(socketUrl("/ws/browser"), wsProtocols(token));
       socket.binaryType = "arraybuffer";
       socketRef.current = socket;
 
@@ -164,15 +184,24 @@ export const useBrowserSocket = (
         if (closed || event.code === 4004) {
           return;
         }
+        // Inlined rather than shared with the token-failure path above: a
+        // helper that calls `open` and is declared before it reads as a
+        // forward reference, and the duplication is three lines.
         attempt += 1;
-        reconnect = setTimeout(
-          open,
-          Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS)
-        );
+        reconnect = setTimeout(() => {
+          void open();
+        }, backoffMs(attempt));
       });
     };
 
-    open();
+    if (!canConnect) {
+      // Still returns a cleanup, so the effect has one shape rather than two.
+      return () => {
+        closed = true;
+      };
+    }
+
+    void open();
 
     return () => {
       closed = true;
@@ -185,7 +214,7 @@ export const useBrowserSocket = (
       socket?.close();
       socketRef.current = null;
     };
-  }, [canvasRef]);
+  }, [canConnect, canvasRef, getToken]);
 
   return { connected, send, state };
 };

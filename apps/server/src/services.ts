@@ -6,14 +6,14 @@
  * modes computed in `environment.ts` and picks. The rest of the server holds
  * interfaces and never learns which one it got.
  *
- * This is also the only module that imports the wallet, the browser and the
- * payment client together. `tools/graph.ts` forbids those packages from
- * importing each other for a reason: the browser is where hostile content
- * lives, and the wallet is where signing happens. They meet in exactly one
- * file, and it is this one, so the blast radius of that adjacency is readable.
+ * The browser is deliberately *not* here. `tools/graph.ts` forbids
+ * `packages/browser` and `packages/wallet` from importing each other — the
+ * browser is where hostile content lives and the wallet is where signing
+ * happens — and since a Chrome now belongs to one user rather than the
+ * process, it is `workspaces.ts` that owns it. This file owns everything a
+ * user does not have their own copy of.
  */
 
-import { BrowserSession } from "@froggy/browser";
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
 import type { OracleGate, Payer } from "@froggy/payments";
@@ -23,14 +23,12 @@ import {
   stubHederaPayer,
   stubOracleGate,
 } from "@froggy/payments";
-import type { BrowserState } from "@froggy/protocol";
 import type { PrivyServer, SpendLedger } from "@froggy/wallet";
 import { livePrivyServer, memoryLedger, stubPrivyServer } from "@froggy/wallet";
 
 import type { Environment } from "./environment";
 
 export interface Services {
-  readonly browser: BrowserSession;
   readonly environment: Environment;
   readonly graph: GraphClient;
   readonly ledger: SpendLedger;
@@ -41,7 +39,6 @@ export interface Services {
 
 export interface ServiceOptions {
   readonly environment: Environment;
-  readonly onBrowserStateChange: (state: BrowserState) => void;
 }
 
 export const createServices = (options: ServiceOptions): Services => {
@@ -80,13 +77,7 @@ export const createServices = (options: ServiceOptions): Services => {
         })
       : stubPrivyServer();
 
-  const browser = new BrowserSession({
-    onStateChange: options.onBrowserStateChange,
-    profileDirectory: environment.chromeProfileDirectory,
-  });
-
   return {
-    browser,
     environment,
     graph,
     // In-memory, and the Railway service is pinned to one replica because of

@@ -10,11 +10,17 @@
  * low-rate stream of small facts where every message matters — a freeze
  * acknowledgement must not queue behind a backlog of JPEGs.
  *
- * Both are origin-gated at upgrade. A WebSocket upgrade bypasses CORS entirely,
- * and the browser socket types into a Chrome logged into the user's sites, so
- * an unchecked upgrade would be a remote-control handle on someone's session.
+ * Both are authenticated *and* origin-gated at upgrade. The token is what
+ * decides whose workspace the socket is attached to; the origin check is a
+ * second, weaker fence — a WebSocket upgrade bypasses CORS entirely, so
+ * without it a hostile page could at least try tokens it had stolen.
+ *
+ * Everything published here is addressed to one user. A broadcast to every
+ * open socket is what the single-session build did, and on a multi-user
+ * process it would hand one person another person's receipts.
  */
 
+import type { UserId } from "@froggy/domain";
 import {
   decodeAppClientMessage,
   decodeBrowserClientMessage,
@@ -26,12 +32,15 @@ import { Result } from "effect";
 
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
-import type { WorkspaceSession } from "./session";
+import { BrowserLimitReachedError } from "./workspaces";
+import type { Workspaces } from "./workspaces";
 
 type SocketKind = "app" | "browser";
 
 export interface SocketData {
   kind: SocketKind;
+  /** Established at upgrade from a verified Privy token. Never client-supplied. */
+  userId: UserId;
 }
 
 type Socket = Bun.ServerWebSocket<SocketData>;
@@ -46,20 +55,26 @@ const MAX_BUFFERED_BYTES = 512 * 1024;
 export interface SocketDeps {
   readonly runs: ChatRunRegistry;
   readonly services: Services;
-  readonly session: WorkspaceSession;
+  readonly workspaces: Workspaces;
 }
 
+/**
+ * A missing `Origin` is refused.
+ *
+ * The earlier version allowed it, reasoning that browsers always send one so
+ * absence meant a harmless non-browser client. That had the threat model
+ * backwards: the attacker here is a script, not a browser, and a script simply
+ * omits the header. Allowing absence made the allowlist decorative — which is
+ * exactly how the deployed instance ended up drivable by `curl`.
+ *
+ * Legitimate non-browser clients authenticate with a token and are refused
+ * here anyway; that is the intended trade. This is a second fence, not the
+ * fence.
+ */
 export const isTrustedOrigin = (
   origin: string | null,
   allowed: readonly string[]
-): boolean => {
-  // A missing Origin is a non-browser client (curl, a test). Browsers always
-  // send one on an upgrade, so absence cannot be a browser being sneaky.
-  if (origin === null) {
-    return true;
-  }
-  return allowed.includes(origin);
-};
+): boolean => origin !== null && allowed.includes(origin);
 
 const sendApp = (socket: Socket, message: AppServerMessage): void => {
   socket.send(encodeAppServerMessage(message));
@@ -70,14 +85,17 @@ export const createSocketHandlers = (deps: SocketDeps) => {
   const browserSockets = new Set<Socket>();
   const unsubscribes = new WeakMap<Socket, () => void>();
 
-  const broadcastApp = (message: AppServerMessage): void => {
+  /** To this user's app sockets — their laptop and their phone, nobody else's. */
+  const publishApp = (userId: UserId, message: AppServerMessage): void => {
     const encoded = encodeAppServerMessage(message);
     for (const socket of appSockets) {
-      socket.send(encoded);
+      if (socket.data.userId === userId) {
+        socket.send(encoded);
+      }
     }
   };
 
-  const broadcastBrowserState = (state: BrowserState): void => {
+  const publishBrowserState = (userId: UserId, state: BrowserState): void => {
     // Browser state is small JSON on the *browser* socket, alongside the frames
     // it describes, so a tab list can never arrive before the frame it belongs to.
     const encoded = encodeBrowserServerMessage({
@@ -86,7 +104,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
       v: 1,
     });
     for (const socket of browserSockets) {
-      socket.send(encoded);
+      if (socket.data.userId === userId) {
+        socket.send(encoded);
+      }
     }
   };
 
@@ -107,7 +127,7 @@ export const createSocketHandlers = (deps: SocketDeps) => {
       if (ws.data.kind !== "browser") {
         return;
       }
-      deps.services.browser.resendLatest({
+      deps.workspaces.for(ws.data.userId).browser.resendLatest({
         send: (encoded) => {
           if (ws.getBufferedAmount() > MAX_BUFFERED_BYTES) {
             return false;
@@ -143,15 +163,28 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           );
           return;
         }
+        const workspace = deps.workspaces.for(ws.data.userId);
         if (message.type === "browser.take") {
           // Abort first, *then* take the page. Flipping only the gate buys 1.5
           // seconds before the next queued tool call grabs it straight back,
-          // which looks exactly like the button not working.
-          deps.runs.abortAll();
+          // which looks exactly like the button not working. Only this user's
+          // run is aborted — one person hitting Take must not stop everyone.
+          deps.runs.abort(workspace.session.id);
         }
         try {
-          await deps.services.browser.handleClientMessage(message);
+          // The cap is checked here rather than inside the session, because
+          // this is the boundary where a refusal can still be turned into
+          // something the pane renders.
+          deps.workspaces.admitBrowser(ws.data.userId);
+          await workspace.browser.handleClientMessage(message);
         } catch (error) {
+          if (error instanceof BrowserLimitReachedError) {
+            publishBrowserState(ws.data.userId, {
+              ...workspace.browser.state(),
+              error: error.message,
+            });
+            return;
+          }
           // The session has already recorded a start failure in its own status,
           // which is what the pane renders. But a command that fails for any
           // other reason used to vanish here with nothing anywhere — and a
@@ -182,23 +215,27 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           return;
         }
         case "mandate.freeze": {
-          const mandate = deps.session.setFrozen(message.frozen);
+          const workspace = deps.workspaces.for(ws.data.userId);
+          const mandate = workspace.session.setFrozen(message.frozen);
           // Freezing stops the turn as well as the spending. Stopping only the
           // spending would leave the agent running against a wallet it can no
-          // longer use, narrating failures.
+          // longer use, narrating failures. It stops *this* user's turn: a
+          // freeze is a statement about one wallet.
           if (message.frozen) {
-            deps.runs.abortAll();
+            deps.runs.abort(workspace.session.id);
           }
-          broadcastApp({ mandate, type: "mandate.state", v: 1 });
+          publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
           return;
         }
         case "mandate.update": {
-          const mandate = deps.session.updateMandate(message.mandate);
-          broadcastApp({ mandate, type: "mandate.state", v: 1 });
+          const mandate = deps.workspaces
+            .for(ws.data.userId)
+            .session.updateMandate(message.mandate);
+          publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
           return;
         }
         case "approval.resolve": {
-          broadcastApp({
+          publishApp(ws.data.userId, {
             requestId: message.requestId,
             type: "approval.resolved",
             v: 1,
@@ -212,37 +249,41 @@ export const createSocketHandlers = (deps: SocketDeps) => {
     },
 
     open(ws) {
+      const workspace = deps.workspaces.for(ws.data.userId);
       if (ws.data.kind === "app") {
         appSockets.add(ws);
         sendApp(ws, {
           modes: deps.services.environment.modes,
-          sessionId: deps.session.id,
+          sessionId: workspace.session.id,
           type: "session.welcome",
           v: 1,
         });
         sendApp(ws, {
-          mandate: deps.session.currentMandate,
+          mandate: workspace.session.currentMandate,
           type: "mandate.state",
           v: 1,
         });
         void (async () => {
-          const wallet = await deps.session.walletSummary();
+          const wallet = await workspace.session.walletSummary();
           sendApp(ws, { type: "wallet.state", v: 1, wallet });
         })();
         return;
       }
 
       browserSockets.add(ws);
+      // Chrome is not started here. Opening the pane should cost nothing until
+      // someone actually asks for a page; the state below says "idle" and the
+      // pane renders its start button from it.
       ws.send(
         encodeBrowserServerMessage({
-          state: deps.services.browser.state(),
+          state: workspace.browser.state(),
           type: "browser.state",
           v: 1,
         })
       );
       unsubscribes.set(
         ws,
-        deps.services.browser.subscribe({
+        workspace.browser.subscribe({
           send: (encoded) => {
             if (ws.getBufferedAmount() > MAX_BUFFERED_BYTES) {
               return false;
@@ -255,5 +296,5 @@ export const createSocketHandlers = (deps: SocketDeps) => {
     },
   };
 
-  return { broadcastApp, broadcastBrowserState, handlers };
+  return { handlers, publishApp, publishBrowserState };
 };

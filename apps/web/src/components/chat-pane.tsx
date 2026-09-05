@@ -10,7 +10,9 @@
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@froggy/ui/components/button";
 import { DefaultChatTransport } from "ai";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import { useSessionToken } from "../lib/session-token";
 
 const SUGGESTIONS = [
   "What's the cheapest USDC borrow right now?",
@@ -20,9 +22,26 @@ const SUGGESTIONS = [
 
 export const ChatPane = (): React.ReactElement => {
   const [draft, setDraft] = useState("");
+  const { getToken } = useSessionToken();
+
+  // `headers` is resolved per request rather than captured once, so a turn
+  // started an hour into a session sends the refreshed token instead of the
+  // one that happened to be current when this component mounted.
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        headers: async () => {
+          const token = await getToken();
+          return token === null ? {} : { authorization: `Bearer ${token}` };
+        },
+      }),
+    [getToken]
+  );
+
   const { messages, sendMessage, status, stop } = useChat({
     resume: true,
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport,
   });
 
   const busy = status === "streaming" || status === "submitted";
@@ -38,7 +57,13 @@ export const ChatPane = (): React.ReactElement => {
   const abort = (): void => {
     // Both halves. The local `stop()` alone detaches this client and leaves the
     // server-owned run happily continuing to spend.
-    void fetch("/api/chat/stop", { method: "POST" });
+    void (async () => {
+      const token = await getToken();
+      await fetch("/api/chat/stop", {
+        headers: token === null ? {} : { authorization: `Bearer ${token}` },
+        method: "POST",
+      });
+    })();
     void stop();
   };
 

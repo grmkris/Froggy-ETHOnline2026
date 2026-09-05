@@ -14,8 +14,17 @@
  *      an insecure origin or a bad app id, and an unhandled throw there is a
  *      white page rather than a sign-in button that does not work.
  *
- * Without an app id this degrades to a local identity so the rest of the
- * workspace — mandate, spend, ledger, receipts — is exercisable today.
+ * Without an app id this degrades to a **local identity**: a random token kept
+ * in `localStorage` and sent exactly like a real one. That matters more than it
+ * sounds. The server has no anonymous path — every route and both sockets
+ * demand a token — so a stub that produced no token would leave the whole
+ * authenticated path unexercised until the day Privy went live, which is the
+ * worst day to first run it. Instead the same code runs, against
+ * `stubPrivyServer`, and the header says "local identity" so nobody mistakes
+ * it for a login.
+ *
+ * A second local user is a second browser profile or an incognito window: the
+ * token is per-origin storage, so those get different workspaces.
  */
 import {
   Component,
@@ -44,15 +53,43 @@ export interface Identity {
 /** Neither signing in nor out does anything without a Privy app id. */
 const unavailable = (): void => undefined;
 
+const LOCAL_TOKEN_KEY = "froggy.local-identity";
+
+/**
+ * The local identity's token.
+ *
+ * Random, so two profiles are two users, and persisted, so a reload returns to
+ * the same workspace rather than a fresh mandate every refresh. It is not a
+ * credential — `stubPrivyServer` accepts any non-empty string — and it is only
+ * ever used when no Privy app id is configured.
+ */
+const localToken = (): string => {
+  try {
+    const existing = globalThis.localStorage?.getItem(LOCAL_TOKEN_KEY);
+    if (existing !== null && existing !== undefined && existing !== "") {
+      return existing;
+    }
+    const minted = crypto.randomUUID();
+    globalThis.localStorage?.setItem(LOCAL_TOKEN_KEY, minted);
+    return minted;
+  } catch {
+    // Storage can throw outright in a locked-down context. A per-load token
+    // still works; it just means a reload starts a new workspace.
+    return crypto.randomUUID();
+  }
+};
+
 const LOCAL: Identity = {
   address: null,
-  authenticated: false,
+  // True: there *is* a caller, and the server will accept them. `stubbed`
+  // is what tells the UI not to call it a sign-in.
+  authenticated: true,
   login: unavailable,
   logout: unavailable,
   ready: true,
   signer: null,
   stubbed: true,
-  token: async () => await Promise.resolve(null),
+  token: async () => await Promise.resolve(localToken()),
 };
 
 const IdentityContext = createContext<Identity>(LOCAL);

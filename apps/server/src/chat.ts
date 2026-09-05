@@ -13,6 +13,7 @@
  * finishes truncated.
  */
 
+import type { BrowserSession } from "@froggy/browser";
 import type { SessionId } from "@froggy/domain";
 import {
   convertToModelMessages,
@@ -40,8 +41,9 @@ const STEP_CAP = 12;
 const systemPrompt = (oracleUrl: string): string =>
   `You are Froggy, an agent with a wallet and a browser the user is watching live.
 
-The browser is shared. The person can grab the page from you at any moment; if a
-snapshot says it may be stale, take another rather than acting on the old one.
+The browser is this person's own, and they are watching it. They can grab the
+page from you at any moment; if a snapshot says it may be stale, take another
+rather than acting on the old one.
 
 Spending is not yours to decide. Every payment goes through the user's mandate —
 per-transaction and rolling caps, allowlisted payees and hosts. You cannot raise
@@ -66,6 +68,7 @@ export interface ChatRequest {
 }
 
 export interface ChatDeps {
+  readonly browser: BrowserSession;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -84,7 +87,12 @@ export const handleChat = async (
     messages: await convertToModelMessages([...request.messages]),
     stopWhen: stepCountIs(STEP_CAP),
     instructions: systemPrompt(deps.oracleUrl),
-    tools: buildTools({ run, services: deps.services, session: deps.session }),
+    tools: buildTools({
+      browser: deps.browser,
+      run,
+      services: deps.services,
+      session: deps.session,
+    }),
   });
 
   return createUIMessageStreamResponse({

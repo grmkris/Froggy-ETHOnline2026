@@ -16,14 +16,20 @@ import type {
 import {
   decodeAppServerMessage,
   encodeAppClientMessage,
+  wsProtocols,
 } from "@froggy/protocol";
 import { Result } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { socketUrl } from "../environment";
+import { useSessionToken } from "../lib/session-token";
 
 const PING_INTERVAL_MS = 15_000;
 const MAX_BACKOFF_MS = 5000;
+
+/** Exponential, capped. Shared by both reconnect paths in the effect below. */
+const backoffMs = (attempt: number): number =>
+  Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS);
 
 export interface AppStream {
   readonly connected: boolean;
@@ -43,6 +49,7 @@ export const useAppSocket = (): AppStream => {
   const [receipts, setReceipts] = useState<readonly Receipt[]>([]);
   const [lastDecision, setLastDecision] = useState<PolicyDecision | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const { canConnect, getToken } = useSessionToken();
 
   const send = useCallback((message: AppClientMessage) => {
     const socket = socketRef.current;
@@ -59,11 +66,24 @@ export const useAppSocket = (): AppStream => {
     let ping: ReturnType<typeof setInterval> | null = null;
     let reconnect: ReturnType<typeof setTimeout> | null = null;
 
-    const open = (): void => {
+    const open = async (): Promise<void> => {
       if (closed) {
         return;
       }
-      socket = new WebSocket(socketUrl("/ws/app"));
+      // Fetched per attempt, not once: a reconnect after a long sleep needs
+      // the refreshed token, and the old one would be refused forever.
+      const token = await getToken();
+      if (closed) {
+        return;
+      }
+      if (token === null) {
+        attempt += 1;
+        reconnect = setTimeout(() => {
+          void open();
+        }, backoffMs(attempt));
+        return;
+      }
+      socket = new WebSocket(socketUrl("/ws/app"), wsProtocols(token));
       socketRef.current = socket;
 
       socket.addEventListener("open", () => {
@@ -127,15 +147,24 @@ export const useAppSocket = (): AppStream => {
         if (closed) {
           return;
         }
+        // Inlined rather than shared with the token-failure path above: a
+        // helper that calls `open` and is declared before it reads as a
+        // forward reference, and the duplication is three lines.
         attempt += 1;
-        reconnect = setTimeout(
-          open,
-          Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS)
-        );
+        reconnect = setTimeout(() => {
+          void open();
+        }, backoffMs(attempt));
       });
     };
 
-    open();
+    if (!canConnect) {
+      // Still returns a cleanup, so the effect has one shape rather than two.
+      return () => {
+        closed = true;
+      };
+    }
+
+    void open();
 
     return () => {
       closed = true;
@@ -148,7 +177,7 @@ export const useAppSocket = (): AppStream => {
       socket?.close();
       socketRef.current = null;
     };
-  }, []);
+  }, [canConnect, getToken]);
 
   return { connected, lastDecision, mandate, modes, receipts, send, wallet };
 };

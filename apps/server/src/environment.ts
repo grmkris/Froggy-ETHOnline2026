@@ -93,6 +93,8 @@ export interface Environment {
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
   readonly hederaPrivateKey: string;
+  /** Concurrent Chromes allowed across all users. 0 means unlimited. */
+  readonly maxBrowsers: number;
   readonly modes: ServiceModes;
   /** OpenAI-compatible fallback so the agent loop is exercisable without Anthropic. */
   readonly openAiCompatibleApiKey: string;
@@ -123,6 +125,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const chromeProfileDirectory = yield* Config.string(
       "CHROME_PROFILE_DIR"
     ).pipe(Config.withDefault(".froggy/chrome-profile"));
+    // One Chrome per signed-in user, uncapped by default — the call made for
+    // this build. Two Chromes are roughly a gigabyte, so a link that gets
+    // shared widely will exhaust the box; setting this is the mitigation, and
+    // it is a variable rather than a code change so it can be set under load.
+    const maxBrowsers = yield* Config.number("MAX_BROWSERS").pipe(
+      Config.withDefault(0)
+    );
     const databaseUrl = yield* secret(
       "DATABASE_URL",
       "postgres://postgres:postgres@localhost:5432/froggy"
@@ -207,6 +216,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       hederaAccountId,
       hederaFacilitatorUrl,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
+      maxBrowsers,
       modes,
       openAiCompatibleApiKey: compatibleKey,
       openAiCompatibleBaseUrl,

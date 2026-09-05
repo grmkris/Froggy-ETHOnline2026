@@ -26,6 +26,12 @@ export {
   TabSummary,
 } from "./browser";
 export {
+  tokenFromProtocolHeader,
+  WS_PROTOCOL,
+  WS_TOKEN_PREFIX,
+  wsProtocols,
+} from "./handshake";
+export {
   decodeScreencastFrame,
   encodeScreencastFrame,
   FrameMeta,
