@@ -4,7 +4,7 @@ Companion to `docs/PLAN.md` and `docs/architecture.md`. Those files are the team
 
 How it was produced: nine research dimensions ran in parallel (demand, competition, segments, build-in-public, feasibility, prizes, retention, safety, hackathon meta). Every high-impact claim was then attacked by two independent verifiers (one fetched the cited sources, one hunted for counter-evidence). A critic listed contradictions and gaps, and six gap studies settled them, including live Docker runs of `Bun.WebView`, live HTTP probes of Blocky402 and The Graph's x402 gateways, and unpacking the `@x402/hedera` and Privy npm packages. Full digests with every URL live in `research_FABLE51/`. Facts below are VERIFIED unless marked INFERRED.
 
-Sibling files: `PRODUCT_FABLE51.md` (the refined product), `PIVOT_ASSESSMENT_FABLE51.md` (the KIMI ideas validated against the same evidence), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
+Sibling files: `README_FABLE51.md` (the index), `PRODUCT_FABLE51.md` (the refined product), `PIVOT_ASSESSMENT_FABLE51.md` (the KIMI ideas validated against the same evidence), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
 
 ---
 
