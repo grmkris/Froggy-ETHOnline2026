@@ -172,7 +172,7 @@ export const privyAgentSigner = (
         // Privy's refusal, in its words; anything else is rethrown as itself.
         if (error instanceof APIError) {
           throw new PrivySignerRefusedError(
-            `Privy refused to sign: ${error.message}`
+            `Privy refused to sign under policy ${input.agent.policyId}: ${error.message}`
           );
         }
         throw error;
@@ -198,7 +198,7 @@ export const privyAgentSigner = (
       } catch (error) {
         if (error instanceof APIError) {
           throw new PrivySignerRefusedError(
-            `Privy refused to sign: ${error.message}`
+            `Privy refused to sign under policy ${input.agent.policyId}: ${error.message}`
           );
         }
         throw error;
