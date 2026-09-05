@@ -51,13 +51,38 @@ type FacilitatorResponse = typeof FacilitatorResponse.Type;
 const decodeFacilitatorResponse =
   Schema.decodeUnknownResult(FacilitatorResponse);
 
+/**
+ * What the facilitator publishes about itself.
+ *
+ * Decoded rather than read: the fee payer is the one field without which the
+ * whole payment cannot be built, and a body that has drifted must fail here
+ * rather than produce a 402 that quietly cannot be paid.
+ */
+const Supported = Schema.Struct({
+  kinds: Schema.Array(
+    Schema.Struct({
+      extra: Schema.optional(
+        Schema.Struct({ feePayer: Schema.optional(Schema.String) })
+      ),
+      network: Schema.String,
+      scheme: Schema.String,
+    })
+  ),
+});
+
+const decodeSupported = Schema.decodeUnknownResult(Supported);
+
 const requirementsFor = (
   payTo: string,
-  resource: PaidResource
+  resource: PaidResource,
+  feePayer: string | null
 ): PaymentRequirements => ({
   amount: resource.units,
   asset: HBAR_ASSET,
-  extra: {},
+  // Hedera's exact scheme pays fees from the facilitator's account, not the
+  // payer's, so the payer has to be told which one — without this the payment
+  // cannot be constructed at all.
+  extra: feePayer === null ? {} : { feePayer },
   maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
   network: HEDERA_TESTNET,
   payTo,
@@ -66,9 +91,10 @@ const requirementsFor = (
 
 const challengeFor = (
   payTo: string,
-  resource: PaidResource
+  resource: PaidResource,
+  feePayer: string | null
 ): PaymentRequired => ({
-  accepts: [requirementsFor(payTo, resource)],
+  accepts: [requirementsFor(payTo, resource, feePayer)],
   error: "Payment required.",
   resource: {
     description: resource.description,
@@ -125,6 +151,9 @@ export interface LiveOracleOptions {
  * trip and returns an error the caller cannot distinguish from a real failure.
  */
 export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
+  /** Learned from `/supported` at boot. Null until then, and the 402 says so. */
+  let feePayer: string | null = null;
+
   /**
    * One call to the facilitator.
    *
@@ -159,9 +188,29 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
   };
 
   return {
-    challenge: (resource) => challengeFor(options.payTo, resource),
+    challenge: (resource) => challengeFor(options.payTo, resource, feePayer),
     mode: "live",
     payTo: options.payTo,
+    refresh: async () => {
+      try {
+        const response = await fetch(`${options.facilitatorUrl}/supported`);
+        if (!response.ok) {
+          return false;
+        }
+        const decoded = decodeSupported(await response.json());
+        if (Result.isFailure(decoded)) {
+          return false;
+        }
+        const kind = decoded.success.kinds.find(
+          (entry) =>
+            entry.network === HEDERA_TESTNET && entry.scheme === "exact"
+        );
+        feePayer = kind?.extra?.feePayer ?? null;
+        return feePayer !== null;
+      } catch {
+        return false;
+      }
+    },
     settle: async (paymentHeader, requirements) => {
       const paymentPayload = decodeHeader(paymentHeader);
       if (paymentPayload === null) {
@@ -211,10 +260,16 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
 /** The placeholder `payTo` while no Hedera account exists. Obviously not real. */
 export const STUB_PAY_TO = "0.0.0";
 
+/** Equally obviously not real, and paired with `STUB_PAY_TO` on purpose. */
+const STUB_FEE_PAYER = "0.0.0";
+
 export const stubOracleGate = (): OracleGate => ({
-  challenge: (resource) => challengeFor(STUB_PAY_TO, resource),
+  challenge: (resource) => challengeFor(STUB_PAY_TO, resource, STUB_FEE_PAYER),
   mode: "stub",
   payTo: STUB_PAY_TO,
+  // Nothing to learn: the stub's fee payer is a constant, and saying it
+  // succeeded keeps the boot log honest about which mode is running.
+  refresh: async () => await Promise.resolve(true),
   settle: async (paymentHeader) => {
     await Promise.resolve();
     // Still requires a syntactically valid header. Accepting anything at all

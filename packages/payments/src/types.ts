@@ -23,6 +23,16 @@ export interface OracleGate {
   readonly mode: "live" | "stub";
   /** The account paid, so the server can add itself to its own allowlist. */
   readonly payTo: string;
+  /**
+   * Learn the facilitator's fee payer, so the 402 can name it.
+   *
+   * Hedera's exact scheme needs the fee payer in `extra`, and a 402 without it
+   * cannot be paid — the payer refuses with "feePayer is required". It is read
+   * from the facilitator's `/supported` rather than hardcoded because it has
+   * already changed once: the docs still name an account the live service no
+   * longer uses. Returns false when it could not be learned.
+   */
+  readonly refresh: () => Promise<boolean>;
   readonly settle: (
     paymentHeader: string,
     requirements: PaymentRequirements

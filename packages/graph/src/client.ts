@@ -34,6 +34,14 @@ import type {
  * `totalBorrowBalanceUSD` and the rate array are schema fields, not
  * protocol-specific ones — that is the entire point of querying a standardized
  * subgraph rather than three bespoke ones.
+ *
+ * `totalBorrowBalanceUSD_gt: 0` is not tidying. Compound v3's deployment
+ * carries three empty USDC markets alongside its real one, all `isActive` and
+ * all reporting a 0% borrow rate — and they sort straight to the top of
+ * "cheapest borrow", so the honest-looking answer was "0.000%" against a
+ * market with no liquidity in it. A market nobody has borrowed from is not an
+ * answer to "where can I borrow", and the agent was about to spend money on
+ * the strength of it.
  */
 const LENDING_QUERY = `
   query CheapestBorrow($symbol: String!, $first: Int!) {
@@ -42,7 +50,11 @@ const LENDING_QUERY = `
       first: $first
       orderBy: totalBorrowBalanceUSD
       orderDirection: desc
-      where: { inputToken_: { symbol: $symbol }, isActive: true }
+      where: {
+        inputToken_: { symbol: $symbol }
+        isActive: true
+        totalBorrowBalanceUSD_gt: 0
+      }
     ) {
       name
       inputToken { symbol }
@@ -69,7 +81,17 @@ const RawRate = Schema.Struct({
 
 const RawMarket = Schema.Struct({
   inputToken: Schema.Struct({ symbol: Schema.String }),
-  name: Schema.String,
+  /**
+   * Nullable, because the Messari schema declares it nullable and at least one
+   * live deployment leaves it unset.
+   *
+   * Requiring a string here made the whole of Compound v3 decode-fail and get
+   * reported as "did not match the standardized lending schema" — a decoder
+   * stricter than the schema it claims to follow, blaming the data for its own
+   * mistake. Standardised means what the schema says, not what three of four
+   * deployments happen to fill in.
+   */
+  name: Schema.NullOr(Schema.String),
   rates: Schema.Array(RawRate),
   totalBorrowBalanceUSD: Schema.String,
   totalDepositBalanceUSD: Schema.String,
@@ -123,6 +145,16 @@ const rateOf = (rates: readonly RawRate[], side: string): number => {
 const protocolOf = (name: string): string =>
   name.split(/\s+/u)[0]?.toLowerCase() ?? "unknown";
 
+/**
+ * A readable name for a market that did not supply one.
+ *
+ * Built from the two things every deployment does populate — the protocol we
+ * asked and the token we asked about — so an unnamed market reads as
+ * "Compound v3 USDC" rather than as a blank row the model has to guess at.
+ */
+const nameOf = (raw: RawMarket, deployment: Deployment): string =>
+  raw.name ?? `${deployment.label} ${raw.inputToken.symbol}`;
+
 const toMarket = (
   raw: RawMarket,
   deployment: Deployment,
@@ -133,8 +165,8 @@ const toMarket = (
   chain: deployment.chain,
   deploymentId: deployment.id,
   inputTokenSymbol: raw.inputToken.symbol,
-  name: raw.name,
-  protocol: protocolOf(raw.name),
+  name: nameOf(raw, deployment),
+  protocol: protocolOf(nameOf(raw, deployment)),
   supplyApr: rateOf(raw.rates, "LENDER"),
   totalBorrowUsd: Number(raw.totalBorrowBalanceUSD),
   totalSupplyUsd: Number(raw.totalDepositBalanceUSD),

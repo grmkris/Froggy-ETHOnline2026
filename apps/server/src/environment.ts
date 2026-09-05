@@ -151,8 +151,11 @@ export interface Environment {
   readonly databaseUrl: string;
   readonly graphApiKey: string;
   readonly graphGatewayUrl: string;
+  /** The agent's pocket: the account a 402 is paid *from*. */
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
+  /** The account our own paid endpoint is paid *to*. */
+  readonly hederaPayTo: string;
   /** Where the HBAR/USD rate every cap is computed from comes from. */
   readonly hederaMirrorNodeUrl: string;
   readonly hederaPrivateKey: string;
@@ -261,6 +264,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "HEDERA_PRIVATE_KEY",
       PLACEHOLDER.hederaPrivateKey
     );
+    // Defaults to the pocket, so a single-account setup still works — but a
+    // service paying itself is a demo of nothing, and the settlement is only
+    // visible on a mirror node if the HBAR actually moves between two
+    // accounts. Two accounts is the shape worth showing.
+    const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
+      Config.withDefault("")
+    );
     const hederaFacilitatorUrl = yield* Config.string(
       "HEDERA_FACILITATOR_URL"
     ).pipe(Config.withDefault("https://api.testnet.blocky402.com"));
@@ -326,6 +336,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       hederaAccountId,
       hederaFacilitatorUrl,
       hederaMirrorNodeUrl,
+      hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,
       modelProvider,

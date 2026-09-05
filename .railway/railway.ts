@@ -96,6 +96,7 @@ export default defineRailway((ctx) => {
       HEDERA_ACCOUNT_ID: preserve(),
       HEDERA_FACILITATOR_URL: preserve(),
       HEDERA_MIRROR_NODE_URL: preserve(),
+      HEDERA_PAY_TO: preserve(),
       HEDERA_PRIVATE_KEY: preserve(),
       BROWSER_IDLE_MS: preserve(),
       DEMO_USER_DID: preserve(),
