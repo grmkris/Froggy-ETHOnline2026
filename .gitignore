@@ -23,3 +23,8 @@ packages/contracts/broadcast/
 .DS_Store
 *.log
 test-results/
+
+# Chrome profiles. The agent browses as whoever is signed into one, so a
+# profile must never be committed — it carries Cookies, History and Login Data.
+.froggy/
+**/.froggy/
