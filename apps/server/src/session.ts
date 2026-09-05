@@ -18,20 +18,28 @@
  */
 
 import {
+  APPROVAL_KIND_ORDER,
+  ApprovalId,
+  ApprovalKind as ApprovalKindSchema,
   MandateId,
   ReceiptId,
   RuleId as RuleIdSchema,
   SpendId,
   SpendIntent as SpendIntentSchema,
   defaultRules,
+  formatUsd,
   priceInUsdMicros,
 } from "@froggy/domain";
 import type {
   Amount,
+  ApprovalKind,
+  ApprovalRecord,
+  ApprovalResolution,
   Mandate,
   PolicyDecision,
   Quote,
   Receipt,
+  RuleId,
   RunId as RunIdValue,
   SessionId,
   SpendIntent,
@@ -41,6 +49,7 @@ import type {
 } from "@froggy/domain";
 import type {
   AgentSignerState,
+  ApprovalRequest,
   ServiceModes,
   WalletSummary,
 } from "@froggy/protocol";
@@ -49,6 +58,7 @@ import type { SpendLedger, Store, WalletAddresses } from "@froggy/wallet";
 import { Schema } from "effect";
 
 import { detached } from "./detached";
+import type { ApprovalOutcome } from "./interactions";
 
 /**
  * A value under construction, with named fields still to be filled in.
@@ -66,6 +76,12 @@ export interface SpendRequest {
   evidence?: Evidence;
   readonly host?: string;
   readonly idempotencyKey: string;
+  /**
+   * Whether a person can be asked. A chat turn can; a scheduled job cannot,
+   * and says so, so an `ask` there is refused as unavailable rather than
+   * parked on a card nobody will see.
+   */
+  readonly interactive?: boolean;
   readonly payeeId: string;
   readonly payeeLabel: string;
   readonly purpose: string;
@@ -90,6 +106,15 @@ export interface SpendRequest {
 /** What a settlement reports back. Named because three paths now handle it. */
 type Settled = Awaited<ReturnType<SpendRequest["settle"]>>;
 
+/** The priced intent and what the policy made of it. */
+interface Judged {
+  readonly at: number;
+  readonly decision: PolicyDecision;
+  readonly intent: SpendIntent;
+  readonly quote: Quote;
+  readonly usdMicros: UsdMicros;
+}
+
 /** No money moved. The shape a failed or abandoned settlement reports. */
 const unpaid = (request: SpendRequest): Settled => ({
   network: request.amount.asset.network,
@@ -109,7 +134,18 @@ export interface SpendResult {
   readonly receipt: Receipt;
 }
 
+/** A question for the person, and the run it must not outlive. */
+export interface AskInput {
+  readonly request: ApprovalRequest;
+  readonly signal: AbortSignal;
+}
+
 export interface SessionDeps {
+  /**
+   * Put a card in front of the person and wait. Absent when no surface can
+   * show one, in which case every `ask` is refused as unavailable.
+   */
+  readonly ask?: (input: AskInput) => Promise<ApprovalOutcome>;
   readonly ledger: SpendLedger;
   readonly modes: ServiceModes;
   /** Published when the mandate changes for a reason other than a message. */
@@ -140,6 +176,102 @@ const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** How much history a reconnecting client is handed. */
 const RECEIPT_HISTORY = 100;
+
+/** How long a card waits for an answer before it resolves as a timeout. */
+const APPROVAL_TTL_MS = 120_000;
+
+/** How long "allow for this session" lasts. A session, not forever. */
+const EXEMPTION_TTL_MS = 24 * 60 * 60 * 1000;
+
+const APPROVAL_LABELS: Record<ApprovalKind, string> = {
+  allow_once: "Allow once",
+  allow_session: "Allow for this session",
+  deny: "Not this time",
+  deny_stop: "Stop and freeze",
+};
+
+const isApprovalKind = Schema.is(ApprovalKindSchema);
+
+/** The four options, in the order every surface renders them. */
+const approvalOptions = (): ApprovalRequest["options"] =>
+  ApprovalKindSchema.literals
+    .toSorted((a, b) => APPROVAL_KIND_ORDER[a] - APPROVAL_KIND_ORDER[b])
+    .map((kind) => ({ id: kind, kind, label: APPROVAL_LABELS[kind] }));
+
+/** What the human said, or why nothing was said, as the receipt records it. */
+const resolutionOf = (outcome: ApprovalOutcome): ApprovalResolution => {
+  switch (outcome.kind) {
+    case "answered": {
+      return isApprovalKind(outcome.optionId) ? outcome.optionId : "deny";
+    }
+    case "aborted": {
+      return "aborted";
+    }
+    case "deadline": {
+      return "timeout";
+    }
+    default: {
+      return "deny";
+    }
+  }
+};
+
+/** The ways a question ends without a yes. */
+type Refusal = Exclude<ApprovalResolution, "allow_once" | "allow_session">;
+
+/** A decision for every one of them. */
+const refusalFor = (
+  resolution: Refusal,
+  ruleId: RuleId,
+  reason: string | null
+): PolicyDecision => {
+  switch (resolution) {
+    case "timeout": {
+      return {
+        _tag: "deny",
+        code: "approval_timeout",
+        message: "Nobody answered within two minutes, so nothing was paid.",
+        ruleId,
+      };
+    }
+    case "unavailable": {
+      return {
+        _tag: "deny",
+        code: "approval_unavailable",
+        message:
+          "This spend is over the automatic limit and there is no one to ask from here.",
+        ruleId,
+      };
+    }
+    case "aborted": {
+      return {
+        _tag: "deny",
+        code: "approval_denied",
+        message: `The question was withdrawn: ${reason ?? "the run ended"}.`,
+        ruleId,
+      };
+    }
+    case "deny_stop": {
+      return {
+        _tag: "deny",
+        code: "approval_denied",
+        message: "You said no and stopped the agent.",
+        ruleId,
+      };
+    }
+    case "deny": {
+      return {
+        _tag: "deny",
+        code: "approval_denied",
+        message: "You declined this spend.",
+        ruleId,
+      };
+    }
+    default: {
+      return resolution satisfies never;
+    }
+  }
+};
 
 /**
  * Thrown when nothing can say what an asset is worth.
@@ -468,13 +600,10 @@ export class WorkspaceSession {
    * receipt from the same decision — a caller that lost the race still gets a
    * receipt saying what the policy thought, not a blank one.
    */
-  private async judge(request: SpendRequest): Promise<{
-    readonly at: number;
-    readonly decision: PolicyDecision;
-    readonly intent: SpendIntent;
-    readonly quote: Quote;
-    readonly usdMicros: UsdMicros;
-  }> {
+  private async judge(
+    request: SpendRequest,
+    approved = false
+  ): Promise<Judged> {
     const at = this.now();
     // Recorded on the receipt rather than assumed, so a receipt says what rate
     // it was judged against — and so a rate that later turns out to have been
@@ -513,6 +642,7 @@ export class WorkspaceSession {
     const since = at - widestWindowMs(this.mandate);
     const recent = await this.deps.ledger.since(this.userId, since);
     const decision = authorize({
+      approved,
       intent,
       mandate: this.mandate,
       now: at,
@@ -561,29 +691,26 @@ export class WorkspaceSession {
     });
   }
 
-  private async pay(
+  /**
+   * Judge and, if allowed, reserve — under the lock. A refusal is filed as a
+   * row; an `ask` files nothing yet, because the answer decides what it was.
+   */
+  private async judgeAndReserve(
     request: SpendRequest,
-    publish: (outcome: Settled) => void
-  ): Promise<SpendResult> {
-    // Judgement and reservation under the lock; the payment outside it.
-    const reserved = await this.serial(async () => {
-      const judged = await this.judge(request);
+    approved: boolean
+  ): Promise<{
+    readonly judged: Judged;
+    readonly reservation: Awaited<ReturnType<SpendLedger["reserve"]>> | null;
+    readonly spendId: SpendId;
+  }> {
+    return await this.serial(async () => {
+      const judged = await this.judge(request, approved);
       const spendId = SpendId.generate();
+      if (judged.decision._tag === "ask") {
+        return { judged, reservation: null, spendId };
+      }
       if (judged.decision._tag !== "allow") {
-        // A refusal is a row too. Allowed to fail: the receipt is the record
-        // the person reads, and a ledger that cannot take the note must not
-        // turn a clean refusal into an error.
-        try {
-          await this.deps.ledger.refuse({
-            at: judged.at,
-            id: spendId,
-            idempotencyKey: request.idempotencyKey,
-            usdMicros: judged.usdMicros,
-            userId: this.userId,
-          });
-        } catch {
-          // See above.
-        }
+        await this.refuse(request, judged, spendId);
         return { judged, reservation: null, spendId };
       }
       const reservation = await this.deps.ledger.reserve({
@@ -595,12 +722,133 @@ export class WorkspaceSession {
       });
       return { judged, reservation, spendId };
     });
-    const { judged, reservation, spendId } = reserved;
+  }
+
+  /**
+   * A refusal is a row too. Allowed to fail: the receipt is the record the
+   * person reads, and a ledger that cannot take the note must not turn a
+   * clean refusal into an error.
+   */
+  private async refuse(
+    request: SpendRequest,
+    judged: Judged,
+    spendId: SpendId
+  ): Promise<void> {
+    try {
+      await this.deps.ledger.refuse({
+        at: judged.at,
+        id: spendId,
+        idempotencyKey: request.idempotencyKey,
+        usdMicros: judged.usdMicros,
+        userId: this.userId,
+      });
+    } catch {
+      // See above.
+    }
+  }
+
+  /**
+   * The policy said `ask`. Put the card up, wait, and turn the answer into
+   * what happens next — outside the lock, because a person takes minutes and
+   * every other spend of theirs would otherwise queue behind the question.
+   */
+  private async consult(
+    request: SpendRequest,
+    judged: Judged
+  ): Promise<{
+    readonly approval: ApprovalRecord;
+    readonly reason: string | null;
+  }> {
+    const id = ApprovalId.generate();
+    const { ask } = this.deps;
+    if (
+      ask === undefined ||
+      request.interactive === false ||
+      request.signal === undefined
+    ) {
+      return { approval: { id, resolution: "unavailable" }, reason: null };
+    }
+    const { intent } = judged;
+    const outcome = await ask({
+      request: {
+        amountLabel: formatUsd(intent.usdMicros),
+        detail: `${intent.purpose}. Over the automatic limit, so it is your call.`,
+        expiresAt: judged.at + APPROVAL_TTL_MS,
+        id,
+        options: approvalOptions(),
+        payeeLabel: intent.payee.label,
+        purpose: intent.purpose,
+        title: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}?`,
+      },
+      signal: request.signal,
+    });
+    const resolution = resolutionOf(outcome);
+    if (resolution === "allow_session") {
+      this.exempt(intent, judged.at);
+    }
+    return {
+      approval: { id, resolution },
+      reason: outcome.kind === "aborted" ? outcome.reason : null,
+    };
+  }
+
+  /**
+   * "Allow for this session": one payee, this amount as the ceiling, a day.
+   *
+   * Appended as a rule rather than remembered in a variable, so it survives a
+   * restart, shows in the mandate editor and can be deleted there like any
+   * other rule.
+   */
+  private exempt(intent: SpendIntent, at: number): void {
+    this.mandate = {
+      ...this.mandate,
+      rules: [
+        ...this.mandate.rules,
+        {
+          _tag: "ask_exemption",
+          id: RuleIdSchema.generate(),
+          maxUsdMicros: intent.usdMicros,
+          notAfter: at + EXEMPTION_TTL_MS,
+          payeeId: intent.payee.id,
+        },
+      ],
+    };
+    this.persistMandate();
+    this.deps.onMandate?.(this.mandate);
+  }
+
+  private async pay(
+    request: SpendRequest,
+    publish: (outcome: Settled) => void
+  ): Promise<SpendResult> {
+    let attempt = await this.judgeAndReserve(request, false);
+    let approval: ApprovalRecord | undefined;
+
+    if (attempt.judged.decision._tag === "ask") {
+      const { ruleId } = attempt.judged.decision;
+      const asked = await this.consult(request, attempt.judged);
+      ({ approval } = asked);
+      const { resolution } = approval;
+      if (resolution === "allow_once" || resolution === "allow_session") {
+        // Judged again, with the answer in hand: the mandate may have frozen
+        // while the card was open, and the window may have filled.
+        attempt = await this.judgeAndReserve(request, true);
+      } else {
+        const decision = refusalFor(resolution, ruleId, asked.reason);
+        this.deps.onPolicyDecision(decision);
+        const judged: Judged = { ...attempt.judged, decision };
+        await this.refuse(request, judged, attempt.spendId);
+        attempt = { judged, reservation: null, spendId: attempt.spendId };
+      }
+    }
+
+    const { judged, reservation, spendId } = attempt;
     const { at, decision, intent, quote } = judged;
 
     if (reservation === null) {
       return this.finish({
         abandoned: null,
+        approval,
         at,
         decision,
         intent,
@@ -618,6 +866,7 @@ export class WorkspaceSession {
       // receipt honestly carries no settlement rather than inventing one.
       return this.finish({
         abandoned: null,
+        approval,
         at,
         decision,
         evidence: request.evidence,
@@ -642,6 +891,7 @@ export class WorkspaceSession {
       await this.deps.ledger.settle(row.id, "abandoned");
       return this.finish({
         abandoned,
+        approval,
         at,
         decision,
         evidence: request.evidence,
@@ -659,6 +909,7 @@ export class WorkspaceSession {
 
     return this.finish({
       abandoned: null,
+      approval,
       at,
       decision,
       evidence: request.evidence,
@@ -676,6 +927,7 @@ export class WorkspaceSession {
 
   private finish(input: {
     readonly abandoned: string | null;
+    readonly approval?: ApprovalRecord | undefined;
     readonly at: number;
     readonly decision: PolicyDecision;
     readonly evidence?: Evidence | undefined;
@@ -686,7 +938,7 @@ export class WorkspaceSession {
     readonly spendId: SpendId;
     readonly stubbed: boolean;
   }): SpendResult {
-    const draft: Draft<Receipt, "evidence" | "settlement"> = {
+    const draft: Draft<Receipt, "approval" | "evidence" | "settlement"> = {
       at: input.at,
       decision: input.decision,
       id: ReceiptId.generate(),
@@ -699,6 +951,9 @@ export class WorkspaceSession {
       // against fixture evidence is still not a real answer.
       stubbed: input.stubbed || (input.evidence?.stubbed ?? false),
     };
+    if (input.approval !== undefined) {
+      draft.approval = input.approval;
+    }
     if (input.evidence !== undefined) {
       draft.evidence = input.evidence;
     }

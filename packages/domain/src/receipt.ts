@@ -14,6 +14,7 @@
 
 import { Schema } from "effect";
 
+import { ApprovalRecord } from "./approval";
 import { ReceiptId, RunId, SessionId, SpendId } from "./id";
 import { PolicyDecision, SpendIntent } from "./mandate";
 import { Quote } from "./money";
@@ -59,6 +60,8 @@ export const Settlement = Schema.Struct({
 export type Settlement = typeof Settlement.Type;
 
 export const Receipt = Schema.Struct({
+  /** Present when a person was asked. The decision is what their answer led to. */
+  approval: Schema.optional(ApprovalRecord),
   at: Schema.Int,
   decision: PolicyDecision,
   evidence: Schema.optional(Evidence),

@@ -31,7 +31,9 @@ import type { BrowserState, ServiceModes } from "@froggy/protocol";
 import type { SpendLedger, Store } from "@froggy/wallet";
 
 import { detached } from "./detached";
+import type { ApprovalOutcome } from "./interactions";
 import { WorkspaceSession } from "./session";
+import type { AskInput, SessionDeps } from "./session";
 
 /**
  * Thrown at the socket boundary so the pane can render "third in line".
@@ -65,6 +67,8 @@ export interface Workspace {
 }
 
 export interface WorkspaceDeps {
+  /** Put an approval card in front of this user and wait. See `SessionDeps.ask`. */
+  readonly ask?: (userId: UserId, input: AskInput) => Promise<ApprovalOutcome>;
   /** Off only for local development, where the app itself is on `localhost`. */
   readonly blockPrivateNetwork: boolean;
   /** How long a browser nobody watches or drives stays up. */
@@ -144,24 +148,31 @@ export class Workspaces {
     if (existing !== undefined) {
       return existing;
     }
+    const { ask } = this.deps;
+    const sessionDeps: SessionDeps = {
+      ledger: this.deps.ledger,
+      modes: this.deps.modes,
+      onMandate: (mandate) => {
+        this.deps.onMandate(userId, mandate);
+      },
+      quote: this.deps.quote,
+      onPolicyDecision: (decision) => {
+        this.deps.onPolicyDecision(userId, decision);
+      },
+      onReceipt: (receipt) => {
+        this.deps.onReceipt(userId, receipt);
+      },
+      store: this.deps.store,
+    };
     const session = new WorkspaceSession(
       SessionId.generate(),
       userId,
-      {
-        ledger: this.deps.ledger,
-        modes: this.deps.modes,
-        onMandate: (mandate) => {
-          this.deps.onMandate(userId, mandate);
-        },
-        quote: this.deps.quote,
-        onPolicyDecision: (decision) => {
-          this.deps.onPolicyDecision(userId, decision);
-        },
-        onReceipt: (receipt) => {
-          this.deps.onReceipt(userId, receipt);
-        },
-        store: this.deps.store,
-      },
+      ask === undefined
+        ? sessionDeps
+        : {
+            ...sessionDeps,
+            ask: async (input: AskInput) => await ask(userId, input),
+          },
       { hosts: [this.deps.oracleHost], payeeIds: [this.deps.oraclePayTo] }
     );
     const profileDirectory = profileDirectoryFor(this.deps.profileRoot, userId);

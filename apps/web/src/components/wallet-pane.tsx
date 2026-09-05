@@ -50,6 +50,9 @@ const ruleLabel = (rule: Mandate["rules"][number]): string => {
     case "approval_threshold": {
       return `ask above ${formatUsd(rule.overUsdMicros)}`;
     }
+    case "ask_exemption": {
+      return `pre-approved: ${rule.payeeId} up to ${formatUsd(rule.maxUsdMicros)}`;
+    }
     default: {
       return "unknown rule";
     }

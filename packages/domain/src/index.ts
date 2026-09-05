@@ -9,9 +9,16 @@ export {
   Provenance,
   TRUSTED_PROVENANCE,
 } from "./address";
+export {
+  APPROVAL_KIND_ORDER,
+  ApprovalKind,
+  ApprovalRecord,
+  ApprovalResolution,
+} from "./approval";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
+  ApprovalId,
   MandateId,
   makeIdSchema,
   ReceiptId,
@@ -26,6 +33,7 @@ export {
   Allow,
   ApprovalThreshold,
   Ask,
+  AskExemption,
   defaultRules,
   DenialCode,
   Deny,

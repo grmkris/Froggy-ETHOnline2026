@@ -27,8 +27,9 @@ import type { ServiceModes } from "@froggy/protocol";
 import { memoryLedger, memoryStore } from "@froggy/wallet";
 import type { SpendLedger, Store } from "@froggy/wallet";
 
+import type { ApprovalOutcome } from "./interactions";
 import { MalformedSpendError, WorkspaceSession } from "./session";
-import type { SpendRequest } from "./session";
+import type { AskInput, SessionDeps, SpendRequest } from "./session";
 
 const MODES: ServiceModes = {
   database: "live",
@@ -59,21 +60,36 @@ const noop = (): void => {
 
 const sessionWith = (
   ledger: SpendLedger,
-  store: Store = memoryStore()
-): WorkspaceSession =>
-  new WorkspaceSession(
+  store: Store = memoryStore(),
+  ask?: (input: AskInput) => Promise<ApprovalOutcome>
+): WorkspaceSession => {
+  const deps: SessionDeps = {
+    ledger,
+    modes: MODES,
+    onPolicyDecision: noop,
+    onReceipt: noop,
+    quote: (_asset, now) => parQuote(now),
+    store,
+  };
+  return new WorkspaceSession(
     SessionId.generate(),
     ALICE,
-    {
-      ledger,
-      modes: MODES,
-      onPolicyDecision: noop,
-      onReceipt: noop,
-      quote: (_asset, now) => parQuote(now),
-      store,
-    },
+    ask === undefined ? deps : { ...deps, ask },
     { hosts: ["froggy.test"], payeeIds: ["0.0.1"] }
   );
+};
+
+/** An asker that answers the same way every time and remembers what it was asked. */
+const asker = (
+  answer: (input: AskInput) => ApprovalOutcome | Promise<ApprovalOutcome>
+) => {
+  const asked: AskInput[] = [];
+  const ask = async (input: AskInput): Promise<ApprovalOutcome> => {
+    asked.push(input);
+    return await answer(input);
+  };
+  return { ask, asked };
+};
 
 /** A payable request to the oracle, one HBAR-cent's worth unless overridden. */
 const request = (
@@ -407,5 +423,158 @@ describe("hydration", () => {
     expect(second.history.length).toBe(1);
     const recent = await second.recentReceipts();
     expect(recent.length).toBe(1);
+  });
+});
+
+/**
+ * The default mandate asks above $1 and caps a transaction at $2, so 1.5 HBAR
+ * at par is the spend that is allowed by every cap and still wants a human.
+ */
+describe("a spend over the approval threshold", () => {
+  const BIG = "150000000";
+
+  const payingRequest = (key: string, sent: { count: number }) =>
+    request({
+      key,
+      settle: async () => {
+        sent.count += 1;
+        await Promise.resolve();
+        return {
+          network: "hedera:testnet",
+          ok: true,
+          stubbed: false,
+          transactionId: `0.0.1@${key}`,
+        };
+      },
+      signal: new AbortController().signal,
+      units: BIG,
+    });
+
+  test("is refused as unavailable when nobody can be asked", async () => {
+    const session = sessionWith(memoryLedger());
+    const sent = { count: 0 };
+    const result = await session.spend(payingRequest("nobody", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "approval_unavailable",
+    });
+    expect(result.receipt.approval?.resolution).toBe("unavailable");
+  });
+
+  test("is refused as unavailable when the run says it is not interactive", async () => {
+    const { ask, asked } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "allow_once",
+    }));
+    const session = sessionWith(memoryLedger(), memoryStore(), ask);
+    const sent = { count: 0 };
+    const result = await session.spend({
+      ...payingRequest("job", sent),
+      interactive: false,
+    });
+    expect(asked.length).toBe(0);
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({ code: "approval_unavailable" });
+  });
+
+  test("pays once when the person allows it once, and records the answer", async () => {
+    const { ask, asked } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "allow_once",
+    }));
+    const ledger = memoryLedger();
+    const session = sessionWith(ledger, memoryStore(), ask);
+    const sent = { count: 0 };
+    const result = await session.spend(payingRequest("once", sent));
+    expect(asked.length).toBe(1);
+    expect(asked[0]?.request.options.map((option) => option.kind)).toEqual([
+      "deny_stop",
+      "deny",
+      "allow_session",
+      "allow_once",
+    ]);
+    expect(sent.count).toBe(1);
+    expect(result.decision._tag).toBe("allow");
+    expect(result.receipt.approval).toMatchObject({ resolution: "allow_once" });
+    expect(result.receipt.settlement?.transactionId).toBe("0.0.1@once");
+    // Allowed once means once: the same spend again is asked again.
+    await session.spend(payingRequest("again", sent));
+    expect(asked.length).toBe(2);
+  });
+
+  test("writes an exemption when allowed for the session, and stops asking", async () => {
+    const { ask, asked } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "allow_session",
+    }));
+    const store = memoryStore();
+    const session = sessionWith(memoryLedger(), store, ask);
+    const sent = { count: 0 };
+    await session.spend(payingRequest("first", sent));
+    expect(asked.length).toBe(1);
+    const exemption = session.currentMandate.rules.find(
+      (rule) => rule._tag === "ask_exemption"
+    );
+    expect(exemption).toMatchObject({ payeeId: "0.0.1" });
+    // Persisted with the mandate, so it survives a restart like any rule.
+    const saved = await store.mandates.load(ALICE);
+    expect(saved?.rules.some((rule) => rule._tag === "ask_exemption")).toBe(
+      true
+    );
+    const second = await session.spend(payingRequest("second", sent));
+    expect(asked.length).toBe(1);
+    expect(second.decision._tag).toBe("allow");
+    expect(second.receipt.approval).toBeUndefined();
+    expect(sent.count).toBe(2);
+  });
+
+  test("files a refusal when the person says no, and pays nothing", async () => {
+    const { ask } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "deny",
+    }));
+    const ledger = memoryLedger();
+    const session = sessionWith(ledger, memoryStore(), ask);
+    const sent = { count: 0 };
+    const result = await session.spend(payingRequest("no", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "approval_denied",
+    });
+    expect(result.receipt.approval?.resolution).toBe("deny");
+    expect(result.receipt.settlement).toBeUndefined();
+    // A refusal never counts against the window.
+    const counted = await ledger.since(ALICE, 0);
+    expect(counted.length).toBe(0);
+  });
+
+  test("treats silence as a refusal", async () => {
+    const { ask } = asker(() => ({ kind: "deadline" }));
+    const session = sessionWith(memoryLedger(), memoryStore(), ask);
+    const sent = { count: 0 };
+    const result = await session.spend(payingRequest("late", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({ code: "approval_timeout" });
+    expect(result.receipt.approval?.resolution).toBe("timeout");
+  });
+
+  test("a wallet frozen while the card was open refuses, whatever the answer", async () => {
+    let session: WorkspaceSession | null = null;
+    const { ask } = asker(() => {
+      session?.setFrozen(true);
+      return { accessToken: null, kind: "answered", optionId: "allow_once" };
+    });
+    session = sessionWith(memoryLedger(), memoryStore(), ask);
+    const sent = { count: 0 };
+    const result = await session.spend(payingRequest("frozen", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({ _tag: "deny", code: "frozen" });
+    expect(result.receipt.approval?.resolution).toBe("allow_once");
   });
 });

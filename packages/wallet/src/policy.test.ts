@@ -46,12 +46,14 @@ const mandate = (rules: Mandate["rules"], frozen = false): Mandate => ({
 const decide = (
   rules: Mandate["rules"],
   overrides: {
+    approved?: boolean;
     frozen?: boolean;
     intent?: Partial<SpendIntent>;
     recent?: readonly LedgerEntry[];
   } = {}
 ) =>
   authorize({
+    approved: overrides.approved ?? false,
     intent: intent(overrides.intent),
     mandate: mandate(rules, overrides.frozen ?? false),
     now: NOW,
@@ -209,6 +211,76 @@ describe("authorize", () => {
     expect(decision).toMatchObject({
       _tag: "deny",
       code: "network_not_allowed",
+    });
+  });
+
+  describe("the approval threshold", () => {
+    const threshold = (): Mandate["rules"][number] => ({
+      _tag: "approval_threshold",
+      id: rule(),
+      overUsdMicros: micros(5000),
+    });
+
+    it("asks above the line, naming the rule", () => {
+      const ask = threshold();
+      const decision = decide([ask]);
+      expect(decision).toMatchObject({ _tag: "ask", ruleId: ask.id });
+    });
+
+    it("is satisfied by a person's answer, and by nothing else", () => {
+      // Approved skips exactly one step. A cap that would have refused still
+      // refuses: "yes" to the question is not "yes" to breaking a limit.
+      const cap = rule();
+      expect(decide([threshold()], { approved: true })._tag).toBe("allow");
+      expect(
+        decide(
+          [
+            threshold(),
+            { _tag: "per_tx_cap", id: cap, maxUsdMicros: micros(1000) },
+          ],
+          { approved: true }
+        )
+      ).toMatchObject({ _tag: "deny", ruleId: cap });
+    });
+
+    it("honours a session exemption for the same payee at or under its ceiling", () => {
+      const exemption = rule();
+      const rules: Mandate["rules"] = [
+        threshold(),
+        {
+          _tag: "ask_exemption",
+          id: exemption,
+          maxUsdMicros: micros(10_000),
+          notAfter: NOW + 60_000,
+          payeeId: "0.0.5005",
+        },
+      ];
+      const decision = decide(rules);
+      expect(decision._tag).toBe("allow");
+      if (decision._tag === "allow") {
+        expect(decision.satisfied).toContain(exemption);
+      }
+    });
+
+    it("ignores an exemption for another payee, a larger amount, or one that has expired", () => {
+      const base = {
+        _tag: "ask_exemption" as const,
+        maxUsdMicros: micros(10_000),
+        notAfter: NOW + 60_000,
+        payeeId: "0.0.5005",
+      };
+      expect(
+        decide([threshold(), { ...base, id: rule(), payeeId: "0.0.9" }])._tag
+      ).toBe("ask");
+      expect(
+        decide([
+          threshold(),
+          { ...base, id: rule(), maxUsdMicros: micros(9999) },
+        ])._tag
+      ).toBe("ask");
+      expect(
+        decide([threshold(), { ...base, id: rule(), notAfter: NOW - 1 }])._tag
+      ).toBe("ask");
     });
   });
 });

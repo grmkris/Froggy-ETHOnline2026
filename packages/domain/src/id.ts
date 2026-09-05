@@ -151,3 +151,7 @@ export type SpendId = typeof SpendId.Type;
 /** A settled or refused spend, with the reasoning that produced it. */
 export const ReceiptId = makeIdSchema("rct", "ReceiptId");
 export type ReceiptId = typeof ReceiptId.Type;
+
+/** One question put to the human about one spend. */
+export const ApprovalId = makeIdSchema("apr", "ApprovalId");
+export type ApprovalId = typeof ApprovalId.Type;

@@ -19,6 +19,7 @@ import { authenticate, bearerFromProtocols } from "./auth";
 import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
 import { createFreeze } from "./freeze";
+import type { FreezeControl } from "./freeze";
 import { AgentGrants } from "./grants";
 import { InteractionRegistry } from "./interactions";
 import { createQuotes } from "./quotes";
@@ -56,7 +57,7 @@ class FroggyServer extends Context.Service<
         Pick<
           ReturnType<typeof createSocketHandlers>,
           "publishApp" | "publishBrowserState"
-        >
+        > & { freeze: FreezeControl }
       > = {};
 
       // Fetched once at boot, so the first payment is not the first time
@@ -83,7 +84,39 @@ class FroggyServer extends Context.Service<
       }
       const quotes = createQuotes(services.rates);
 
+      const interactions = new InteractionRegistry({
+        onRequest: (userId, request) => {
+          sinks.publishApp?.(userId, {
+            request,
+            type: "approval.request",
+            v: 1,
+          });
+        },
+        onResolved: (userId, requestId) => {
+          sinks.publishApp?.(userId, {
+            requestId,
+            type: "approval.resolved",
+            v: 1,
+          });
+        },
+      });
+
       const workspaces = new Workspaces({
+        // The card goes up through the registry; "stop and freeze" is the one
+        // answer that does more than resolve the spend, and it does it here
+        // rather than in the session so the session never learns what a
+        // browser or a signer is.
+        ask: async (userId, input) => {
+          const outcome = await interactions.park({ ...input, userId });
+          if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
+            sinks.freeze?.freeze(
+              userId,
+              "stopped from the approval card",
+              outcome.accessToken
+            );
+          }
+          return outcome;
+        },
         blockPrivateNetwork: environment.blockPrivateNetwork,
         browserIdleMs: environment.browserIdleMs,
         demoUserId: environment.demoUserId,
@@ -130,23 +163,6 @@ class FroggyServer extends Context.Service<
         workspaces,
       });
 
-      const interactions = new InteractionRegistry({
-        onRequest: (userId, request) => {
-          sinks.publishApp?.(userId, {
-            request,
-            type: "approval.request",
-            v: 1,
-          });
-        },
-        onResolved: (userId, requestId) => {
-          sinks.publishApp?.(userId, {
-            requestId,
-            type: "approval.resolved",
-            v: 1,
-          });
-        },
-      });
-
       const freeze = createFreeze({
         grants,
         interactions,
@@ -173,6 +189,7 @@ class FroggyServer extends Context.Service<
           await workspaces.sweepIdle();
         });
       }, SWEEP_INTERVAL_MS);
+      sinks.freeze = freeze;
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 

@@ -17,7 +17,16 @@ import type { UserId } from "@froggy/domain";
 import type { ApprovalRequest } from "@froggy/protocol";
 
 export type ApprovalOutcome =
-  | { readonly kind: "answered"; readonly optionId: string }
+  | {
+      readonly kind: "answered";
+      readonly optionId: string;
+      /**
+       * The answerer's Privy token, when the surface had one. "Stop and
+       * freeze" revokes the agent's signer, and Privy requires the user's own
+       * token for that — a freeze that could not revoke must say so.
+       */
+      readonly accessToken: string | null;
+    }
   | { readonly kind: "aborted"; readonly reason: string }
   | { readonly kind: "deadline" };
 
@@ -103,7 +112,12 @@ export class InteractionRegistry {
    * already gone — a stale click is ordinary and a forged one is the reason
    * the user is checked at all.
    */
-  resolve(userId: UserId, requestId: string, optionId: string): boolean {
+  resolve(
+    userId: UserId,
+    requestId: string,
+    optionId: string,
+    accessToken: string | null = null
+  ): boolean {
     const entry = this.parked.get(requestId);
     if (entry === undefined || entry.userId !== userId) {
       return false;
@@ -111,7 +125,7 @@ export class InteractionRegistry {
     if (!entry.request.options.some((option) => option.id === optionId)) {
       return false;
     }
-    entry.settle({ kind: "answered", optionId });
+    entry.settle({ accessToken, kind: "answered", optionId });
     return true;
   }
 

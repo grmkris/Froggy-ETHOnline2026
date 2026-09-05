@@ -265,7 +265,8 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           deps.interactions.resolve(
             ws.data.userId,
             message.requestId,
-            message.optionId
+            message.optionId,
+            ws.data.accessToken
           );
           break;
         }

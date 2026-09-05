@@ -30,6 +30,15 @@ export interface LedgerEntry {
 }
 
 export interface AuthorizeInput {
+  /**
+   * A person has already answered "yes" to this exact intent.
+   *
+   * Only the threshold step reads it: an approval satisfies "is this big
+   * enough to want a human", and nothing else. Every cap, allowlist and the
+   * kill switch are judged again, so a wallet frozen while the card was open
+   * still refuses.
+   */
+  readonly approved?: boolean;
   readonly intent: SpendIntent;
   readonly mandate: Mandate;
   readonly now: number;
@@ -67,6 +76,65 @@ const hostAllowed = (host: string, allowed: readonly string[]): boolean => {
     const target = entry.toLowerCase();
     return candidate === target || candidate.endsWith(`.${target}`);
   });
+};
+
+/**
+ * An unexpired "allow for this session" that covers this payee at this size.
+ *
+ * Scoped three ways on purpose. A person who said yes to fifty cents to one
+ * host has not said yes to five dollars, nor to a different host, nor to the
+ * same host tomorrow.
+ */
+const exempted = (
+  intent: SpendIntent,
+  mandate: Mandate,
+  now: number
+): RuleId | null => {
+  const payeeId = normalizePayeeId(intent.payee.id);
+  for (const rule of rulesOfKind(mandate, "ask_exemption")) {
+    if (
+      now <= rule.notAfter &&
+      normalizePayeeId(rule.payeeId) === payeeId &&
+      intent.usdMicros <= rule.maxUsdMicros
+    ) {
+      return rule.id;
+    }
+  }
+  return null;
+};
+
+/**
+ * Step 3: within every limit, but is it big enough to want a human?
+ *
+ * Returns the `ask` when it is, else null with the satisfied rules appended.
+ * Deliberately after the caps, so "ask" is only ever offered for a spend that
+ * would otherwise have been allowed.
+ */
+const threshold = (
+  input: AuthorizeInput,
+  satisfied: RuleId[]
+): PolicyDecision | null => {
+  const { intent, mandate, now } = input;
+  for (const rule of rulesOfKind(mandate, "approval_threshold")) {
+    if (intent.usdMicros > rule.overUsdMicros) {
+      if (input.approved === true) {
+        satisfied.push(rule.id);
+        continue;
+      }
+      const exemption = exempted(intent, mandate, now);
+      if (exemption !== null) {
+        satisfied.push(rule.id, exemption);
+        continue;
+      }
+      return {
+        _tag: "ask",
+        question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
+        ruleId: rule.id,
+      };
+    }
+    satisfied.push(rule.id);
+  }
+  return null;
 };
 
 export const authorize = (input: AuthorizeInput): PolicyDecision => {
@@ -160,18 +228,10 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
     satisfied.push(rule.id);
   }
 
-  // 3. Last: within every limit, but is it big enough to want a human?
-  //    Deliberately after the caps, so "ask" is only ever offered for a spend
-  //    that would otherwise have been allowed.
-  for (const rule of rulesOfKind(mandate, "approval_threshold")) {
-    if (intent.usdMicros > rule.overUsdMicros) {
-      return {
-        _tag: "ask",
-        question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
-        ruleId: rule.id,
-      };
-    }
-    satisfied.push(rule.id);
+  // 3. Last: the human's line.
+  const ask = threshold(input, satisfied);
+  if (ask !== null) {
+    return ask;
   }
 
   return { _tag: "allow", satisfied };

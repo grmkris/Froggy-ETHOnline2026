@@ -9,6 +9,7 @@ const ALICE = userId("did:privy:alice");
 const BOB = userId("did:privy:bob");
 
 const request = (id: string, expiresAt: number): ApprovalRequest => ({
+  amountLabel: "$0.05",
   detail: "Pay 0.05 tHBAR for the lending brief?",
   expiresAt,
   id,
@@ -16,6 +17,8 @@ const request = (id: string, expiresAt: number): ApprovalRequest => ({
     { id: "no", kind: "deny", label: "Not this time" },
     { id: "yes", kind: "allow_once", label: "Allow once" },
   ],
+  payeeLabel: "the oracle",
+  purpose: "the lending brief",
   title: "Approve a spend",
 });
 
@@ -47,7 +50,11 @@ describe("InteractionRegistry", () => {
     expect(requests).toEqual(["apr_1"]);
     expect(interactions.pendingFor(ALICE).length).toBe(1);
     expect(interactions.resolve(ALICE, "apr_1", "yes")).toBe(true);
-    expect(await parked).toEqual({ kind: "answered", optionId: "yes" });
+    expect(await parked).toEqual({
+      accessToken: null,
+      kind: "answered",
+      optionId: "yes",
+    });
     expect(resolved).toEqual(["apr_1"]);
     expect(interactions.pendingFor(ALICE).length).toBe(0);
   });
@@ -63,7 +70,11 @@ describe("InteractionRegistry", () => {
     expect(interactions.resolve(BOB, "apr_2", "yes")).toBe(false);
     expect(interactions.resolve(ALICE, "apr_2", "maybe")).toBe(false);
     expect(interactions.resolve(ALICE, "apr_2", "no")).toBe(true);
-    expect(await parked).toEqual({ kind: "answered", optionId: "no" });
+    expect(await parked).toEqual({
+      accessToken: null,
+      kind: "answered",
+      optionId: "no",
+    });
   });
 
   test("an aborted run settles the card as aborted", async () => {

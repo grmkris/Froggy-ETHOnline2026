@@ -72,8 +72,24 @@ export const ApprovalThreshold = Schema.TaggedStruct("approval_threshold", {
   overUsdMicros: UsdMicros,
 });
 
+/**
+ * "Allow this payee up to this much, for this session, without asking again."
+ *
+ * Written by exactly one thing: a person answering an approval card with
+ * "allow for this session". The threshold rule stays; this is the record of
+ * the exception, scoped to one payee, one ceiling and one expiry, so a later
+ * reader can see what was pre-approved and until when.
+ */
+export const AskExemption = Schema.TaggedStruct("ask_exemption", {
+  id: RuleId,
+  maxUsdMicros: UsdMicros,
+  notAfter: Schema.Int,
+  payeeId: Schema.String,
+});
+
 export const MandateRule = Schema.Union([
   ApprovalThreshold,
+  AskExemption,
   Expiry,
   HostAllowlist,
   NetworkAllowlist,
@@ -128,6 +144,12 @@ export const DenialCode = Schema.Literals([
   "network_not_allowed",
   "untrusted_provenance",
   "unpriceable",
+  /** The policy asked, and the person said no. */
+  "approval_denied",
+  /** The policy asked, and nobody answered in time. */
+  "approval_timeout",
+  /** The policy asked, and there was no one to ask. */
+  "approval_unavailable",
 ]);
 export type DenialCode = typeof DenialCode.Type;
 

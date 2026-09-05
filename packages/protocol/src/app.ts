@@ -9,6 +9,7 @@
  */
 
 import {
+  ApprovalKind,
   Mandate,
   PolicyDecision,
   ProtocolVersion,
@@ -46,14 +47,6 @@ export type ServiceModes = typeof ServiceModes.Type;
  * "no, and stop the run" and "no, try something else" are different
  * instructions and collapsing them loses the ability to say the first one.
  */
-export const ApprovalKind = Schema.Literals([
-  "deny_stop",
-  "deny",
-  "allow_session",
-  "allow_once",
-]);
-export type ApprovalKind = typeof ApprovalKind.Type;
-
 export const ApprovalOption = Schema.Struct({
   id: Schema.String,
   kind: ApprovalKind,
@@ -61,20 +54,16 @@ export const ApprovalOption = Schema.Struct({
 });
 export type ApprovalOption = typeof ApprovalOption.Type;
 
-/** Presentation order: the primary "yes" sits last, furthest from a stray click. */
-export const APPROVAL_KIND_ORDER: Record<ApprovalKind, number> = {
-  allow_once: 3,
-  allow_session: 2,
-  deny: 1,
-  deny_stop: 0,
-};
-
 export const ApprovalRequest = Schema.Struct({
+  /** "$0.50", "0.05 tHBAR" — what the card prints large. */
+  amountLabel: Schema.String,
   detail: Schema.String,
   /** Server clock past which the card resolves itself as a deny. */
   expiresAt: Schema.Int,
   id: Schema.String,
   options: Schema.Array(ApprovalOption),
+  payeeLabel: Schema.String,
+  purpose: Schema.String,
   title: Schema.String,
 });
 export type ApprovalRequest = typeof ApprovalRequest.Type;
