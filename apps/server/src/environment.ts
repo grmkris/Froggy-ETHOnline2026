@@ -45,6 +45,7 @@ const PLACEHOLDER = {
   privyAuthorizationPrivateKey: "REPLACE_ME_PRIVY_AUTHORIZATION_KEY",
   telegramBotToken: "REPLACE_ME_TELEGRAM_BOT_TOKEN",
   telegramWebhookSecret: "",
+  treasuryEvmAddress: "0xREPLACE_ME_TREASURY",
 } as const;
 
 const isPlaceholder = (value: string, placeholder: string): boolean =>
@@ -151,6 +152,8 @@ export interface Environment {
   readonly blockPrivateNetwork: boolean;
   readonly chromeProfileDirectory: string;
   readonly databaseUrl: string;
+  /** The JSON-RPC endpoint the host broadcasts signed Base Sepolia transactions to. */
+  readonly evmRpcUrl: string;
   readonly graphApiKey: string;
   readonly graphGatewayUrl: string;
   /**
@@ -205,6 +208,12 @@ export interface Environment {
   readonly telegramWebhookSecret: string;
   /** Where the SPA build lives in production. Empty means "dev, Vite serves it". */
   readonly staticDirectory: string;
+  /**
+   * Where a top-up sends the person's USDC on Base Sepolia, or null until
+   * configured. The pocket is credited against what lands here; the policy
+   * names the same address, so a transfer anywhere else is refused by Privy.
+   */
+  readonly treasuryEvmAddress: string | null;
 }
 
 export const loadEnvironment = Effect.fn("loadEnvironment")(
@@ -298,6 +307,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "HEDERA_MIRROR_NODE_URL"
     ).pipe(Config.withDefault("https://mainnet-public.mirrornode.hedera.com"));
 
+    const evmRpcUrl = yield* Config.string("BASE_SEPOLIA_RPC_URL").pipe(
+      Config.withDefault("https://sepolia.base.org")
+    );
+    const treasuryEvmAddress = yield* Config.string(
+      "TREASURY_EVM_ADDRESS"
+    ).pipe(Config.withDefault(PLACEHOLDER.treasuryEvmAddress));
+
     const anthropicApiKey = yield* secret(
       "ANTHROPIC_API_KEY",
       PLACEHOLDER.anthropicApiKey
@@ -372,6 +388,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       demoUserId,
       chromeProfileDirectory,
       databaseUrl: Redacted.value(databaseUrl),
+      evmRpcUrl,
       graphApiKey: Redacted.value(graphApiKey),
       graphGatewayUrl,
       graphPayPerQuery,
@@ -413,6 +430,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       telegramBotToken: Redacted.value(telegramBotToken),
       telegramBotUsername,
       telegramWebhookSecret: Redacted.value(telegramWebhookSecret),
+      treasuryEvmAddress: isPlaceholder(
+        treasuryEvmAddress,
+        PLACEHOLDER.treasuryEvmAddress
+      )
+        ? null
+        : treasuryEvmAddress,
     } satisfies Environment;
   }
 );

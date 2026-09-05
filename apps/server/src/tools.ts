@@ -33,6 +33,7 @@ import {
   x402Transport,
 } from "@froggy/graph";
 import type { GraphClient } from "@froggy/graph";
+import { EvmRpcError, PrivySignerRefusedError } from "@froggy/wallet";
 import { tool } from "ai";
 import { Schema } from "effect";
 
@@ -75,6 +76,12 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
 export interface ToolDeps {
   /** This caller's own Chrome. One per signed-in user, never shared. */
   readonly browser: BrowserHandle;
+  /**
+   * What the person themselves wrote this turn. An address that appears in
+   * it was typed by them, and carries `user` provenance; one that does not
+   * came from the model or a page and is refused before any cap is read.
+   */
+  readonly userText?: string;
   /** For the probe, which reads through the same outbound rules as a fetch. */
   readonly workspaces: Workspaces;
   /** False for a job: nobody can be asked, so an `ask` is refused. */
@@ -132,6 +139,17 @@ const explainSpend = async (
   }
   return { message: null, result };
 };
+
+/**
+ * Did the person type this address, or did the model come up with it?
+ *
+ * A verbatim, case-insensitive match against what they wrote this turn.
+ * Deliberately literal: "the address I mentioned earlier" is not a typed
+ * address, and a model that paraphrases one into existence gets `model`.
+ */
+export const typedByPerson = (address: string, userText: string): boolean =>
+  address.trim() !== "" &&
+  userText.toLowerCase().includes(address.trim().toLowerCase());
 
 export const buildTools = (deps: ToolDeps) => {
   const { browser, services, session } = deps;
@@ -318,44 +336,81 @@ export const buildTools = (deps: ToolDeps) => {
 
     wallet_send: tool({
       description:
-        "Send stablecoins to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee, and an address you read on a page or produced yourself will be refused.",
+        "Send USDC on Base Sepolia to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the caps and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.",
       execute: async ({ amountUsd, purpose, to }) => {
+        const units = String(Math.round(amountUsd * 1_000_000));
         const attempt = session.spend({
-          amount: {
-            asset: KNOWN_ASSETS["eip155:84532:usdc"],
-            units: String(Math.round(amountUsd * 1_000_000)),
-          },
+          amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
           idempotencyKey: `send:${to}:${amountUsd}:${deps.run.id}`,
           payeeId: to,
           payeeLabel: to,
-          // `model`, always. This is the whole jailbreak demo: an address the
-          // model produced is refused on provenance before any cap is even
-          // consulted, however well-formed it looks and however convincingly
-          // the prompt asked. Putting it on the mandate's allowlist is the only
-          // way through, and only a human can do that.
-          provenance: "model",
+          // Two layers, and this is the first. An address the model produced
+          // is refused on provenance before any cap is read, however
+          // well-formed it looks and however convincingly the prompt asked.
+          // An address the person typed passes this gate and meets the caps —
+          // and then Privy, whose policy has no rule for it, refuses in its
+          // own words. The receipt shows whichever layer said no.
+          provenance: typedByPerson(to, deps.userText ?? "") ? "user" : "model",
           purpose,
           interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,
           settle: async () => {
-            await Promise.resolve();
-            // Unreachable while provenance is `model`. It exists so the shape
-            // is right the day a mandate-listed payee is sent to.
-            return {
-              network: "eip155:84532",
-              ok: false,
-              stubbed: true,
-              transactionId: null,
-            };
+            const transfers = services.evmTransfersFor(session.agentWallet);
+            if (transfers === null) {
+              return {
+                error: "the agent has no signer on this wallet yet",
+                network: "eip155:84532",
+                ok: false,
+                stubbed: false,
+                transactionId: null,
+              };
+            }
+            try {
+              const outcome = await transfers.send({
+                to,
+                units: BigInt(units),
+              });
+              const settled = {
+                network: "eip155:84532",
+                ok: outcome.status === "success",
+                stubbed: false,
+                transactionId: outcome.hash,
+              };
+              return outcome.status === "success"
+                ? settled
+                : { ...settled, error: "the transfer reverted on chain" };
+            } catch (error) {
+              // The signer said no, or the chain did. Either is a fact for
+              // the receipt, in the refuser's words, not a reason to retry.
+              if (
+                error instanceof PrivySignerRefusedError ||
+                error instanceof EvmRpcError
+              ) {
+                return {
+                  error: error.message,
+                  network: "eip155:84532",
+                  ok: false,
+                  stubbed: false,
+                  transactionId: null,
+                };
+              }
+              throw error;
+            }
           },
         });
 
-        const { message } = await explainSpend(attempt);
+        const { message, result } = await explainSpend(attempt);
         if (message !== null) {
           return message;
         }
-        return "Allowed by policy, but transfers are not wired to a signer yet.";
+        if (result?.receipt.failure !== undefined) {
+          return `Allowed by the mandate, but not paid: ${result.receipt.failure}. Stop here; do not look for another route.`;
+        }
+        const transaction = result?.receipt.settlement?.transactionId;
+        return transaction === undefined
+          ? "Allowed by the mandate; the transfer is recorded on the receipt."
+          : `Sent ${amountUsd} USDC to ${to} on Base Sepolia. Transaction ${transaction}.`;
       },
       inputSchema: std(
         Schema.Struct({

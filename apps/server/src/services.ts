@@ -14,6 +14,7 @@
  * user does not have their own copy of.
  */
 
+import { KNOWN_ASSETS } from "@froggy/domain";
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
 import type {
@@ -33,18 +34,34 @@ import {
   stubHederaPayer,
   stubOracleGate,
 } from "@froggy/payments";
-import type { PrivyServer, SpendLedger, Store } from "@froggy/wallet";
+import type {
+  Erc20TransferOutcome,
+  PrivyServer,
+  SpendLedger,
+  Store,
+} from "@froggy/wallet";
 import {
+  evmRpc,
   livePrivyServer,
   memoryLedger,
   memoryStore,
   postgresLedger,
   postgresStore,
+  sendErc20Transfer,
   stubPrivyServer,
 } from "@froggy/wallet";
 import postgres from "postgres";
 
 import type { Environment } from "./environment";
+
+/** A USDC transfer on Base Sepolia from one person's wallet, signed under the policy. */
+interface EvmTransfers {
+  readonly send: (input: {
+    readonly to: string;
+    /** USDC's smallest unit: six decimals. */
+    readonly units: bigint;
+  }) => Promise<Erc20TransferOutcome>;
+}
 
 export interface Services {
   readonly environment: Environment;
@@ -56,6 +73,14 @@ export interface Services {
   readonly evmPayersFor: (
     wallet: { readonly address: string; readonly id: string } | null
   ) => readonly Payer[];
+  /**
+   * Plain transfers from one user's wallet, or null when the agent has no
+   * signer on it. Every transfer is signed by Privy under the committed
+   * policy and broadcast by this process; a refusal is Privy's, verbatim.
+   */
+  readonly evmTransfersFor: (
+    wallet: { readonly address: string; readonly id: string } | null
+  ) => EvmTransfers | null;
   readonly graph: GraphClient;
   /** One public note per settlement, on a Hedera topic. A stub posts nothing. */
   readonly hcs: HcsWriter;
@@ -135,6 +160,9 @@ export const createServices = (options: ServiceOptions): Services => {
       ? postgres(environment.databaseUrl, { idle_timeout: 20, max: 10 })
       : null;
 
+  const rpc = evmRpc({ url: environment.evmRpcUrl });
+  const usdc = KNOWN_ASSETS["eip155:84532:usdc"];
+
   return {
     environment,
     evmPayersFor: (wallet) => {
@@ -149,6 +177,26 @@ export const createServices = (options: ServiceOptions): Services => {
         evmPayer({ network: "eip155:8453", signer }),
         evmPayer({ network: "eip155:84532", signer }),
       ];
+    },
+    evmTransfersFor: (wallet) => {
+      if (wallet === null) {
+        return null;
+      }
+      const signer = privy.signerFor(wallet);
+      if (signer === null) {
+        return null;
+      }
+      return {
+        send: async ({ to, units }) =>
+          await sendErc20Transfer({
+            amount: units,
+            chainId: 84_532,
+            rpc,
+            signer,
+            to,
+            token: usdc.id,
+          }),
+      };
     },
     graph,
     hcs,

@@ -77,6 +77,20 @@ export interface TurnInput {
   readonly sessionId: SessionId;
 }
 
+/**
+ * Everything the person themselves wrote this conversation, joined.
+ *
+ * The tools use it to tell an address the person typed from one the model
+ * produced. Only text parts of user messages: a tool result or an assistant
+ * message quoting an address does not make it the person's.
+ */
+const userTextOf = (messages: readonly UIMessage[]): string =>
+  messages
+    .filter((message) => message.role === "user")
+    .flatMap((message) => message.parts)
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
+
 export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   const run = deps.runs.start(input.sessionId);
   const result = streamText({
@@ -92,6 +106,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       run,
       services: deps.services,
       session: deps.session,
+      userText: userTextOf(input.messages),
       workspaces: deps.workspaces,
     }),
   });
