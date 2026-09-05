@@ -15,7 +15,7 @@ import { DRIVE_LABEL, DrivingDot } from "@froggy/ui/components/driving-ring";
 import type { DriveMode } from "@froggy/ui/components/driving-ring";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
 import { cn } from "@froggy/ui/lib/utils";
-import { SlidersHorizontalIcon } from "lucide-react";
+import { GlobeIcon, SlidersHorizontalIcon } from "lucide-react";
 
 import { bindingWindowCap } from "../lib/app-state";
 import { shortAddress } from "../lib/format";
@@ -30,6 +30,7 @@ interface TopBarProps {
   readonly modes: ServiceModes | null;
   readonly onFreeze: (frozen: boolean) => void;
   readonly onOpenDetails: () => void;
+  readonly onShowBrowser: () => void;
   readonly wallet: WalletSummary | null;
 }
 
@@ -47,6 +48,7 @@ export const TopBar = ({
   modes,
   onFreeze,
   onOpenDetails,
+  onShowBrowser,
   wallet,
 }: TopBarProps): React.ReactElement => {
   const identity = useIdentity();
@@ -117,6 +119,15 @@ export const TopBar = ({
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <FreezeButton frozen={frozen} onFreeze={onFreeze} />
+          <Button
+            aria-label="Show the browser"
+            onClick={onShowBrowser}
+            size="icon-sm"
+            title="Show the browser"
+            variant="ghost"
+          >
+            <GlobeIcon />
+          </Button>
           <Button
             aria-label="Details"
             onClick={onOpenDetails}

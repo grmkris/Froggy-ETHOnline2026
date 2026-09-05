@@ -17,21 +17,78 @@ import {
 } from "@froggy/ui/components/driving-ring";
 import type { DriveMode } from "@froggy/ui/components/driving-ring";
 import { Input } from "@froggy/ui/components/input";
-import { HandIcon, PictureInPicture2Icon } from "lucide-react";
+import {
+  Columns2Icon,
+  ExternalLinkIcon,
+  HandIcon,
+  PanelRightCloseIcon,
+} from "lucide-react";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
 import type { BrowserPainter } from "../../lib/browser-painter";
 import { BrowserSurface } from "./browser-surface";
 
+interface PopOutActions {
+  readonly handleDock: (() => void) | null;
+  readonly handleSplit: (() => void) | null;
+  readonly handleToWindow: (() => void) | null;
+}
+
 interface LiveBrowserCardProps {
   readonly connected: boolean;
   readonly drive: DriveMode;
-  readonly onPopOut?: (() => void) | undefined;
+  /** Fill the parent's height rather than keeping the page's aspect ratio. */
+  readonly fill?: boolean;
+  /** False on a phone: watch only, and the chrome bar says so. */
+  readonly interactive: boolean;
   readonly painter: BrowserPainter;
+  readonly popOut?: PopOutActions | undefined;
   readonly send: (message: BrowserClientMessage) => void;
   readonly state: BrowserState | null;
 }
+
+const PopOutButtons = ({
+  actions,
+}: {
+  readonly actions: PopOutActions;
+}): ReactElement => (
+  <>
+    {actions.handleSplit === null ? null : (
+      <Button
+        aria-label="Show the page beside the conversation"
+        onClick={actions.handleSplit}
+        size="icon-sm"
+        title="Split pane"
+        variant="ghost"
+      >
+        <Columns2Icon />
+      </Button>
+    )}
+    {actions.handleDock === null ? null : (
+      <Button
+        aria-label="Put the page back in the conversation"
+        onClick={actions.handleDock}
+        size="icon-sm"
+        title="Dock"
+        variant="ghost"
+      >
+        <PanelRightCloseIcon />
+      </Button>
+    )}
+    {actions.handleToWindow === null ? null : (
+      <Button
+        aria-label="Open the page in a new window"
+        onClick={actions.handleToWindow}
+        size="icon-sm"
+        title="New window"
+        variant="ghost"
+      >
+        <ExternalLinkIcon />
+      </Button>
+    )}
+  </>
+);
 
 export const driveModeOf = (
   state: BrowserState | null,
@@ -49,8 +106,10 @@ export const driveModeOf = (
 export const LiveBrowserCard = ({
   connected,
   drive,
-  onPopOut,
+  fill = false,
+  interactive,
   painter,
+  popOut,
   send,
   state,
 }: LiveBrowserCardProps): ReactElement => {
@@ -86,7 +145,9 @@ export const LiveBrowserCard = ({
         leading={
           <span className="flex items-center gap-1.5 pl-1 text-xs whitespace-nowrap">
             <DrivingDot mode={drive} />
-            <span className="hidden sm:inline">{DRIVE_LABEL[drive]}</span>
+            <span className="hidden sm:inline">
+              {interactive ? DRIVE_LABEL[drive] : "Watch only on a phone"}
+            </span>
           </span>
         }
         trailing={
@@ -103,23 +164,14 @@ export const LiveBrowserCard = ({
             >
               <HandIcon />
             </Button>
-            {onPopOut === undefined ? null : (
-              <Button
-                aria-label="Pop the page out"
-                onClick={onPopOut}
-                size="icon-sm"
-                title="Pop out"
-                variant="ghost"
-              >
-                <PictureInPicture2Icon />
-              </Button>
-            )}
+            {popOut === undefined ? null : <PopOutButtons actions={popOut} />}
           </>
         }
       />
       <BrowserSurface
+        className={fill ? "min-h-0 flex-1" : undefined}
         connected={connected}
-        interactive={drive !== "frozen" || true}
+        interactive={interactive}
         painter={painter}
         send={send}
         state={state}

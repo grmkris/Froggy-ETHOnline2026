@@ -21,7 +21,7 @@ import { usePageInput } from "../../hooks/use-page-input";
 import type { BrowserPainter } from "../../lib/browser-painter";
 
 interface BrowserSurfaceProps {
-  readonly className?: string;
+  readonly className?: string | undefined;
   readonly connected: boolean;
   readonly interactive: boolean;
   readonly painter: BrowserPainter;
@@ -139,11 +139,16 @@ export const BrowserSurface = ({
       style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}
     >
       <canvas
-        aria-label="The shared browser. Click to take the page."
+        aria-label={
+          interactive
+            ? "The shared browser. Click to take the page."
+            : "The shared browser. Open Froggy on a desktop to drive it."
+        }
         className={cn(
           "block h-full w-full object-contain",
           interactive ? "cursor-default" : "pointer-events-none"
         )}
+        inert={!interactive}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             input.focusKeyboard();
