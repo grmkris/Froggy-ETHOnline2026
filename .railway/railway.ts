@@ -51,7 +51,14 @@ export default defineRailway((ctx) => {
    * shops as you") and also the scary part. Deleting this volume signs the
    * agent out of everything, and that is the intended escape hatch.
    */
-  const browserVolume = volume("browser-profile", { region, sizeMB: 2000 });
+  // Ten gigabytes: one persistent profile per signed-in user at fifty to two
+  // hundred megabytes each, so a few dozen users fit with room for Chrome's
+  // caches. Growing a volume is online and non-destructive; shrinking is not.
+  const browserVolume = volume("browser-profile", {
+    allowOnlineResize: true,
+    region,
+    sizeMB: 10_000,
+  });
 
   const app = service("app", {
     build: {
@@ -91,6 +98,9 @@ export default defineRailway((ctx) => {
       HEDERA_MIRROR_NODE_URL: preserve(),
       HEDERA_PRIVATE_KEY: preserve(),
       MAX_BROWSERS: preserve(),
+      OPENAI_COMPATIBLE_API_KEY: preserve(),
+      OPENAI_COMPATIBLE_BASE_URL: preserve(),
+      OPENAI_COMPATIBLE_MODEL: preserve(),
       PORT: preserve(),
       PRIVY_AGENT_POLICY_ID: preserve(),
       PRIVY_APP_ID: preserve(),
