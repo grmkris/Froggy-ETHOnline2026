@@ -71,8 +71,8 @@ export const SignInGate = (): React.ReactElement => {
       <Frame>
         <Wordmark />
         <p className="bg-refused-soft rounded-xl p-4 text-sm">
-          Sign-in could not start. This usually means the page is not being
-          served over HTTPS, or the Privy app id does not match this origin.
+          Sign-in could not start. The reason is in the browser console, logged
+          as “Privy failed to initialise”.
         </p>
       </Frame>
     );

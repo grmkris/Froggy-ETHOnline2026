@@ -29,8 +29,10 @@
 import {
   Component,
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -167,23 +169,67 @@ const PrivyBridge = ({
   const { authenticated, getAccessToken, logout, ready, user } = mod.usePrivy();
   const { login } = mod.useLogin();
 
+  /**
+   * Privy's callbacks, held rather than depended on.
+   *
+   * `login`, `logout` and `getAccessToken` are a fresh function identity on
+   * most renders. Listing them as effect dependencies meant the effect ran on
+   * every render, published a brand-new identity object, re-rendered this
+   * component through its parent's state, and ran again — an infinite loop
+   * that React stops with error #185.
+   *
+   * It only ever fired once Privy was really configured, so it shipped: the
+   * boundary below caught the throw and blamed HTTPS or the app id, which is
+   * what the deployed app said while both were correct.
+   */
+  const callbacks = useRef({ getAccessToken, login, logout });
+  useEffect(() => {
+    callbacks.current = { getAccessToken, login, logout };
+  });
+
+  // Stable for the life of the bridge, so a consumer can hold one in a
+  // dependency array without inheriting Privy's churn.
+  const doLogin = useCallback(() => {
+    callbacks.current.login();
+  }, []);
+  const doLogout = useCallback(() => {
+    void callbacks.current.logout();
+  }, []);
+  const token = useCallback(
+    async () => await callbacks.current.getAccessToken(),
+    []
+  );
+
+  // Smart account first: that is where money is. Falling back to the embedded
+  // EOA covers a user who has one but no smart wallet.
+  const address = user?.smartWallet?.address ?? user?.wallet?.address ?? null;
+  const signer = user?.wallet?.address ?? null;
+
   useEffect(() => {
     onChange({
-      // Smart account first: that is where money is. Falling back to the
-      // embedded EOA covers a user who has one but no smart wallet.
-      address: user?.smartWallet?.address ?? user?.wallet?.address ?? null,
+      address,
       authenticated,
-      login,
-      logout: () => {
-        void logout();
-      },
+      login: doLogin,
+      logout: doLogout,
       ready,
-      signer: user?.wallet?.address ?? null,
+      signer,
       status: "ready",
       stubbed: false,
-      token: getAccessToken,
+      token,
     });
-  }, [authenticated, getAccessToken, login, logout, onChange, ready, user]);
+    // Primitives and stable callbacks only. `user` is deliberately absent: it
+    // is a new object on every render, and the two strings that matter are
+    // read out of it above.
+  }, [
+    address,
+    authenticated,
+    doLogin,
+    doLogout,
+    onChange,
+    ready,
+    signer,
+    token,
+  ]);
 
   return null;
 };
@@ -203,6 +249,13 @@ interface QuarantineState {
  * It throws on an insecure origin and on a bad app id — both of which are
  * ordinary states during setup — and an unhandled throw at render is a white
  * page rather than a sign-in button that does not work.
+ *
+ * The UI deliberately does *not* guess which of those it was. It used to say
+ * "not HTTPS, or the app id does not match this origin", and the first real
+ * failure was neither: it was React error #185, an infinite render loop in the
+ * bridge above. A confident wrong diagnosis sent someone checking DNS and
+ * dashboard settings that were both already correct, so the message now points
+ * at the console and the console carries the actual error.
  */
 class Quarantine extends Component<QuarantineProps, QuarantineState> {
   constructor(props: QuarantineProps) {
@@ -212,8 +265,10 @@ class Quarantine extends Component<QuarantineProps, QuarantineState> {
 
   static getDerivedStateFromError(error: Error): QuarantineState {
     // Logged rather than swallowed silently: "sign-in did nothing" is a support
-    // question, and this is the only place the answer exists.
-    console.warn("Privy failed to initialise:", error.message);
+    // question, and this is the only place the answer exists. The stack goes
+    // with it — React's minified errors are a number and a URL, and without
+    // the frames there is nothing to act on.
+    console.warn("Privy failed to initialise:", error.message, error.stack);
     return { failed: true };
   }
 
