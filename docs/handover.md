@@ -31,7 +31,7 @@ Every external service has a stub, chosen in `apps/server/src/environment.ts` wh
 | --- | --- | --- |
 | `GRAPH_API_KEY` + `GRAPH_SUBGRAPH_ID` | Subgraph Studio | The Graph track. Mocked data explicitly disqualifies |
 | `HEDERA_ACCOUNT_ID` + `HEDERA_PRIVATE_KEY` | portal.hedera.com, ECDSA | Hedera track. Needs a real paid request end to end |
-| `ANTHROPIC_API_KEY` | console.anthropic.com | A model that can reason. Without it the loop runs a fixed script and says so |
+| `OPENAI_COMPATIBLE_API_KEY` (DashScope, `qwen3-max`) | Alibaba Model Studio | A model that can reason. Without it the loop runs a fixed script and says so |
 
 `PRIVY_APP_ID` / `PRIVY_APP_SECRET` are in `~/.config/secrets.env` on the build box. They are deliberately **not** set on Railway until that app's allowed-origins list includes the Railway domain; otherwise sign-in fails confusingly rather than being cleanly stubbed. Dashboard settings the code cannot see: email and Google login on, embedded wallets created on login, and the Railway origin allowed.
 

@@ -84,7 +84,9 @@ export const handleChat = async (
 
   const result = streamText({
     abortSignal: run.signal,
-    model: createModel(deps.services.environment),
+    model: createModel(deps.services.environment, {
+      oracleUrl: deps.oracleUrl,
+    }),
     messages: await convertToModelMessages([...request.messages]),
     stopWhen: stepCountIs(STEP_CAP),
     instructions: systemPrompt(deps.oracleUrl),

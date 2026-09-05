@@ -1,13 +1,11 @@
 /**
  * Which model the agent runs on, and what happens when there is no key.
  *
- * Three tiers, in order of preference:
+ * Three tiers, chosen in `environment.ts` by `selectModelProvider`:
  *
- *   1. Anthropic, when `ANTHROPIC_API_KEY` is set.
- *   2. Any OpenAI-compatible endpoint, when a base URL and key are set. This
- *      exists so the loop is real on a box that has some other provider's key
- *      lying around — the agent's behaviour is the thing being built, and it
- *      should not be gated on one vendor.
+ *   1. Any OpenAI-compatible endpoint, when its key, base URL and model id are
+ *      all set. This deployment runs on DashScope's compatible mode.
+ *   2. Anthropic, when `ANTHROPIC_API_KEY` is real.
  *   3. A scripted model, when neither is configured.
  *
  * Tier 3 is not a mock in the testing sense. It emits real tool calls, so the
@@ -26,7 +24,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 
 import type { Environment } from "./environment";
 
-const ANTHROPIC_MODEL = "claude-sonnet-5";
+const ANTHROPIC_MODEL = "claude-opus-5";
 
 /** The scripted model genuinely spends nothing, so every counter is zero. */
 const NO_USAGE = {
@@ -42,16 +40,22 @@ const NO_USAGE = {
 /**
  * The scripted turn.
  *
- * Deliberately the shape of the demo: look at the data, then pay for the packed
- * answer. Running it end to end without a key is the cheapest way to find out
- * that, say, the idempotency key is wrong.
+ * Deliberately the shape of the demo: look at the data, pay for the packed
+ * answer, then read the wallet. Running it end to end without a key is the
+ * cheapest way to find out that, say, the idempotency key is wrong — and the
+ * paid step is the one that reaches the policy engine, the ledger and the
+ * receipt, so a keyless run exercises the whole spend path rather than
+ * stopping just short of it.
  */
-const SCRIPT: readonly { readonly args: string; readonly tool: string }[] = [
+const script = (
+  oracleUrl: string
+): readonly { readonly args: string; readonly tool: string }[] => [
   { args: '{"symbol":"USDC"}', tool: "graph_query" },
+  { args: JSON.stringify({ url: oracleUrl }), tool: "x402_fetch" },
   { args: "{}", tool: "wallet_status" },
 ];
 
-const scriptedModel = (): LanguageModel =>
+const scriptedModel = (oracleUrl: string): LanguageModel =>
   new MockLanguageModelV3({
     doStream: async ({ prompt }) => {
       // The SDK's `doStream` returns a promise and a scripted turn has nothing
@@ -66,14 +70,14 @@ const scriptedModel = (): LanguageModel =>
           (message.role === "assistant" &&
             message.content.some((part) => part.type === "tool-call"))
       ).length;
-      const step = SCRIPT[Math.floor(completed / 2)];
+      const step = script(oracleUrl)[Math.floor(completed / 2)];
 
       const parts: LanguageModelV3StreamPart[] =
         step === undefined
           ? [
               {
                 delta:
-                  "That is as far as the scripted model goes. Set ANTHROPIC_API_KEY (or an OpenAI-compatible base URL and key) for a model that can actually reason about this.",
+                  "That is as far as the scripted model goes. Set OPENAI_COMPATIBLE_API_KEY, OPENAI_COMPATIBLE_BASE_URL and OPENAI_COMPATIBLE_MODEL (or ANTHROPIC_API_KEY) for a model that can actually reason about this.",
                 id: "text-1",
                 type: "text-delta",
               },
@@ -108,20 +112,28 @@ const scriptedModel = (): LanguageModel =>
     },
   });
 
-export const createModel = (environment: Environment): LanguageModel => {
-  if (environment.modes.model === "stub") {
-    return scriptedModel();
+export const createModel = (
+  environment: Environment,
+  options: { readonly oracleUrl: string }
+): LanguageModel => {
+  switch (environment.modelProvider) {
+    case "openai-compatible": {
+      return createOpenAICompatible({
+        apiKey: environment.openAiCompatibleApiKey,
+        baseURL: environment.openAiCompatibleBaseUrl,
+        name: "openai-compatible",
+      })(environment.openAiCompatibleModel);
+    }
+    case "anthropic": {
+      return createAnthropic({ apiKey: environment.anthropicApiKey })(
+        ANTHROPIC_MODEL
+      );
+    }
+    case "stub": {
+      return scriptedModel(options.oracleUrl);
+    }
+    default: {
+      return scriptedModel(options.oracleUrl);
+    }
   }
-
-  if (environment.anthropicApiKey.startsWith("sk-ant-")) {
-    return createAnthropic({ apiKey: environment.anthropicApiKey })(
-      ANTHROPIC_MODEL
-    );
-  }
-
-  return createOpenAICompatible({
-    apiKey: environment.openAiCompatibleApiKey,
-    baseURL: environment.openAiCompatibleBaseUrl,
-    name: "openai-compatible",
-  })(environment.openAiCompatibleModel);
 };

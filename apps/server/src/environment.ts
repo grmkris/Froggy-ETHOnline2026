@@ -86,6 +86,39 @@ const allowedOrigins = (
 const secret = (name: string, fallback: string) =>
   Config.redacted(name).pipe(Config.withDefault(Redacted.make(fallback)));
 
+export type ModelProvider = "anthropic" | "openai-compatible" | "stub";
+
+/**
+ * Which model backs the agent.
+ *
+ * An OpenAI-compatible endpoint wins when all three of its variables are set,
+ * because that is the provider this deployment runs on; Anthropic when its
+ * key is real; otherwise the scripted model. Decided from placeholders, not
+ * from the shape of a key: the earlier check was `startsWith("sk-ant-")`,
+ * which the placeholder `sk-ant-REPLACE_ME` also satisfies — so configuring
+ * only the compatible endpoint built an Anthropic client around a fake key and
+ * every turn failed with a 401. A pure function so the table is testable.
+ */
+export const selectModelProvider = (input: {
+  readonly anthropicApiKey: string;
+  readonly openAiCompatibleApiKey: string;
+  readonly openAiCompatibleBaseUrl: string;
+  readonly openAiCompatibleModel: string;
+}): ModelProvider => {
+  const compatible = [
+    input.openAiCompatibleApiKey,
+    input.openAiCompatibleBaseUrl,
+    input.openAiCompatibleModel,
+  ].every((value) => value.trim() !== "");
+  if (compatible) {
+    return "openai-compatible";
+  }
+  if (!isPlaceholder(input.anthropicApiKey, PLACEHOLDER.anthropicApiKey)) {
+    return "anthropic";
+  }
+  return "stub";
+};
+
 export interface Environment {
   readonly anthropicApiKey: string;
   /** Trusted browser origins for WebSocket upgrades. See `ws-router.ts`. */
@@ -102,8 +135,10 @@ export interface Environment {
   readonly hederaPrivateKey: string;
   /** Concurrent Chromes allowed across all users. 0 means unlimited. */
   readonly maxBrowsers: number;
+  /** Which model backs the agent. `modes.model` is derived from it. */
+  readonly modelProvider: ModelProvider;
   readonly modes: ServiceModes;
-  /** OpenAI-compatible fallback so the agent loop is exercisable without Anthropic. */
+  /** An OpenAI-compatible endpoint: DashScope, a local server, anything with `/chat/completions`. */
   readonly openAiCompatibleApiKey: string;
   readonly openAiCompatibleBaseUrl: string;
   readonly openAiCompatibleModel: string;
@@ -208,6 +243,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
 
     const anthropicKey = Redacted.value(anthropicApiKey);
     const compatibleKey = Redacted.value(openAiCompatibleApiKey);
+    const modelProvider = selectModelProvider({
+      anthropicApiKey: anthropicKey,
+      openAiCompatibleApiKey: compatibleKey,
+      openAiCompatibleBaseUrl,
+      openAiCompatibleModel,
+    });
 
     const modes: ServiceModes = {
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
@@ -222,11 +263,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
         [hederaAccountId, PLACEHOLDER.hederaAccountId],
         [Redacted.value(hederaPrivateKey), PLACEHOLDER.hederaPrivateKey]
       ),
-      model:
-        modeOf([anthropicKey, PLACEHOLDER.anthropicApiKey]) === "live" ||
-        (compatibleKey.trim() !== "" && openAiCompatibleBaseUrl.trim() !== "")
-          ? "live"
-          : "stub",
+      model: modelProvider === "stub" ? "stub" : "live",
       privy: modeOf(
         [privyAppId, PLACEHOLDER.privyAppId],
         [Redacted.value(privyAppSecret), PLACEHOLDER.privyAppSecret]
@@ -246,6 +283,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       hederaMirrorNodeUrl,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,
+      modelProvider,
       modes,
       openAiCompatibleApiKey: compatibleKey,
       openAiCompatibleBaseUrl,
