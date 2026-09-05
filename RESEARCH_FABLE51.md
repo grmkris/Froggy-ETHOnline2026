@@ -28,7 +28,7 @@ Sibling files: `README_FABLE51.md` (the index), `PRODUCT_FABLE51.md` (the refine
 Source: [ethglobal.com/events/ethonline2026/info/details](https://ethglobal.com/events/ethonline2026/info/details), the event page schedule JSON, and [ethglobal.com/rules](https://ethglobal.com/rules).
 
 | Item | Rule |
-|---|---|
+| --- | --- |
 | Submission | Sun 13 Sep 2026 12:00 EDT. No late submissions, no grace period. |
 | Check-ins | #1 due Mon 7 Sep 23:59 EDT. #2 due Thu 10 Sep 23:59 EDT. Consequence of missing them is undocumented. |
 | Feedback sessions | Tue 8 Sep 14:00 EDT and Thu 10 Sep 09:00 EDT. |
@@ -162,7 +162,7 @@ Digests: `dim-demand`, `dim-retention`, `gap-event_week_graph_and_peers`.
 Digest: `dim-competition`, `dim-segments`.
 
 | Product | Visible browser | Human takeover | Policy outside the model | Telegram | EVM / Hedera | Open source | Consumer |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | MetaMask Agent Wallet (public 6 Aug) | no | no | yes, hosted keys, Guard/Beast | no | EVM + others | CLI is MIT/Apache | dev CLI |
 | Coinbase Agentic Wallet / awal | no | no | client-side x402 spend controls | no | Base, Solana | partly | dev |
 | Privy agent wallets | no | no | yes (policy engine) | login only | EVM, Solana | SDK | infra |
@@ -186,7 +186,7 @@ Direct competitors this week inside ETHOnline: countersign (owner mandate plus g
 Scored 1 to 5 on pain, reachability in nine days by one person, testnet tolerance, day-two return, and overlap with what the judges reward. Digest: `dim-segments`.
 
 | Segment | Score /25 | Verdict |
-|---|---|---|
+| --- | --- | --- |
 | x402 service builders on Hedera and Base, including ETHOnline peer teams | 23 | Top. They have endpoints and no buyers, are testnet-native, individually addressable via GitHub and Discord. Their endpoints appear late and are ephemeral; treat cross-team pays as bonus, never as a demo dependency. |
 | AI-agent builders on OpenClaw, Claude Code, Cursor | 19 | Second. Huge community, small crypto-curious subset (x402 Telegram 600+), already served on caps. Differentiator for them: a watchable Chrome plus an MCP or CLI pay tool so their agent pays through our pocket. |
 | DeFi researchers on Graph data | 19 | Judge-shaped. Named node: PaulieB (@PaulBarba12, graph-lending-mcp). Channels: t.me/graphhackers, Graph Discord #mcp-servers. |
@@ -215,7 +215,7 @@ Digest: `gap-event_week_graph_and_peers`, `dim-build_in_public`.
 Author estimates from the rules, past winners and this week's peer count; not measured per-track submission volumes.
 
 | Track | Money | P(win) | EV |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Hedera AI & Agentic Payments | $2,000 x up to 3 | 0.35 | $700 |
 | Privy Best financial flow | $2,500 | 0.25 | $625 |
 | Graph Composable / Standardized | $2,500 / 1,500 / 1,000 | 0.30 | about $450 |

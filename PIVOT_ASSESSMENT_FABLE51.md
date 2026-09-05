@@ -27,7 +27,7 @@ SquadPot, No Flake, Payback and Darepot are not buildable this week as consumer 
 - Each lens returned a verdict and a score out of 10. The comparative judging for goal A (prizes) and goal B (testers) and this memo were written by me after the subagent budget ran out; that is a limitation, not a hidden one.
 
 | Candidate | Prize rules | Legal | Feasibility | Testers | Safety | Mean |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Agentic wallet (Direction 1, refined) | 6.5 | 8.0 | 7.0 | 5.0 | 7.0 | 6.7 |
 | Allowance (same architecture, consumer framing) | 7.0 | 8.5 | 7.0 | 5.0 | 8.0 | **7.1** |
 | SquadPot / I Told You So | 6.0 | 7.0 | 6.5 | 4.0 | 6.0 | 5.9 |
@@ -98,7 +98,7 @@ Agentic wallet and Allowance are one architecture; Allowance scores higher becau
 ## 5. The other KIMI ideas (screened, not red-teamed in depth)
 
 | Idea | Verdict | Why |
-|---|---|---|
+| --- | --- | --- |
 | **Payback** (flight-compensation claims; IDEAS_V3 rank 2) | No | If the agent files, it is claims management under the RDG; the v3 constraint "agent prepares, user taps send" leaves a form-filler that MateFull and Settlemate already ship at 0% fee. No Graph fit, no browser need, Hedera fit only as a paid data endpoint. The "public stunt with followers' real flight data" is a GDPR problem on a personal X account. |
 | **SecondOpinion** (repair-quote autopsy; rank 3) | No as a product, yes as a shape | Cleanest legal profile and lowest build risk, but no browser, no Graph, and the Privy flow is "pay $2". Its x402 paid-report endpoint is exactly our Hedera brief service, so the shape is kept. |
 | **Darepot** (IDEAS_KIMI idea 3) | No | 18+ gating that is not verification, curated-only challenges, vision judging of photos, the highest moderation and minor-safety exposure of the set, and no agentic act that uses the browser or the wallet policy. |

@@ -9,7 +9,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 ## A. Decisions before 10:00 (Jonas runs the thread, all three answer)
 
 | Decision | Recommendation | Pass |
-|---|---|---|
+| --- | --- | --- |
 | Is the third builder in? | Plan for no | A name is written next to every Day 1-5 row of the plan in `PRODUCT_FABLE51.md`; if no, every stretch item is marked cancelled |
 | Hosted browser isolation: worker-per-user or puppeteer-core browser contexts | puppeteer-core contexts for hosting, Bun.WebView for local dev (engineering refuter's hour estimates: 14-16 versus 20-24) | The Chrome owner writes the choice and the Sunday 12:00 cut line into the plan after the measurement below |
 | Rule (b) chain | Base Sepolia USDC to the treasury plus a labelled credit as the default; the Hedera-EVM 296 spike is a 30-minute box at most, decision at 18:00, never revisited | One line in PRIVY.md: chain, rule, spike result |
@@ -22,7 +22,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 ## B. Measurements (30 minutes, before any isolation work)
 
 | Item | How | Pass |
-|---|---|---|
+| --- | --- | --- |
 | Frames per second and click round-trip on the hosted URL from Jonas's connection | Open the live workspace, count screencast frames per ten seconds in the browser console, time a click to the next changed frame | Numbers committed to `docs/measurements.md`; at least 5 fps at 1280 wide and under 300 ms, else the Hetzner compose file becomes the Day 2 deploy rather than a fallback |
 | Live URL health | `curl -s -o /dev/null -w '%{http_code}' <live-url>/health` and the same for the 402 route | 200 and 402 |
 
@@ -31,7 +31,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 ## C. Accounts and keys (the third builder; else Kristjan takes the Privy items and Jonas takes the Hedera accounts, settlement and Graph curls with Kristjan reviewing; 2-3 hours)
 
 | Item | How | Pass |
-|---|---|---|
+| --- | --- | --- |
 | Fresh Privy app | New app in the dashboard: email OTP on, Telegram login on, automatic embedded-wallet creation on login **off**; create the agent's P-256 authorization key; do not reuse any app inherited from an earlier project | App id and key id recorded (never the secret) in PRIVY.md |
 | First raw denial | A 40-line script with the Privy Node SDK: create a wallet with the user as owner and the agent key as additional signer under policy P_agent v0 (default deny plus rule b), then call `eth_signTransaction` to `0x000000000000000000000000000000000000dEaD` | Privy returns a policy-denial error whose text names the policy id; pasted verbatim into PRIVY.md |
 | `secp256k1_sign` under policy (15 minutes) | Call raw sign on the same policied wallet with and without a wildcard rule | The result, whichever it is, written into PRIVY.md under "why Privy does not gate Hedera" |
@@ -49,7 +49,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 ## D. Jonas's Day 1 (evidence skeletons, copy, channels)
 
 | Item | Pass |
-|---|---|
+| --- | --- |
 | Skeleton files with `TODO(tx)` markers: README (winner shape: problem, what it does, demo beats, where each integration lives, on-chain evidence, run locally, honesty box, not in scope, AI use, team), HEDERA.md, PRIVY.md, GRAPH.md, VALIDATION.md, FEEDBACK.md, ACQUISITION.md, AI-USE.md | All eight committed |
 | Consent copy, phone-door copy, privacy notice, Impressum text (from `BUILD_IN_PUBLIC_FABLE51.md` sections 4-5) | Committed as text; live on the landing by Day 2 |
 | BotFather: create the bot, set the web domain | Bot token stored as a secret; `/setdomain` done so the Telegram login test on Sunday can run |
@@ -64,7 +64,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 These are checks, not an audit. Anything that fails is fixed with a normal commit and a one-line disclosure in the README; never a history rewrite (the rules penalise missing histories).
 
 | Check | Command | Pass |
-|---|---|---|
+| --- | --- | --- |
 | No browser profile or other local state is tracked | `git ls-files \| grep -iE 'chrome-profile\|Cookies\|Login Data'` | Prints nothing; if it printed something, it is untracked, ignored, and a README line states what it was and that it held no cookies or logins |
 | No undisclosed prior-project references in code or docs | `grep -rn -iE 'ported from\|lifted from\|humanhook\|invok\|boter' --include='*.ts' --include='*.tsx' --include='*.md' --include='*.example' . \| grep -v research_FABLE51 \| grep -v _FABLE51.md` | Every hit is either inside the README or AI-USE.md disclosure section with a public link, or the file is rewritten from the protocol docs and the header removed |
 | No handover or plan text names a prior project's credentials or app | `grep -rn -i 'app already\|steal' docs/` | Nothing, or the lines are rewritten |

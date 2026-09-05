@@ -14,11 +14,12 @@ Bottom line: **the spine is real and coherent, everything money-shaped is stubbe
 - **Host policy engine**: a pure `authorize()` that checks frozen, provenance, expiry, network, payee, host, per-transaction cap, rolling-window cap and an "ask" band, in that order, with twelve passing tests and a receipt written on every outcome, including denials.
 - **A 402 envelope** on the oracle route with the right shape (x402 v2, `hedera:testnet`, exact scheme, HBAR), and live verify-and-settle code against a facilitator.
 - **Tooling and CI**: format, type-aware lint, typecheck, dependency-boundary check, tests, knip, build and a Playwright smoke test on every push.
+- **The gates are green, verified locally** on Bun 1.4.2, Sat 5 Sep 11:30-11:50 CEST: `bun install --frozen-lockfile` (557 packages), `bun run check` exit 0 (oxfmt over 163 files, type-aware oxlint, ten typecheck tasks plus the `tools` and `e2e` projects, the dependency-graph and agent-file checks, sixteen test tasks, knip), `bun run build` exit 0, `bun run e2e` three passed. **107 tests across nine packages, zero failures**: browser 26, wallet 21, web 14, server 12, domain 9, graph 8, protocol 7, payments 6, database 4. This replaces the audit's "seven of nine suites could not be run" — that was the Bun 1.3.14 lockfile mismatch, not the code.
 
 ## 2. What is stubbed or missing, against the plan
 
 | Capability the plan needs | Today | Hours to plan |
-|---|---|---|
+| --- | --- | --- |
 | Shared Chrome, grab, freeze | Partial: freeze sets a flag and aborts runs but never reaches the browser; no grey state; new runs can start while frozen; no fps or latency measurement exists | 3 |
 | Per-user isolation, fresh profile per session | Missing: one session, one mandate, one ledger, one persistent profile per process; a second visitor's chat aborts the first; every socket sees the same screencast | 22 |
 | Authentication on routes and sockets | Missing: no auth anywhere; a request with no Origin header is trusted, verified live: curl can open both sockets, receive frames and the mandate, and could send navigate, take, unfreeze, or replace every rule | 6 |
@@ -37,14 +38,14 @@ Bottom line: **the spine is real and coherent, everything money-shaped is stubbe
 | Guest path, consent, invite code, phone door, judge slots | Missing: one route, Sign in or Sign out only | 20 |
 | 402 probe, seller directory, two pre-typed buttons | Missing: the payee allowlist is only the server's own oracle | 8 |
 | Evidence files | Missing: none of HEDERA.md, PRIVY.md, GRAPH.md, VALIDATION.md, FEEDBACK.md, ACQUISITION.md, AI-USE.md exists | 2 |
-| Runtime and model pins | Drift: local Bun 1.3.14 cannot parse the 1.4.0 lockfile, so nothing installs or tests on Jonas's machine; the code pins `claude-sonnet-5`, the plan says `claude-opus-5`, neither verified | 1 |
+| Runtime and model pins | Local Bun is now 1.4.2 and the whole gate runs; CI still pins 1.4.0 in `ci.yml` while the lockfile is written by 1.4.x, so pin one version in both. The code still pins `claude-sonnet-5` where the plan says `claude-opus-5`, unverified either way | 0.5 |
 
 Total to the plan's Day 3 milestone as written: about **155 hours**. Two builders at eight hours a day reach Day 3 with about 48.
 
 ## 3. Track readiness today
 
 | Track | Today | What unblocks it first |
-|---|---|---|
+| --- | --- | --- |
 | Hedera AI & Agentic Payments | A curl-able 402 with the right shape and nothing behind it: no real account, no fee payer, no settlement, no HashScan id | Fund two accounts, read the fee payer at boot, one settled transaction into HEDERA.md |
 | Graph Composable | One subgraph id and a fixture on the live URL, which the track text names as not qualifying | Studio key, the four-deployment registry with `_meta` and a freshness gate |
 | Graph AI (From Scratch) | The mechanism is there (query, hash, evidence on the spend) but the model is scripted and the data is a fixture; "From Scratch" is at risk from undisclosed ported-code headers | Live model key, the registry, AI-USE.md |
@@ -70,7 +71,9 @@ Total to the plan's Day 3 milestone as written: about **155 hours**. Two builder
 - "Freeze aborts the run first, then takes the page": freeze never takes the page; only the human grab does.
 - "The server honours mandate.update": from any unauthenticated socket client.
 - "Runs as a Railway pre-deploy command" (migrations): no such hook is declared and no migrations exist.
-- "It runs with no keys, verify with `bun run check`": only after a `bun install` that Bun 1.3 cannot perform; seven of nine test suites could not be run on this checkout.
+- "It runs with no keys, verify with `bun run check`": **now confirmed true** on Bun 1.4.2 — the full gate, the build and the browser smoke tests all pass with no keys set. The audit could not check this because Bun 1.3.14 cannot parse a v2 lockfile.
+- **CI on `main` was red, and nothing said so.** `bun run check` starts with `oxfmt --check`, which covers markdown; forty-two committed `.md` files failed it, so every push since the research corpus landed has had a failing check suite. Because `.railway/railway.ts` sets `checkSuites: true`, a red suite means the Railway deploy waits forever — the live URL cannot pick up a new commit until the gate is green. Fixed in this commit: the nine top-level planning docs are oxfmt-clean, and `.prettierignore` holds `research_FABLE51/` and the three `IDEAS*.md` out of the formatter, because oxfmt canonicalises GFM ambiguities in that prose (a lone `~` becomes `~~` strikethrough, `*` emphasis becomes `_`) and those files are the verbatim evidence record.
+- **`bun run e2e` needs `bun run e2e:install` first** on a fresh install — Playwright refuses to launch a browser revision it did not download, and the failure prints as two failed specs, not as a missing browser. CI does run the install step, so this bites locally only.
 
 ## 6. What this means for the plan
 

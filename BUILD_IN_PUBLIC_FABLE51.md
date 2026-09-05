@@ -22,7 +22,7 @@ Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 ## 1. Channels, with the rule for each
 
 | Channel | Use | Rule |
-|---|---|---|
+| --- | --- | --- |
 | X (personal account) | The narrative, one clip or receipt a day | Link in first reply; tag people not orgs; 60 minutes of replies |
 | GitHub issues on the peer sellers' repos | The primary-segment first touch | The "we paid your 402" issue only after our agent has paid it, with the HashScan link and a clip (text in section 4); a short Sunday ask for their URL and payTo is a separate, smaller issue |
 | Hedera Discord build-support | Technical questions and the settlement links | Office hours Mon-Tue 14:00 UTC; ask the duplicate-settle question there; post the first HashScan |
@@ -30,7 +30,7 @@ Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 | ETHGlobal Discord partner channels | Technical framing only | Ask a mod before any promotion |
 | x402 builders Telegram (600+) | The 402-probe card ("this is what your 402 looks like to a buyer"), the hedera:testnet route snippet | Product on screen; most members sell on Base, so lead with the probe, not the pitch |
 | t.me/graphhackers (about 480, Graph support engineers present) | Graph day: the receipt with deployment ids, the registry, the docs PR, one real question | Not t.me/graphprotocol |
-| Graph Discord #mcp-servers | Same artifact, aimed at MCP users | |
+| Graph Discord #mcp-servers | Same artifact, aimed at MCP users |  |
 | Privy Developer Slack (privy.io/slack) | One post: the policy JSON and the jailbreak clip | Once |
 | Reddit | One fresh r/ethdev self-post on Tue 8 (rules allow it) answering the 25 Aug "how do we let an AI use a wallet without unrestricted control" question with the blocked card; replies into r/ClaudeAI 1vhp54h, r/AI_Agents 1vsy715 and the r/OpenClawUseCases thread; r/alphaandbetausers on Wed 9 with the product shown | The named threads are two to four weeks old, so a reply reaches the OP (worth a DM), not readers. Write replies without a bare link (name the repo, put the URL in a follow-up comment) so automod does not remove them. Expect single-digit starts from Reddit |
 | Farcaster | Dropped unless Jonas already has followers there | No ETHOnline conversation exists on Farcaster to tap |
@@ -44,7 +44,7 @@ Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 Each artifact exists because the product shipped it that day. If the thing did not ship, the post is the honest failure ("ship the spike, post the failure") or nothing.
 
 | Day | Artifact | Post | Tags and where |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Sat 5 | The live screencast pane (15 seconds) | Post 1: "Building an agent browser you can grab, with a Privy leash, for ETHOnline. Shipping a receipt every day until Sunday the 13th." Repo link in the first reply, no live link | Join privy.io/slack, Hedera Discord, t.me/graphhackers, ETHGlobal Discord; DM @JulioMCruz with a real question |
 | Sun 6 | The first Blocky402 settlement on HashScan; the graphprotocol/docs fix PR | Post 2: the HashScan screenshot, "first Blocky402-settled request on Hedera, 0.05 tHBAR for a four-deployment lending brief" | @jaycoolh, @ed__marquez; reply under @HederaCommunity's latest post; the PR link as a reply into @graphprotocol's builder thread and in t.me/graphhackers; issues on five peer repos asking for URL and payTo |
 | Mon 7 | Basescan: the agent paid The Graph $0.01 a query under Privy policy <id>; the first peer paid (fare402) | Post 3: the Basescan receipt card; the fare402 issue "Our agent paid your 402 (HashScan inside)" | @graphprotocol reply thread; the duplicate-settle question in Hedera office hours; five more peer issues; check-in 1 |

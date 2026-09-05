@@ -7,12 +7,12 @@ Written Sat 5 Sep 2026. Who we build for between now and Sun 13 Sep, who we recr
 ## 0. Summary
 
 | Tier | Who | Role this week | Where they are | Why they reply |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Primary | ETHOnline 2026 teams shipping x402 **sellers** on Hedera testnet, plus the July Hedera bounty alumni | Counterparties and Validation evidence | Their GitHub repos, Hedera Discord build-support, ETHGlobal Discord, x402 builders Telegram | They have endpoints and no buyer; a settlement from a stranger's agent is a HashScan link for their own submission |
 | Secondary | Developers whose coding or research agent spends money (Claude Code, Cursor, OpenClaw) | Testers of the leash; the post-hackathon segment | Named Reddit threads, x402 Telegram, X replies | They have felt the money fear (the $3,400 proxy loop, the $90 co-sign story); they lack a Chrome they can watch and a policy outside the agent |
 | Tertiary | Analysts and tool builders on The Graph's standardized (Messari) data | Reusers of the registry and SKILL.md; Graph-judge-shaped validation | t.me/graphhackers, Graph Discord #mcp-servers | Provenance, freshness gates and a way to pay The Graph per query without a Studio key |
 | Audience | ETHOnline hackers, sponsor DevRel amplifiers, async partner judges | Reach and scoring, not usage | ETHGlobal Discord, X reply threads, Hbar Happy Hour | A HashScan link and a clip |
-| Skip | 18-28 friend groups, non-crypto shoppers, trading-bot users, anyone who needs mainnet money | Not this window | | See section 7 |
+| Skip | 18-28 friend groups, non-crypto shoppers, trading-bot users, anyone who needs mainnet money | Not this window |  | See section 7 |
 
 Honest demand statement (goes in the README honesty box): nobody would be upset today if this vanished. The humans with a this-week need are the 5-25 peer sellers, and that need expires 13 Sep. The developer segment's cap problem is already served by OpenSpender and piprail; our new things for them are the watchable and grabbable Chrome, a policy the agent cannot edit, and receipts with provenance.
 
@@ -23,7 +23,7 @@ Honest demand statement (goes in the README honesty box): nobody would be upset 
 Five criteria, five points each: reachable this week, testnet tolerance, has the pain now, produces judge-visible evidence, can return on day 2.
 
 | Segment | Score /25 | Note |
-|---|---|---|
+| --- | --- | --- |
 | x402 sellers on Hedera or Base, incl. ETHOnline peers | 23 | Individually addressable; need a buyer; die on 13 Sep |
 | OpenClaw / Claude Code / Cursor agent builders | 19 | Largest pool; already have caps from OpenSpender and piprail; want the cap outside their own agent |
 | Graph standardized-data analysts | 19 | Small, judge-shaped, reachable through staffed Telegram and Discord channels |
@@ -110,7 +110,7 @@ The design panel scored every proposal as three named users. Their answers shape
 **Targets by Sat 12 Sep** (written into VALIDATION.md whatever the real numbers are):
 
 | Metric | Target | Definition |
-|---|---|---|
+| --- | --- | --- |
 | Starts | 25 (stretch; expected 8-15) | "Try it" or sign-in that created a pocket |
 | First receipts | 12 (stretch; expected 4-8) | A settled Blocky402 payment from a stranger's pocket |
 | Blocked cards from strangers | 5 | A Privy denial or host provenance refusal credited to a non-team handle |
