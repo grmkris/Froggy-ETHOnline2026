@@ -16,6 +16,8 @@
  * an idle period, which is how eight seats serve more than eight people.
  */
 
+import { rm } from "node:fs/promises";
+
 import { RemoteBrowser, spawnBrowserWorker } from "@froggy/browser";
 import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { SessionId } from "@froggy/domain";
@@ -304,6 +306,32 @@ export class Workspaces {
         await workspace.browser.close();
       })
     );
+  }
+
+  /**
+   * Delete everything this process holds for a person, and their profile.
+   *
+   * The browser is closed first so Chrome flushes and releases the profile
+   * before the directory goes. The store is the caller's to wipe; this is the
+   * in-memory half and the disk half.
+   */
+  async forget(userId: UserId): Promise<void> {
+    const workspace = this.workspaces.get(userId);
+    if (workspace !== undefined) {
+      await workspace.browser.close();
+    }
+    this.workspaces.delete(userId);
+    this.activity.delete(userId);
+    this.watchers.delete(userId);
+    this.leaveQueue(userId);
+    if (this.seated.delete(userId)) {
+      this.seatNext();
+    }
+    this.publishQueue();
+    await rm(profileDirectoryFor(this.deps.profileRoot, userId), {
+      force: true,
+      recursive: true,
+    });
   }
 
   async closeAll(): Promise<void> {

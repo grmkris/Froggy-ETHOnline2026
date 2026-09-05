@@ -16,6 +16,13 @@ import type { UserId } from "@froggy/domain";
 import { Result, Schema } from "effect";
 
 export interface Store {
+  /**
+   * Everything this store holds about one person: mandate, receipts, the
+   * frozen flag. The ledger's spend rows are not here — they are the money
+   * record and stay — but nothing that says who this person was or what they
+   * allowed survives.
+   */
+  readonly forget: (userId: UserId) => Promise<void>;
   readonly frozen: {
     readonly load: (userId: UserId) => Promise<boolean>;
     readonly save: (userId: UserId, frozen: boolean) => Promise<void>;
@@ -60,6 +67,12 @@ export const memoryStore = (): Store => {
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
   return {
+    forget: async (userId) => {
+      await Promise.resolve();
+      frozen.delete(userId);
+      mandates.delete(userId);
+      receipts.delete(userId);
+    },
     frozen: {
       load: async (userId) => {
         await Promise.resolve();

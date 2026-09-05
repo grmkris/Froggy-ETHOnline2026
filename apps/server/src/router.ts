@@ -46,6 +46,7 @@ type ResponseBody =
       readonly runtime: string;
       readonly status: string;
     }
+  | { readonly deleted: true }
   | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
@@ -169,6 +170,15 @@ const handleApi = async (
     return new Response(replay.pipeThrough(new TextEncoderStream()), {
       headers: { "content-type": "text/event-stream" },
     });
+  }
+
+  if (pathname === "/api/me" && request.method === "DELETE") {
+    // Their run stops, their browser closes, their profile and their records
+    // go. The ledger's spend rows stay: money that moved is not a preference.
+    deps.runs.abort(sessionId);
+    await deps.workspaces.forget(userId);
+    await deps.services.store.forget(userId);
+    return json({ deleted: true });
   }
 
   if (pathname === "/api/receipts") {

@@ -44,6 +44,16 @@ const receipt = (at: number): Receipt => ({
 });
 
 describe("memoryStore", () => {
+  it("forgets a person entirely", async () => {
+    const store = memoryStore();
+    await store.receipts.append(ALICE, receipt(NOW));
+    await store.frozen.save(ALICE, true);
+    await store.forget(ALICE);
+    expect(await store.receipts.recent(ALICE, 10)).toEqual([]);
+    expect(await store.frozen.load(ALICE)).toBe(false);
+    expect(await store.mandates.load(ALICE)).toBeNull();
+  });
+
   it("returns receipts newest first, capped", async () => {
     const store = memoryStore();
     await store.receipts.append(ALICE, receipt(NOW));

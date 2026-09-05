@@ -222,7 +222,21 @@ export const WorkspacePage = (): ReactElement => {
       <DetailsDrawer
         mandate={app.mandate}
         modes={app.modes}
+        onDeleteData={() => {
+          void (async () => {
+            const token = await getToken();
+            await fetch("/api/me", {
+              headers:
+                token === null ? {} : { authorization: `Bearer ${token}` },
+              method: "DELETE",
+            });
+            globalThis.location.reload();
+          })();
+        }}
         onOpenChange={setDetailsOpen}
+        onSaveMandate={(mandate) => {
+          app.send({ mandate, type: "mandate.update", v: 1 });
+        }}
         open={detailsOpen}
         receipts={app.receipts}
         sessionId={app.sessionId}

@@ -24,6 +24,16 @@ export const postgresStore = (sql: Sql): Store => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
   return {
+    forget: async (userId) => {
+      await database.delete(receipts).where(eq(receipts.userId, userId));
+      await database.delete(mandates).where(eq(mandates.userId, userId));
+      // The row itself stays: the ledger's spends reference it, and a spend
+      // is a money record that outlives the person's preferences.
+      await database
+        .update(users)
+        .set({ frozenAt: null })
+        .where(eq(users.did, userId));
+    },
     frozen: {
       load: async (userId) => {
         const rows = await database

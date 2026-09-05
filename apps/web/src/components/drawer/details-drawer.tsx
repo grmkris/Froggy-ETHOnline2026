@@ -9,6 +9,17 @@
 import { formatUsd } from "@froggy/domain";
 import type { Mandate, Receipt } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@froggy/ui/components/alert-dialog";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
 import {
@@ -29,11 +40,14 @@ import type { ReactElement } from "react";
 import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { MandateEditor } from "./mandate-editor";
 
 interface DetailsDrawerProps {
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
+  readonly onDeleteData: () => void;
   readonly onOpenChange: (open: boolean) => void;
+  readonly onSaveMandate: (mandate: Mandate) => void;
   readonly open: boolean;
   readonly receipts: readonly Receipt[];
   readonly sessionId: string | null;
@@ -82,33 +96,81 @@ const SIGNER_WORDS: Record<WalletSummary["agentSigner"], string> = {
 
 const Policy = ({
   mandate,
+  onSave,
 }: {
   readonly mandate: Mandate | null;
+  readonly onSave: (mandate: Mandate) => void;
 }): ReactElement => (
-  <ul className="space-y-1.5">
-    {(mandate?.rules ?? []).map((rule) => (
-      <li className="flex items-baseline gap-2 text-sm" key={rule.id}>
-        <span className="text-brand">·</span>
-        <span className="flex-1">{ruleLabel(rule)}</span>
-        <span className="text-machine text-muted-foreground">
-          {rule.id.slice(0, 12)}
-        </span>
-      </li>
-    ))}
-    {mandate?.frozen === true ? (
-      <li className="bg-drive-frozen-soft rounded-xl p-3 text-sm">
-        Frozen. Nothing is allowed until you unfreeze it from the header.
-      </li>
-    ) : null}
-  </ul>
+  <div className="space-y-4">
+    <ul className="space-y-1.5">
+      {(mandate?.rules ?? []).map((rule) => (
+        <li className="flex items-baseline gap-2 text-sm" key={rule.id}>
+          <span className="text-brand">·</span>
+          <span className="flex-1">{ruleLabel(rule)}</span>
+          <span className="text-machine text-muted-foreground">
+            {rule.id.slice(0, 12)}
+          </span>
+        </li>
+      ))}
+      {mandate?.frozen === true ? (
+        <li className="bg-drive-frozen-soft rounded-xl p-3 text-sm">
+          Frozen. Nothing is allowed until you unfreeze it from the header.
+        </li>
+      ) : null}
+    </ul>
+    {mandate === null ? null : (
+      <details className="rounded-xl border p-3">
+        <summary className="cursor-pointer text-sm font-medium select-none">
+          Edit the mandate
+        </summary>
+        <div className="pt-3">
+          <MandateEditor mandate={mandate} onSave={onSave} />
+        </div>
+      </details>
+    )}
+  </div>
+);
+
+const DeleteData = ({
+  onConfirm,
+}: {
+  readonly onConfirm: () => void;
+}): ReactElement => (
+  <AlertDialog>
+    <AlertDialogTrigger
+      render={
+        <Button size="sm" variant="destructive">
+          Delete my data
+        </Button>
+      }
+    />
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>
+          Delete everything Froggy holds for you?
+        </AlertDialogTitle>
+        <AlertDialogDescription>
+          Your mandate, your receipts and your browser profile are removed and
+          any running turn is stopped. Payments that already settled stay in the
+          ledger, because money that moved is not a preference.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Keep it</AlertDialogCancel>
+        <AlertDialogAction onClick={onConfirm}>Delete</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 );
 
 const About = ({
   modes,
+  onDeleteData,
   sessionId,
   wallet,
 }: {
   readonly modes: ServiceModes | null;
+  readonly onDeleteData: () => void;
   readonly sessionId: string | null;
   readonly wallet: WalletSummary | null;
 }): ReactElement => {
@@ -145,17 +207,20 @@ const About = ({
           </Badge>
         ))}
       </div>
-      {identity.stubbed ? null : (
-        <Button
-          onClick={() => {
-            identity.logout();
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Sign out
-        </Button>
-      )}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {identity.stubbed ? null : (
+          <Button
+            onClick={() => {
+              identity.logout();
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Sign out
+          </Button>
+        )}
+        <DeleteData onConfirm={onDeleteData} />
+      </div>
     </div>
   );
 };
@@ -163,7 +228,9 @@ const About = ({
 export const DetailsDrawer = ({
   mandate,
   modes,
+  onDeleteData,
   onOpenChange,
+  onSaveMandate,
   open,
   receipts,
   sessionId,
@@ -184,7 +251,7 @@ export const DetailsDrawer = ({
           <TabsTrigger value="about">Wallet</TabsTrigger>
         </TabsList>
         <TabsContent className="pt-4" value="policy">
-          <Policy mandate={mandate} />
+          <Policy mandate={mandate} onSave={onSaveMandate} />
         </TabsContent>
         <TabsContent className="space-y-2 pt-4" value="history">
           {receipts.length === 0 ? (
@@ -198,7 +265,12 @@ export const DetailsDrawer = ({
           )}
         </TabsContent>
         <TabsContent className="pt-4" value="about">
-          <About modes={modes} sessionId={sessionId} wallet={wallet} />
+          <About
+            modes={modes}
+            onDeleteData={onDeleteData}
+            sessionId={sessionId}
+            wallet={wallet}
+          />
         </TabsContent>
       </Tabs>
     </SheetContent>
