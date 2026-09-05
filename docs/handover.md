@@ -53,7 +53,7 @@ Drop the values into `~/.config/secrets.env` for local work, and onto the Railwa
 3. **Persist the ledger.** `packages/database` holds the schema; the running ledger is in-memory, which is why the service is pinned to one replica.
 4. **Mandate editing in the UI.** The protocol carries `mandate.update` and the server honours it; the pane only reads.
 5. **The Privy-signed Hedera payment.** `ClientHederaSigner` is a two-member interface, the Hiero SDK takes an async signer callback, and `@privy-io/node` exposes `wallets._rawSign` with `secp256k1_sign`. So the Hedera payment could be signed by a **Privy wallet under a Privy policy** — one leash across two chains, which no other submission will have. It needs the wallet's compressed public key to create the matching Hedera account. Attempt only once 1–3 are green; it is the headline, not the foundation.
-6. **Telegram.** Cut from the MVP and still cut. `~/code/boter` has no pairing flow to lift — that assumption in `docs/architecture.md` is wrong — so it is a fresh day of work that no sponsor is paying for.
+6. **Telegram.** Cut from the MVP and still cut. `~/code/boter` has no pairing flow to lift — that assumption in `docs/plan/ARCHITECTURE_v1.md` is wrong — so it is a fresh day of work that no sponsor is paying for.
 
 ## Before submitting
 

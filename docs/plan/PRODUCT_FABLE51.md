@@ -1,6 +1,6 @@
 # Product spec (FABLE51)
 
-Written Sat 5 Sep 2026. This is the revised product for ETHOnline 2026 (submission Sun 13 Sep 12:00 EDT; internal deadline Sat 12 Sep 20:00 CEST). It is the consensus of a six-design panel (prize-first, user-first, contrarian, build-in-public-first, engineering-first, CEO) judged three ways, with the tester and engineering refutations applied and a rules pass of my own. Evidence: `research_FABLE51/panel-*_FABLE51.md`. It is written as a plan, not as an audit of the current code; where a decision touches implementation detail it names the capability, and the engineering owner decides the file.
+Written Sat 5 Sep 2026. This is the revised product for ETHOnline 2026 (submission Sun 13 Sep 12:00 EDT; internal deadline Sat 12 Sep 20:00 CEST). It is the consensus of a six-design panel (prize-first, user-first, contrarian, build-in-public-first, engineering-first, CEO) judged three ways, with the tester and engineering refutations applied and a rules pass of my own. Evidence: `../research/panel-*_FABLE51.md`. It is written as a plan, not as an audit of the current code; where a decision touches implementation detail it names the capability, and the engineering owner decides the file.
 
 Times are CEST (the team's clock; Jonas's machine shows EEST, one hour ahead). "Day 1" is Sat 5 Sep because the original day 0 (Fri 4 Sep evening) has passed with none of its checklist done; the plan is eight days plus a submission morning.
 
@@ -200,7 +200,7 @@ Cuts made now, regardless of headcount: Base Sepolia is rule (b)'s default (the 
 
 The `pay` MCP tool (pocket_pay, pocket_balance, pocket_receipts against the same hosted pocket and caps; the per-agent token is a spend credential and is documented as such) is the first item, because it is the only day-2 shape for the developer segment. Then: Telegram OAuth login if the DID test passed, Privy Intents approvals, per-agent sub-budgets, the persistent profile as an opt-in, and counsel before any fee or mainnet value for outside users.
 
-## 14. Changes versus `docs/PLAN.md` and `docs/architecture.md`
+## 14. Changes versus `PLAN_v1.md` and `ARCHITECTURE_v1.md`
 
 - "Privy policy is the leash on the Hedera x402 payment" is false; the custody split in section 4 replaces it, and the Privy raw-sign Hedera wrapper is struck.
 - "Steal from \~/code/humanhook, invok, boter": patterns only, disclosed; nothing copied; the repos are not on Jonas's machine.

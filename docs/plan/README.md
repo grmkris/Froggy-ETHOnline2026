@@ -13,15 +13,15 @@ Written Sat 5 Sep 2026. These files are the research, product and go-to-market p
 7. **`CODE_STATE_FABLE51.md`** - the implementation audited on Sat 5 Sep against this plan: what works, what is stubbed, rule and safety risks, hours to the plan, the first five tasks.
 8. **`PIVOT_ASSESSMENT_FABLE51.md`** - the KIMI ideas (SquadPot, No Flake, Payback, Darepot, SecondOpinion, PAYDAY) and IDEAS.md's Allowance validated against the same evidence; decision and what we keep from them.
 9. **`RESEARCH_FABLE51.md`** - the research spine: rules, winners' anatomy, technical verification (browser, custody, Telegram, Graph), market, competition, segments, channels, prize expected value, fourteen corrections to the original plan, open questions.
-10. **`research_FABLE51/`** - the evidence: the brief and critic, nine dimension digests, six gap studies, four pivot red-teams (`pivot-*`), six product designs, three judge panels, the synthesis and two refutations (`panel-*`).
+10. **`../research/`** - the evidence: the brief and critic, nine dimension digests, six gap studies, four pivot red-teams (`pivot-*`), six product designs, three judge panels, the synthesis and two refutations (`panel-*`).
 
-A note on `research_FABLE51/panel-refutations_FABLE51.md` and `panel-judgments_FABLE51.md`: the engineering refuter and one judge measured the proposals against the code tree as it stood on the night of 4 Sep. Their code-level points are the engineering owner's to accept or ignore; the plan above uses only their hour estimates and the rule-risk items.
+A note on `../research/panel-refutations_FABLE51.md` and `panel-judgments_FABLE51.md`: the engineering refuter and one judge measured the proposals against the code tree as it stood on the night of 4 Sep. Their code-level points are the engineering owner's to accept or ignore; the plan above uses only their hour estimates and the rule-risk items.
 
 ## The decision in one paragraph
 
 Do not pivot. Build the agentic wallet: a web workspace where the agent drives a real Chrome you can watch, grab and freeze, and spends from a prefunded pocket whose rules live outside the model (a Privy policy on the EVM leg, a host ledger on the Hedera pocket). The wedge this week is "paste your hedera:testnet 402, a leashed agent pays it on camera", with our own Graph-grounded lending brief as the first directory entry. Primary testers are the peer x402 sellers on Hedera testnet; secondary are developers whose coding agent spends money. Sponsors stay Privy, The Graph, Hedera (three slots; four tracks, five if the Intents approval ships). From the KIMI rounds we take the receipt-card discipline, the no-pot adversarial stunt, the paid-verdict endpoint as the shape of our Hedera brief, and dated kill checks, and nothing else.
 
-## The twelve changes versus `docs/PLAN.md` and `docs/architecture.md`
+## The twelve changes versus `PLAN_v1.md` and `ARCHITECTURE_v1.md`
 
 1. **Custody is split by chain.** Privy gates every EVM signature (typed-data x402 to The Graph, the pocket top-up with a 24-hour aggregation); the Hedera x402 leg is paid from a per-user host-held pocket with host caps, funded only by a Privy-policied transfer. "Privy is the leash on the Hedera payment" is false and the raw-sign wrapper is struck.
 2. **Real USDC exists only in the team's demo wallet** ($5 plus $5 reserve) under a $0.02-per-payment rule to one payTo; testers and guests never touch mainnet.

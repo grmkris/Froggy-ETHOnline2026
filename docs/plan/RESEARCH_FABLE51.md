@@ -1,10 +1,10 @@
 # Research: what is actually true on 4 Sep 2026
 
-Companion to `docs/PLAN.md` and `docs/architecture.md`. Those files are the team's plan. This file is what 118 research agents found when they checked that plan against primary sources today. Where the two disagree, this file wins, and section 10 lists every disagreement.
+Companion to `PLAN_v1.md` and `ARCHITECTURE_v1.md`. Those files are the team's plan. This file is what 118 research agents found when they checked that plan against primary sources today. Where the two disagree, this file wins, and section 10 lists every disagreement.
 
-How it was produced: nine research dimensions ran in parallel (demand, competition, segments, build-in-public, feasibility, prizes, retention, safety, hackathon meta). Every high-impact claim was then attacked by two independent verifiers (one fetched the cited sources, one hunted for counter-evidence). A critic listed contradictions and gaps, and six gap studies settled them, including live Docker runs of `Bun.WebView`, live HTTP probes of Blocky402 and The Graph's x402 gateways, and unpacking the `@x402/hedera` and Privy npm packages. Full digests with every URL live in `research_FABLE51/`. Facts below are VERIFIED unless marked INFERRED.
+How it was produced: nine research dimensions ran in parallel (demand, competition, segments, build-in-public, feasibility, prizes, retention, safety, hackathon meta). Every high-impact claim was then attacked by two independent verifiers (one fetched the cited sources, one hunted for counter-evidence). A critic listed contradictions and gaps, and six gap studies settled them, including live Docker runs of `Bun.WebView`, live HTTP probes of Blocky402 and The Graph's x402 gateways, and unpacking the `@x402/hedera` and Privy npm packages. Full digests with every URL live in `../research/`. Facts below are VERIFIED unless marked INFERRED.
 
-Sibling files: `README_FABLE51.md` (the index), `PRODUCT_FABLE51.md` (the refined product), `PIVOT_ASSESSMENT_FABLE51.md` (the KIMI ideas validated against the same evidence), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
+Sibling files: `README.md` (the index), `PRODUCT_FABLE51.md` (the refined product), `PIVOT_ASSESSMENT_FABLE51.md` (the KIMI ideas validated against the same evidence), `TARGET_GROUPS_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`.
 
 ---
 
@@ -49,7 +49,7 @@ Hedera ships its own hackathon rubric in [hedera-dev/hedera-skills](https://gith
 
 ## 3. What winning submissions look like
 
-Twenty-two showcase pages were pulled raw, ten videos downloaded and frame-sampled, one transcript read, live URLs curl-checked, repos counted. Digest: `research_FABLE51/gap-winning_submission_anatomy_FABLE51.md`.
+Twenty-two showcase pages were pulled raw, ten videos downloaded and frame-sampled, one transcript read, live URLs curl-checked, repos counted. Digest: `../research/gap-winning_submission_anatomy_FABLE51.md`.
 
 What separates winners from losers on the same axes:
 
@@ -65,7 +65,7 @@ Sponsor-specific patterns:
 
 - **Hedera** rewarded projects that sold or metered something and put the receipt on screen: Glassbox402 ("Google Analytics for x402", x402ify any API, MCP server, published npm package) and Vision Pay (mandate-gated auto-pay). Kinora, which also settled via Blocky402, lacked a video and got nothing.
 - **The Graph** praised standardized schemas ("one query format covers Aave v3, Compound v3, and Spark"), pinned deployment ids, freshness gates, returning "unavailable" over stale data, and a second Graph product. atlas placed 2nd with an honestly disclosed unexercised x402 stub. Source: [The Graph's Lisbon 2026 winners post](https://thegraph.com/blog/ethglobal-lisbon-2026-winners/).
-- **Privy** rewarded clean, shallow integrations using the exact feature the track names, inside a polished consumer demo. Agent-track winners were server-wallet agents with an allowlist. Privy slots often go unawarded (one of four at New York 2026). A Telegram-plus-Privy delegated-wallet project (Deport The Dip) won nothing. Digest: `research_FABLE51/gap-privy_track_intel_FABLE51.md`.
+- **Privy** rewarded clean, shallow integrations using the exact feature the track names, inside a polished consumer demo. Agent-track winners were server-wallet agents with an allowlist. Privy slots often go unawarded (one of four at New York 2026). A Telegram-plus-Privy delegated-wallet project (Deport The Dip) won nothing. Digest: `../research/gap-privy_track_intel_FABLE51.md`.
 
 Prior art the judges already know: [Tally](https://github.com/Madhav-Gupta-28/Tally) (Hedera x402 bounty winner announced 31 Aug 2026, agent-signed spend ceiling via the `upto` scheme, HCS receipts, MCP server, npm packages), HumanMandate (Lisbon: daily caps, revoke, selfie step-up), and this week's ETHOnline repos countersign, chip402 and mandate. "An agent wallet with caps" reads as a repeat.
 
@@ -226,7 +226,7 @@ Expected about $2,300; ceiling $12,000 (five first places: $2,000 + 4 x $2,500).
 
 ---
 
-## 10. Corrections to docs/PLAN.md and docs/architecture.md
+## 10. Corrections to PLAN_v1.md and ARCHITECTURE_v1.md
 
 1. "Privy policy is the leash on the Hedera x402 payment" (ARCHITECTURE §Privy, PLAN §7, §9) is false. Only the EVM leg is Privy-gated. See 4.2.
 2. "Per-tx and rolling USDC cap" via Privy (PLAN §7) works only for `eth_signTransaction` and `eth_signUserOperation`. Not for x402 typed data, and not for `eth_sendTransaction`. The daily x402 budget is a host ledger.

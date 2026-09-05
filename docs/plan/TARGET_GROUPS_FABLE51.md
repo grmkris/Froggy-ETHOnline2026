@@ -1,6 +1,6 @@
 # Target groups (FABLE51)
 
-Written Sat 5 Sep 2026. Who we build for between now and Sun 13 Sep, who we recruit as testers, who is audience only, and who we skip. Evidence: `RESEARCH_FABLE51.md` sections 5-8, `research_FABLE51/dim-segments_FABLE51.md`, `dim-demand_FABLE51.md`, `dim-build_in_public_FABLE51.md`, `gap-event_week_graph_and_peers_FABLE51.md`, and the three-persona user panel in `research_FABLE51/panel-judgments_FABLE51.md`.
+Written Sat 5 Sep 2026. Who we build for between now and Sun 13 Sep, who we recruit as testers, who is audience only, and who we skip. Evidence: `RESEARCH_FABLE51.md` sections 5-8, `../research/dim-segments_FABLE51.md`, `dim-demand_FABLE51.md`, `dim-build_in_public_FABLE51.md`, `gap-event_week_graph_and_peers_FABLE51.md`, and the three-persona user panel in `../research/panel-judgments_FABLE51.md`.
 
 ---
 

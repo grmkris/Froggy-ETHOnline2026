@@ -1,12 +1,12 @@
 # oxfmt's ignore file (`oxfmt --check` reads .gitignore and .prettierignore).
 #
-# research_FABLE51/ holds verbatim research digests and audit transcripts kept as
+# docs/research/ holds verbatim research digests and audit transcripts kept as
 # evidence for the ETHOnline submission. Reformatting them rewrites the record:
 # oxfmt canonicalises GFM ambiguities in the source text (single `~` into `~~`
 # strikethrough, `*` emphasis into `_`), which changes the bytes a judge reads.
-research_FABLE51/
+docs/research/
 
 # Idea rounds written by another tool and kept unedited for provenance.
-IDEAS.md
-IDEAS_KIMI.md
-IDEAS_V3_KIMI.md
+docs/plan/IDEAS.md
+docs/plan/IDEAS_KIMI.md
+docs/plan/IDEAS_V3_KIMI.md

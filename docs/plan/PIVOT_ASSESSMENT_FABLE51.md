@@ -1,6 +1,6 @@
 # Pivot assessment: the KIMI ideas versus the agentic wallet (FABLE51)
 
-Written Sat 5 Sep 2026, morning. Validates `IDEAS.md` (round 3, "Allowance"), `IDEAS_KIMI.md` (v2: I Told You So, No Flake, Darepot) and `IDEAS_V3_KIMI.md` (SquadPot, Payback, SecondOpinion, PAYDAY, kill list) against the same evidence base as `RESEARCH_FABLE51.md`. Companion docs: `PRODUCT_FABLE51.md` (what we build), `TARGET_GROUPS_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`. Full red-team digests: `research_FABLE51/pivot-*_FABLE51.md`.
+Written Sat 5 Sep 2026, morning. Validates `IDEAS.md` (round 3, "Allowance"), `IDEAS_KIMI.md` (v2: I Told You So, No Flake, Darepot) and `IDEAS_V3_KIMI.md` (SquadPot, Payback, SecondOpinion, PAYDAY, kill list) against the same evidence base as `RESEARCH_FABLE51.md`. Companion docs: `PRODUCT_FABLE51.md` (what we build), `TARGET_GROUPS_FABLE51.md`, `PRIZE_AUDIT_FABLE51.md`, `BUILD_IN_PUBLIC_FABLE51.md`, `DAY0_CHECKLIST_FABLE51.md`. Full red-team digests: `../research/pivot-*_FABLE51.md`.
 
 Not legal advice. Statute text quoted below was fetched from primary sources on 4-5 Sep 2026 and is marked VERIFIED; applications of it to the design are INFERRED.
 
@@ -135,6 +135,6 @@ Agentic wallet and Allowance are one architecture; Allowance scores higher becau
 
 ## 9. Evidence
 
-- `research_FABLE51/pivot-agentic_wallet_FABLE51.md`, `pivot-allowance_FABLE51.md`, `pivot-squadpot_FABLE51.md`, `pivot-noflake_FABLE51.md`: steelman plus five red-team lenses each, with sources.
-- `research_FABLE51/panel-*_FABLE51.md`: six product designs (prize-first, user-first, contrarian, build-in-public-first, engineering-first, CEO), three judge panels, the synthesis and two refutations that produced `PRODUCT_FABLE51.md`.
+- `../research/pivot-agentic_wallet_FABLE51.md`, `pivot-allowance_FABLE51.md`, `pivot-squadpot_FABLE51.md`, `pivot-noflake_FABLE51.md`: steelman plus five red-team lenses each, with sources.
+- `../research/panel-*_FABLE51.md`: six product designs (prize-first, user-first, contrarian, build-in-public-first, engineering-first, CEO), three judge panels, the synthesis and two refutations that produced `PRODUCT_FABLE51.md`.
 - `RESEARCH_FABLE51.md` sections 2 (rules), 4 (technical verification), 5 (market), 7 (segments), 9 (prize EV).

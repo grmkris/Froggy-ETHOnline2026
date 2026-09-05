@@ -1,6 +1,6 @@
 # Build in public and tester operations (FABLE51)
 
-Written Sat 5 Sep 2026. Jonas's lane: what to post, where, when, to whom, with which artifact; how testers get in, what they see, and how we count them. Evidence: `RESEARCH_FABLE51.md` sections 5-8, `research_FABLE51/dim-build_in_public_FABLE51.md`, `gap-event_week_graph_and_peers_FABLE51.md`, the build-in-public-first design and the tester refutation in `research_FABLE51/panel-*_FABLE51.md`. Segments and personas are in `TARGET_GROUPS_FABLE51.md`.
+Written Sat 5 Sep 2026. Jonas's lane: what to post, where, when, to whom, with which artifact; how testers get in, what they see, and how we count them. Evidence: `RESEARCH_FABLE51.md` sections 5-8, `../research/dim-build_in_public_FABLE51.md`, `gap-event_week_graph_and_peers_FABLE51.md`, the build-in-public-first design and the tester refutation in `../research/panel-*_FABLE51.md`. Segments and personas are in `TARGET_GROUPS_FABLE51.md`.
 
 Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 
