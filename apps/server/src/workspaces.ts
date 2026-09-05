@@ -21,13 +21,14 @@ import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { SessionId } from "@froggy/domain";
 import type {
   Amount,
+  Mandate,
   PolicyDecision,
   Quote,
   Receipt,
   UserId,
 } from "@froggy/domain";
 import type { BrowserState, ServiceModes } from "@froggy/protocol";
-import type { SpendLedger } from "@froggy/wallet";
+import type { SpendLedger, Store } from "@froggy/wallet";
 
 import { detached } from "./detached";
 import { WorkspaceSession } from "./session";
@@ -84,6 +85,8 @@ export interface WorkspaceDeps {
   readonly modes: ServiceModes;
   readonly now?: () => number;
   readonly onBrowserState: (userId: UserId, state: BrowserState) => void;
+  /** The mandate changed for a reason other than a socket message: a load. */
+  readonly onMandate: (userId: UserId, mandate: Mandate) => void;
   readonly onPolicyDecision: (userId: UserId, decision: PolicyDecision) => void;
   readonly onReceipt: (userId: UserId, receipt: Receipt) => void;
   /** The server's own oracle, allowlisted from the first moment. */
@@ -94,6 +97,7 @@ export interface WorkspaceDeps {
   readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
   /** Seats held for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
+  readonly store: Store;
 }
 
 /**
@@ -146,6 +150,9 @@ export class Workspaces {
       {
         ledger: this.deps.ledger,
         modes: this.deps.modes,
+        onMandate: (mandate) => {
+          this.deps.onMandate(userId, mandate);
+        },
         quote: this.deps.quote,
         onPolicyDecision: (decision) => {
           this.deps.onPolicyDecision(userId, decision);
@@ -153,6 +160,7 @@ export class Workspaces {
         onReceipt: (receipt) => {
           this.deps.onReceipt(userId, receipt);
         },
+        store: this.deps.store,
       },
       { hosts: [this.deps.oracleHost], payeeIds: [this.deps.oraclePayTo] }
     );
@@ -185,6 +193,27 @@ export class Workspaces {
     const workspace: Workspace = { browser, session, userId };
     this.workspaces.set(userId, workspace);
     this.touch(userId);
+    return workspace;
+  }
+
+  /**
+   * The workspace, with what a previous process persisted loaded into it.
+   *
+   * Routes await this; a socket only starts it, because the load publishes
+   * the mandate when it lands and a pane that opened early sees the defaults
+   * replaced rather than nothing. A store that cannot be read leaves the
+   * defaults in place and says so in the log; it does not stop the workspace.
+   */
+  async hydrate(userId: UserId): Promise<Workspace> {
+    const workspace = this.for(userId);
+    try {
+      await workspace.session.hydrate();
+    } catch (error) {
+      console.warn(
+        `workspace hydrate failed for ${userId}:`,
+        error instanceof Error ? error.message : "unknown error"
+      );
+    }
     return workspace;
   }
 

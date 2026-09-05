@@ -70,6 +70,17 @@ class FroggyServer extends Context.Service<
           "Could not read the HBAR/USD rate. HBAR spends will be refused until it does."
         );
       }
+      // The facilitator's fee payer. Hedera's exact scheme cannot build a
+      // payment without it, so a 402 that omits it is a 402 nobody can pay.
+      // Read rather than hardcoded: it has already changed once.
+      const feePayerReady = yield* Effect.promise(
+        async () => await services.oracle.refresh()
+      );
+      if (!feePayerReady) {
+        yield* Effect.logWarning(
+          "Could not read the facilitator's fee payer. The paid endpoint will advertise a 402 nobody can pay."
+        );
+      }
       const quotes = createQuotes(services.rates);
 
       const workspaces = new Workspaces({
@@ -82,6 +93,9 @@ class FroggyServer extends Context.Service<
         modes: environment.modes,
         onBrowserState: (userId, state) => {
           sinks.publishBrowserState?.(userId, state);
+        },
+        onMandate: (userId, mandate) => {
+          sinks.publishApp?.(userId, { mandate, type: "mandate.state", v: 1 });
         },
         onPolicyDecision: (userId, decision) => {
           sinks.publishApp?.(userId, {
@@ -105,6 +119,7 @@ class FroggyServer extends Context.Service<
         profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,
         reservedBrowsers: environment.reservedBrowsers,
+        store: services.store,
       });
 
       const grants = new AgentGrants({

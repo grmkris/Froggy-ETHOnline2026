@@ -115,7 +115,7 @@ const handleApi = async (
   }
   // Fire-and-forget, once per user. Nothing here waits on Privy.
   deps.grants.note(userId, token);
-  const workspace = deps.workspaces.for(userId);
+  const workspace = await deps.workspaces.hydrate(userId);
   const sessionId = workspace.session.id;
 
   if (pathname === "/api/chat" && request.method === "POST") {
@@ -172,7 +172,7 @@ const handleApi = async (
   }
 
   if (pathname === "/api/receipts") {
-    return json({ receipts: workspace.session.history });
+    return json({ receipts: await workspace.session.recentReceipts() });
   }
 
   if (pathname === "/api/wallet") {

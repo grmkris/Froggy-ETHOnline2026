@@ -25,11 +25,13 @@ import {
   stubHederaPayer,
   stubOracleGate,
 } from "@froggy/payments";
-import type { PrivyServer, SpendLedger } from "@froggy/wallet";
+import type { PrivyServer, SpendLedger, Store } from "@froggy/wallet";
 import {
   livePrivyServer,
   memoryLedger,
+  memoryStore,
   postgresLedger,
+  postgresStore,
   stubPrivyServer,
 } from "@froggy/wallet";
 import postgres from "postgres";
@@ -47,6 +49,8 @@ export interface Services {
   readonly rates: RateSource;
   /** Releases anything this module acquired. Called from the server's scope. */
   readonly shutdown: () => Promise<void>;
+  /** Frozen flags, mandates and receipts; same live/stub split as the ledger. */
+  readonly store: Store;
 }
 
 export interface ServiceOptions {
@@ -68,7 +72,7 @@ export const createServices = (options: ServiceOptions): Services => {
     environment.modes.hedera === "live"
       ? liveOracleGate({
           facilitatorUrl: environment.hederaFacilitatorUrl,
-          payTo: environment.hederaAccountId,
+          payTo: environment.hederaPayTo,
         })
       : stubOracleGate();
 
@@ -115,5 +119,6 @@ export const createServices = (options: ServiceOptions): Services => {
     shutdown: async () => {
       await sql?.end({ timeout: 5 });
     },
+    store: sql === null ? memoryStore() : postgresStore(sql),
   };
 };

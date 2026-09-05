@@ -6,7 +6,12 @@
  * the same five things in the same order every time: price the intent, ask the
  * policy, reserve on the ledger, perform the side effect, write the receipt.
  *
- * Reserving *before* the side effect is what makes concurrent tool calls safe.
+ * The first three happen under one per-session lock. The window total is read
+ * and the reservation written with nothing in between, so two spends with
+ * different keys cannot both read the same total and jointly exceed a cap
+ * neither broke alone. The side effect happens outside the lock: it may take
+ * seconds and nothing about it changes the arithmetic.
+ *
  * Writing the receipt regardless of outcome is what makes a refusal as
  * auditable as a payment: "it did not spend" and "it was told not to" are
  * different facts, and only one of them is reassuring.
@@ -17,6 +22,7 @@ import {
   ReceiptId,
   RuleId as RuleIdSchema,
   SpendId,
+  SpendIntent as SpendIntentSchema,
   defaultRules,
   priceInUsdMicros,
 } from "@froggy/domain";
@@ -39,7 +45,10 @@ import type {
   WalletSummary,
 } from "@froggy/protocol";
 import { authorize } from "@froggy/wallet";
-import type { SpendLedger, WalletAddresses } from "@froggy/wallet";
+import type { SpendLedger, Store, WalletAddresses } from "@froggy/wallet";
+import { Schema } from "effect";
+
+import { detached } from "./detached";
 
 /**
  * A value under construction, with named fields still to be filled in.
@@ -64,6 +73,11 @@ export interface SpendRequest {
   readonly provenance: SpendIntent["payee"]["provenance"];
   /** The turn this spend belongs to, so a receipt can be traced back to it. */
   readonly runId: RunIdValue;
+  /**
+   * The run's signal. Checked once more immediately before the outbound call:
+   * a run stopped between the reservation and the payment must not pay.
+   */
+  readonly signal?: AbortSignal;
   /** Performs the payment. Only called after the policy has allowed it. */
   readonly settle: () => Promise<{
     readonly network: string;
@@ -85,6 +99,12 @@ const unpaid = (request: SpendRequest): Settled => ({
 });
 
 export interface SpendResult {
+  /**
+   * Set when the policy allowed the spend but nothing was sent: the wallet
+   * froze or the run stopped between the reservation and the call. The
+   * receipt then carries an allow and no settlement, and this says why.
+   */
+  readonly abandoned: string | null;
   readonly decision: PolicyDecision;
   readonly receipt: Receipt;
 }
@@ -92,6 +112,8 @@ export interface SpendResult {
 export interface SessionDeps {
   readonly ledger: SpendLedger;
   readonly modes: ServiceModes;
+  /** Published when the mandate changes for a reason other than a message. */
+  readonly onMandate?: (mandate: Mandate) => void;
   /**
    * What one whole unit of an asset is worth, or null when nobody knows.
    *
@@ -104,6 +126,7 @@ export interface SessionDeps {
   readonly now?: () => number;
   readonly onPolicyDecision: (decision: PolicyDecision) => void;
   readonly onReceipt: (receipt: Receipt) => void;
+  readonly store: Store;
 }
 
 /**
@@ -114,6 +137,9 @@ export interface SessionDeps {
  * disagrees with the refusal message.
  */
 const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** How much history a reconnecting client is handed. */
+const RECEIPT_HISTORY = 100;
 
 /**
  * Thrown when nothing can say what an asset is worth.
@@ -132,6 +158,23 @@ export class UnpricedAssetError extends Error {
   }
 }
 
+/**
+ * Thrown when the spend does not even have the shape of a spend.
+ *
+ * A negative amount, a fractional unit count, an amount that is not a number:
+ * these came from a tool argument, and a tool argument came from the model.
+ * They are refused before the policy sees them — a cap compared against `NaN`
+ * passes — and the model is told the request was malformed, not denied.
+ */
+export class MalformedSpendError extends Error {
+  constructor(detail: string) {
+    super(`That is not a spend this wallet can evaluate: ${detail}`);
+    this.name = "MalformedSpendError";
+  }
+}
+
+const decodeIntent = Schema.decodeUnknownResult(SpendIntentSchema);
+
 const widestWindowMs = (mandate: Mandate): number => {
   let widest = DEFAULT_WINDOW_MS;
   for (const rule of mandate.rules) {
@@ -141,6 +184,9 @@ const widestWindowMs = (mandate: Mandate): number => {
   }
   return widest;
 };
+
+/** Swallow a settled rejection in a chain that must never inherit one. */
+const swallow = (): void => undefined;
 
 export class WorkspaceSession {
   readonly id: SessionId;
@@ -165,6 +211,15 @@ export class WorkspaceSession {
    * receipt truthful within one.
    */
   private readonly settlements = new Map<string, Promise<Settled>>();
+  /**
+   * The lock around price → policy → reserve.
+   *
+   * A promise chain rather than a mutex library: every judgement waits for the
+   * previous one to finish, so the window total a spend is judged against
+   * already includes the reservation the spend before it wrote.
+   */
+  private gate: Promise<unknown> = Promise.resolve();
+  private hydration: Promise<void> | null = null;
   private addresses: WalletAddresses = { signer: null, smart: null };
   /**
    * Whether Privy is holding a signature for the agent on this wallet.
@@ -207,8 +262,47 @@ export class WorkspaceSession {
     return this.mandate;
   }
 
+  /** What this process has seen. `recentReceipts` reads what survived a restart. */
   get history(): readonly Receipt[] {
     return this.receipts;
+  }
+
+  /**
+   * Load what a previous process persisted: the frozen flag, the mandate the
+   * person saved, and their recent receipts. Once. A session that has been
+   * hydrated publishes its mandate, so a pane that opened before the load
+   * finished sees the real one rather than the defaults.
+   */
+  async hydrate(): Promise<void> {
+    this.hydration ??= (async () => {
+      const [frozen, saved, recent] = await Promise.all([
+        this.deps.store.frozen.load(this.userId),
+        this.deps.store.mandates.load(this.userId),
+        this.deps.store.receipts.recent(this.userId, RECEIPT_HISTORY),
+      ]);
+      if (saved !== null) {
+        this.mandate = { ...saved, frozen, sessionId: this.id };
+      } else if (frozen) {
+        this.mandate = { ...this.mandate, frozen };
+      }
+      const known = new Set(this.receipts.map((receipt) => receipt.id));
+      for (const receipt of recent.toReversed()) {
+        if (!known.has(receipt.id)) {
+          this.receipts.unshift(receipt);
+        }
+      }
+      this.deps.onMandate?.(this.mandate);
+    })();
+    await this.hydration;
+  }
+
+  async recentReceipts(limit = RECEIPT_HISTORY): Promise<readonly Receipt[]> {
+    const stored = await this.deps.store.receipts.recent(this.userId, limit);
+    const known = new Set(stored.map((receipt) => receipt.id));
+    const unsaved = this.receipts
+      .toReversed()
+      .filter((receipt) => !known.has(receipt.id));
+    return [...unsaved, ...stored].slice(0, limit);
   }
 
   setAddresses(addresses: WalletAddresses): void {
@@ -254,11 +348,18 @@ export class WorkspaceSession {
    */
   updateMandate(next: Mandate): Mandate {
     this.mandate = { ...next, frozen: this.mandate.frozen, sessionId: this.id };
+    this.persistMandate();
     return this.mandate;
   }
 
   setFrozen(frozen: boolean): Mandate {
     this.mandate = { ...this.mandate, frozen };
+    // The flag is the kill switch; it must outlive the process. Persisted
+    // after the in-memory flip, never instead of it.
+    detached("frozen persist", async () => {
+      await this.deps.store.frozen.save(this.userId, frozen);
+    });
+    this.persistMandate();
     return this.mandate;
   }
 
@@ -303,65 +404,6 @@ export class WorkspaceSession {
     };
   }
 
-  /**
-   * Price the intent and ask the policy. No side effects, no money.
-   *
-   * Split out so both the paying path and the joining path build the same
-   * receipt from the same decision — a caller that lost the race still gets a
-   * receipt saying what the policy thought, not a blank one.
-   */
-  private async judge(request: SpendRequest): Promise<{
-    readonly at: number;
-    readonly decision: PolicyDecision;
-    readonly intent: SpendIntent;
-    readonly quote: Quote;
-    readonly usdMicros: UsdMicros;
-  }> {
-    const at = this.now();
-    // Recorded on the receipt rather than assumed, so a receipt says what rate
-    // it was judged against — and so a rate that later turns out to have been
-    // wrong is visible rather than inferred.
-    const quote = this.deps.quote(request.amount.asset, at);
-    if (quote === null) {
-      throw new UnpricedAssetError(request.amount.asset.symbol);
-    }
-    const usdMicros: UsdMicros = priceInUsdMicros(request.amount, quote);
-
-    // Built as a draft and narrowed, rather than assembled with conditional
-    // spreads: `exactOptionalPropertyTypes` makes `host: undefined` different
-    // from an absent `host`, and a spread hides which of the two you got.
-    const draft: Draft<SpendIntent, "host"> = {
-      amount: request.amount,
-      idempotencyKey: request.idempotencyKey,
-      payee: {
-        id: request.payeeId,
-        label: request.payeeLabel,
-        provenance: request.provenance,
-      },
-      purpose: request.purpose,
-      usdMicros,
-    };
-    if (request.host !== undefined) {
-      draft.host = request.host;
-    }
-    const intent: SpendIntent = draft;
-
-    const since = at - widestWindowMs(this.mandate);
-    const recent = await this.deps.ledger.since(this.userId, since);
-    const decision = authorize({
-      intent,
-      mandate: this.mandate,
-      now: at,
-      recent: recent.map((row) => ({ at: row.at, usdMicros: row.usdMicros })),
-    });
-
-    // Published before anything else happens, so the wallet pane shows the
-    // refusal before the model has narrated it. The demo's whole point is that
-    // the rejection did not come from the model.
-    this.deps.onPolicyDecision(decision);
-    return { at, decision, intent, quote, usdMicros };
-  }
-
   async spend(request: SpendRequest): Promise<SpendResult> {
     const key = request.idempotencyKey;
 
@@ -387,6 +429,103 @@ export class WorkspaceSession {
     }
   }
 
+  // -- internals -----------------------------------------------------------
+
+  private persistMandate(): void {
+    const { mandate } = this;
+    detached("mandate persist", async () => {
+      await this.deps.store.mandates.save(this.userId, mandate);
+    });
+  }
+
+  /** Run `work` after every judgement queued before it has finished. */
+  private async serial<T>(work: () => Promise<T>): Promise<T> {
+    const previous = this.gate;
+    const next = (async () => {
+      // The predecessor's outcome is irrelevant; only its completion matters.
+      try {
+        await previous;
+      } catch {
+        swallow();
+      }
+      return await work();
+    })();
+    // The stored chain must never reject, or the next caller inherits it.
+    this.gate = (async () => {
+      try {
+        await next;
+      } catch {
+        swallow();
+      }
+    })();
+    return await next;
+  }
+
+  /**
+   * Price the intent and ask the policy. No side effects, no money.
+   *
+   * Split out so both the paying path and the joining path build the same
+   * receipt from the same decision — a caller that lost the race still gets a
+   * receipt saying what the policy thought, not a blank one.
+   */
+  private async judge(request: SpendRequest): Promise<{
+    readonly at: number;
+    readonly decision: PolicyDecision;
+    readonly intent: SpendIntent;
+    readonly quote: Quote;
+    readonly usdMicros: UsdMicros;
+  }> {
+    const at = this.now();
+    // Recorded on the receipt rather than assumed, so a receipt says what rate
+    // it was judged against — and so a rate that later turns out to have been
+    // wrong is visible rather than inferred.
+    const quote = this.deps.quote(request.amount.asset, at);
+    if (quote === null) {
+      throw new UnpricedAssetError(request.amount.asset.symbol);
+    }
+
+    // Decoded, not assembled. The amount's `units` came from a tool argument
+    // and a tool argument came from the model; the schema is what refuses a
+    // negative, fractional or non-numeric one before a cap compares it.
+    const draft: Draft<SpendIntent, "host" | "usdMicros"> = {
+      amount: request.amount,
+      idempotencyKey: request.idempotencyKey,
+      payee: {
+        id: request.payeeId,
+        label: request.payeeLabel,
+        provenance: request.provenance,
+      },
+      purpose: request.purpose,
+    };
+    if (request.host !== undefined) {
+      draft.host = request.host;
+    }
+    const decoded = decodeIntent({ ...draft, usdMicros: 0 });
+    if (decoded._tag === "Failure") {
+      throw new MalformedSpendError(String(decoded.failure));
+    }
+    const usdMicros: UsdMicros = priceInUsdMicros(
+      decoded.success.amount,
+      quote
+    );
+    const intent: SpendIntent = { ...decoded.success, usdMicros };
+
+    const since = at - widestWindowMs(this.mandate);
+    const recent = await this.deps.ledger.since(this.userId, since);
+    const decision = authorize({
+      intent,
+      mandate: this.mandate,
+      now: at,
+      recent: recent.map((row) => ({ at: row.at, usdMicros: row.usdMicros })),
+    });
+
+    // Published before anything else happens, so the wallet pane shows the
+    // refusal before the model has narrated it. The demo's whole point is that
+    // the rejection did not come from the model.
+    this.deps.onPolicyDecision(decision);
+    return { at, decision, intent, quote, usdMicros };
+  }
+
   /**
    * Somebody else is already paying for this key.
    *
@@ -403,6 +542,7 @@ export class WorkspaceSession {
       settling,
     ]);
     return this.finish({
+      abandoned: null,
       at: judged.at,
       decision: judged.decision,
       evidence: request.evidence,
@@ -425,12 +565,42 @@ export class WorkspaceSession {
     request: SpendRequest,
     publish: (outcome: Settled) => void
   ): Promise<SpendResult> {
-    const { at, decision, intent, quote, usdMicros } =
-      await this.judge(request);
+    // Judgement and reservation under the lock; the payment outside it.
+    const reserved = await this.serial(async () => {
+      const judged = await this.judge(request);
+      const spendId = SpendId.generate();
+      if (judged.decision._tag !== "allow") {
+        // A refusal is a row too. Allowed to fail: the receipt is the record
+        // the person reads, and a ledger that cannot take the note must not
+        // turn a clean refusal into an error.
+        try {
+          await this.deps.ledger.refuse({
+            at: judged.at,
+            id: spendId,
+            idempotencyKey: request.idempotencyKey,
+            usdMicros: judged.usdMicros,
+            userId: this.userId,
+          });
+        } catch {
+          // See above.
+        }
+        return { judged, reservation: null, spendId };
+      }
+      const reservation = await this.deps.ledger.reserve({
+        at: judged.at,
+        id: spendId,
+        idempotencyKey: request.idempotencyKey,
+        usdMicros: judged.usdMicros,
+        userId: this.userId,
+      });
+      return { judged, reservation, spendId };
+    });
+    const { judged, reservation, spendId } = reserved;
+    const { at, decision, intent, quote } = judged;
 
-    const spendId = SpendId.generate();
-    if (decision._tag !== "allow") {
+    if (reservation === null) {
       return this.finish({
+        abandoned: null,
         at,
         decision,
         intent,
@@ -441,19 +611,37 @@ export class WorkspaceSession {
       });
     }
 
-    const { created, row } = await this.deps.ledger.reserve({
-      at,
-      id: spendId,
-      idempotencyKey: request.idempotencyKey,
-      usdMicros,
-      userId: this.userId,
-    });
-
+    const { created, row } = reservation;
     if (!created) {
       // Another *process* owns this spend — the in-process claim above cannot
       // see it, only the unique index can. There is no promise to join, so the
       // receipt honestly carries no settlement rather than inventing one.
       return this.finish({
+        abandoned: null,
+        at,
+        decision,
+        evidence: request.evidence,
+        intent,
+        quote,
+        runId: request.runId,
+        spendId: row.id,
+        stubbed: false,
+      });
+    }
+
+    // The last look before money leaves. A freeze or a stop that landed while
+    // the reservation was being written must win here, not after the call.
+    let abandoned: string | null = null;
+    if (this.mandate.frozen) {
+      abandoned = "the wallet was frozen before the payment was sent";
+    } else if (request.signal?.aborted === true) {
+      abandoned = "the run was stopped before the payment was sent";
+    }
+    if (abandoned !== null) {
+      publish(unpaid(request));
+      await this.deps.ledger.settle(row.id, "abandoned");
+      return this.finish({
+        abandoned,
         at,
         decision,
         evidence: request.evidence,
@@ -470,6 +658,7 @@ export class WorkspaceSession {
     await this.deps.ledger.settle(row.id, outcome.ok ? "settled" : "failed");
 
     return this.finish({
+      abandoned: null,
       at,
       decision,
       evidence: request.evidence,
@@ -486,6 +675,7 @@ export class WorkspaceSession {
   }
 
   private finish(input: {
+    readonly abandoned: string | null;
     readonly at: number;
     readonly decision: PolicyDecision;
     readonly evidence?: Evidence | undefined;
@@ -517,7 +707,10 @@ export class WorkspaceSession {
     }
     const receipt: Receipt = draft;
     this.receipts.push(receipt);
+    detached("receipt persist", async () => {
+      await this.deps.store.receipts.append(this.userId, receipt);
+    });
     this.deps.onReceipt(receipt);
-    return { decision: input.decision, receipt };
+    return { abandoned: input.abandoned, decision: input.decision, receipt };
   }
 }

@@ -20,7 +20,7 @@ import type {
   BrowserState,
   ServiceModes,
 } from "@froggy/protocol";
-import { memoryLedger } from "@froggy/wallet";
+import { memoryLedger, memoryStore } from "@froggy/wallet";
 
 import {
   BrowserLimitReachedError,
@@ -151,6 +151,7 @@ const createRegistry = (options: RegistryOptions = {}) => {
     onBrowserState: (user, state) => {
       published.push({ queue: state.queue, userId: user });
     },
+    onMandate: noop,
     onPolicyDecision: noop,
     onReceipt: noop,
     oracleHost: "oracle.test",
@@ -158,6 +159,7 @@ const createRegistry = (options: RegistryOptions = {}) => {
     profileRoot: "/tmp/froggy-test-profiles",
     quote: (_asset, at) => parQuote(at),
     reservedBrowsers: options.reservedBrowsers ?? 0,
+    store: memoryStore(),
   });
   const browserOf = (user: typeof ALICE): FakeBrowser => {
     workspaces.for(user);

@@ -74,12 +74,22 @@ export const Receipt = Schema.Struct({
 });
 export type Receipt = typeof Receipt.Type;
 
-/** Where a ledger row is in its life. See the ledger for why it is written first. */
+/**
+ * Where a ledger row is in its life. See the ledger for why it is written first.
+ *
+ * `failed` and `abandoned` are different facts. A failed spend sent something
+ * outbound and did not get a good answer, so money may have moved and the row
+ * counts against the cap until somebody says otherwise. An abandoned spend
+ * never sent anything — the wallet froze or the run was stopped between the
+ * reservation and the call — and consuming allowance for it would be a cap
+ * on decisions rather than on money.
+ */
 export const SpendStatus = Schema.Literals([
   "reserved",
   "settled",
   "failed",
   "refused",
+  "abandoned",
 ]);
 export type SpendStatus = typeof SpendStatus.Type;
 

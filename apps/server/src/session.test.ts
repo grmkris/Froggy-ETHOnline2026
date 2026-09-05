@@ -15,17 +15,20 @@ import { describe, expect, test } from "bun:test";
 import {
   KNOWN_ASSETS,
   parQuote,
+  RuleId,
   RunId,
   SessionId,
   SpendId,
+  usd,
   usdMicros,
   userId,
 } from "@froggy/domain";
 import type { ServiceModes } from "@froggy/protocol";
-import { memoryLedger } from "@froggy/wallet";
-import type { SpendLedger } from "@froggy/wallet";
+import { memoryLedger, memoryStore } from "@froggy/wallet";
+import type { SpendLedger, Store } from "@froggy/wallet";
 
-import { WorkspaceSession } from "./session";
+import { MalformedSpendError, WorkspaceSession } from "./session";
+import type { SpendRequest } from "./session";
 
 const MODES: ServiceModes = {
   database: "live",
@@ -44,6 +47,7 @@ const unreachable = async (): Promise<never> => {
 };
 
 const brokenLedger = (): SpendLedger => ({
+  refuse: unreachable,
   reserve: unreachable,
   settle: unreachable,
   since: unreachable,
@@ -53,7 +57,10 @@ const noop = (): void => {
   // These tests read state rather than events.
 };
 
-const sessionWith = (ledger: SpendLedger): WorkspaceSession =>
+const sessionWith = (
+  ledger: SpendLedger,
+  store: Store = memoryStore()
+): WorkspaceSession =>
   new WorkspaceSession(
     SessionId.generate(),
     ALICE,
@@ -63,9 +70,39 @@ const sessionWith = (ledger: SpendLedger): WorkspaceSession =>
       onPolicyDecision: noop,
       onReceipt: noop,
       quote: (_asset, now) => parQuote(now),
+      store,
     },
     { hosts: ["froggy.test"], payeeIds: ["0.0.1"] }
   );
+
+/** A payable request to the oracle, one HBAR-cent's worth unless overridden. */
+const request = (
+  overrides: Partial<SpendRequest> & {
+    readonly key: string;
+    readonly units?: string;
+  }
+): SpendRequest => ({
+  amount: {
+    asset: KNOWN_ASSETS["hedera:testnet:hbar"],
+    units: overrides.units ?? "100000000",
+  },
+  idempotencyKey: overrides.key,
+  payeeId: "0.0.1",
+  payeeLabel: "the oracle",
+  provenance: "server",
+  purpose: "a snapshot",
+  runId: RunId.generate(),
+  settle: async () => {
+    await Promise.resolve();
+    return {
+      network: "hedera:testnet",
+      ok: true,
+      stubbed: false,
+      transactionId: `0.0.1@${overrides.key}`,
+    };
+  },
+  ...overrides,
+});
 
 describe("walletSummary with an unreadable ledger", () => {
   test("resolves rather than rejecting", async () => {
@@ -198,6 +235,9 @@ describe("two tool calls with the same idempotency key", () => {
 describe("a session that can read its ledger", () => {
   test("carries no note", async () => {
     const summary = await sessionWith({
+      refuse: async () => {
+        await Promise.resolve();
+      },
       reserve: async (row) => {
         await Promise.resolve();
         return { created: true, row: { ...row, status: "reserved" } };
@@ -247,5 +287,125 @@ describe("allowsHost", () => {
     // "No rule" must read as "nothing is allowed". The other reading is how
     // an empty policy quietly becomes a permissive one.
     expect(bare.allowsHost("froggy.test")).toBe(false);
+  });
+});
+
+describe("the lock around judgement and reservation", () => {
+  test("two different spends cannot jointly exceed the rolling cap", async () => {
+    // One rule: $10 per 24 hours at par. Two $6 spends racing used to both
+    // read "$0 spent so far", both pass, and both reserve.
+    const session = sessionWith(memoryLedger());
+    session.updateMandate({
+      ...session.currentMandate,
+      rules: [
+        {
+          _tag: "window_cap",
+          id: RuleId.generate(),
+          maxUsdMicros: usd(10),
+          windowMs: 24 * 60 * 60 * 1000,
+        },
+      ],
+    });
+    const six = "600000000";
+    const [a, b] = await Promise.all([
+      session.spend(request({ key: "a", units: six })),
+      session.spend(request({ key: "b", units: six })),
+    ]);
+    const tags = [a.decision._tag, b.decision._tag].toSorted();
+    expect(tags).toEqual(["allow", "deny"]);
+    expect(
+      [a, b].filter((r) => r.receipt.settlement !== undefined).length
+    ).toBe(1);
+  });
+
+  test("a refusal is filed but never counts against the cap", async () => {
+    const ledger = memoryLedger();
+    const session = sessionWith(ledger);
+    // Over the $2 per-transaction cap: refused before any reservation.
+    const refused = await session.spend(
+      request({ key: "big", units: "300000000" })
+    );
+    expect(refused.decision._tag).toBe("deny");
+    const rows = await ledger.since(ALICE, 0);
+    expect(rows.length).toBe(0);
+    // And a retry with the same key after the fact is judged afresh, not
+    // treated as a replay of the refusal.
+    const small = await session.spend(
+      request({ key: "big", units: "1000000" })
+    );
+    expect(small.decision._tag).toBe("allow");
+  });
+});
+
+describe("what a malformed request gets", () => {
+  test("is refused before the policy, as malformed rather than denied", async () => {
+    const session = sessionWith(memoryLedger());
+    let name = "none";
+    try {
+      await session.spend(request({ key: "neg", units: "-5" }));
+    } catch (error) {
+      name = error instanceof MalformedSpendError ? error.name : "other";
+    }
+    expect(name).toBe("MalformedSpendError");
+  });
+});
+
+describe("a freeze between the reservation and the payment", () => {
+  test("abandons the spend: nothing is sent and nothing counts", async () => {
+    const inner = memoryLedger();
+    let session: WorkspaceSession | null = null;
+    // The freeze lands while the reservation is being written — the narrowest
+    // window there is, and the one the last-look check exists for.
+    const ledger: SpendLedger = {
+      ...inner,
+      reserve: async (row) => {
+        session?.setFrozen(true);
+        return await inner.reserve(row);
+      },
+    };
+    session = sessionWith(ledger);
+    let sent = false;
+    const result = await session.spend(
+      request({
+        key: "frozen",
+        settle: async () => {
+          sent = true;
+          await Promise.resolve();
+          return {
+            network: "hedera:testnet",
+            ok: true,
+            stubbed: false,
+            transactionId: "never",
+          };
+        },
+      })
+    );
+    expect(sent).toBe(false);
+    expect(result.abandoned).toContain("frozen");
+    expect(result.decision._tag).toBe("allow");
+    expect(result.receipt.settlement).toBeUndefined();
+    const counted = await inner.since(ALICE, 0);
+    expect(counted.length).toBe(0);
+  });
+});
+
+describe("hydration", () => {
+  test("restores the frozen flag, the saved mandate and the receipts", async () => {
+    const store = memoryStore();
+    const first = sessionWith(memoryLedger(), store);
+    await first.spend(request({ key: "before" }));
+    first.setFrozen(true);
+    const saved = first.updateMandate({ ...first.currentMandate, rules: [] });
+    await Bun.sleep(5);
+
+    const second = sessionWith(memoryLedger(), store);
+    expect(second.currentMandate.frozen).toBe(false);
+    await second.hydrate();
+    expect(second.currentMandate.frozen).toBe(true);
+    expect(second.currentMandate.rules).toEqual(saved.rules);
+    expect(second.currentMandate.sessionId).toBe(second.id);
+    expect(second.history.length).toBe(1);
+    const recent = await second.recentReceipts();
+    expect(recent.length).toBe(1);
   });
 });

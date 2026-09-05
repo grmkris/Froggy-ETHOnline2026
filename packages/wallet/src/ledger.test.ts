@@ -106,3 +106,32 @@ describe("memoryLedger", () => {
     expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
   });
 });
+
+describe("rows that never moved money", () => {
+  it("files a refusal without counting it against the window", async () => {
+    const ledger = memoryLedger();
+    await ledger.refuse(row("refused-one", 400_000));
+
+    const counted = await ledger.since(user, NOW - 1);
+    expect(counted.length).toBe(0);
+  });
+
+  it("does not let a refusal occupy the idempotency key", async () => {
+    // A retry after the human widened the mandate is a new decision. If the
+    // refusal held the key, the retry would read as a replay of the refusal.
+    const ledger = memoryLedger();
+    await ledger.refuse(row("again", 400_000));
+
+    const reserved = await ledger.reserve(row("again", 10_000));
+    expect(reserved.created).toBe(true);
+  });
+
+  it("does not count an abandoned spend either", async () => {
+    const ledger = memoryLedger();
+    const reserved = await ledger.reserve(row("abandoned", 10_000));
+    await ledger.settle(reserved.row.id, "abandoned");
+
+    const counted = await ledger.since(user, NOW - 1);
+    expect(counted.length).toBe(0);
+  });
+});

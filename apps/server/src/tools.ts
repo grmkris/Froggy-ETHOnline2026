@@ -36,7 +36,7 @@ import { Schema } from "effect";
 
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
-import { UnpricedAssetError } from "./session";
+import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
 
@@ -89,10 +89,19 @@ const explainSpend = async (
   try {
     result = await attempt;
   } catch (error) {
-    if (error instanceof UnpricedAssetError) {
+    if (
+      error instanceof UnpricedAssetError ||
+      error instanceof MalformedSpendError
+    ) {
       return { message: error.message, result: null };
     }
     throw error;
+  }
+  if (result.abandoned !== null) {
+    return {
+      message: `Allowed by policy, but not sent: ${result.abandoned}. Stop here.`,
+      result,
+    };
   }
   if (result.decision._tag === "deny") {
     return {
@@ -271,6 +280,7 @@ export const buildTools = (deps: ToolDeps) => {
           provenance: "server",
           purpose: `x402 payment for ${target.pathname}`,
           runId: deps.run.id,
+          signal: deps.run.signal,
           settle: async () => {
             const attempt = await services.payer.pay(challenge);
             if (attempt.header === null) {
@@ -327,6 +337,7 @@ export const buildTools = (deps: ToolDeps) => {
           provenance: "model",
           purpose,
           runId: deps.run.id,
+          signal: deps.run.signal,
           settle: async () => {
             await Promise.resolve();
             // Unreachable while provenance is `model`. It exists so the shape

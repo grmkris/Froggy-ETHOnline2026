@@ -27,4 +27,5 @@ The adapter packages — `wallet`, `payments`, `graph`, `browser` — are plain 
 - This is a real relaxation of `AGENTS.md`, which is why it is written down rather than discovered. `AGENTS.md` now says so at the point it makes the rule.
 - The parts most likely to be wrong — a policy decision, a wire message, a malformed 402 — are still parsed and typed. The parts that are mostly plumbing are not.
 - Adding Zod is still forbidden. Where a boundary needs parsing it gets an Effect Schema, including inside the adapter packages.
+- Amended 5 Sep 2026: `packages/wallet` may use `effect` directly, because the store it owns reads mandates and receipts back from Postgres as documents, and a document is somebody else's bytes until a schema says otherwise.
 - Tightening this later is additive: an adapter can grow an Effect layer around its existing interface without its callers changing.

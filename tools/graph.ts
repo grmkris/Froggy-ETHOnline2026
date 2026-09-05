@@ -103,7 +103,7 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "Privy, the policy engine, and the spend ledger. The leash. Never imports the browser.",
     mayImport: ["@froggy/database", "@froggy/domain"],
-    mayUse: ["@privy-io/node", "drizzle-orm", "postgres"],
+    mayUse: ["effect", "@privy-io/node", "drizzle-orm", "postgres"],
   },
   {
     dir: "packages/payments",

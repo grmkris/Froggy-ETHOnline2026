@@ -4,7 +4,7 @@
   "ignoreDependencies": ["railway"],
   "workspaces": {
     "packages/browser": {
-      "entry": ["src/index.ts", "src/worker.ts"]
+      "entry": ["src/worker.ts"]
     }
   }
 }

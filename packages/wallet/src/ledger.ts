@@ -54,6 +54,14 @@ export interface Reservation {
 
 export interface SpendLedger {
   /**
+   * Record a refusal. "It did not spend" and "it was told not to" are
+   * different facts, and only the second one is reassuring — a row makes the
+   * second one auditable in the same place as the money. Refusals never
+   * occupy the idempotency key: a retry after the human widened the mandate
+   * is a new decision, not a replay of the old one.
+   */
+  readonly refuse: (row: Omit<SpendRow, "status">) => Promise<void>;
+  /**
    * Reserve capacity for a spend, or hand back the existing row when this key
    * has been seen. Only the caller that `created` the row may pay.
    */
@@ -76,6 +84,12 @@ export interface SpendLedger {
  */
 /** Swallow a settled rejection. Named so the intent is not a bare empty arrow. */
 const noop = (): void => undefined;
+
+/** Rows that never moved money and must not consume allowance. */
+export const NOT_COUNTED: readonly SpendStatus[] = ["refused", "abandoned"];
+
+/** The key a refusal is filed under, so it can never collide with a payment. */
+export const refusalKey = (id: SpendId): string => `refused:${id}`;
 
 export const memoryLedger = (): SpendLedger => {
   const rows = new Map<SpendId, SpendRow>();
@@ -107,6 +121,16 @@ export const memoryLedger = (): SpendLedger => {
   };
 
   return {
+    refuse: async (row) => {
+      await Promise.resolve();
+      const refused: SpendRow = {
+        ...row,
+        idempotencyKey: refusalKey(row.id),
+        status: "refused",
+      };
+      rows.set(refused.id, refused);
+    },
+
     reserve: async (row) =>
       await serialize(row.userId, async () => {
         await Promise.resolve();
@@ -139,8 +163,9 @@ export const memoryLedger = (): SpendLedger => {
           row.userId === userId &&
           row.at >= from &&
           // A refusal never consumed anything, so counting it against the cap
-          // would let a rejected spend eat the allowance it was denied.
-          row.status !== "refused"
+          // would let a rejected spend eat the allowance it was denied. An
+          // abandoned spend never sent anything either.
+          !NOT_COUNTED.includes(row.status)
       );
     },
   };

@@ -24,10 +24,11 @@
 import { spends, users } from "@froggy/database";
 import { spendStatus, usdMicros, userId } from "@froggy/domain";
 import type { SpendId } from "@froggy/domain";
-import { and, eq, gte, ne } from "drizzle-orm";
+import { and, eq, gte, notInArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
 
+import { NOT_COUNTED, refusalKey } from "./ledger";
 import type { Reservation, SpendLedger, SpendRow } from "./ledger";
 
 /** Swallow a settled rejection. Named so the intent is not a bare empty arrow. */
@@ -90,6 +91,24 @@ export const postgresLedger = (sql: Sql): SpendLedger => {
   };
 
   return {
+    refuse: async (row) => {
+      await database
+        .insert(users)
+        .values({ did: row.userId })
+        .onConflictDoNothing();
+      await database
+        .insert(spends)
+        .values({
+          createdAt: new Date(row.at),
+          id: row.id,
+          idempotencyKey: refusalKey(row.id),
+          status: "refused",
+          usdMicros: row.usdMicros,
+          userId: row.userId,
+        })
+        .onConflictDoNothing();
+    },
+
     reserve: async (row) =>
       await serialize(row.userId, async () => {
         // The user row is created here rather than at sign-in because this is
@@ -158,8 +177,9 @@ export const postgresLedger = (sql: Sql): SpendLedger => {
             eq(spends.userId, owner),
             gte(spends.createdAt, new Date(from)),
             // A refusal never consumed anything, so counting it against the cap
-            // would let a rejected spend eat the allowance it was denied.
-            ne(spends.status, "refused")
+            // would let a rejected spend eat the allowance it was denied; an
+            // abandoned spend never sent anything either.
+            notInArray(spends.status, [...NOT_COUNTED])
           )
         );
       return rows.map(toRow);

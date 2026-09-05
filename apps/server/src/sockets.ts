@@ -277,6 +277,11 @@ export const createSocketHandlers = (deps: SocketDeps) => {
 
     open(ws) {
       const workspace = deps.workspaces.for(ws.data.userId);
+      // Not awaited: the socket opens on what this process knows, and the
+      // load publishes the persisted mandate when it lands.
+      detached("workspace hydrate", async () => {
+        await deps.workspaces.hydrate(ws.data.userId);
+      });
       if (ws.data.kind === "app") {
         appSockets.add(ws);
         sendApp(ws, {
