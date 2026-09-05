@@ -437,6 +437,28 @@ export const describeDeployments = (snapshot: GraphSnapshot): string => {
  * the paid endpoint sells. Keeping one formatter means the thing the buyer gets
  * cannot drift from the thing the agent reasoned about.
  */
+/**
+ * How much is borrowed, at a precision that does not flatter a tiny market.
+ *
+ * `$Nm` rounding turned a market with four hundred thousand dollars borrowed
+ * into "$0M" — while it sat second in a cheapest-first list, because its rate
+ * is genuinely low and nobody is using it. The rate is real and the market is
+ * real, so it is not filtered out; it is simply shown at a size that makes it
+ * obvious why the rate is what it is.
+ */
+const money = (usd: number): string => {
+  if (usd >= 1e9) {
+    return `$${(usd / 1e9).toFixed(1)}B`;
+  }
+  if (usd >= 1e6) {
+    return `$${(usd / 1e6).toFixed(0)}M`;
+  }
+  if (usd >= 1e3) {
+    return `$${(usd / 1e3).toFixed(0)}k`;
+  }
+  return `$${usd.toFixed(0)}`;
+};
+
 export const describeCheapestBorrow = (snapshot: GraphSnapshot): string => {
   const [best] = snapshot.markets;
   const provenance = describeDeployments(snapshot);
@@ -448,7 +470,10 @@ export const describeCheapestBorrow = (snapshot: GraphSnapshot): string => {
   }
   const rest = snapshot.markets
     .slice(1, 4)
-    .map((m) => `${m.name} ${m.borrowApr.toFixed(2)}%`)
+    .map(
+      (m) =>
+        `${m.name} on ${m.chain} ${m.borrowApr.toFixed(2)}% (${money(m.totalBorrowUsd)})`
+    )
     .join(", ");
-  return `Cheapest ${best.inputTokenSymbol} borrow: ${best.name} at ${best.borrowApr.toFixed(2)}% APR ($${(best.totalBorrowUsd / 1e6).toFixed(0)}M borrowed, ${best.deploymentId.slice(0, 8)}… block ${best.blockNumber}).${rest === "" ? "" : ` Next: ${rest}.`} ${provenance}`;
+  return `Cheapest ${best.inputTokenSymbol} borrow: ${best.name} on ${best.chain} at ${best.borrowApr.toFixed(2)}% APR (${money(best.totalBorrowUsd)} borrowed, ${best.deploymentId.slice(0, 8)}… block ${best.blockNumber}).${rest === "" ? "" : ` Next: ${rest}.`} ${provenance}`;
 };
