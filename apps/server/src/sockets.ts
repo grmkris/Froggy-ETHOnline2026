@@ -30,6 +30,7 @@ import {
 import type { AppServerMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
 
+import { detached } from "./detached";
 import type { AgentGrants } from "./grants";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
@@ -241,7 +242,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
             // agent could not sign even if every check in our code were
             // bypassed. Allowed to fail — a stale token is ordinary — as long
             // as the pane says so rather than claiming a revocation happened.
-            void deps.grants.revoke(ws.data.userId, ws.data.accessToken);
+            detached("agent revoke", async () => {
+              await deps.grants.revoke(ws.data.userId, ws.data.accessToken);
+            });
           } else {
             deps.grants.note(ws.data.userId, ws.data.accessToken);
           }
@@ -284,10 +287,10 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           type: "mandate.state",
           v: 1,
         });
-        void (async () => {
+        detached("wallet welcome", async () => {
           const wallet = await workspace.session.walletSummary();
           sendApp(ws, { type: "wallet.state", v: 1, wallet });
-        })();
+        });
         return;
       }
 

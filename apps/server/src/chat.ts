@@ -24,6 +24,7 @@ import {
 } from "ai";
 import type { UIMessage } from "ai";
 
+import { detached } from "./detached";
 import { createModel } from "./model";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
@@ -101,13 +102,13 @@ export const handleChat = async (
     // the turn it missed. Without a reader on this branch the model loop stalls
     // the moment the tab closes, and the turn finishes truncated.
     consumeSseStream: ({ stream }) => {
-      void (async () => {
+      detached("turn recorder", async () => {
         try {
           await run.record(stream);
         } finally {
           deps.runs.settle(request.sessionId, run);
         }
-      })();
+      });
     },
     stream: toUIMessageStream({ stream: result.stream }),
   });

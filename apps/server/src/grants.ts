@@ -22,6 +22,7 @@ import type { UserId } from "@froggy/domain";
 import type { AppServerMessage } from "@froggy/protocol";
 import type { AgentGrant, PrivyServer } from "@froggy/wallet";
 
+import { detached } from "./detached";
 import type { Workspaces } from "./workspaces";
 
 export interface GrantDeps {
@@ -49,13 +50,13 @@ export class AgentGrants {
       return;
     }
     this.asked.add(userId);
-    void (async () => {
+    detached("agent grant", async () => {
       const grant = await this.deps.privy.grantAgent({
         accessToken,
         did: userId,
       });
       this.apply(userId, grant);
-    })();
+    });
   }
 
   /**
@@ -88,9 +89,9 @@ export class AgentGrants {
       });
     }
     session.setAgentSigner(grant.attached ? "granted" : "absent", grant.reason);
-    void (async () => {
+    detached("wallet publish", async () => {
       const wallet = await session.walletSummary();
       this.deps.publishApp(userId, { type: "wallet.state", v: 1, wallet });
-    })();
+    });
   }
 }

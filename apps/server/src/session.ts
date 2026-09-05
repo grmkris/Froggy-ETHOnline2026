@@ -193,12 +193,29 @@ export class WorkspaceSession {
     return this.mandate;
   }
 
+  /**
+   * Never throws.
+   *
+   * It is read on a socket open and from a fire-and-forget publish, so an
+   * exception here used to become an unhandled rejection and take the whole
+   * process down — which is how a Postgres service that had not finished
+   * provisioning turned into a 502 on every route. Spending still fails closed
+   * when the ledger is unreadable, because `spend` reads it separately and
+   * does throw; this is a *display* path, and a display path must degrade.
+   */
   async walletSummary(): Promise<WalletSummary> {
     const since = this.now() - widestWindowMs(this.mandate);
-    const rows = await this.deps.ledger.since(this.userId, since);
     let spent = 0;
-    for (const row of rows) {
-      spent += row.usdMicros;
+    let ledgerNote: string | null = null;
+    try {
+      const rows = await this.deps.ledger.since(this.userId, since);
+      for (const row of rows) {
+        spent += row.usdMicros;
+      }
+    } catch (error) {
+      ledgerNote = `Spend history unavailable: ${
+        error instanceof Error ? error.message : "unknown error"
+      }. The figure below is a floor, and payments will be refused.`;
     }
     return {
       // The *signer*, not the smart account. The Graph's x402 leg is an
@@ -211,6 +228,7 @@ export class WorkspaceSession {
       agentSigner: this.agentSigner,
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",
+      ledgerNote,
       signerAddress: this.addresses.signer,
       windowSpentUsdMicros: spent,
     };

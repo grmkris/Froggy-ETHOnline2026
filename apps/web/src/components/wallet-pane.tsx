@@ -116,6 +116,28 @@ const SignerState = ({
   );
 };
 
+/**
+ * Shown when the spend history could not be read.
+ *
+ * A wallet reporting "$0 spent" because the database is unreachable looks
+ * exactly like one with a full allowance left, so the difference is stated
+ * rather than left to be inferred from a number that is quietly a floor.
+ */
+const LedgerNote = ({
+  wallet,
+}: {
+  readonly wallet: WalletSummary | null;
+}): React.ReactElement | null => {
+  if (wallet === null || wallet.ledgerNote === null) {
+    return null;
+  }
+  return (
+    <p className="rounded-md bg-red-500/10 p-2 text-[11px] text-red-200 ring-1 ring-red-500/30">
+      {wallet.ledgerNote}
+    </p>
+  );
+};
+
 export const WalletPane = ({
   lastDecision,
   mandate,
@@ -176,6 +198,7 @@ export const WalletPane = ({
             ? "—"
             : `${formatUsd(wallet.windowSpentUsdMicros)} spent in the window`}
         </p>
+        <LedgerNote wallet={wallet} />
         <ul className="space-y-1 text-xs text-white/70">
           {(mandate?.rules ?? []).map((rule) => (
             <li key={rule.id}>· {ruleLabel(rule)}</li>

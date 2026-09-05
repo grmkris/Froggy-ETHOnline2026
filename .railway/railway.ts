@@ -73,7 +73,11 @@ export default defineRailway((ctx) => {
       // in front of users and then crash-looping. The path is resolved from the
       // script's own location, not the working directory, because this runs
       // inside the image where the cwd is not the repository root.
-      preDeployCommand: ["bun", "apps/server/src/migrate.ts"],
+      // One entry, and it is a shell string rather than argv: Railway rejects
+      // an array of more than one element here, which it does loudly — but
+      // only at apply time, so the wrong shape reads as a plan that never
+      // settles rather than as an error.
+      preDeployCommand: ["bun apps/server/src/migrate.ts"],
     },
     env: {
       ANTHROPIC_API_KEY: preserve(),
@@ -81,6 +85,7 @@ export default defineRailway((ctx) => {
       DATABASE_URL: preserve(),
       EXTRA_ORIGINS: preserve(),
       GRAPH_API_KEY: preserve(),
+      GRAPH_GATEWAY_URL: preserve(),
       HEDERA_ACCOUNT_ID: preserve(),
       HEDERA_FACILITATOR_URL: preserve(),
       HEDERA_PRIVATE_KEY: preserve(),

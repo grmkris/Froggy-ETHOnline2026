@@ -58,11 +58,17 @@ export const ChatPane = (): React.ReactElement => {
     // Both halves. The local `stop()` alone detaches this client and leaves the
     // server-owned run happily continuing to spend.
     void (async () => {
-      const token = await getToken();
-      await fetch("/api/chat/stop", {
-        headers: token === null ? {} : { authorization: `Bearer ${token}` },
-        method: "POST",
-      });
+      try {
+        const token = await getToken();
+        await fetch("/api/chat/stop", {
+          headers: token === null ? {} : { authorization: `Bearer ${token}` },
+          method: "POST",
+        });
+      } catch {
+        // A stop that could not be delivered is worth saying out loud: the
+        // server-owned run is still going, and silence here reads as "stopped".
+        console.warn("Could not stop the run; it may still be going.");
+      }
     })();
     void stop();
   };

@@ -130,6 +130,14 @@ export const WalletSummary = Schema.Struct({
   agentNote: Schema.NullOr(Schema.String),
   agentSigner: AgentSignerState,
   balanceLabel: Schema.String,
+  /**
+   * Set when the spend history could not be read.
+   *
+   * `windowSpentUsdMicros` is then a floor, not a total, and saying so matters:
+   * a wallet reporting "$0 spent" because the database is unreachable looks
+   * exactly like one with a full allowance left.
+   */
+  ledgerNote: Schema.NullOr(Schema.String),
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */
   signerAddress: Schema.NullOr(Schema.String),
   windowSpentUsdMicros: Schema.Int,
