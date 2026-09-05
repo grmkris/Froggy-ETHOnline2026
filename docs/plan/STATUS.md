@@ -1,6 +1,6 @@
 # Status against the plan
 
-Updated Sat 5 Sep 2026, 18:00 CEST. The plan is `~/.claude/plans/please-review-this-repo-typed-chipmunk.md` on the build box (phases P0–P6); this file records what has landed in the tree and where it deviates.
+Updated Sat 5 Sep 2026, 18:00 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
