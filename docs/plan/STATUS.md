@@ -1,6 +1,6 @@
 # Status against the plan
 
-Updated Sat 5 Sep 2026, 19:40 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
+Updated Sat 5 Sep 2026, 21:05 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
@@ -36,6 +36,9 @@ Updated Sat 5 Sep 2026, 19:40 CEST. The plan is `PLAN.md` beside this file (phas
 - P3.0–3.6 `41dbe07`: the light workspace. Header strip (spent vs the widest rolling cap, driving dot, one stub chip, Freeze with confirm on unfreeze), the stream with receipts filed under the turn that produced them (server stamps `runId`/`at` on every assistant message), the live page as an inline card with a driving ring and a compact strip while it is scrolled away, tickets for receipts and approvals, the details drawer (policy, history, wallet), sign-in states (loading/failed/ready). Reducer, stream model, painter and letterbox mapping are unit-tested; e2e updated.
 - P3.7 `32d5569`: mandate editor in the drawer (`mandate.update`), `DELETE /api/me` wipes store rows, the workspace and the profile directory (`Store.forget`, `Workspaces.forget`); `e2e/policy.spec.ts`.
 - P3.8–3.9 `46367d2`: pop-out to a split pane (draggable, remembered width) and to `/browser` in its own window (`BroadcastChannel` claim/release, the tab drops its browser socket meanwhile); queue/starting/crashed overlays; phone is watch-only; `e2e/pop-out.spec.ts`.
+- P3.5/3.11 `3763463`: approval round trip e2e (`e2e/approval.spec.ts`), plus policy and pop-out specs; 19 e2e green.
+- P2.11 `7b1cb1d`: daily digest — schedule per user (migration 0001, `GET/PUT /api/digest`, drawer control), minute scheduler (`scheduler.ts`, tested), `runDailyFor` on the same loop with `interactive: false`, one minute / twelve steps / five cents / one paid request, report to a sink.
+- P4 `c2759e0`: Telegram via the Chat SDK (ADR 0007): pairing codes (`/api/telegram`, `/start CODE`), digest card, approval card wired into the same `InteractionRegistry`, `/freeze` and a freeze button, DM chat on the shared `turn.ts` loop recorded into the run; `run.started` app message; migration 0002; live only with token + webhook secret. Owner: BotFather token, secret, `setWebhook`, `TELEGRAM_BOT_USERNAME`.
 
 ## Blockers for the owner
 
