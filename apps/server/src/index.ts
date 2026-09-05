@@ -143,6 +143,13 @@ class FroggyServer extends Context.Service<
             type: "receipt.appended",
             v: 1,
           });
+          // The strip's "spent so far" follows every receipt, rather than
+          // waiting for the next socket to open. Not awaited: a slow ledger
+          // read must not hold up the receipt it is describing.
+          detached("wallet after receipt", async () => {
+            const wallet = await workspaces.for(userId).session.walletSummary();
+            sinks.publishApp?.(userId, { type: "wallet.state", v: 1, wallet });
+          });
         },
         // The server's own oracle is on every mandate's allowlist from the
         // first moment, so there is never a window where an allowlist exists

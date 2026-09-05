@@ -1,26 +1,26 @@
 /**
  * The browser socket, client side.
  *
- * The single most important property: **frames never touch React state.** At
- * thirty frames a second a `setState` per frame would re-render the whole
- * workspace thirty times a second, and the chat pane would stutter every time
- * the page repainted. This hook owns the canvas bitmap directly and publishes
- * only the low-rate JSON state through React. Several details below are only
- * obvious after they have gone wrong once.
+ * The single most important property: **frames never touch React state.**
+ * The painter in `lib/browser-painter.ts` owns the bitmap; this hook owns the
+ * connection and publishes only the low-rate JSON state through React.
+ *
+ * `enabled` exists for the pop-out: while a separate window holds the page,
+ * the main tab drops its browser socket so the server casts to one watcher
+ * rather than two.
  */
 
 import {
   decodeBrowserServerMessage,
-  decodeScreencastFrame,
   encodeBrowserClientMessage,
   wsProtocols,
 } from "@froggy/protocol";
 import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RefObject } from "react";
 
 import { socketUrl } from "../environment";
+import type { BrowserPainter } from "../lib/browser-painter";
 import { useSessionToken } from "../lib/session-token";
 
 const PING_INTERVAL_MS = 15_000;
@@ -36,70 +36,9 @@ export interface BrowserStream {
   readonly state: BrowserState | null;
 }
 
-/**
- * A canvas painter, outside React entirely.
- *
- * Deliberately not a hook and not in the effect body. Frames arrive at thirty a
- * second; a `setState` per frame would re-render the whole workspace thirty
- * times a second and the chat pane would stutter every time the page repainted.
- * This closure owns the bitmap and React never learns a frame arrived.
- */
-const createPainter = (
-  canvasRef: RefObject<HTMLCanvasElement | null>
-): ((data: ArrayBuffer) => Promise<void>) => {
-  // Latest-frame-wins. A slow decode must never queue, or a client that falls
-  // behind delivers a slideshow of moments that have already passed.
-  let decoding = false;
-  let queued: ArrayBuffer | null = null;
-
-  const draw = async (data: ArrayBuffer): Promise<void> => {
-    const frame = decodeScreencastFrame(new Uint8Array(data));
-    if (frame === null) {
-      return;
-    }
-    // A fresh copy: `frame.jpeg` is a view into the socket message, and the
-    // bitmap outlives it.
-    const bitmap = await createImageBitmap(
-      new Blob([new Uint8Array(frame.jpeg)], { type: "image/jpeg" })
-    );
-    const canvas = canvasRef.current;
-    if (canvas !== null) {
-      // Assigning width clears the canvas, so only on a real size change.
-      if (canvas.width !== frame.meta.w || canvas.height !== frame.meta.h) {
-        canvas.width = frame.meta.w;
-        canvas.height = frame.meta.h;
-      }
-      canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-    }
-    bitmap.close();
-  };
-
-  const paint = async (data: ArrayBuffer): Promise<void> => {
-    if (decoding) {
-      queued = data;
-      return;
-    }
-    decoding = true;
-    try {
-      await draw(data);
-    } catch {
-      // A truncated frame is superseded by the next one. Tearing down a stream
-      // over one bad packet is a worse outcome than one dropped frame.
-    } finally {
-      decoding = false;
-      const next = queued;
-      queued = null;
-      if (next !== null) {
-        void paint(next);
-      }
-    }
-  };
-
-  return paint;
-};
-
 export const useBrowserSocket = (
-  canvasRef: RefObject<HTMLCanvasElement | null>
+  painter: BrowserPainter,
+  enabled = true
 ): BrowserStream => {
   const [state, setState] = useState<BrowserState | null>(null);
   const [connected, setConnected] = useState(false);
@@ -120,8 +59,6 @@ export const useBrowserSocket = (
     let socket: WebSocket | null = null;
     let ping: ReturnType<typeof setInterval> | null = null;
     let reconnect: ReturnType<typeof setTimeout> | null = null;
-
-    const paint = createPainter(canvasRef);
 
     const open = async (): Promise<void> => {
       if (closed) {
@@ -160,7 +97,7 @@ export const useBrowserSocket = (
 
       socket.addEventListener("message", (event: MessageEvent<unknown>) => {
         if (event.data instanceof ArrayBuffer) {
-          void paint(event.data);
+          painter.paint(event.data);
           return;
         }
         const decoded = decodeBrowserServerMessage(String(event.data));
@@ -192,7 +129,7 @@ export const useBrowserSocket = (
       });
     };
 
-    if (!canConnect) {
+    if (!(canConnect && enabled)) {
       // Still returns a cleanup, so the effect has one shape rather than two.
       return () => {
         closed = true;
@@ -212,7 +149,7 @@ export const useBrowserSocket = (
       socket?.close();
       socketRef.current = null;
     };
-  }, [canConnect, canvasRef, getToken]);
+  }, [canConnect, enabled, getToken, painter]);
 
   return { connected, send, state };
 };

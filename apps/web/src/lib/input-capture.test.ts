@@ -70,6 +70,24 @@ describe("toBitmapPoint", () => {
 
     expect(point).toEqual({ x: 5, y: 5 });
   });
+
+  it("ignores the letterbox bars on a pane that is too tall", () => {
+    // A 640×640 box showing a 1280×800 page: the picture is 640×400, centred,
+    // with 120px bars above and below. A click at the top of the picture is
+    // y=0, not y=240.
+    const square = viewport({ height: 640, width: 640 });
+    expect(toBitmapPoint(square, 0, 120)).toEqual({ x: 0, y: 0 });
+    expect(toBitmapPoint(square, 320, 320)).toEqual({ x: 640, y: 400 });
+    expect(toBitmapPoint(square, 0, 10)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("ignores the pillarbox bars on a pane that is too wide", () => {
+    // A 1000×400 box: the picture is 640×400 with 180px bars either side.
+    const wide = viewport({ height: 400, width: 1000 });
+    expect(toBitmapPoint(wide, 180, 0)).toEqual({ x: 0, y: 0 });
+    expect(toBitmapPoint(wide, 820, 400)).toEqual({ x: 1280, y: 800 });
+    expect(toBitmapPoint(wide, 990, 200)).toEqual({ x: 1280, y: 400 });
+  });
 });
 
 describe("mouseMessage", () => {

@@ -1,27 +1,24 @@
 /**
- * The app socket: wallet, mandate, receipts, policy decisions.
+ * The app socket: wallet, mandate, receipts, approvals, policy decisions.
  *
  * Low rate and every message matters, so unlike the browser socket this one
- * does live in React state. The receipts list is append-only in the client for
- * the same reason it is on the server: a receipt is a record of a past
- * decision, and mutating one would be rewriting history.
+ * does live in React state — through the pure reducer in `lib/app-state.ts`,
+ * which is where the rules live and where they are tested. This hook owns the
+ * connection and nothing else: token, backoff, keepalive.
  */
 
-import type { Mandate, PolicyDecision, Receipt } from "@froggy/domain";
-import type {
-  AppClientMessage,
-  ServiceModes,
-  WalletSummary,
-} from "@froggy/protocol";
+import type { AppClientMessage } from "@froggy/protocol";
 import {
   decodeAppServerMessage,
   encodeAppClientMessage,
   wsProtocols,
 } from "@froggy/protocol";
 import { Result } from "effect";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import { socketUrl } from "../environment";
+import { initialAppState, reduceApp } from "../lib/app-state";
+import type { AppEvent, AppState } from "../lib/app-state";
 import { useSessionToken } from "../lib/session-token";
 
 const PING_INTERVAL_MS = 15_000;
@@ -31,23 +28,13 @@ const MAX_BACKOFF_MS = 5000;
 const backoffMs = (attempt: number): number =>
   Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS);
 
-export interface AppStream {
-  readonly connected: boolean;
-  readonly lastDecision: PolicyDecision | null;
-  readonly mandate: Mandate | null;
-  readonly modes: ServiceModes | null;
-  readonly receipts: readonly Receipt[];
+export interface AppStream extends AppState {
+  readonly dispatch: (event: AppEvent) => void;
   readonly send: (message: AppClientMessage) => void;
-  readonly wallet: WalletSummary | null;
 }
 
 export const useAppSocket = (): AppStream => {
-  const [connected, setConnected] = useState(false);
-  const [modes, setModes] = useState<ServiceModes | null>(null);
-  const [mandate, setMandate] = useState<Mandate | null>(null);
-  const [wallet, setWallet] = useState<WalletSummary | null>(null);
-  const [receipts, setReceipts] = useState<readonly Receipt[]>([]);
-  const [lastDecision, setLastDecision] = useState<PolicyDecision | null>(null);
+  const [state, dispatch] = useReducer(reduceApp, initialAppState);
   const socketRef = useRef<WebSocket | null>(null);
   const { canConnect, getToken } = useSessionToken();
 
@@ -88,7 +75,7 @@ export const useAppSocket = (): AppStream => {
 
       socket.addEventListener("open", () => {
         attempt = 0;
-        setConnected(true);
+        dispatch({ connected: true, type: "socket" });
         ping = setInterval(() => {
           socket?.send(
             encodeAppClientMessage({ sentAt: Date.now(), type: "ping", v: 1 })
@@ -101,46 +88,11 @@ export const useAppSocket = (): AppStream => {
         if (Result.isFailure(decoded)) {
           return;
         }
-        const message = decoded.success;
-        switch (message.type) {
-          case "session.welcome": {
-            setModes(message.modes);
-            return;
-          }
-          case "mandate.state": {
-            setMandate(message.mandate);
-            return;
-          }
-          case "wallet.state": {
-            setWallet(message.wallet);
-            return;
-          }
-          case "receipt.appended": {
-            setReceipts((current) => [message.receipt, ...current]);
-            return;
-          }
-          case "policy.decision": {
-            setLastDecision(message.decision);
-            break;
-          }
-          // Approval cards, pongs and protocol errors reach this socket but are
-          // not state the pane renders yet. Listing them keeps the switch
-          // exhaustive, so adding a message type is a compile error rather than
-          // a silently ignored frame.
-          case "approval.request":
-          case "approval.resolved":
-          case "pong":
-          case "protocol.error": {
-            break;
-          }
-          default: {
-            break;
-          }
-        }
+        dispatch({ at: Date.now(), message: decoded.success, type: "server" });
       });
 
       socket.addEventListener("close", () => {
-        setConnected(false);
+        dispatch({ connected: false, type: "socket" });
         if (ping !== null) {
           clearInterval(ping);
         }
@@ -179,5 +131,5 @@ export const useAppSocket = (): AppStream => {
     };
   }, [canConnect, getToken]);
 
-  return { connected, lastDecision, mandate, modes, receipts, send, wallet };
+  return { ...state, dispatch, send };
 };

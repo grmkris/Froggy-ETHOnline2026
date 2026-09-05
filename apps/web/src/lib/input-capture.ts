@@ -68,21 +68,35 @@ const clamp = (value: number, max: number): number =>
 /**
  * Map a client point into bitmap space.
  *
- * The bitmap is the authority, not any CSS size we think the canvas has. Note
- * that `getBoundingClientRect()` includes borders — which is why the surface
- * uses a ring and never a border, since a 1px border would offset every click.
+ * The bitmap is the authority, not any CSS size we think the canvas has. The
+ * canvas is displayed with `object-contain`, so when its box is not the
+ * bitmap's shape the picture is centred with bars on two sides — and a click
+ * in a bar is a click at the picture's edge, not a quarter of the way in. The
+ * old mapping scaled the box's axes independently and was exactly that far
+ * wrong on any pane that was not 16:10.
+ *
+ * Note that `getBoundingClientRect()` includes borders — which is why the
+ * surface uses a ring and never a border, since a 1px border would offset
+ * every click.
  */
 export const toBitmapPoint = (
   viewport: Viewport,
   clientX: number,
   clientY: number
 ): BitmapPoint => {
-  const { rect } = viewport;
-  const scaleX = rect.width > 0 ? viewport.width / rect.width : 1;
-  const scaleY = rect.height > 0 ? viewport.height / rect.height : 1;
+  const { height, rect, width } = viewport;
+  if (rect.width <= 0 || rect.height <= 0 || width <= 0 || height <= 0) {
+    return {
+      x: clamp(clientX - rect.left, width),
+      y: clamp(clientY - rect.top, height),
+    };
+  }
+  const scale = Math.min(rect.width / width, rect.height / height);
+  const left = rect.left + (rect.width - width * scale) / 2;
+  const top = rect.top + (rect.height - height * scale) / 2;
   return {
-    x: clamp((clientX - rect.left) * scaleX, viewport.width),
-    y: clamp((clientY - rect.top) * scaleY, viewport.height),
+    x: clamp((clientX - left) / scale, width),
+    y: clamp((clientY - top) / scale, height),
   };
 };
 

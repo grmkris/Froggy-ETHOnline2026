@@ -37,6 +37,17 @@ import type { ReactElement, ReactNode } from "react";
 
 import { privyAppId, privyConfigured } from "../environment";
 
+/**
+ * Where sign-in stands.
+ *
+ * `loading` is a real state, not a placeholder: with an app id configured the
+ * first render has no idea whether there is a session, and showing a sign-in
+ * button for the second Privy takes to answer flashes "signed out" at every
+ * signed-in person. `failed` is Privy refusing to initialise at all — a bad
+ * app id, an insecure origin — which deserves a sentence, not a dead button.
+ */
+type IdentityStatus = "failed" | "loading" | "local" | "ready";
+
 export interface Identity {
   /** The money address: the smart account when there is one, else the signer. */
   readonly address: string | null;
@@ -46,6 +57,7 @@ export interface Identity {
   readonly ready: boolean;
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */
   readonly signer: string | null;
+  readonly status: IdentityStatus;
   readonly stubbed: boolean;
   readonly token: () => Promise<string | null>;
 }
@@ -88,8 +100,31 @@ const LOCAL: Identity = {
   logout: unavailable,
   ready: true,
   signer: null,
+  status: "local",
   stubbed: true,
   token: async () => await Promise.resolve(localToken()),
+};
+
+const nobody = async (): Promise<null> => await Promise.resolve(null);
+
+/** Privy is configured and has not answered yet. */
+const LOADING: Identity = {
+  address: null,
+  authenticated: false,
+  login: unavailable,
+  logout: unavailable,
+  ready: false,
+  signer: null,
+  status: "loading",
+  stubbed: false,
+  token: nobody,
+};
+
+/** Privy is configured and could not start. */
+const FAILED: Identity = {
+  ...LOADING,
+  ready: true,
+  status: "failed",
 };
 
 const IdentityContext = createContext<Identity>(LOCAL);
@@ -144,6 +179,7 @@ const PrivyBridge = ({
       },
       ready,
       signer: user?.wallet?.address ?? null,
+      status: "ready",
       stubbed: false,
       token: getAccessToken,
     });
@@ -154,6 +190,7 @@ const PrivyBridge = ({
 
 interface QuarantineProps {
   readonly children: ReactNode;
+  readonly onFail: () => void;
 }
 
 interface QuarantineState {
@@ -178,6 +215,10 @@ class Quarantine extends Component<QuarantineProps, QuarantineState> {
     // question, and this is the only place the answer exists.
     console.warn("Privy failed to initialise:", error.message);
     return { failed: true };
+  }
+
+  override componentDidCatch(): void {
+    this.props.onFail();
   }
 
   override render(): ReactNode {
@@ -210,7 +251,9 @@ export const IdentityProvider = ({
 }: {
   readonly children: ReactNode;
 }): ReactElement => {
-  const [identity, setIdentity] = useState<Identity>(LOCAL);
+  const [identity, setIdentity] = useState<Identity>(
+    privyConfigured ? LOADING : LOCAL
+  );
   const [module, setModule] = useState<PrivyModule | null>(null);
 
   useEffect(() => {
@@ -223,7 +266,12 @@ export const IdentityProvider = ({
     }
     void (async () => {
       const loaded = await loadPrivy();
-      if (!cancelled && loaded !== null) {
+      if (cancelled) {
+        return;
+      }
+      if (loaded === null) {
+        setIdentity(FAILED);
+      } else {
         setModule(loaded);
       }
     })();
@@ -235,11 +283,20 @@ export const IdentityProvider = ({
   return (
     <IdentityContext.Provider value={identity}>
       {module === null ? null : (
-        <Quarantine>
+        <Quarantine
+          onFail={() => {
+            setIdentity(FAILED);
+          }}
+        >
           <module.PrivyProvider
             appId={privyAppId}
             config={{
-              appearance: { theme: "dark" },
+              appearance: {
+                accentColor: "#3f8a4f",
+                landingHeader: "Froggy",
+                loginMessage: "An agent with a wallet you can watch.",
+                theme: "light",
+              },
               embeddedWallets: {
                 ethereum: { createOnLogin: "all-users" },
                 showWalletUIs: false,

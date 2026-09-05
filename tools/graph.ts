@@ -131,6 +131,7 @@ export const nodes: readonly Node[] = [
       "@base-ui/react",
       "class-variance-authority",
       "cn",
+      "lucide-react",
       "react",
       "react-dom",
     ],

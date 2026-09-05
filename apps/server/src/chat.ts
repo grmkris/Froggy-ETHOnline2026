@@ -112,6 +112,12 @@ export const handleChat = async (
         }
       });
     },
-    stream: toUIMessageStream({ stream: result.stream }),
+    stream: toUIMessageStream({
+      // The run id on the message is how the client files receipts under the
+      // turn that produced them; the clock is when the turn started.
+      messageMetadata: ({ part }) =>
+        part.type === "start" ? { at: Date.now(), runId: run.id } : undefined,
+      stream: result.stream,
+    }),
   });
 };

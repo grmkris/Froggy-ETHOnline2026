@@ -1,7 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/onest";
 @import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 /* ejected from shadcn@4.21.0 */
 @theme inline {
   @keyframes accordion-down {
@@ -649,9 +651,16 @@
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
+/*
+ * Froggy is light, warm and quiet. Paper, ink, one frog-green, and three
+ * driving colours that mean the same thing everywhere: amber for the agent,
+ * blue for the person, grey for frozen. Money is set in the display face so a
+ * figure reads as a figure and not as prose.
+ */
 @theme inline {
-  --font-sans: "Bricolage Grotesque Variable", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: "Bricolage Grotesque Variable", "Onest Variable", sans-serif;
+  --font-sans: "Onest Variable", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -670,123 +679,230 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink: var(--foreground);
+  --color-drive-agent: var(--drive-agent);
+  --color-drive-agent-soft: var(--drive-agent-soft);
+  --color-drive-human: var(--drive-human);
+  --color-drive-human-soft: var(--drive-human-soft);
+  --color-drive-frozen: var(--drive-frozen);
+  --color-drive-frozen-soft: var(--drive-frozen-soft);
+  --color-refused: var(--destructive);
+  --color-refused-soft: var(--refused-soft);
+  --color-paper-deep: var(--paper-deep);
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.5);
+  --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
+  --shadow-inset: var(--shadow-inset);
 }
-
 :root {
-  color-scheme: dark;
-  --background: oklch(0.125 0.009 155);
-  --foreground: oklch(0.94 0.018 112);
-  --card: oklch(0.155 0.012 155);
-  --card-foreground: oklch(0.94 0.018 112);
-  --popover: oklch(0.17 0.014 155);
-  --popover-foreground: oklch(0.94 0.018 112);
-  --primary: oklch(0.88 0.17 126);
-  --primary-foreground: oklch(0.14 0.02 145);
-  --secondary: oklch(0.23 0.015 155);
-  --secondary-foreground: oklch(0.89 0.02 115);
-  --muted: oklch(0.205 0.012 155);
-  --muted-foreground: oklch(0.68 0.025 135);
-  --accent: oklch(0.72 0.18 54);
-  --accent-foreground: oklch(0.14 0.02 40);
-  --destructive: oklch(0.68 0.21 28);
-  --border: oklch(0.31 0.02 145 / 70%);
-  --input: oklch(0.26 0.016 150);
-  --ring: oklch(0.78 0.14 126);
-  --radius: 0.35rem;
-  --scene-void: #080b0c;
-  --scene-key-light: #e6ffd0;
-  --scene-grid: #26332d;
-  --scene-grid-major: #4a6557;
-  --scene-local: #c7ff6b;
-  --scene-local-emissive: #38551f;
-  --scene-remote: #ff9f43;
-  --scene-remote-emissive: #572f12;
+  color-scheme: light;
+  --background: oklch(0.982 0.006 95);
+  --paper-deep: oklch(0.955 0.01 95);
+  --foreground: oklch(0.24 0.02 150);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.02 150);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 150);
+  --primary: oklch(0.83 0.19 132);
+  --primary-foreground: oklch(0.22 0.05 145);
+  --brand: oklch(0.48 0.13 148);
+  --brand-soft: oklch(0.94 0.05 135);
+  --secondary: oklch(0.955 0.012 100);
+  --secondary-foreground: oklch(0.3 0.02 150);
+  --muted: oklch(0.95 0.01 95);
+  --muted-foreground: oklch(0.52 0.022 145);
+  --accent: oklch(0.94 0.05 135);
+  --accent-foreground: oklch(0.3 0.06 148);
+  --destructive: oklch(0.56 0.2 27);
+  --refused-soft: oklch(0.96 0.03 25);
+  --border: oklch(0.89 0.012 100);
+  --input: oklch(0.9 0.012 100);
+  --ring: oklch(0.72 0.16 135);
+  --drive-agent: oklch(0.76 0.16 68);
+  --drive-agent-soft: oklch(0.965 0.045 80);
+  --drive-human: oklch(0.6 0.16 252);
+  --drive-human-soft: oklch(0.955 0.03 250);
+  --drive-frozen: oklch(0.66 0.012 250);
+  --drive-frozen-soft: oklch(0.94 0.006 250);
+  --radius: 1rem;
+  --shadow-card:
+    0 1px 1px oklch(0.24 0.02 150 / 4%), 0 2px 6px oklch(0.24 0.02 150 / 5%),
+    0 12px 32px -16px oklch(0.24 0.02 150 / 18%);
+  --shadow-float:
+    0 1px 2px oklch(0.24 0.02 150 / 6%),
+    0 8px 24px -8px oklch(0.24 0.02 150 / 22%),
+    0 32px 64px -32px oklch(0.24 0.02 150 / 28%);
+  --shadow-inset: inset 0 1px 0 oklch(1 0 0 / 70%);
 }
-
 * {
   border-color: var(--border);
 }
-
 html {
   background: var(--background);
 }
-
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(oklch(0.88 0.17 126 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.88 0.17 126 / 3%) 1px, transparent 1px),
     radial-gradient(
-      circle at 72% 18%,
-      oklch(0.72 0.18 54 / 7%),
-      transparent 28%
+      60rem 40rem at 8% -10%,
+      oklch(0.9 0.09 135 / 55%),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 30rem at 100% 0%,
+      oklch(0.95 0.05 80 / 60%),
+      transparent 55%
     ),
     var(--background);
-  background-size:
-    32px 32px,
-    32px 32px,
-    auto,
-    auto;
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
-
+/* A whisper of grain so the paper is paper and not a flat fill. */
+body::before {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: "";
+}
+#root {
+  position: relative;
+  z-index: 1;
+}
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
 }
-
 ::selection {
   background: var(--primary);
   color: var(--primary-foreground);
 }
-
-@keyframes scanline {
-  from {
-    transform: translateY(-100%);
+/* Money and titles: the display face, tightened as it grows. */
+@utility font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+@utility text-money {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility text-machine {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+/*
+ * The ticket: a card with a perforation between the body (what and why) and
+ * the stub (the machine facts). The notches are cut with the page colour so
+ * they read as holes on any background the ticket sits on.
+ */
+@utility ticket {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+@utility ticket-perforation {
+  position: relative;
+  height: 0;
+  margin: 0 0.25rem;
+  border-top: 2px dashed var(--border);
+  &::before,
+  &::after {
+    position: absolute;
+    top: -0.625rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background: var(--background);
+    box-shadow: inset 0 1px 2px oklch(0.24 0.02 150 / 8%);
+    content: "";
   }
-  to {
-    transform: translateY(100vh);
+  &::before {
+    left: -0.875rem;
+  }
+  &::after {
+    right: -0.875rem;
   }
 }
-
-@keyframes signal-in {
+/*
+ * The driving ring: who has the page, said the same way everywhere. Two pixels,
+ * amber breathing while the agent drives, blue and still while the person
+ * does, dotted grey when the wallet is frozen.
+ */
+@keyframes drive-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--drive-agent),
+      0 0 0 6px oklch(0.76 0.16 68 / 0%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--drive-agent),
+      0 0 0 6px oklch(0.76 0.16 68 / 22%);
+  }
+}
+@utility ring-drive-agent {
+  box-shadow: 0 0 0 2px var(--drive-agent);
+  @media (prefers-reduced-motion: no-preference) {
+    animation: drive-breathe 1.8s ease-in-out infinite;
+  }
+}
+@utility ring-drive-human {
+  box-shadow: 0 0 0 2px var(--drive-human);
+}
+@utility ring-drive-frozen {
+  outline: 2px dotted var(--drive-frozen);
+  outline-offset: 0;
+}
+@utility ring-drive-idle {
+  box-shadow: 0 0 0 1px var(--border);
+}
+@keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px) scale(0.99);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
-
 @media (prefers-reduced-motion: no-preference) {
-  .signal-in {
-    animation: signal-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  .rise-in {
+    animation: rise-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-
-  .scanline::after {
-    position: fixed;
-    z-index: 50;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 18vh;
-    pointer-events: none;
-    background: linear-gradient(
-      transparent,
-      oklch(0.88 0.17 126 / 2%),
-      transparent
-    );
-    content: "";
-    animation: scanline 9s linear infinite;
-  }
+}
+/* A stamp across a refused ticket. Rotated ink, never a red box. */
+@utility stamp-refused {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 2px solid var(--destructive);
+  border-radius: 0.375rem;
+  color: var(--destructive);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+  opacity: 0.85;
 }
