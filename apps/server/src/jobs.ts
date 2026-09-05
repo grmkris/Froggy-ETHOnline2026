@@ -13,6 +13,7 @@
  */
 
 import type { Receipt, UserId } from "@froggy/domain";
+import type { AppServerMessage } from "@froggy/protocol";
 import { stepCountIs, streamText } from "ai";
 
 import { createModel } from "./model";
@@ -57,6 +58,8 @@ export interface DigestSink {
 export interface JobDeps {
   readonly now?: () => number;
   readonly oracleUrl: string;
+  /** The tab is told a turn began that it did not start, and offered a reload. */
+  readonly publishApp: (userId: UserId, message: AppServerMessage) => void;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly sink: DigestSink;
@@ -101,6 +104,12 @@ export const runDailyFor = async (
   }
 
   const run = deps.runs.start(session.id);
+  deps.publishApp(userId, {
+    runId: run.id,
+    surface: "digest",
+    type: "run.started",
+    v: 1,
+  });
   const timer = setTimeout(() => {
     run.abort();
   }, JOB_TIMEOUT_MS);

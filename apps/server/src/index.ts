@@ -233,7 +233,14 @@ class FroggyServer extends Context.Service<
       const scheduler = createDigestScheduler({
         run: async (userId) => {
           await runDailyFor(
-            { oracleUrl, runs, services, sink: pager, workspaces },
+            {
+              oracleUrl,
+              publishApp: sockets.publishApp,
+              runs,
+              services,
+              sink: pager,
+              workspaces,
+            },
             userId
           );
         },
