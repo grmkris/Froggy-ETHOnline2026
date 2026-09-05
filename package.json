@@ -27,7 +27,7 @@
     "agents:check": "bun tools/check-agent-files.ts",
     "hooks:install": "lefthook install",
     "fix": "ultracite fix",
-    "db:generate": "bunx --bun drizzle-kit generate --config packages/database/drizzle.config.ts",
+    "db:generate": "bun run --cwd packages/database db:generate",
     "db:migrate": "bun apps/server/src/migrate.ts"
   },
   "devDependencies": {

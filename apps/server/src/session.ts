@@ -32,6 +32,7 @@ import type {
   SpendIntent,
   Evidence,
   UsdMicros,
+  UserId,
 } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { authorize } from "@froggy/wallet";
@@ -103,6 +104,13 @@ const widestWindowMs = (mandate: Mandate): number => {
 
 export class WorkspaceSession {
   readonly id: SessionId;
+  /**
+   * Whose session this is.
+   *
+   * The ledger is keyed on this rather than on `id`, because `id` is generated
+   * per process: a cap read against it would reset on every redeploy.
+   */
+  readonly userId: UserId;
 
   private readonly deps: SessionDeps;
   private readonly now: () => number;
@@ -112,6 +120,7 @@ export class WorkspaceSession {
 
   constructor(
     id: SessionId,
+    userId: UserId,
     deps: SessionDeps,
     allowlist: {
       readonly hosts: readonly string[];
@@ -119,6 +128,7 @@ export class WorkspaceSession {
     }
   ) {
     this.id = id;
+    this.userId = userId;
     this.deps = deps;
     this.now = deps.now ?? Date.now;
     this.mandate = {
@@ -167,7 +177,7 @@ export class WorkspaceSession {
 
   async walletSummary(): Promise<WalletSummary> {
     const since = this.now() - widestWindowMs(this.mandate);
-    const rows = await this.deps.ledger.since(this.id, since);
+    const rows = await this.deps.ledger.since(this.userId, since);
     let spent = 0;
     for (const row of rows) {
       spent += row.usdMicros;
@@ -209,7 +219,7 @@ export class WorkspaceSession {
     const intent: SpendIntent = draft;
 
     const since = at - widestWindowMs(this.mandate);
-    const recent = await this.deps.ledger.since(this.id, since);
+    const recent = await this.deps.ledger.since(this.userId, since);
     const decision = authorize({
       intent,
       mandate: this.mandate,
@@ -239,8 +249,8 @@ export class WorkspaceSession {
       at,
       id: spendId,
       idempotencyKey: request.idempotencyKey,
-      sessionId: this.id,
       usdMicros,
+      userId: this.userId,
     });
 
     if (row.status === "settled") {

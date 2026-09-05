@@ -30,6 +30,7 @@ export const ServiceMode = Schema.Literals(["live", "stub"]);
 export type ServiceMode = typeof ServiceMode.Type;
 
 export const ServiceModes = Schema.Struct({
+  database: ServiceMode,
   graph: ServiceMode,
   hedera: ServiceMode,
   model: ServiceMode,

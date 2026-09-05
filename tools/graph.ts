@@ -102,8 +102,8 @@ export const nodes: readonly Node[] = [
     name: "@froggy/wallet",
     layer: "adapter",
     role: "Privy, the policy engine, and the spend ledger. The leash. Never imports the browser.",
-    mayImport: ["@froggy/domain"],
-    mayUse: ["@privy-io/node"],
+    mayImport: ["@froggy/database", "@froggy/domain"],
+    mayUse: ["@privy-io/node", "drizzle-orm", "postgres"],
   },
   {
     dir: "packages/payments",
@@ -139,13 +139,8 @@ export const nodes: readonly Node[] = [
     dir: "packages/database",
     name: "@froggy/database",
     layer: "adapter",
-    role: "Drizzle and Postgres behind a scoped Effect service. Owns the durable spend ledger.",
+    role: "The Drizzle schema and the Postgres connection. The tables; not the queries.",
     mayImport: ["@froggy/domain"],
     mayUse: ["drizzle-kit", "drizzle-orm", "effect", "postgres"],
-    seam: {
-      consumer: "apps/server",
-      reason:
-        "the ledger is in-memory while the service runs at one replica; this is the schema a second replica would need",
-    },
   },
 ];

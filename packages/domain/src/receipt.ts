@@ -65,3 +65,13 @@ export const SpendStatus = Schema.Literals([
   "refused",
 ]);
 export type SpendStatus = typeof SpendStatus.Type;
+
+/**
+ * For a status read back out of the ledger's `text` column.
+ *
+ * Postgres has no cheap sum type, so the column widens to text on the way in
+ * and narrows here on the way out. A parse rather than an assertion, so a row
+ * edited by hand fails loudly instead of flowing through the policy engine as
+ * a status nothing handles.
+ */
+export const spendStatus = Schema.decodeUnknownSync(SpendStatus);

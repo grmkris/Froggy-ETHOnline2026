@@ -11,11 +11,9 @@ import { describe, expect, test } from "bun:test";
 
 import { BrowserSession } from "@froggy/browser";
 import type { BrowserSessionOptions } from "@froggy/browser";
-import { decodeUserId } from "@froggy/domain";
-import type { UserId } from "@froggy/domain";
+import { userId } from "@froggy/domain";
 import type { BrowserState, ServiceModes } from "@froggy/protocol";
 import { memoryLedger } from "@froggy/wallet";
-import { Result } from "effect";
 
 import {
   BrowserLimitReachedError,
@@ -23,18 +21,11 @@ import {
   Workspaces,
 } from "./workspaces";
 
-const userId = (did: string): UserId => {
-  const decoded = decodeUserId(did);
-  if (Result.isFailure(decoded)) {
-    throw new Error(`not a DID: ${did}`);
-  }
-  return decoded.success;
-};
-
 const ALICE = userId("did:privy:alice");
 const BOB = userId("did:privy:bob");
 
 const MODES: ServiceModes = {
+  database: "stub",
   graph: "stub",
   hedera: "stub",
   model: "stub",

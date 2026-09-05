@@ -146,6 +146,7 @@ class FroggyServer extends Context.Service<
           Effect.promise(async () => {
             await running.stop(true);
             workspaces.closeAll();
+            await services.shutdown();
           })
       );
 

@@ -3,7 +3,7 @@ import postgres from "postgres";
 import type { Sql } from "postgres";
 
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
-export { mandates, receipts, spends } from "./schema";
+export { mandates, receipts, spends, users } from "./schema";
 
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
   "DatabaseError",

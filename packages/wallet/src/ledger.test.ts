@@ -1,17 +1,17 @@
 import { describe, expect, it } from "bun:test";
 
-import { SessionId, SpendId, usdMicros } from "@froggy/domain";
+import { SpendId, usdMicros, userId } from "@froggy/domain";
 
 import { memoryLedger } from "./ledger";
 
-const session = SessionId.generate();
+const user = userId("did:privy:ledger-test");
 const NOW = 1_756_000_000_000;
 
 const row = (key: string, micros: number) => ({
   at: NOW,
   id: SpendId.generate(),
   idempotencyKey: key,
-  sessionId: session,
+  userId: user,
   usdMicros: usdMicros(micros),
 });
 
@@ -53,7 +53,7 @@ describe("memoryLedger", () => {
     await ledger.settle(reserved.id, "settled");
     await ledger.reserve(row("b", 5000));
 
-    const rows = await ledger.since(session, NOW - 1000);
+    const rows = await ledger.since(user, NOW - 1000);
 
     expect(rows).toHaveLength(2);
   });
@@ -63,7 +63,7 @@ describe("memoryLedger", () => {
     const reserved = await ledger.reserve(row("a", 10_000));
     await ledger.settle(reserved.id, "refused");
 
-    const rows = await ledger.since(session, NOW - 1000);
+    const rows = await ledger.since(user, NOW - 1000);
 
     // A refusal never consumed anything; counting it would let a rejected spend
     // eat the allowance it was denied.
@@ -74,17 +74,17 @@ describe("memoryLedger", () => {
     const ledger = memoryLedger();
     await ledger.reserve({ ...row("old", 10_000), at: NOW - 100_000 });
 
-    expect(await ledger.since(session, NOW - 1000)).toEqual([]);
+    expect(await ledger.since(user, NOW - 1000)).toEqual([]);
   });
 
-  it("keeps other sessions out of a session's total", async () => {
+  it("keeps one user's spend out of another's total", async () => {
     const ledger = memoryLedger();
     await ledger.reserve({
       ...row("other", 10_000),
-      sessionId: SessionId.generate(),
+      userId: userId("did:privy:someone-else"),
     });
 
-    expect(await ledger.since(session, NOW - 1000)).toEqual([]);
+    expect(await ledger.since(user, NOW - 1000)).toEqual([]);
   });
 
   it("serialises concurrent reservations of the same key", async () => {
@@ -96,7 +96,7 @@ describe("memoryLedger", () => {
     ]);
 
     // Two tool calls arriving together must not both win: the read-then-write
-    // of the idempotency map has to be indivisible per session.
+    // of the idempotency map has to be indivisible per user.
     expect(a.id).toBe(b.id);
   });
 });

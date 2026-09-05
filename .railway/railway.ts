@@ -66,7 +66,15 @@ export default defineRailway((ctx) => {
         "turbo.json",
       ],
     },
-    deploy: restart,
+    deploy: {
+      ...restart,
+      // Migrations run before the new container takes traffic, so a failed
+      // migration fails the deploy rather than putting a half-migrated server
+      // in front of users and then crash-looping. The path is resolved from the
+      // script's own location, not the working directory, because this runs
+      // inside the image where the cwd is not the repository root.
+      preDeployCommand: ["bun", "apps/server/src/migrate.ts"],
+    },
     env: {
       ANTHROPIC_API_KEY: preserve(),
       APP_ORIGIN: preserve(),
@@ -85,10 +93,13 @@ export default defineRailway((ctx) => {
     // Generous: the first request starts Chromium, and a cold container pulling
     // a browser into memory is slower than a Bun process answering JSON.
     healthcheckTimeout: 120,
-    // EXACTLY ONE replica. The spend ledger is in-memory, so a second replica
-    // would have its own idea of what has been spent — and two ledgers under one
-    // cap is the same as no cap. `packages/database` holds the schema a second
-    // replica would need first.
+    // EXACTLY ONE replica, still. The ledger is in Postgres now, and its unique
+    // index on `(user_id, idempotency_key)` makes a retried payment safe across
+    // processes — but the *window total* is read before the row is reserved,
+    // outside a transaction, and only a per-user promise chain inside one
+    // process closes that gap. Two replicas could each authorise a spend
+    // against the same stale total. Also: each replica would run its own
+    // Chromes against the same profile volume.
     replicas: { [region]: 1 },
     source: repo,
     volumeMounts: { "/data": browserVolume },

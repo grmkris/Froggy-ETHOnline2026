@@ -171,8 +171,11 @@
       "name": "@froggy/wallet",
       "version": "0.1.0",
       "dependencies": {
+        "@froggy/database": "workspace:*",
         "@froggy/domain": "workspace:*",
         "@privy-io/node": "0.34.0",
+        "drizzle-orm": "0.45.2",
+        "postgres": "3.4.9",
       },
       "devDependencies": {
         "@types/bun": "1.4.0",

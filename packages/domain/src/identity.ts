@@ -23,7 +23,16 @@ export const UserId = Schema.String.pipe(
 
 export type UserId = typeof UserId.Type;
 
+/** For the authentication boundary, where a bad value is an ordinary refusal. */
 export const decodeUserId = Schema.decodeUnknownResult(UserId);
+
+/**
+ * For values already known to be DIDs — a database column this process wrote,
+ * or a test fixture. Throws, because reaching it means the invariant is
+ * already broken and continuing would spread the damage. Same idiom as
+ * `usdMicros`.
+ */
+export const userId = Schema.decodeUnknownSync(UserId);
 
 /**
  * A verified caller.

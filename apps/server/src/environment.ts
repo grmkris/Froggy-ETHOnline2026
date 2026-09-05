@@ -29,6 +29,10 @@ import { Config, Effect, Redacted } from "effect";
  */
 const PLACEHOLDER = {
   anthropicApiKey: "sk-ant-REPLACE_ME",
+  // Empty, not a plausible local URL: `postgres://…/froggy` is exactly what a
+  // developer running Postgres locally would set, so using it as the
+  // placeholder would make a real local database indistinguishable from none.
+  databaseUrl: "",
   graphApiKey: "REPLACE_ME_GRAPH_STUDIO_KEY",
   graphSubgraphId: "REPLACE_ME_SUBGRAPH_ID",
   hederaAccountId: "0.0.0",
@@ -132,10 +136,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const maxBrowsers = yield* Config.number("MAX_BROWSERS").pipe(
       Config.withDefault(0)
     );
-    const databaseUrl = yield* secret(
-      "DATABASE_URL",
-      "postgres://postgres:postgres@localhost:5432/froggy"
-    );
+    const databaseUrl = yield* secret("DATABASE_URL", PLACEHOLDER.databaseUrl);
 
     const privyAppId = yield* Config.string("PRIVY_APP_ID").pipe(
       Config.withDefault(PLACEHOLDER.privyAppId)
@@ -183,6 +184,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const compatibleKey = Redacted.value(openAiCompatibleApiKey);
 
     const modes: ServiceModes = {
+      database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
       graph: modeOf(
         [Redacted.value(graphApiKey), PLACEHOLDER.graphApiKey],
         [graphSubgraphId, PLACEHOLDER.graphSubgraphId]

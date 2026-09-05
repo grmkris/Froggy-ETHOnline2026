@@ -104,6 +104,7 @@ export class Workspaces {
     }
     const session = new WorkspaceSession(
       SessionId.generate(),
+      userId,
       {
         ledger: this.deps.ledger,
         modes: this.deps.modes,

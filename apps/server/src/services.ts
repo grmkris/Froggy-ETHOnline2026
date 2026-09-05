@@ -24,7 +24,13 @@ import {
   stubOracleGate,
 } from "@froggy/payments";
 import type { PrivyServer, SpendLedger } from "@froggy/wallet";
-import { livePrivyServer, memoryLedger, stubPrivyServer } from "@froggy/wallet";
+import {
+  livePrivyServer,
+  memoryLedger,
+  postgresLedger,
+  stubPrivyServer,
+} from "@froggy/wallet";
+import postgres from "postgres";
 
 import type { Environment } from "./environment";
 
@@ -35,6 +41,8 @@ export interface Services {
   readonly oracle: OracleGate;
   readonly payer: Payer;
   readonly privy: PrivyServer;
+  /** Releases anything this module acquired. Called from the server's scope. */
+  readonly shutdown: () => Promise<void>;
 }
 
 export interface ServiceOptions {
@@ -77,16 +85,25 @@ export const createServices = (options: ServiceOptions): Services => {
         })
       : stubPrivyServer();
 
+  // No `DATABASE_URL` means the ledger lives in memory: correct for one
+  // process, lost on restart, and loudly reported as `database=stub` in the
+  // wallet pane. With a URL the same interface is served by Postgres, where
+  // the unique index on `(user_id, idempotency_key)` enforces idempotency
+  // across processes and a cap survives a redeploy.
+  const sql =
+    environment.modes.database === "live"
+      ? postgres(environment.databaseUrl, { idle_timeout: 20, max: 10 })
+      : null;
+
   return {
     environment,
     graph,
-    // In-memory, and the Railway service is pinned to one replica because of
-    // it. The Postgres table with its unique index on
-    // `(session_id, idempotency_key)` is the version that survives a second
-    // replica; swapping it is one factory call, not a rewrite.
-    ledger: memoryLedger(),
+    ledger: sql === null ? memoryLedger() : postgresLedger(sql),
     oracle,
     payer,
     privy,
+    shutdown: async () => {
+      await sql?.end({ timeout: 5 });
+    },
   };
 };

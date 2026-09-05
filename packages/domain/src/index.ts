@@ -9,7 +9,7 @@ export {
   Provenance,
   TRUSTED_PROVENANCE,
 } from "./address";
-export { decodeUserId, UserId } from "./identity";
+export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
   MandateId,
@@ -53,7 +53,13 @@ export {
   UsdMicros,
   usdMicros,
 } from "./money";
-export { Evidence, Receipt, Settlement, SpendStatus } from "./receipt";
+export {
+  Evidence,
+  Receipt,
+  Settlement,
+  spendStatus,
+  SpendStatus,
+} from "./receipt";
 
 /**
  * Bumped whenever a wire message changes shape. Both sockets carry it, and a

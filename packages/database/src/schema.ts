@@ -1,16 +1,23 @@
 /**
  * Persistence.
  *
- * Deliberately small. There is **no users table** — Privy's DID is the identity
- * and duplicating it locally would create a second answer to "who is this".
- * What is worth persisting is the part that has to survive a restart and be
- * auditable afterwards: what was spent, under which rule, on what evidence.
+ * `users` is not an identity table. It holds no name, no email, no credential
+ * and nothing you could authenticate against — Privy's DID remains the only
+ * answer to "who is this", and duplicating that here would create a second
+ * answer that can disagree. What this row records is the opposite direction:
+ * **what we are holding on that person's behalf** — the Privy wallet we
+ * attached an agent signer to, the Hedera pocket we funded for them, and
+ * whether they have frozen it. That is state we created, so it has to live
+ * somewhere we own.
  *
- * The unique index on `(session_id, idempotency_key)` is the load-bearing
+ * Everything is keyed on the DID rather than on a session id. A session id is
+ * generated per process, so a ledger keyed on it would hand a returning user a
+ * fresh allowance after every redeploy — not a ledger, a nightly amnesty.
+ *
+ * The unique index on `(user_id, idempotency_key)` is the load-bearing
  * constraint in this file. It is what turns "a retried tool call must not pay
- * twice" from a convention into something the database enforces, and it is why
- * a second process could take over from the in-memory ledger without changing
- * the semantics.
+ * twice" from a convention into something the database enforces, across
+ * processes rather than within one.
  */
 
 import { ReceiptId, SessionId, SpendId } from "@froggy/domain";
@@ -27,6 +34,37 @@ import {
 
 import { typeIdColumn, typeIdPrimaryKey } from "./columns";
 
+export const users = pgTable("users", {
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  /** Privy's DID. The identity, owned by Privy; this is a foreign key to it. */
+  did: text("did").primaryKey(),
+  /**
+   * When the user froze their wallet, or null.
+   *
+   * A timestamp rather than a boolean so an unfreeze is a new fact rather than
+   * a lost one: "frozen at 14:02, unfrozen at 14:09" is answerable, and it is
+   * the question you have after something goes wrong.
+   */
+  frozenAt: timestamp("frozen_at", { withTimezone: true }),
+  /** `0.0.x`. The Hedera pocket the agent pays small amounts from. */
+  hederaAccountId: text("hedera_account_id"),
+  /**
+   * The pocket's private key, encrypted at rest.
+   *
+   * Privy cannot hold this: its policy engine has no method for a raw
+   * secp256k1 signature, so a Hedera transaction it signed would be signed
+   * without any policy evaluated. The caps on this key are therefore ours to
+   * enforce, and `docs/` must say so rather than implying Privy is the leash on
+   * both chains.
+   */
+  hederaKeyCiphertext: text("hedera_key_ciphertext"),
+  /** The wallet Privy minted at login, which we attach a signer to. */
+  privyWalletAddress: text("privy_wallet_address"),
+  privyWalletId: text("privy_wallet_id"),
+});
+
 export const spends = pgTable(
   "spends",
   {
@@ -35,7 +73,6 @@ export const spends = pgTable(
       .defaultNow(),
     id: typeIdPrimaryKey(SpendId),
     idempotencyKey: text("idempotency_key").notNull(),
-    sessionId: typeIdColumn(SessionId, "session_id").notNull(),
     /** `reserved | settled | failed | refused`. Written `reserved` first. */
     status: text("status").notNull(),
     /**
@@ -44,13 +81,16 @@ export const spends = pgTable(
      * exactly when the numbers get interesting.
      */
     usdMicros: bigint("usd_micros", { mode: "number" }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
   },
   (table) => [
-    uniqueIndex("spends_session_idempotency").on(
-      table.sessionId,
+    uniqueIndex("spends_user_idempotency").on(
+      table.userId,
       table.idempotencyKey
     ),
-    index("spends_session_created").on(table.sessionId, table.createdAt),
+    index("spends_user_created").on(table.userId, table.createdAt),
   ]
 );
 
@@ -69,20 +109,24 @@ export const receipts = pgTable(
      */
     document: jsonb("document").notNull(),
     id: typeIdPrimaryKey(ReceiptId),
+    /** The run this receipt belongs to. Not an owner — `user_id` is that. */
     sessionId: typeIdColumn(SessionId, "session_id").notNull(),
     spendId: typeIdColumn(SpendId, "spend_id").notNull(),
     /** Mirrored out of the document so a stubbed run is greppable in SQL. */
     stubbed: boolean("stubbed").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
   },
-  (table) => [
-    index("receipts_session_created").on(table.sessionId, table.createdAt),
-  ]
+  (table) => [index("receipts_user_created").on(table.userId, table.createdAt)]
 );
 
 export const mandates = pgTable("mandates", {
   document: jsonb("document").notNull(),
-  sessionId: typeIdColumn(SessionId, "session_id").primaryKey(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.did),
 });

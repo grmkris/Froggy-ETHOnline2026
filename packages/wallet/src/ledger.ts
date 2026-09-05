@@ -13,24 +13,25 @@
  *      replays, a model that never saw the result tries again. Without the key,
  *      each of those is a second payment for one decision.
  *
- * Spends also serialise per session: `reserve` runs under a per-session
- * promise chain, so the read-then-write of the window total cannot interleave.
+ * Spends also serialise per user: `reserve` runs under a per-user promise
+ * chain, so the read-then-write of the window total cannot interleave.
+ *
+ * Rows are keyed by the **user**, not the session. A session id is generated
+ * per process, so a ledger keyed on it would hand a returning user a fresh
+ * allowance after every restart — which is not a ledger, it is a nightly
+ * amnesty. The user's DID is the thing that is actually stable across a
+ * redeploy, and the cap is a statement about them.
  */
 
-import type {
-  SessionId,
-  SpendId,
-  SpendStatus,
-  UsdMicros,
-} from "@froggy/domain";
+import type { SpendId, SpendStatus, UsdMicros, UserId } from "@froggy/domain";
 
 export interface SpendRow {
   readonly at: number;
   readonly id: SpendId;
   readonly idempotencyKey: string;
-  readonly sessionId: SessionId;
   status: SpendStatus;
   readonly usdMicros: UsdMicros;
+  readonly userId: UserId;
 }
 
 export interface SpendLedger {
@@ -43,7 +44,7 @@ export interface SpendLedger {
   readonly settle: (id: SpendId, status: SpendStatus) => Promise<void>;
   /** Rows inside the window that should count against a cap. */
   readonly since: (
-    sessionId: SessionId,
+    userId: UserId,
     from: number
   ) => Promise<readonly SpendRow[]>;
 }
@@ -62,14 +63,14 @@ const noop = (): void => undefined;
 export const memoryLedger = (): SpendLedger => {
   const rows = new Map<SpendId, SpendRow>();
   const byKey = new Map<string, SpendId>();
-  /** Per-session serialisation. Cheap, and it removes the read-then-write race. */
-  const chains = new Map<SessionId, Promise<unknown>>();
+  /** Per-user serialisation. Cheap, and it removes the read-then-write race. */
+  const chains = new Map<UserId, Promise<unknown>>();
 
   const serialize = async <T>(
-    sessionId: SessionId,
+    userId: UserId,
     work: () => Promise<T>
   ): Promise<T> => {
-    const previous = chains.get(sessionId);
+    const previous = chains.get(userId);
     const next = (async () => {
       // The predecessor's *outcome* is irrelevant; only its completion matters.
       // A failed reservation must not stop the next one from being attempted.
@@ -80,7 +81,7 @@ export const memoryLedger = (): SpendLedger => {
     })();
     // The stored chain must never reject, or the next caller inherits it.
     chains.set(
-      sessionId,
+      userId,
       (async () => {
         await next.catch(noop);
       })()
@@ -90,9 +91,9 @@ export const memoryLedger = (): SpendLedger => {
 
   return {
     reserve: async (row) =>
-      await serialize(row.sessionId, async () => {
+      await serialize(row.userId, async () => {
         await Promise.resolve();
-        const key = `${row.sessionId}:${row.idempotencyKey}`;
+        const key = `${row.userId}:${row.idempotencyKey}`;
         const existingId = byKey.get(key);
         if (existingId !== undefined) {
           const existing = rows.get(existingId);
@@ -114,11 +115,11 @@ export const memoryLedger = (): SpendLedger => {
       }
     },
 
-    since: async (sessionId, from) => {
+    since: async (userId, from) => {
       await Promise.resolve();
       return [...rows.values()].filter(
         (row) =>
-          row.sessionId === sessionId &&
+          row.userId === userId &&
           row.at >= from &&
           // A refusal never consumed anything, so counting it against the cap
           // would let a rejected spend eat the allowance it was denied.

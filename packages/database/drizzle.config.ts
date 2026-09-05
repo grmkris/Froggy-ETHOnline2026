@@ -4,7 +4,7 @@ export default defineConfig({
   dbCredentials: {
     url:
       process.env["DATABASE_URL"] ??
-      "postgres://postgres:postgres@localhost:5432/agent_native",
+      "postgres://postgres:postgres@localhost:5432/froggy",
   },
   dialect: "postgresql",
   out: "./drizzle",
