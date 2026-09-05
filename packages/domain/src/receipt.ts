@@ -70,6 +70,12 @@ export const Receipt = Schema.Struct({
   quote: Quote,
   runId: RunId,
   sessionId: SessionId,
+  /**
+   * Why the payment did not go through, when the policy allowed it and it
+   * still did not: the signer's refusal in its own words, the seller's
+   * error, a network fault. Absent on a settled or refused receipt.
+   */
+  failure: Schema.optional(Schema.String),
   /** Absent when the decision was `deny` or `ask`, or when settlement failed. */
   settlement: Schema.optional(Settlement),
   spendId: SpendId,

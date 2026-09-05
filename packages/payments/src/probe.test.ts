@@ -43,6 +43,17 @@ describe("assess", () => {
     expect(assess({ ...hedera, network: "eip155:8453" }).reason).toContain(
       "eip155:8453"
     );
+    // With an EVM payer available, the same challenge is payable.
+    expect(
+      assess(
+        {
+          ...hedera,
+          extra: { assetTransferMethod: "eip3009" },
+          network: "eip155:8453",
+        },
+        { payable: ["hedera:testnet", "eip155:8453"] }
+      )
+    ).toEqual({ reason: null, supported: true });
     expect(assess({ ...hedera, amount: "0" }).reason).toContain("tinybars");
     expect(assess({ ...hedera, extra: {} }).reason).toContain("fee payer");
   });

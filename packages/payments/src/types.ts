@@ -79,6 +79,8 @@ export const decodePaymentChallenge =
 export interface Payer {
   readonly accountId: string;
   readonly mode: "live" | "stub";
+  /** CAIP-2. The one network this payer can pay on; a challenge is matched to it. */
+  readonly network: string;
   readonly pay: (challenge: PaymentChallenge) => Promise<PaymentAttempt>;
 }
 

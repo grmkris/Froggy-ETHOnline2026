@@ -87,6 +87,7 @@ export class AgentGrants {
         signer: grant.wallet.address,
         smart: grant.wallet.address,
       });
+      session.setWallet(grant.wallet);
     }
     session.setAgentSigner(grant.attached ? "granted" : "absent", grant.reason);
     detached("wallet publish", async () => {

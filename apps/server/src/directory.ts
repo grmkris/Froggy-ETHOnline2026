@@ -22,6 +22,18 @@ export interface DirectoryDeps {
   readonly workspaces: Workspaces;
 }
 
+/**
+ * The networks this deployment can pay on. Hedera through the pocket; the
+ * EVM legs only when Privy is live with an agent key, since the signature
+ * comes from there.
+ */
+const payableNetworks = (deps: DirectoryDeps): readonly string[] => {
+  const { environment } = deps.services;
+  return environment.modes.privy === "live" && environment.privyAgent !== null
+    ? ["hedera:testnet", "eip155:8453", "eip155:84532"]
+    : ["hedera:testnet"];
+};
+
 /** A probe is a read: a GET with the same private-network rules as any other. */
 export const probeUrl = async (
   deps: DirectoryDeps,
@@ -34,15 +46,21 @@ export const probeUrl = async (
   if (!check.ok) {
     return { host: url, kind: "unreachable", reason: check.reason, url };
   }
-  return await probe402(check.url.toString(), async (target) => {
-    try {
-      return await safeFetch(target, {}, outbound);
-    } catch (error) {
-      throw error instanceof OutboundRefusedError
-        ? error
-        : new Error(error instanceof Error ? error.message : "request failed");
-    }
-  });
+  return await probe402(
+    check.url.toString(),
+    async (target) => {
+      try {
+        return await safeFetch(target, {}, outbound);
+      } catch (error) {
+        throw error instanceof OutboundRefusedError
+          ? error
+          : new Error(
+              error instanceof Error ? error.message : "request failed"
+            );
+      }
+    },
+    { payable: payableNetworks(deps) }
+  );
 };
 
 export type AddOutcome =

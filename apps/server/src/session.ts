@@ -96,6 +96,8 @@ export interface SpendRequest {
   readonly signal?: AbortSignal;
   /** Performs the payment. Only called after the policy has allowed it. */
   readonly settle: () => Promise<{
+    /** Why it failed, in the words of whoever refused. Only when `ok` is false. */
+    readonly error?: string;
     readonly network: string;
     readonly ok: boolean;
     readonly stubbed: boolean;
@@ -353,6 +355,9 @@ export class WorkspaceSession {
   private gate: Promise<unknown> = Promise.resolve();
   private hydration: Promise<void> | null = null;
   private addresses: WalletAddresses = { signer: null, smart: null };
+  /** The Privy wallet the agent may sign from, once granted. */
+  private wallet: { readonly address: string; readonly id: string } | null =
+    null;
   /**
    * Whether Privy is holding a signature for the agent on this wallet.
    *
@@ -439,6 +444,17 @@ export class WorkspaceSession {
 
   setAddresses(addresses: WalletAddresses): void {
     this.addresses = addresses;
+  }
+
+  setWallet(
+    wallet: { readonly address: string; readonly id: string } | null
+  ): void {
+    this.wallet = wallet;
+  }
+
+  /** The wallet the agent is a signer on, or null until Privy has said so. */
+  get agentWallet(): { readonly address: string; readonly id: string } | null {
+    return this.agentSigner === "granted" ? this.wallet : null;
   }
 
   /**
@@ -963,7 +979,15 @@ export class WorkspaceSession {
       });
     }
 
-    const outcome = await request.settle().catch(() => unpaid(request));
+    let outcome: Settled;
+    try {
+      outcome = await request.settle();
+    } catch (error) {
+      outcome = {
+        ...unpaid(request),
+        error: error instanceof Error ? error.message : "settlement threw",
+      };
+    }
     publish(outcome);
     await this.deps.ledger.settle(row.id, outcome.ok ? "settled" : "failed");
 
@@ -973,6 +997,7 @@ export class WorkspaceSession {
       at,
       decision,
       evidence: request.evidence,
+      failure: outcome.ok ? undefined : (outcome.error ?? "not settled"),
       intent,
       quote,
       runId: request.runId,
@@ -991,6 +1016,7 @@ export class WorkspaceSession {
     readonly at: number;
     readonly decision: PolicyDecision;
     readonly evidence?: Evidence | undefined;
+    readonly failure?: string | undefined;
     readonly intent: SpendIntent;
     readonly quote: Quote;
     readonly runId: RunIdValue;
@@ -998,7 +1024,10 @@ export class WorkspaceSession {
     readonly spendId: SpendId;
     readonly stubbed: boolean;
   }): SpendResult {
-    const draft: Draft<Receipt, "approval" | "evidence" | "settlement"> = {
+    const draft: Draft<
+      Receipt,
+      "approval" | "evidence" | "failure" | "settlement"
+    > = {
       at: input.at,
       decision: input.decision,
       id: ReceiptId.generate(),
@@ -1016,6 +1045,9 @@ export class WorkspaceSession {
     }
     if (input.evidence !== undefined) {
       draft.evidence = input.evidence;
+    }
+    if (input.failure !== undefined) {
+      draft.failure = input.failure;
     }
     if (input.settlement !== undefined) {
       draft.settlement = input.settlement;

@@ -18,6 +18,7 @@ import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
 import type { OracleGate, Payer, RateSource } from "@froggy/payments";
 import {
+  evmPayer,
   liveHbarRates,
   liveHederaPayer,
   liveOracleGate,
@@ -40,6 +41,14 @@ import type { Environment } from "./environment";
 
 export interface Services {
   readonly environment: Environment;
+  /**
+   * Payers for the EVM legs, for one user's wallet, or none when the agent
+   * has no signer on it. Built per call: the wallet is the user's, and the
+   * signer is the agent key under the policy the user granted.
+   */
+  readonly evmPayersFor: (
+    wallet: { readonly address: string; readonly id: string } | null
+  ) => readonly Payer[];
   readonly graph: GraphClient;
   readonly ledger: SpendLedger;
   readonly oracle: OracleGate;
@@ -110,6 +119,19 @@ export const createServices = (options: ServiceOptions): Services => {
 
   return {
     environment,
+    evmPayersFor: (wallet) => {
+      if (wallet === null) {
+        return [];
+      }
+      const signer = privy.signerFor(wallet);
+      if (signer === null) {
+        return [];
+      }
+      return [
+        evmPayer({ network: "eip155:8453", signer }),
+        evmPayer({ network: "eip155:84532", signer }),
+      ];
+    },
     graph,
     ledger: sql === null ? memoryLedger() : postgresLedger(sql),
     oracle,

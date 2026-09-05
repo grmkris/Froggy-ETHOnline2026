@@ -111,7 +111,7 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "x402 client and resource-server gate, and the Hedera exact scheme.",
     mayImport: [],
-    mayUse: ["@x402/core", "@x402/hedera", "effect"],
+    mayUse: ["@x402/core", "@x402/evm", "@x402/hedera", "effect"],
   },
   {
     dir: "packages/graph",

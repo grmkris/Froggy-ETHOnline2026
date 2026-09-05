@@ -10,8 +10,9 @@
 
 import { Schema } from "effect";
 
-import { decodePaymentChallenge, HEDERA_TESTNET } from "./types";
+import { HEDERA_TESTNET } from "./types";
 import type { PaymentChallenge } from "./types";
+import { challengeFrom } from "./wire";
 
 export interface ProbeOption {
   readonly amount: string;
@@ -61,18 +62,48 @@ const WHOLE_POSITIVE = /^[1-9]\d*$/u;
 const FeePayer = Schema.Struct({ feePayer: Schema.String });
 const decodeFeePayer = Schema.decodeUnknownResult(FeePayer);
 
-export const assess = (requirement: Requirement): Assessment => {
+/** An EVM seller says how the asset moves; absent means the EIP-3009 default. */
+const TransferMethod = Schema.Struct({
+  assetTransferMethod: Schema.optional(Schema.String),
+});
+const decodeTransferMethod = Schema.decodeUnknownResult(TransferMethod);
+
+export interface ProbeOptions {
+  /** The networks this wallet has a payer for. Hedera testnet alone by default. */
+  readonly payable: readonly string[];
+}
+
+const HEDERA_ONLY: ProbeOptions = { payable: [HEDERA_TESTNET] };
+
+export const assess = (
+  requirement: Requirement,
+  probeOptions: ProbeOptions = HEDERA_ONLY
+): Assessment => {
   if (requirement.scheme !== "exact") {
     return {
       reason: `the ${requirement.scheme} scheme is not supported; only exact is`,
       supported: false,
     };
   }
-  if (requirement.network !== HEDERA_TESTNET) {
+  if (!probeOptions.payable.includes(requirement.network)) {
     return {
-      reason: `${requirement.network} is not payable from this wallet yet; only ${HEDERA_TESTNET} is`,
+      reason: `${requirement.network} is not payable from this wallet; ${probeOptions.payable.join(", ")} ${probeOptions.payable.length === 1 ? "is" : "are"}`,
       supported: false,
     };
+  }
+  if (requirement.network !== HEDERA_TESTNET) {
+    // An EVM exact payment is an EIP-3009 authorization; nothing else is built.
+    const decoded = decodeTransferMethod(requirement.extra ?? {});
+    const method =
+      decoded._tag === "Failure"
+        ? "an unreadable method"
+        : (decoded.success.assetTransferMethod ?? "eip3009");
+    return method === "eip3009"
+      ? { reason: null, supported: true }
+      : {
+          reason: `the seller wants ${method}; only eip3009 authorizations are signed`,
+          supported: false,
+        };
   }
   if (!WHOLE_POSITIVE.test(requirement.amount)) {
     return {
@@ -101,7 +132,8 @@ const hostOf = (url: string): string => {
 
 export const probe402 = async (
   url: string,
-  fetcher: (url: string) => Promise<Response>
+  fetcher: (url: string) => Promise<Response>,
+  probeOptions: ProbeOptions = HEDERA_ONLY
 ): Promise<ProbeSummary> => {
   const host = hostOf(url);
   let response: Response;
@@ -118,33 +150,22 @@ export const probe402 = async (
   if (response.status !== 402) {
     return { host, kind: "free", status: response.status, url };
   }
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
+  const decoded = await challengeFrom(response);
+  if (decoded === null) {
     return {
       host,
       kind: "unreachable",
-      reason: "answered 402 without a JSON body",
+      reason: "answered 402 without an x402 challenge in its header or body",
       url,
     };
   }
-  const decoded = decodePaymentChallenge(body);
-  if (decoded._tag === "Failure") {
-    return {
-      host,
-      kind: "unreachable",
-      reason: "answered 402 with a body that is not an x402 challenge",
-      url,
-    };
-  }
-  const options = decoded.success.accepts.map((requirement) => ({
+  const options = decoded.accepts.map((requirement) => ({
     amount: requirement.amount,
     asset: requirement.asset,
     network: requirement.network,
     payTo: requirement.payTo,
     scheme: requirement.scheme,
-    ...assess(requirement),
+    ...assess(requirement, probeOptions),
   }));
   return {
     host,

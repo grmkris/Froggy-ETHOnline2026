@@ -78,6 +78,7 @@ export const liveHederaPayer = (options: LivePayerOptions): Payer => {
   return {
     accountId: options.accountId,
     mode: "live",
+    network: HEDERA_TESTNET,
     pay: async (challenge) => {
       const requirements = selectRequirements(challenge);
       if (requirements === null) {
@@ -138,6 +139,7 @@ export const STUB_ACCOUNT_ID = "0.0.0";
 export const stubHederaPayer = (): Payer => ({
   accountId: STUB_ACCOUNT_ID,
   mode: "stub",
+  network: HEDERA_TESTNET,
   pay: async (challenge) => {
     await Promise.resolve();
     const requirements = selectRequirements(challenge);

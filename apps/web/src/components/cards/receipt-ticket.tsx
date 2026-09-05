@@ -48,7 +48,9 @@ const headline = (receipt: Receipt): string => {
   if (receipt.settlement !== undefined) {
     return `Paid ${receipt.intent.payee.label}`;
   }
-  return `Allowed, not settled — ${receipt.intent.payee.label}`;
+  return receipt.failure === undefined
+    ? `Allowed, not settled — ${receipt.intent.payee.label}`
+    : `Allowed, but not paid: ${receipt.failure}`;
 };
 
 const StubLine = ({
@@ -138,6 +140,9 @@ export const ReceiptTicket = ({
             label={receipt.settlement.network}
             value={receipt.settlement.transactionId}
           />
+        )}
+        {receipt.failure === undefined ? null : (
+          <StubLine label="not settled" value={receipt.failure} />
         )}
         {receipt.evidence === undefined ? null : (
           <StubLine

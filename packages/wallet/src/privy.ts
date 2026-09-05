@@ -21,7 +21,9 @@ import type { LinkedAccount } from "@privy-io/node";
 import { PrivyClient } from "@privy-io/node";
 
 import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
-import type { AgentGrant, AgentKey } from "./agent-signer";
+import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
+import { privyTypedDataSigner } from "./evm-signer";
+import type { AgentTypedDataSigner } from "./evm-signer";
 
 /**
  * The two addresses, kept distinct on purpose.
@@ -56,6 +58,11 @@ export interface PrivyServer {
   readonly mode: "live" | "stub";
   /** Remove the signer. This is what freezing does, and it is a revocation. */
   readonly revokeAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
+  /**
+   * A signer for this wallet under the agent key and its policy, or null
+   * when no agent key is configured. Never the user's own authority.
+   */
+  readonly signerFor: (wallet: UserWallet) => AgentTypedDataSigner | null;
   /** Returns the Privy DID, or null when the token is absent or invalid. */
   readonly verify: (accessToken: string) => Promise<string | null>;
 }
@@ -151,6 +158,11 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
         did: request.did,
       }),
 
+    signerFor: (wallet) =>
+      options.agent === null
+        ? null
+        : privyTypedDataSigner(client, { agent: options.agent, wallet }),
+
     verify: async (accessToken) => {
       try {
         const claims = await client
@@ -208,6 +220,7 @@ export const stubPrivyServer = (): PrivyServer => ({
     };
   },
   mode: "stub",
+  signerFor: () => null,
   revokeAgent: async () => {
     await Promise.resolve();
     return { attached: false, reason: null, wallet: null };

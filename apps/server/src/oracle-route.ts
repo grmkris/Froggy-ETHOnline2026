@@ -13,7 +13,11 @@
 
 import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
 import type { GraphClient } from "@froggy/graph";
-import { encodeSettlementHeader } from "@froggy/payments";
+import {
+  encodeChallengeHeader,
+  encodeSettlementHeader,
+  paymentFrom,
+} from "@froggy/payments";
 import type { OracleGate } from "@froggy/payments";
 
 /** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. */
@@ -37,11 +41,15 @@ export const handleOracleRequest = async (
     url: deps.publicUrl,
   };
 
-  const payment = request.headers.get("x-payment");
+  const payment = paymentFrom(request.headers);
   if (payment === null) {
     const challenge = deps.gate.challenge(resource);
+    // Body for v1 buyers, header for v2 ones; the same challenge either way.
     return Response.json(challenge, {
-      headers: { "cache-control": "no-store" },
+      headers: {
+        "cache-control": "no-store",
+        "payment-required": encodeChallengeHeader(challenge),
+      },
       status: 402,
     });
   }
@@ -73,13 +81,12 @@ export const handleOracleRequest = async (
     // The x402 convention for handing the settlement back to the payer: the
     // base64 `SettleResponse` envelope, which is what the agent — ours or
     // anyone's — puts on its receipt.
-    headers.set(
-      "x-payment-response",
-      encodeSettlementHeader({
-        network: requirements.network,
-        transactionId: settled.transactionId,
-      })
-    );
+    const settlement = encodeSettlementHeader({
+      network: requirements.network,
+      transactionId: settled.transactionId,
+    });
+    headers.set("x-payment-response", settlement);
+    headers.set("payment-response", settlement);
   }
 
   return Response.json(

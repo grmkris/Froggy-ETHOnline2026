@@ -23,7 +23,7 @@
  */
 
 import type { BrowserHandle } from "@froggy/browser";
-import { KNOWN_ASSETS, publicHttpUrl } from "@froggy/domain";
+import { KNOWN_ASSETS, Network, publicHttpUrl } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
@@ -31,9 +31,14 @@ import {
   snapshotHash,
 } from "@froggy/graph";
 import {
-  decodePaymentChallenge,
+  challengeFrom,
   decodeSettlementHeader,
+  paymentHeaders,
+  settlementHeaderFrom,
+  SignerRefusedError,
 } from "@froggy/payments";
+import type { PaymentAttempt, PaymentChallenge } from "@froggy/payments";
+import { PrivySignerRefusedError } from "@froggy/wallet";
 import { tool } from "ai";
 import { Schema } from "effect";
 
@@ -42,11 +47,46 @@ import { OutboundRefusedError, readCapped, safeFetch } from "./outbound";
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
-import type { SpendResult, WorkspaceSession } from "./session";
+import type { SpendRequest, SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
 import type { Workspaces } from "./workspaces";
 
 const OUTPUT_CAP = 50_000;
+
+/**
+ * The asset a seller quoted, as the ledger prices it. Known USDC contracts
+ * get their name and decimals; HBAR is the Hedera testnet's native unit;
+ * anything else is carried as it was quoted, which the policy will refuse
+ * to price rather than guess at.
+ */
+const isNetwork = Schema.is(Network);
+
+const assetFor = (
+  requirement: PaymentChallenge["accepts"][number]
+): SpendRequest["amount"] | null => {
+  if (!isNetwork(requirement.network)) {
+    return null;
+  }
+  const { network } = requirement;
+  const known = Object.values(KNOWN_ASSETS).find(
+    (asset) =>
+      asset.network === network &&
+      asset.id.toLowerCase() === requirement.asset.toLowerCase()
+  );
+  if (known !== undefined) {
+    return { asset: known, units: requirement.amount };
+  }
+  const hedera = network === "hedera:testnet";
+  return {
+    asset: {
+      decimals: hedera ? 8 : 6,
+      id: requirement.asset,
+      network,
+      symbol: hedera ? "HTS" : "TOKEN",
+    },
+    units: requirement.amount,
+  };
+};
 
 /**
  * Truncate without splitting a surrogate pair.
@@ -276,35 +316,43 @@ export const buildTools = (deps: ToolDeps) => {
           return cap(await readCapped(first));
         }
 
-        // SAFETY: a 402 body is the x402 `PaymentRequired` envelope by
-        // specification. Only `accepts[0]`'s three fields are read here, and
-        // the payer re-selects a requirement it can actually satisfy before
-        // signing anything.
         // Decoded, not asserted: this is a *seller* telling the agent what to
         // pay and where to send it. The host allowlist is what stops us
         // reaching a hostile one; this is what stops a malformed reply from
-        // becoming a payment with `undefined` in it.
-        const decoded = decodePaymentChallenge(await first.json());
-        if (decoded._tag === "Failure") {
+        // becoming a payment with `undefined` in it. Either dialect: the v2
+        // header or the v1 body.
+        const challenge = await challengeFrom(first);
+        if (challenge === null) {
           return "That server asked for payment but its 402 did not carry usable requirements.";
         }
-        const challenge = decoded.success;
-        const [requirement] = challenge.accepts;
-        if (requirement === undefined) {
-          return "The server asked for payment but offered no requirements.";
+        // The first offer this wallet has a payer for: the Hedera pocket, or
+        // the person's own Privy wallet with the agent as its signer.
+        const payers = [
+          services.payer,
+          ...services.evmPayersFor(session.agentWallet),
+        ];
+        const offer = challenge.accepts
+          .map((requirement) => ({
+            payer: payers.find(
+              (candidate) =>
+                candidate.network === requirement.network &&
+                requirement.scheme === "exact"
+            ),
+            requirement,
+          }))
+          .find((entry) => entry.payer !== undefined);
+        if (offer?.payer === undefined) {
+          return `The server asked for payment on ${challenge.accepts.map((entry) => entry.network).join(", ")}, and this wallet can pay on ${payers.map((entry) => entry.network).join(", ")}. Nothing was paid.`;
+        }
+        const { payer, requirement } = offer;
+        const amount = assetFor(requirement);
+        if (amount === null) {
+          return `The server wants to be paid on ${requirement.network}, which this wallet does not know. Nothing was paid.`;
         }
 
         let paidBody: string | null = null;
         const request: Parameters<typeof session.spend>[0] = {
-          amount: {
-            asset: {
-              decimals: 8,
-              id: requirement.asset,
-              network: "hedera:testnet",
-              symbol: requirement.asset === "0.0.0" ? "HBAR" : "HTS",
-            },
-            units: requirement.amount,
-          },
+          amount,
           host: target.host,
           // Stable across retries of the same logical purchase, so an SDK retry
           // or a reconnect cannot pay twice for one decision.
@@ -320,10 +368,30 @@ export const buildTools = (deps: ToolDeps) => {
           runId: deps.run.id,
           signal: deps.run.signal,
           settle: async () => {
-            const attempt = await services.payer.pay(challenge);
+            let attempt: PaymentAttempt;
+            try {
+              attempt = await payer.pay(challenge);
+            } catch (error) {
+              // The signer said no — Privy, naming its policy — and that is
+              // the leash working. It goes on the receipt in those words.
+              if (
+                error instanceof SignerRefusedError ||
+                error instanceof PrivySignerRefusedError
+              ) {
+                return {
+                  error: error.message,
+                  network: requirement.network,
+                  ok: false,
+                  stubbed: false,
+                  transactionId: null,
+                };
+              }
+              throw error;
+            }
             if (attempt.header === null) {
               return {
-                network: "hedera:testnet",
+                error: attempt.error ?? "no payment could be built",
+                network: requirement.network,
                 ok: false,
                 stubbed: attempt.stubbed,
                 transactionId: null,
@@ -331,7 +399,7 @@ export const buildTools = (deps: ToolDeps) => {
             }
             const paid = await safeFetch(
               url,
-              { headers: { "x-payment": attempt.header } },
+              { headers: new Headers({ ...paymentHeaders(attempt.header) }) },
               outbound
             );
             paidBody = await readCapped(paid);
@@ -339,14 +407,17 @@ export const buildTools = (deps: ToolDeps) => {
             // seller's bare id is accepted too. Neither is trusted as more
             // than a transaction reference for the receipt.
             const settlement = decodeSettlementHeader(
-              paid.headers.get("x-payment-response")
+              settlementHeaderFrom(paid.headers)
             );
-            return {
-              network: settlement?.network ?? "hedera:testnet",
+            const outcome = {
+              network: settlement?.network ?? requirement.network,
               ok: paid.ok,
               stubbed: attempt.stubbed,
               transactionId: settlement?.transactionId ?? null,
             };
+            return paid.ok
+              ? outcome
+              : { ...outcome, error: `the seller answered ${paid.status}` };
           },
         };
         if (lastEvidence !== undefined) {

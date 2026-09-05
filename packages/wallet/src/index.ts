@@ -1,3 +1,5 @@
+export { PrivySignerRefusedError } from "./evm-signer";
+export type { AgentTypedDataSigner } from "./evm-signer";
 export { memoryLedger } from "./ledger";
 export { postgresLedger } from "./ledger-postgres";
 export type { SpendLedger, SpendRow } from "./ledger";
