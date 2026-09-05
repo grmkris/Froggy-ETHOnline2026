@@ -68,6 +68,8 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
 export interface ToolDeps {
   /** This caller's own Chrome. One per signed-in user, never shared. */
   readonly browser: BrowserHandle;
+  /** False for a job: nobody can be asked, so an `ask` is refused. */
+  readonly interactive?: boolean;
   readonly run: ChatRun;
   readonly services: Services;
   readonly session: WorkspaceSession;
@@ -246,6 +248,17 @@ export const buildTools = (deps: ToolDeps) => {
         if (!session.allowsHost(target.host)) {
           return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested.`;
         }
+        // A digest is a summary, not a shopping trip: unattended, it pays at
+        // most once, however many paid pages it finds.
+        if (
+          deps.interactive === false &&
+          session.history.some(
+            (receipt) =>
+              receipt.runId === deps.run.id && receipt.settlement !== undefined
+          )
+        ) {
+          return "Refused before sending: an unattended digest pays at most once, and this one already has. Write the summary with what you have.";
+        }
         let first: Response;
         try {
           first = await safeFetch(url, {}, outbound);
@@ -299,6 +312,7 @@ export const buildTools = (deps: ToolDeps) => {
           // and not out of the model.
           provenance: "server",
           purpose: `x402 payment for ${target.pathname}`,
+          interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,
           settle: async () => {
@@ -364,6 +378,7 @@ export const buildTools = (deps: ToolDeps) => {
           // way through, and only a human can do that.
           provenance: "model",
           purpose,
+          interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,
           settle: async () => {

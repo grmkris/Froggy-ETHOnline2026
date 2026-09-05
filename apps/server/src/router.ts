@@ -12,6 +12,8 @@
  * about answering questions.
  */
 
+import { DigestSchedule } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 import { Schema } from "effect";
 
 import { authenticate, bearerFromRequest } from "./auth";
@@ -37,6 +39,7 @@ export const ORACLE_PATH = "/oracle/snapshot";
  */
 const ChatBody = Schema.Struct({ messages: Schema.Array(Schema.Unknown) });
 const decodeChatBody = Schema.decodeUnknownResult(ChatBody);
+const decodeDigest = Schema.decodeUnknownResult(DigestSchedule);
 
 /** Every JSON response this server sends. Named so the shapes stay enumerable. */
 type ResponseBody =
@@ -47,6 +50,7 @@ type ResponseBody =
       readonly status: string;
     }
   | { readonly deleted: true }
+  | DigestSchedule
   | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
@@ -94,6 +98,23 @@ const serveStatic = async (
     return new Response(file);
   }
   return new Response(Bun.file(`${directory}/index.html`));
+};
+
+/** The digest schedule: read it, or replace it. */
+const handleDigest = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId
+): Promise<Response> => {
+  if (request.method !== "PUT") {
+    return json(await deps.services.store.digest.load(userId));
+  }
+  const decoded = decodeDigest(await request.json());
+  if (decoded._tag === "Failure") {
+    return json({ error: "Malformed digest schedule." }, 400);
+  }
+  await deps.services.store.digest.save(userId, decoded.success);
+  return json(decoded.success);
 };
 
 const handleApi = async (
@@ -170,6 +191,10 @@ const handleApi = async (
     return new Response(replay.pipeThrough(new TextEncoderStream()), {
       headers: { "content-type": "text/event-stream" },
     });
+  }
+
+  if (pathname === "/api/digest") {
+    return await handleDigest(deps, request, userId);
   }
 
   if (pathname === "/api/me" && request.method === "DELETE") {

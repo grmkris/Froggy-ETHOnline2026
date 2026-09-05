@@ -40,6 +40,7 @@ import type { ReactElement } from "react";
 import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { DigestSettings } from "./digest-settings";
 import { MandateEditor } from "./mandate-editor";
 
 interface DetailsDrawerProps {
@@ -207,6 +208,7 @@ const About = ({
           </Badge>
         ))}
       </div>
+      <DigestSettings />
       <div className="flex flex-wrap gap-2 pt-2">
         {identity.stubbed ? null : (
           <Button

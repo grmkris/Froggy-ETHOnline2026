@@ -11,11 +11,19 @@
  * behind one interface. Nothing above this line knows which it holds.
  */
 
-import { Mandate, Receipt } from "@froggy/domain";
-import type { UserId } from "@froggy/domain";
+import { Mandate, NO_DIGEST, Receipt } from "@froggy/domain";
+import type { DigestSchedule, UserId } from "@froggy/domain";
 import { Result, Schema } from "effect";
 
 export interface Store {
+  readonly digest: {
+    /** Every user with a digest hour set, for the scheduler's minute tick. */
+    readonly all: () => Promise<
+      readonly { readonly schedule: DigestSchedule; readonly userId: UserId }[]
+    >;
+    readonly load: (userId: UserId) => Promise<DigestSchedule>;
+    readonly save: (userId: UserId, schedule: DigestSchedule) => Promise<void>;
+  };
   /**
    * Everything this store holds about one person: mandate, receipts, the
    * frozen flag. The ledger's spend rows are not here — they are the money
@@ -66,9 +74,27 @@ export const memoryStore = (): Store => {
   const frozen = new Map<UserId, boolean>();
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
+  const digests = new Map<UserId, DigestSchedule>();
   return {
+    digest: {
+      all: async () => {
+        await Promise.resolve();
+        return [...digests.entries()]
+          .filter(([, schedule]) => schedule.hour !== null)
+          .map(([userId, schedule]) => ({ schedule, userId }));
+      },
+      load: async (userId) => {
+        await Promise.resolve();
+        return digests.get(userId) ?? NO_DIGEST;
+      },
+      save: async (userId, schedule) => {
+        await Promise.resolve();
+        digests.set(userId, schedule);
+      },
+    },
     forget: async (userId) => {
       await Promise.resolve();
+      digests.delete(userId);
       frozen.delete(userId);
       mandates.delete(userId);
       receipts.delete(userId);

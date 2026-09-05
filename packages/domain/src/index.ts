@@ -15,6 +15,7 @@ export {
   ApprovalRecord,
   ApprovalResolution,
 } from "./approval";
+export { DigestSchedule, NO_DIGEST } from "./digest";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {

@@ -25,6 +25,7 @@ import {
   bigint,
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -40,6 +41,13 @@ export const users = pgTable("users", {
     .defaultNow(),
   /** Privy's DID. The identity, owned by Privy; this is a foreign key to it. */
   did: text("did").primaryKey(),
+  /**
+   * The local hour (0–23) the daily digest runs, or null for never, in the
+   * IANA zone beside it. Stored as the person said it, not as UTC: a digest
+   * "at eight" should still be at eight after the clocks change.
+   */
+  digestHour: integer("digest_hour"),
+  digestTimezone: text("digest_timezone"),
   /**
    * When the user froze their wallet, or null.
    *

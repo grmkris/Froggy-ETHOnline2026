@@ -9,8 +9,9 @@
  */
 
 import { mandates, receipts, users } from "@froggy/database";
-import type { UserId } from "@froggy/domain";
-import { desc, eq } from "drizzle-orm";
+import { decodeUserId, NO_DIGEST } from "@froggy/domain";
+import type { DigestSchedule, UserId } from "@froggy/domain";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { Result } from "effect";
 import type { Sql } from "postgres";
@@ -24,6 +25,50 @@ export const postgresStore = (sql: Sql): Store => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
   return {
+    digest: {
+      all: async () => {
+        const rows = await database
+          .select({
+            did: users.did,
+            hour: users.digestHour,
+            timezone: users.digestTimezone,
+          })
+          .from(users)
+          .where(isNotNull(users.digestHour));
+        const scheduled: {
+          readonly schedule: DigestSchedule;
+          readonly userId: UserId;
+        }[] = [];
+        for (const row of rows) {
+          const decoded = decodeUserId(row.did);
+          if (Result.isSuccess(decoded) && row.hour !== null) {
+            scheduled.push({
+              schedule: { hour: row.hour, timezone: row.timezone ?? "UTC" },
+              userId: decoded.success,
+            });
+          }
+        }
+        return scheduled;
+      },
+      load: async (userId) => {
+        const rows = await database
+          .select({ hour: users.digestHour, timezone: users.digestTimezone })
+          .from(users)
+          .where(eq(users.did, userId))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined
+          ? NO_DIGEST
+          : { hour: row.hour, timezone: row.timezone ?? "UTC" };
+      },
+      save: async (userId, schedule) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({ digestHour: schedule.hour, digestTimezone: schedule.timezone })
+          .where(eq(users.did, userId));
+      },
+    },
     forget: async (userId) => {
       await database.delete(receipts).where(eq(receipts.userId, userId));
       await database.delete(mandates).where(eq(mandates.userId, userId));
@@ -31,7 +76,7 @@ export const postgresStore = (sql: Sql): Store => {
       // is a money record that outlives the person's preferences.
       await database
         .update(users)
-        .set({ frozenAt: null })
+        .set({ digestHour: null, digestTimezone: null, frozenAt: null })
         .where(eq(users.did, userId));
     },
     frozen: {

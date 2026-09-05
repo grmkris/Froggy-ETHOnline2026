@@ -22,9 +22,11 @@ import { createFreeze } from "./freeze";
 import type { FreezeControl } from "./freeze";
 import { AgentGrants } from "./grants";
 import { InteractionRegistry } from "./interactions";
+import { logDigestSink, runDailyFor } from "./jobs";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
+import { createDigestScheduler } from "./scheduler";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
@@ -32,6 +34,8 @@ import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
 const SWEEP_INTERVAL_MS = 60_000;
+/** The digest clock. A minute, because a digest is due during an hour. */
+const DIGEST_TICK_MS = 60_000;
 
 class FroggyServer extends Context.Service<
   FroggyServer,
@@ -200,6 +204,23 @@ class FroggyServer extends Context.Service<
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
+      // Digests run unattended, under the person's own mandate, with nobody
+      // to ask. The sink is a log until a Telegram thread exists to post to.
+      const scheduler = createDigestScheduler({
+        run: async (userId) => {
+          await runDailyFor(
+            { oracleUrl, runs, services, sink: logDigestSink(), workspaces },
+            userId
+          );
+        },
+        scheduled: async () => await services.store.digest.all(),
+      });
+      const digestTick = setInterval(() => {
+        detached("digest tick", async () => {
+          await scheduler.tick();
+        });
+      }, DIGEST_TICK_MS);
+
       const routerDeps = {
         environment,
         grants,
@@ -262,6 +283,7 @@ class FroggyServer extends Context.Service<
         (running) =>
           Effect.promise(async () => {
             clearInterval(sweep);
+            clearInterval(digestTick);
             await running.stop(true);
             await workspaces.closeAll();
             await services.shutdown();
