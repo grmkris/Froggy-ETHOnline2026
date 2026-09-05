@@ -28,7 +28,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.2
 
       - name: Install locked dependencies
         # Equivalent to `bun ci`, spelled out because `bun ci` is not listed in

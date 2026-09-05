@@ -75,7 +75,7 @@ Do not put a funded key on the deployment until the first two are closed.
 
 ## Things that will bite
 
-- `Bun.WebView` is absent from `@types/bun@1.4.0`; the declaration in `packages/browser/types/webview.d.ts` is hand-written from the runtime prototype. If a Bun upgrade changes the shape, that file is where it breaks.
+- `Bun.WebView` is typed by `@types/bun` from 1.4.1 on; the repo pins Bun 1.4.2 (`.bun-version`, `packageManager`, CI, Dockerfile). A Bun upgrade that changes the WebView shape surfaces in `packages/browser/src/session.ts` and `cdp.ts`.
 - The Chrome profile is persistent and shared. The agent browses as whoever is logged into it. That is the product and the risk in one sentence.
 - Railway rejects a `VOLUME` instruction in a Dockerfile outright. The mount is declared in `.railway/railway.ts` instead.
 - `checkSuites: true` means the deploy waits on the Actions run for the pushed sha. Do not add `paths-ignore` to CI — a sha with no run has nothing to wait on and the deploy hangs in WAITING forever.

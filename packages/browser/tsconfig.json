@@ -5,5 +5,5 @@
     "strictNullChecks": true,
     "types": ["bun"]
   },
-  "include": ["src", "types"]
+  "include": ["src"]
 }

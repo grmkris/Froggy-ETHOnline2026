@@ -20,7 +20,7 @@
 # argument list Bun supplies.
 
 # ---- builder ----------------------------------------------------------------
-FROM oven/bun:1.4.0 AS builder
+FROM oven/bun:1.4.2 AS builder
 WORKDIR /app
 
 # Manifests and the lockfile first, so the install layer survives source edits.
@@ -53,7 +53,7 @@ ENV VITE_PRIVY_APP_ID=$VITE_PRIVY_APP_ID
 RUN bun run --filter=@froggy/web build
 
 # ---- runtime ----------------------------------------------------------------
-FROM oven/bun:1.4.0 AS runtime
+FROM oven/bun:1.4.2 AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
