@@ -23,31 +23,25 @@
  */
 
 import type { BrowserHandle } from "@froggy/browser";
-import { KNOWN_ASSETS, Network, publicHttpUrl } from "@froggy/domain";
+import { KNOWN_ASSETS, publicHttpUrl } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
   describeDeployments,
+  liveGraphClient,
   snapshotHash,
+  x402Transport,
 } from "@froggy/graph";
-import {
-  challengeFrom,
-  decodeSettlementHeader,
-  paymentHeaders,
-  settlementHeaderFrom,
-  SignerRefusedError,
-} from "@froggy/payments";
-import type { PaymentAttempt, PaymentChallenge } from "@froggy/payments";
-import { PrivySignerRefusedError } from "@froggy/wallet";
+import type { GraphClient } from "@froggy/graph";
 import { tool } from "ai";
 import { Schema } from "effect";
 
 import { describeProbe, probeUrl } from "./directory";
-import { OutboundRefusedError, readCapped, safeFetch } from "./outbound";
+import { paidRequest } from "./paid-request";
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
-import type { SpendRequest, SpendResult, WorkspaceSession } from "./session";
+import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
 import type { Workspaces } from "./workspaces";
 
@@ -59,35 +53,6 @@ const OUTPUT_CAP = 50_000;
  * anything else is carried as it was quoted, which the policy will refuse
  * to price rather than guess at.
  */
-const isNetwork = Schema.is(Network);
-
-const assetFor = (
-  requirement: PaymentChallenge["accepts"][number]
-): SpendRequest["amount"] | null => {
-  if (!isNetwork(requirement.network)) {
-    return null;
-  }
-  const { network } = requirement;
-  const known = Object.values(KNOWN_ASSETS).find(
-    (asset) =>
-      asset.network === network &&
-      asset.id.toLowerCase() === requirement.asset.toLowerCase()
-  );
-  if (known !== undefined) {
-    return { asset: known, units: requirement.amount };
-  }
-  const hedera = network === "hedera:testnet";
-  return {
-    asset: {
-      decimals: hedera ? 8 : 6,
-      id: requirement.asset,
-      network,
-      symbol: hedera ? "HTS" : "TOKEN",
-    },
-    units: requirement.amount,
-  };
-};
-
 /**
  * Truncate without splitting a surrogate pair.
  *
@@ -176,6 +141,53 @@ export const buildTools = (deps: ToolDeps) => {
   // must reach is on it too. Everywhere else the private network is off limits.
   const outbound = { allowPrivate: !services.environment.blockPrivateNetwork };
 
+  /**
+   * The Graph, paid per query when this deployment says so and the person's
+   * wallet can sign: each deployment's query becomes an x402 payment to the
+   * gateway, judged by the mandate like any other, one receipt each. The
+   * Studio key otherwise. Either way the same standardized query.
+   */
+  const graphFor = (symbol: string): GraphClient => {
+    const { environment } = services;
+    if (!environment.graphPayPerQuery || session.agentWallet === null) {
+      return services.graph;
+    }
+    const minute = Math.floor(Date.now() / 60_000);
+    return liveGraphClient({
+      apiKey: "",
+      gatewayUrl: environment.graphGatewayUrl,
+      transport: x402Transport(async (url, body) => {
+        const outcome = await paidRequest(
+          {
+            interactive: deps.interactive ?? true,
+            outbound,
+            run: deps.run,
+            services,
+            session,
+          },
+          {
+            // One payment per deployment per minute, however many times the
+            // model asks: the same block, the same answer, the same receipt.
+            idempotencyKey: `graph:${url}:${symbol.toUpperCase()}:${minute}`,
+            init: {
+              body,
+              headers: { "content-type": "application/json" },
+              method: "POST",
+            },
+            purpose: `The Graph query, ${symbol.toUpperCase()} lending markets`,
+            url,
+          }
+        );
+        return outcome.kind === "refused"
+          ? Response.json(
+              { errors: [{ message: outcome.message }] },
+              { status: 402 }
+            )
+          : new Response(outcome.body, { status: outcome.status });
+      }),
+    });
+  };
+
   return {
     browser_navigate: tool({
       description:
@@ -243,7 +255,7 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Live lending markets across four pinned Graph deployments — Aave v3 on Ethereum and Base, Compound v3, Spark — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. This is the evidence a spend has to be justified by; query it before you pay for anything derived from it.",
       execute: async ({ symbol }) => {
-        const snapshot = await services.graph.lendingMarkets(symbol);
+        const snapshot = await graphFor(symbol).lendingMarkets(symbol);
         // Held so a payment made right after a query can cite what it was
         // acting on, rather than the receipt saying only that money moved.
         lastEvidence = {
@@ -278,179 +290,18 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit.",
       execute: async ({ url }) => {
-        const check = publicHttpUrl(url, outbound);
-        if (!check.ok) {
-          return `Refused before sending: ${check.reason}. Nothing was requested.`;
-        }
-        const target = check.url;
-        // Checked before the request, not after it. The old order fetched the
-        // model's URL first and consulted the policy only once a 402 came
-        // back — so a prompt injection could make this server issue an
-        // arbitrary outbound request, and the refusal arrived long after the
-        // request had already been sent. The allowlist was always the control;
-        // asking it first is what makes it one.
-        if (!session.allowsHost(target.host)) {
-          return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested. Use x402_probe to see what it costs; only the person can add it to the directory.`;
-        }
-        // A digest is a summary, not a shopping trip: unattended, it pays at
-        // most once, however many paid pages it finds.
-        if (
-          deps.interactive === false &&
-          session.history.some(
-            (receipt) =>
-              receipt.runId === deps.run.id && receipt.settlement !== undefined
-          )
-        ) {
-          return "Refused before sending: an unattended digest pays at most once, and this one already has. Write the summary with what you have.";
-        }
-        let first: Response;
-        try {
-          first = await safeFetch(url, {}, outbound);
-        } catch (error) {
-          if (error instanceof OutboundRefusedError) {
-            return error.message;
-          }
-          throw error;
-        }
-        if (first.status !== 402) {
-          return cap(await readCapped(first));
-        }
-
-        // Decoded, not asserted: this is a *seller* telling the agent what to
-        // pay and where to send it. The host allowlist is what stops us
-        // reaching a hostile one; this is what stops a malformed reply from
-        // becoming a payment with `undefined` in it. Either dialect: the v2
-        // header or the v1 body.
-        const challenge = await challengeFrom(first);
-        if (challenge === null) {
-          return "That server asked for payment but its 402 did not carry usable requirements.";
-        }
-        // The first offer this wallet has a payer for: the Hedera pocket, or
-        // the person's own Privy wallet with the agent as its signer.
-        const payers = [
-          services.payer,
-          ...services.evmPayersFor(session.agentWallet),
-        ];
-        const offer = challenge.accepts
-          .map((requirement) => ({
-            payer: payers.find(
-              (candidate) =>
-                candidate.network === requirement.network &&
-                requirement.scheme === "exact"
-            ),
-            requirement,
-          }))
-          .find((entry) => entry.payer !== undefined);
-        if (offer?.payer === undefined) {
-          return `The server asked for payment on ${challenge.accepts.map((entry) => entry.network).join(", ")}, and this wallet can pay on ${payers.map((entry) => entry.network).join(", ")}. Nothing was paid.`;
-        }
-        const { payer, requirement } = offer;
-        const amount = assetFor(requirement);
-        if (amount === null) {
-          return `The server wants to be paid on ${requirement.network}, which this wallet does not know. Nothing was paid.`;
-        }
-
-        let paidBody: string | null = null;
-        const request: Parameters<typeof session.spend>[0] = {
-          amount,
-          host: target.host,
-          // Stable across retries of the same logical purchase, so an SDK retry
-          // or a reconnect cannot pay twice for one decision.
-          idempotencyKey: `x402:${url}:${requirement.amount}`,
-          payeeId: requirement.payTo,
-          payeeLabel: `${target.host} (x402)`,
-          // `server`, because the payee came out of a 402 challenge from a host
-          // that is itself on the mandate's allowlist — not out of page text
-          // and not out of the model.
-          provenance: "server",
-          purpose: `x402 payment for ${target.pathname}`,
-          interactive: deps.interactive ?? true,
-          runId: deps.run.id,
-          signal: deps.run.signal,
-          settle: async () => {
-            let attempt: PaymentAttempt;
-            try {
-              attempt = await payer.pay(challenge);
-            } catch (error) {
-              // The signer said no — Privy, naming its policy — and that is
-              // the leash working. It goes on the receipt in those words.
-              if (
-                error instanceof SignerRefusedError ||
-                error instanceof PrivySignerRefusedError
-              ) {
-                return {
-                  error: error.message,
-                  network: requirement.network,
-                  ok: false,
-                  stubbed: false,
-                  transactionId: null,
-                };
-              }
-              throw error;
-            }
-            if (attempt.header === null) {
-              return {
-                error: attempt.error ?? "no payment could be built",
-                network: requirement.network,
-                ok: false,
-                stubbed: attempt.stubbed,
-                transactionId: null,
-              };
-            }
-            const paid = await safeFetch(
-              url,
-              { headers: new Headers({ ...paymentHeaders(attempt.header) }) },
-              outbound
-            );
-            paidBody = await readCapped(paid);
-            // The settlement comes back as x402's base64 envelope; an older
-            // seller's bare id is accepted too. Neither is trusted as more
-            // than a transaction reference for the receipt.
-            const settlement = decodeSettlementHeader(
-              settlementHeaderFrom(paid.headers)
-            );
-            const outcome = {
-              network: settlement?.network ?? requirement.network,
-              ok: paid.ok,
-              stubbed: attempt.stubbed,
-              transactionId: settlement?.transactionId ?? null,
-            };
-            if (!paid.ok) {
-              return {
-                ...outcome,
-                error: `the seller answered ${paid.status}`,
-              };
-            }
-            if (outcome.transactionId === null || attempt.stubbed) {
-              return outcome;
-            }
-            // The buyer's public note, awaited: its sequence number belongs
-            // on the receipt, and a note that fails to post costs nothing
-            // but the number.
-            const note = await services.hcs.record({
-              amount: requirement.amount,
-              asset: requirement.asset,
-              at: Date.now(),
-              kind: "paid",
-              network: outcome.network,
-              ref: null,
-              transactionId: outcome.transactionId,
-            });
-            return note === null
-              ? outcome
-              : { ...outcome, hcsSequence: note.sequenceNumber };
+        const outcome = await paidRequest(
+          {
+            evidence: lastEvidence,
+            interactive: deps.interactive ?? true,
+            outbound,
+            run: deps.run,
+            services,
+            session,
           },
-        };
-        if (lastEvidence !== undefined) {
-          // The Graph answer this purchase is justified by, so the receipt can
-          // say what the agent was acting on and not merely that it paid.
-          request.evidence = lastEvidence;
-        }
-        const { message } = await explainSpend(session.spend(request));
-        if (message !== null) {
-          return message;
-        }
-        return cap(paidBody ?? "Paid, but the server returned no body.");
+          { url }
+        );
+        return outcome.kind === "refused" ? outcome.message : cap(outcome.body);
       },
       inputSchema: std(Schema.Struct({ url: Schema.String })),
     }),

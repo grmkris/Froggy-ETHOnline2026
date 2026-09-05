@@ -93,6 +93,7 @@ export default defineRailway((ctx) => {
       EXTRA_ORIGINS: preserve(),
       GRAPH_API_KEY: preserve(),
       GRAPH_GATEWAY_URL: preserve(),
+      GRAPH_PAY_PER_QUERY: preserve(),
       HEDERA_ACCOUNT_ID: preserve(),
       HEDERA_FACILITATOR_URL: preserve(),
       HEDERA_HCS_TOPIC_ID: preserve(),

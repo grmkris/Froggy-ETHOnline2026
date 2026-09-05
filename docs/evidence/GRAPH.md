@@ -17,7 +17,12 @@ Served through a Subgraph Studio key (`GRAPH_API_KEY`), never from a fixture whe
 | 5 Sep 2026 | Spark, Aave v3 Ethereum, Compound v3 (Messari standardized) | three protocols at one block; cheapest USDC borrow Spark 4.268%, Aave 4.269%, Compound 5.023%. Aave v3 Base reported unavailable: nobody indexes it on the network. |
 | 5 Sep 2026 | registry widened to twelve deployments, on evidence (`785d85e`) | TODO(blocks): four fresh blocks from the hosted URL, pasted here |
 
+## Pay per query (built, awaiting funds)
+
+With `GRAPH_PAY_PER_QUERY=true` and the agent granted a signer on the person's wallet, `graph_query` stops using the Studio key and pays the gateway's x402 endpoint per deployment: `POST /api/x402/subgraphs/id/{id}`, 10000 units ($0.01) of USDC on Base to `0x79DC…FcCB`, signed by Privy under the committed policy. Every query goes through the same paid-request choke point as any other 402 (`apps/server/src/paid-request.ts`), so each deployment's answer is a receipt with the rule that allowed it, the transaction, and the block the index was at. The snapshot's `source` says `via x402` or `via studio`, and one payment per deployment per minute is the idempotency rule, however many times the model asks.
+
+- TODO(tx): the first paid query from the demo wallet, once it holds USDC on Base (owner step 4) and the gateway is in its directory.
+
 ## Not yet
 
-- The mainnet x402 gateway as a second provider, paid per query by the demo wallet (plan item 2.3, second half). Every row and receipt would then carry `servedBy`.
 - Subgraph MCP for discovery is not used; discovery is the pinned registry, reviewed in code.

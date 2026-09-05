@@ -205,6 +205,45 @@ export const stubGraphClient = (): GraphClient => ({
   },
 });
 
+/**
+ * How a query reaches the gateway.
+ *
+ * The Studio transport sends a key. An x402 transport pays per query, through
+ * whatever pays on the caller's behalf; this package never sees money, only
+ * a function that answers with a response. The label ends up on the snapshot
+ * and every receipt, so "which provider served this" is a fact and not a
+ * guess.
+ */
+export interface GraphTransport {
+  readonly label: string;
+  readonly send: (url: string, body: string) => Promise<Response>;
+  readonly url: (gateway: string, deploymentId: string) => string;
+}
+
+export const studioTransport = (apiKey: string): GraphTransport => ({
+  label: "studio",
+  send: async (url, body) =>
+    await fetch(url, {
+      body,
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }),
+  url: (gateway, deploymentId) => `${gateway}/subgraphs/id/${deploymentId}`,
+});
+
+/** The pay-per-query path: the URL the gateway prices, and whatever pays. */
+export const x402Transport = (
+  send: GraphTransport["send"]
+): GraphTransport => ({
+  label: "x402",
+  send,
+  url: (gateway, deploymentId) =>
+    `${gateway}/x402/subgraphs/id/${deploymentId}`,
+});
+
 export interface LiveGraphOptions {
   readonly apiKey: string;
   /** Overridable so a self-hosted index, or the testnet gateway, can stand in. */
@@ -212,6 +251,8 @@ export interface LiveGraphOptions {
   /** Overridable in tests. Defaults to the pinned registry. */
   readonly deployments?: readonly Deployment[];
   readonly now?: () => number;
+  /** Defaults to the Studio key. */
+  readonly transport?: GraphTransport;
 }
 
 const DEFAULT_GATEWAY = "https://gateway.thegraph.com/api";
@@ -247,26 +288,22 @@ const unavailable = (deployment: Deployment, note: string): Reading => ({
 const readDeployment = async (
   deployment: Deployment,
   input: {
-    readonly apiKey: string;
     readonly gateway: string;
     readonly now: number;
     readonly symbol: string;
+    readonly transport: GraphTransport;
   }
 ): Promise<Reading> => {
-  const url = `${input.gateway}/subgraphs/id/${deployment.id}`;
+  const url = input.transport.url(input.gateway, deployment.id);
   let response: Response;
   try {
-    response = await fetch(url, {
-      body: JSON.stringify({
+    response = await input.transport.send(
+      url,
+      JSON.stringify({
         query: LENDING_QUERY,
         variables: { first: MARKET_LIMIT, symbol: input.symbol.toUpperCase() },
-      }),
-      headers: {
-        authorization: `Bearer ${input.apiKey}`,
-        "content-type": "application/json",
-      },
-      method: "POST",
-    });
+      })
+    );
   } catch (error) {
     return unavailable(
       deployment,
@@ -360,6 +397,7 @@ export const liveGraphClient = (options: LiveGraphOptions): GraphClient => {
   const gateway = options.gatewayUrl ?? DEFAULT_GATEWAY;
   const deployments = options.deployments ?? MESSARI_LENDING_DEPLOYMENTS;
   const clock = options.now ?? Date.now;
+  const transport = options.transport ?? studioTransport(options.apiKey);
 
   return {
     lendingMarkets: async (symbol) => {
@@ -371,10 +409,10 @@ export const liveGraphClient = (options: LiveGraphOptions): GraphClient => {
         deployments.map(
           async (deployment) =>
             await readDeployment(deployment, {
-              apiKey: options.apiKey,
               gateway,
               now,
               symbol,
+              transport,
             })
         )
       );
@@ -383,7 +421,7 @@ export const liveGraphClient = (options: LiveGraphOptions): GraphClient => {
         deployments: readings.map((r) => r.reading),
         markets: readings.flatMap((r) => r.markets).toSorted(byCheapestBorrow),
         query: `lendingMarkets(${symbol})`,
-        source: gateway,
+        source: `${gateway} via ${transport.label}`,
         stubbed: false,
       } satisfies GraphSnapshot;
     },

@@ -2,8 +2,10 @@ import { describe, expect, it } from "bun:test";
 
 import {
   describeCheapestBorrow,
+  liveGraphClient,
   snapshotHash,
   stubGraphClient,
+  x402Transport,
 } from "./client";
 
 describe("the stub Graph client", () => {
@@ -85,5 +87,40 @@ describe("describeCheapestBorrow", () => {
     // that does not say which index it came from is not checkable.
     expect(describeCheapestBorrow(snapshot)).toMatch(/block \d+/u);
     expect(describeCheapestBorrow(snapshot)).toContain("indexes fresh");
+  });
+});
+
+describe("the live client's transport", () => {
+  it("names the provider on the snapshot and asks it for every deployment", async () => {
+    const asked: string[] = [];
+    const client = liveGraphClient({
+      apiKey: "",
+      deployments: [
+        { chain: "ethereum", id: "DEP1", label: "Aave v3" },
+        { chain: "base", id: "DEP2", label: "Aave v3" },
+      ],
+      gatewayUrl: "https://gateway.test/api",
+      now: () => 1_700_000_000_000,
+      transport: x402Transport(async (url) => {
+        asked.push(url);
+        await Promise.resolve();
+        return Response.json({
+          data: {
+            _meta: { block: { number: 100, timestamp: 1_700_000_000 } },
+            markets: [],
+          },
+        });
+      }),
+    });
+    const snapshot = await client.lendingMarkets("USDC");
+    expect(asked).toEqual([
+      "https://gateway.test/api/x402/subgraphs/id/DEP1",
+      "https://gateway.test/api/x402/subgraphs/id/DEP2",
+    ]);
+    expect(snapshot.source).toBe("https://gateway.test/api via x402");
+    expect(snapshot.deployments.map((d) => d.status)).toEqual([
+      "fresh",
+      "fresh",
+    ]);
   });
 });

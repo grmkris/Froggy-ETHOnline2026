@@ -153,6 +153,12 @@ export interface Environment {
   readonly databaseUrl: string;
   readonly graphApiKey: string;
   readonly graphGatewayUrl: string;
+  /**
+   * Pay The Graph per query with x402 from the person's own wallet, when
+   * the agent has a signer on it. Off by default: the Studio key serves the
+   * same query for free, and a paid query is a receipt the person sees.
+   */
+  readonly graphPayPerQuery: boolean;
   /** The agent's pocket: the account a 402 is paid *from*. */
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
@@ -264,6 +270,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const graphGatewayUrl = yield* Config.string("GRAPH_GATEWAY_URL").pipe(
       Config.withDefault("https://gateway.thegraph.com/api")
     );
+    const graphPayPerQuery = yield* Config.boolean("GRAPH_PAY_PER_QUERY").pipe(
+      Config.withDefault(false)
+    );
 
     const hederaAccountId = yield* Config.string("HEDERA_ACCOUNT_ID").pipe(
       Config.withDefault(PLACEHOLDER.hederaAccountId)
@@ -365,6 +374,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       databaseUrl: Redacted.value(databaseUrl),
       graphApiKey: Redacted.value(graphApiKey),
       graphGatewayUrl,
+      graphPayPerQuery,
       hederaAccountId,
       hederaFacilitatorUrl,
       hederaHcsTopicId,
