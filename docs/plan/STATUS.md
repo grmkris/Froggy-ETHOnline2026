@@ -42,6 +42,6 @@ Updated Sat 5 Sep 2026, 21:05 CEST. The plan is `PLAN.md` beside this file (phas
 
 ## Blockers for the owner
 
-- ~~The DashScope key is rejected by every DashScope host.~~ **Resolved 5 Sep (`6bcf688`).** The key is fine; the host and model were wrong. It is Alibaba's *Token Plan* endpoint, not DashScope: `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` with `qwen3.8-max`. `dashscope-intl.aliyuncs.com` answers `invalid_api_key` for this key and has no `qwen3-max`. `~/code/harness` (`packages/kernel/src/agent/providers/alibaba.ts`) is the authority. Verified with a live request; Railway variables updated.
+- ~~The DashScope key is rejected by every DashScope host.~~ **Resolved 5 Sep (`6bcf688`).** The key is fine; the host and model were wrong. It is Alibaba's _Token Plan_ endpoint, not DashScope: `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` with `qwen3.8-max`. `dashscope-intl.aliyuncs.com` answers `invalid_api_key` for this key and has no `qwen3-max`. `~/code/harness` (`packages/kernel/src/agent/providers/alibaba.ts`) is the authority. Verified with a live request; Railway variables updated.
 - `DEMO_USER_DID` needs the judge account's Privy DID before the reserved seat means anything.
 - Three untracked directories (`.claude/`, `.codex/`, `.grok/`) holding a workspace tool's skill file appeared in the tree on 5 Sep, not written by this session; they are left untracked and kept out of the formatter.
