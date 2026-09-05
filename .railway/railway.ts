@@ -111,6 +111,11 @@ export default defineRailway((ctx) => {
       PRIVY_AUTHORIZATION_KEY_ID: preserve(),
       PRIVY_AUTHORIZATION_PRIVATE_KEY: preserve(),
       RESERVED_BROWSERS: preserve(),
+      // Baked into the web bundle at build time, via the Dockerfile ARG of the
+      // same name. Absent from this list it would be deleted on the next
+      // apply, and the deployed client would quietly fall back to the local
+      // identity — a failure that looks exactly like sign-in being switched off.
+      VITE_PRIVY_APP_ID: preserve(),
     },
     healthcheck: "/health",
     // Generous: the first request starts Chromium, and a cold container pulling
