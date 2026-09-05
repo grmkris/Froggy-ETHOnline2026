@@ -1,6 +1,6 @@
 # Status against the plan
 
-Updated Sat 5 Sep 2026, 22:10 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
+Updated Sat 5 Sep 2026, 22:50 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
@@ -40,6 +40,10 @@ Updated Sat 5 Sep 2026, 22:10 CEST. The plan is `PLAN.md` beside this file (phas
 - P2.11 `7b1cb1d`: daily digest — schedule per user (migration 0001, `GET/PUT /api/digest`, drawer control), minute scheduler (`scheduler.ts`, tested), `runDailyFor` on the same loop with `interactive: false`, one minute / twelve steps / five cents / one paid request, report to a sink.
 - P4 `c2759e0`: Telegram via the Chat SDK (ADR 0007): pairing codes (`/api/telegram`, `/start CODE`), digest card, approval card wired into the same `InteractionRegistry`, `/freeze` and a freeze button, DM chat on the shared `turn.ts` loop recorded into the run; `run.started` app message; migration 0002; live only with token + webhook secret. Owner: BotFather token, secret, `setWebhook`, `TELEGRAM_BOT_USERNAME`.
 - P2.8 `8bf511f`: 402 probe (`packages/payments/src/probe.ts`, per-option reasons), `x402_probe` tool, per-user directory (migration 0003, `GET/POST/DELETE /api/directory`, `POST /api/directory/probe`), adding an entry puts host and payee on the mandate's allowlists (`session.allow`/`disallow`), Directory tab in the drawer with paid counts.
+- P5 skeletons `79a38d7`: `docs/evidence/{HEDERA,GRAPH,PRIVY,AI-USE}.md` with what is live and `TODO` marks for the on-camera beats; README picture and surfaces updated.
+- P3.11 `068113d`: `e2e/directory.spec.ts`; 21 e2e green.
+- P6.1 `146b3e3`: WebMCP producer — four tools on `navigator.modelContext` when present (three read-only, `pay_402` consequential and routed through an ordinary agent turn), descriptors unit-tested, drawer reports availability. No browser on this box exposes the API, so registration itself is unverified.
+- Deploy: the check-suite gate had held everything since `3763463` (CI red on an unformatted STATUS, then a name-check line; doc-only commits are skipped by Railway's watch paths). `13baf25` deployed at 17:58 UTC with migrations 0001–0003 applied; live `/health` shows `telegram=stub`.
 
 ## Blockers for the owner
 
