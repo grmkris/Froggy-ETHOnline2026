@@ -61,6 +61,18 @@ Drop the values into `~/.config/secrets.env` for local work, and onto the Railwa
 - Record the demo video. Hedera wants ≤5 minutes showing the paid request executing; The Graph wants 2–4 minutes.
 - The README carries the architecture argument and the diagram both Hedera and Arc ask for.
 
+## Verified defects (found by the FABLE51 audit, reproduced here)
+
+Do not put a funded key on the deployment until the first two are closed.
+
+1. **The live box is open.** No auth on any route or socket, and a missing `Origin` is allowed through. Verified: `curl` opens both sockets, reads the mandate, and could send navigate, take, unfreeze, or replace every rule.
+2. **Concurrent double payment.** Idempotency deduplicates _sequential_ retries only; two concurrent spends with the same key both settle. Reproduced.
+3. **Freeze is not a kill switch.** It aborts runs and blocks new spends, but a settlement already in flight continues and the browser is never told.
+4. **HBAR is priced at $1.** `parQuote` gives every asset parity, so the "$2 per transaction" cap is really 2 HBAR.
+5. **`x402_fetch` fetches before it authorises.** The model's URL is requested to discover the 402 before any policy runs — an SSRF the host allowlist does not cover, because it is only consulted afterwards.
+6. **The ledger does not persist.** In-memory only; `packages/database` has no migrations folder and `migrate.ts` points at a path that does not exist. Every restart resets caps and idempotency.
+7. **Single tenant.** One session, one mandate, one browser per process: a second visitor's chat aborts the first and sees the same screencast.
+
 ## Things that will bite
 
 - `Bun.WebView` is absent from `@types/bun@1.4.0`; the declaration in `packages/browser/types/webview.d.ts` is hand-written from the runtime prototype. If a Bun upgrade changes the shape, that file is where it breaks.
