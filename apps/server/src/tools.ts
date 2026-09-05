@@ -313,7 +313,7 @@ export const buildTools = (deps: ToolDeps) => {
       execute: async ({ amountUsd, purpose, to }) => {
         const attempt = session.spend({
           amount: {
-            asset: KNOWN_ASSETS["base-sepolia:usdc"],
+            asset: KNOWN_ASSETS["eip155:84532:usdc"],
             units: String(Math.round(amountUsd * 1_000_000)),
           },
           idempotencyKey: `send:${to}:${amountUsd}:${deps.run.id}`,
@@ -332,7 +332,7 @@ export const buildTools = (deps: ToolDeps) => {
             // Unreachable while provenance is `model`. It exists so the shape
             // is right the day a mandate-listed payee is sent to.
             return {
-              network: "base-sepolia",
+              network: "eip155:84532",
               ok: false,
               stubbed: true,
               transactionId: null,

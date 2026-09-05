@@ -14,8 +14,18 @@
 
 import { Schema } from "effect";
 
-/** The chains this build settles on, as CAIP-2-ish identifiers. */
-export const Network = Schema.Literals(["base-sepolia", "hedera:testnet"]);
+/**
+ * The chains this build settles on, as CAIP-2 identifiers.
+ *
+ * CAIP-2 rather than a friendly name because that is what an x402 challenge
+ * carries in `accepts[].network`: a mandate that spells Base Sepolia one way
+ * while every 402 spells it `eip155:84532` is a mandate that can never match.
+ */
+export const Network = Schema.Literals([
+  "eip155:8453",
+  "eip155:84532",
+  "hedera:testnet",
+]);
 export type Network = typeof Network.Type;
 
 /**
@@ -86,10 +96,17 @@ export type Amount = typeof Amount.Type;
  * refused rather than guessed at — see `priceInUsdMicros`.
  */
 export const KNOWN_ASSETS = {
-  "base-sepolia:usdc": {
+  /** Base mainnet USDC: what The Graph's x402 gateway is paid in. Real money. */
+  "eip155:8453:usdc": {
+    decimals: 6,
+    id: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    network: "eip155:8453",
+    symbol: "USDC",
+  },
+  "eip155:84532:usdc": {
     decimals: 6,
     id: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    network: "base-sepolia",
+    network: "eip155:84532",
     symbol: "USDC",
   },
   "hedera:testnet:hbar": {

@@ -36,22 +36,33 @@ export type HederaEntityId = typeof HederaEntityId.Type;
  *
  * - `mandate` — the human wrote it into the allowlist. Trusted.
  * - `server` — we minted it this session (our own oracle's `payTo`). Trusted.
+ * - `user` — the human typed it into the chat this run, verbatim. Trusted as
+ *   far as provenance goes; the caps and the signer's own policy still apply,
+ *   and that is the point: a person asking to pay `0xdead…` gets refused by
+ *   a rule, not by a rule about where the address came from.
  * - `model` — the model produced it. A model that has read a hostile page is
  *   not distinguishable from a model that has been instructed by one.
  * - `page` — it appeared in page content or a query result. Never payable.
  *
- * Only `mandate` and `server` can be paid. This is enforced in the policy
- * engine, not in the prompt, because a prompt rule is advice and this is a rule.
+ * Only `mandate`, `server` and `user` can be paid. This is enforced in the
+ * policy engine, not in the prompt, because a prompt rule is advice and this
+ * is a rule. Deciding that a string is `user` is the server's job — it checks
+ * the human's own messages for the address — never the model's.
  */
 export const Provenance = Schema.Literals([
   "mandate",
   "server",
+  "user",
   "model",
   "page",
 ]);
 export type Provenance = typeof Provenance.Type;
 
-export const TRUSTED_PROVENANCE: readonly Provenance[] = ["mandate", "server"];
+export const TRUSTED_PROVENANCE: readonly Provenance[] = [
+  "mandate",
+  "server",
+  "user",
+];
 
 export const isPayable = (provenance: Provenance): boolean =>
   TRUSTED_PROVENANCE.includes(provenance);

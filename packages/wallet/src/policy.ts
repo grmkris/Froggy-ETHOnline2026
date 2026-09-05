@@ -87,7 +87,7 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
   if (!isPayable(intent.payee.provenance)) {
     return deny(
       "untrusted_provenance",
-      `Refusing to pay ${intent.payee.id}: it came from ${intent.payee.provenance === "page" ? "page content" : "the model"}, not from your allowlist or this server. Add it to the mandate if you meant it.`
+      `Refusing to pay ${intent.payee.id}: it came from ${intent.payee.provenance === "page" ? "page content" : "the model"}, not from you, your allowlist or this server. Type the address yourself, or add it to the mandate, if you meant it.`
     );
   }
 

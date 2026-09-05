@@ -95,6 +95,18 @@ describe("authorize", () => {
     });
   });
 
+  it("pays an address the human typed, subject to every other rule", () => {
+    // Provenance is about where the string came from, not whether it should
+    // be paid: a person's own address passes this gate and then meets the
+    // allowlist and the caps like any other.
+    const allow = rule();
+    const decision = decide(
+      [{ _tag: "payee_allowlist", id: allow, payeeIds: ["0xdead"] }],
+      { intent: { payee: payee({ id: "0xdead", provenance: "user" }) } }
+    );
+    expect(decision._tag).toBe("allow");
+  });
+
   it("names the rule that refused, so a refusal is traceable", () => {
     const cap = rule();
     const decision = decide([
@@ -192,7 +204,7 @@ describe("authorize", () => {
 
   it("refuses a chain outside the allowlist", () => {
     const decision = decide([
-      { _tag: "network_allowlist", id: rule(), networks: ["base-sepolia"] },
+      { _tag: "network_allowlist", id: rule(), networks: ["eip155:84532"] },
     ]);
     expect(decision).toMatchObject({
       _tag: "deny",
