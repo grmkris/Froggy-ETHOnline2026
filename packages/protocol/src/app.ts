@@ -108,9 +108,27 @@ export const AppClientMessage = Schema.Union([
 ]);
 export type AppClientMessage = typeof AppClientMessage.Type;
 
+/**
+ * Whether the agent currently holds a signature on this wallet.
+ *
+ * `pending` is a real state, not a placeholder: the grant is asked for
+ * asynchronously on the first authenticated request, so there is a second or
+ * two where the honest answer is "asking". Collapsing it into `absent` would
+ * flash a scary "the agent cannot pay" on every sign-in.
+ */
+export const AgentSignerState = Schema.Literals([
+  "granted",
+  "pending",
+  "absent",
+]);
+export type AgentSignerState = typeof AgentSignerState.Type;
+
 export const WalletSummary = Schema.Struct({
   /** The money address: the smart account when there is one, else the signer. */
   address: Schema.NullOr(Schema.String),
+  /** Why the agent has no signature, when it has none. Shown verbatim. */
+  agentNote: Schema.NullOr(Schema.String),
+  agentSigner: AgentSignerState,
   balanceLabel: Schema.String,
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */
   signerAddress: Schema.NullOr(Schema.String),

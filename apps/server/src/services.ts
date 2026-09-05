@@ -80,6 +80,7 @@ export const createServices = (options: ServiceOptions): Services => {
   const privy =
     environment.modes.privy === "live"
       ? livePrivyServer({
+          agent: environment.privyAgent,
           appId: environment.privyAppId,
           appSecret: environment.privyAppSecret,
         })

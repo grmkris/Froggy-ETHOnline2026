@@ -18,6 +18,7 @@ import { authenticate, bearerFromRequest } from "./auth";
 import { handleChat } from "./chat";
 import type { ChatRequest } from "./chat";
 import type { Environment } from "./environment";
+import type { AgentGrants } from "./grants";
 import { handleOracleRequest } from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
@@ -54,6 +55,7 @@ const json = (body: ResponseBody, status = 200): Response =>
 
 export interface RouterDeps {
   readonly environment: Environment;
+  readonly grants: AgentGrants;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -105,10 +107,13 @@ const handleApi = async (
   // their receipts, their agent. There is no anonymous read here, so the check
   // is at the top of the group rather than repeated per route, where the next
   // route added would be the one that forgot it.
-  const userId = await authenticate(deps.services, bearerFromRequest(request));
-  if (userId === null) {
+  const token = bearerFromRequest(request);
+  const userId = await authenticate(deps.services, token);
+  if (userId === null || token === null) {
     return json(UNAUTHORIZED, 401);
   }
+  // Fire-and-forget, once per user. Nothing here waits on Privy.
+  deps.grants.note(userId, token);
   const workspace = deps.workspaces.for(userId);
   const sessionId = workspace.session.id;
 

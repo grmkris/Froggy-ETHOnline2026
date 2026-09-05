@@ -59,6 +59,63 @@ const ruleLabel = (rule: Mandate["rules"][number]): string => {
 const short = (address: string | null): string =>
   address === null ? "—" : `${address.slice(0, 6)}…${address.slice(-4)}`;
 
+/**
+ * Whether Privy is holding a signature for the agent.
+ *
+ * On screen because it is the difference between "the agent can spend from
+ * this wallet" and "it cannot", and no other part of the UI distinguishes
+ * those. A wallet address with no signer looks identical to one with a signer
+ * right up until a payment silently fails.
+ */
+const signerLabel = (wallet: WalletSummary): string => {
+  switch (wallet.agentSigner) {
+    case "granted": {
+      return "agent signer: granted";
+    }
+    case "pending": {
+      return "agent signer: asking…";
+    }
+    case "absent": {
+      return "agent signer: none";
+    }
+    default: {
+      return "agent signer: unknown";
+    }
+  }
+};
+
+/**
+ * Its own component so the pane stays under its complexity budget, and so the
+ * "can the agent actually sign?" question has one place to live.
+ */
+const SignerState = ({
+  wallet,
+}: {
+  readonly wallet: WalletSummary | null;
+}): React.ReactElement | null => {
+  if (wallet === null) {
+    return null;
+  }
+  return (
+    <div className="space-y-1">
+      <p
+        className={`text-xs ${
+          wallet.agentSigner === "granted"
+            ? "text-emerald-300/80"
+            : "text-amber-300/80"
+        }`}
+      >
+        {signerLabel(wallet)}
+      </p>
+      {wallet.agentNote === null ? null : (
+        // Verbatim, including Privy's own wording. A paraphrase of someone
+        // else's refusal is a second thing that can be wrong.
+        <p className="text-[11px] text-white/50">{wallet.agentNote}</p>
+      )}
+    </div>
+  );
+};
+
 export const WalletPane = ({
   lastDecision,
   mandate,
@@ -92,6 +149,7 @@ export const WalletPane = ({
         <p className="font-mono text-xs text-white/70">
           {short(wallet?.address ?? null)}
         </p>
+        <SignerState wallet={wallet} />
         {stubs.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {stubs.map((name) => (

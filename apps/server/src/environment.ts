@@ -37,8 +37,11 @@ const PLACEHOLDER = {
   graphSubgraphId: "REPLACE_ME_SUBGRAPH_ID",
   hederaAccountId: "0.0.0",
   hederaPrivateKey: "0xREPLACE_ME",
+  privyAgentPolicyId: "REPLACE_ME_PRIVY_POLICY_ID",
   privyAppId: "REPLACE_ME_PRIVY_APP_ID",
   privyAppSecret: "REPLACE_ME_PRIVY_APP_SECRET",
+  privyAuthorizationKeyId: "REPLACE_ME_PRIVY_KEY_QUORUM_ID",
+  privyAuthorizationPrivateKey: "REPLACE_ME_PRIVY_AUTHORIZATION_KEY",
 } as const;
 
 const isPlaceholder = (value: string, placeholder: string): boolean =>
@@ -105,6 +108,18 @@ export interface Environment {
   readonly openAiCompatibleBaseUrl: string;
   readonly openAiCompatibleModel: string;
   readonly port: number;
+  /**
+   * The agent's Privy authorization key and the policy it signs under.
+   *
+   * Null when any of the three is unset. Sign-in still works without it — the
+   * user gets a wallet, the agent just cannot be granted a signature on it —
+   * which is why this is nullable rather than part of the privy mode.
+   */
+  readonly privyAgent: {
+    readonly policyId: string;
+    readonly privateKey: string;
+    readonly quorumId: string;
+  } | null;
   readonly privyAppId: string;
   readonly privyAppSecret: string;
   /** Where the SPA build lives in production. Empty means "dev, Vite serves it". */
@@ -145,6 +160,17 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "PRIVY_APP_SECRET",
       PLACEHOLDER.privyAppSecret
     );
+
+    const privyAuthorizationKeyId = yield* Config.string(
+      "PRIVY_AUTHORIZATION_KEY_ID"
+    ).pipe(Config.withDefault(PLACEHOLDER.privyAuthorizationKeyId));
+    const privyAuthorizationPrivateKey = yield* secret(
+      "PRIVY_AUTHORIZATION_PRIVATE_KEY",
+      PLACEHOLDER.privyAuthorizationPrivateKey
+    );
+    const privyAgentPolicyId = yield* Config.string(
+      "PRIVY_AGENT_POLICY_ID"
+    ).pipe(Config.withDefault(PLACEHOLDER.privyAgentPolicyId));
 
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
     const graphSubgraphId = yield* Config.string("GRAPH_SUBGRAPH_ID").pipe(
@@ -224,6 +250,24 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       openAiCompatibleBaseUrl,
       openAiCompatibleModel,
       port,
+      // All three or none. Two of three is a deployment that would fail at the
+      // first payment with an error from Privy rather than at boot with one
+      // from us, and the second is much easier to act on.
+      privyAgent:
+        modeOf(
+          [privyAuthorizationKeyId, PLACEHOLDER.privyAuthorizationKeyId],
+          [
+            Redacted.value(privyAuthorizationPrivateKey),
+            PLACEHOLDER.privyAuthorizationPrivateKey,
+          ],
+          [privyAgentPolicyId, PLACEHOLDER.privyAgentPolicyId]
+        ) === "live"
+          ? {
+              policyId: privyAgentPolicyId,
+              privateKey: Redacted.value(privyAuthorizationPrivateKey),
+              quorumId: privyAuthorizationKeyId,
+            }
+          : null,
       privyAppId,
       privyAppSecret: Redacted.value(privyAppSecret),
       staticDirectory,

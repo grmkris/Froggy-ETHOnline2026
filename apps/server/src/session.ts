@@ -34,7 +34,11 @@ import type {
   UsdMicros,
   UserId,
 } from "@froggy/domain";
-import type { ServiceModes, WalletSummary } from "@froggy/protocol";
+import type {
+  AgentSignerState,
+  ServiceModes,
+  WalletSummary,
+} from "@froggy/protocol";
 import { authorize } from "@froggy/wallet";
 import type { SpendLedger, WalletAddresses } from "@froggy/wallet";
 
@@ -117,6 +121,15 @@ export class WorkspaceSession {
   private mandate: Mandate;
   private readonly receipts: Receipt[] = [];
   private addresses: WalletAddresses = { signer: null, smart: null };
+  /**
+   * Whether Privy is holding a signature for the agent on this wallet.
+   *
+   * Starts `pending` because the grant is asked for asynchronously on the
+   * first authenticated request; the pane says "asking" rather than flashing
+   * "the agent cannot pay" for the second it takes.
+   */
+  private agentSigner: AgentSignerState = "pending";
+  private agentNote: string | null = null;
 
   constructor(
     id: SessionId,
@@ -157,6 +170,11 @@ export class WorkspaceSession {
     this.addresses = addresses;
   }
 
+  setAgentSigner(state: AgentSignerState, note: string | null): void {
+    this.agentSigner = state;
+    this.agentNote = note;
+  }
+
   /**
    * Replace the mandate.
    *
@@ -183,7 +201,14 @@ export class WorkspaceSession {
       spent += row.usdMicros;
     }
     return {
-      address: this.addresses.smart,
+      // The *signer*, not the smart account. The Graph's x402 leg is an
+      // EIP-3009 authorization signed by the address that holds the USDC, and
+      // the smart wallet on this app is configured for Base Sepolia only — so
+      // showing it here would tell someone to fund the wrong address on the
+      // wrong chain.
+      address: this.addresses.signer,
+      agentNote: this.agentNote,
+      agentSigner: this.agentSigner,
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",
       signerAddress: this.addresses.signer,

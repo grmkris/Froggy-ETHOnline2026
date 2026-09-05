@@ -20,6 +20,9 @@
 import type { LinkedAccount } from "@privy-io/node";
 import { PrivyClient } from "@privy-io/node";
 
+import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
+import type { AgentGrant, AgentKey } from "./agent-signer";
+
 /**
  * The two addresses, kept distinct on purpose.
  *
@@ -35,10 +38,24 @@ export interface WalletAddresses {
   readonly smart: string | null;
 }
 
+export interface AgentGrantRequest {
+  /** The caller's own Privy access token. It is what authorizes the change. */
+  readonly accessToken: string;
+  readonly did: string;
+}
+
 export interface PrivyServer {
   /** Addresses carried by an identity token, or nulls when it is unusable. */
   readonly addresses: (identityToken: string) => Promise<WalletAddresses>;
+  /**
+   * Ask the user's wallet to accept the agent as a signer, under the
+   * default-deny policy. Idempotent: re-granting an existing signer is a
+   * no-op at Privy, so this is safe to call on every sign-in.
+   */
+  readonly grantAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
   readonly mode: "live" | "stub";
+  /** Remove the signer. This is what freezing does, and it is a revocation. */
+  readonly revokeAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
   /** Returns the Privy DID, or null when the token is absent or invalid. */
   readonly verify: (accessToken: string) => Promise<string | null>;
 }
@@ -72,9 +89,24 @@ const pickAddresses = (accounts: readonly LinkedAccount[]): WalletAddresses => {
 const NO_ADDRESSES: WalletAddresses = { signer: null, smart: null };
 
 export interface LivePrivyOptions {
+  /**
+   * The agent's authorization key and policy, or null.
+   *
+   * Null is an ordinary state, not an error: Privy sign-in and wallet reads
+   * work without it, and only the *granting* of a signature needs it. Keeping
+   * it nullable means a deployment with no agent key degrades to "you have a
+   * wallet, the agent cannot spend from it" rather than to no sign-in at all.
+   */
+  readonly agent: AgentKey | null;
   readonly appId: string;
   readonly appSecret: string;
 }
+
+const NO_AGENT_KEY: AgentGrant = {
+  attached: false,
+  reason: "No agent authorization key is configured on this deployment.",
+  wallet: null,
+};
 
 export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
   const client = new PrivyClient({
@@ -97,7 +129,27 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
       }
     },
 
+    grantAgent: async (request) => {
+      const { agent } = options;
+      if (agent === null) {
+        return NO_AGENT_KEY;
+      }
+      return await grantAgentSigner(client, {
+        accessToken: request.accessToken,
+        agent,
+        appId: options.appId,
+        did: request.did,
+      });
+    },
+
     mode: "live",
+
+    revokeAgent: async (request) =>
+      await revokeAgentSigner(client, {
+        accessToken: request.accessToken,
+        appId: options.appId,
+        did: request.did,
+      }),
 
     verify: async (accessToken) => {
       try {
@@ -140,7 +192,26 @@ export const stubPrivyServer = (): PrivyServer => ({
     const address = `0x${digest(identityToken).slice(0, 40)}`;
     return { signer: address, smart: address };
   },
+  // The stub reports the grant as *not* attached, with a reason. Pretending a
+  // signature exists would make the wallet pane say the agent can pay when it
+  // demonstrably cannot, which is the one lie this whole stub split exists to
+  // prevent.
+  grantAgent: async (request) => {
+    await Promise.resolve();
+    return {
+      attached: false,
+      reason: "Privy is stubbed; no wallet was granted a signer.",
+      wallet: {
+        address: `0x${digest(request.did).slice(0, 40)}`,
+        id: `stub-${digest(request.did).slice(0, 16)}`,
+      },
+    };
+  },
   mode: "stub",
+  revokeAgent: async () => {
+    await Promise.resolve();
+    return { attached: false, reason: null, wallet: null };
+  },
   verify: async (accessToken) => {
     await Promise.resolve();
     if (accessToken.trim() === "") {

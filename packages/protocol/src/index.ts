@@ -1,4 +1,5 @@
 export {
+  AgentSignerState,
   APPROVAL_KIND_ORDER,
   ApprovalKind,
   ApprovalOption,

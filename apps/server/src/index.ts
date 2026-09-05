@@ -17,6 +17,7 @@ import { Context, Effect, Layer } from "effect";
 
 import { authenticate, bearerFromProtocols } from "./auth";
 import { describeModes, loadEnvironment } from "./environment";
+import { AgentGrants } from "./grants";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createServices } from "./services";
@@ -80,12 +81,26 @@ class FroggyServer extends Context.Service<
         profileRoot: environment.chromeProfileDirectory,
       });
 
-      const sockets = createSocketHandlers({ runs, services, workspaces });
+      const grants = new AgentGrants({
+        privy: services.privy,
+        publishApp: (userId, message) => {
+          sinks.publishApp?.(userId, message);
+        },
+        workspaces,
+      });
+
+      const sockets = createSocketHandlers({
+        grants,
+        runs,
+        services,
+        workspaces,
+      });
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
       const routerDeps = {
         environment,
+        grants,
         oracleUrl,
         runs,
         services,
@@ -118,25 +133,25 @@ class FroggyServer extends Context.Service<
               // that: the socket is not established until this resolves, and
               // the token is verified against a cached JWKS with no network
               // call, so the wait is microseconds.
-              return authenticate(services, bearerFromProtocols(request)).then(
-                (userId) => {
-                  if (userId === null) {
-                    return new Response("Sign in to use this.", {
-                      status: 401,
-                    });
-                  }
-                  const kind = pathname === "/ws/app" ? "app" : "browser";
-                  return bunServer.upgrade(request, {
-                    data: { kind, userId },
-                    // Echoed so the browser's `WebSocket` accepts the handshake:
-                    // a client that offered subprotocols requires the server to
-                    // select one of them. Never the token — the client knows it.
-                    headers: { "sec-websocket-protocol": WS_PROTOCOL },
-                  })
-                    ? undefined
-                    : new Response("Upgrade failed.", { status: 400 });
+              const token = bearerFromProtocols(request);
+              return authenticate(services, token).then((userId) => {
+                if (userId === null || token === null) {
+                  return new Response("Sign in to use this.", {
+                    status: 401,
+                  });
                 }
-              );
+                grants.note(userId, token);
+                const kind = pathname === "/ws/app" ? "app" : "browser";
+                return bunServer.upgrade(request, {
+                  data: { accessToken: token, kind, userId },
+                  // Echoed so the browser's `WebSocket` accepts the handshake:
+                  // a client that offered subprotocols requires the server to
+                  // select one of them. Never the token — the client knows it.
+                  headers: { "sec-websocket-protocol": WS_PROTOCOL },
+                })
+                  ? undefined
+                  : new Response("Upgrade failed.", { status: 400 });
+              });
             },
             port: environment.port,
             websocket: sockets.handlers,

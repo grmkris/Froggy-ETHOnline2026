@@ -85,9 +85,13 @@ export default defineRailway((ctx) => {
       HEDERA_ACCOUNT_ID: preserve(),
       HEDERA_FACILITATOR_URL: preserve(),
       HEDERA_PRIVATE_KEY: preserve(),
+      MAX_BROWSERS: preserve(),
       PORT: preserve(),
+      PRIVY_AGENT_POLICY_ID: preserve(),
       PRIVY_APP_ID: preserve(),
       PRIVY_APP_SECRET: preserve(),
+      PRIVY_AUTHORIZATION_KEY_ID: preserve(),
+      PRIVY_AUTHORIZATION_PRIVATE_KEY: preserve(),
     },
     healthcheck: "/health",
     // Generous: the first request starts Chromium, and a cold container pulling

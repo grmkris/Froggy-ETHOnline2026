@@ -28,7 +28,8 @@
     "hooks:install": "lefthook install",
     "fix": "ultracite fix",
     "db:generate": "bun run --cwd packages/database db:generate",
-    "db:migrate": "bun apps/server/src/migrate.ts"
+    "db:migrate": "bun apps/server/src/migrate.ts",
+    "privy:agent-key": "bun tools/privy-agent-key.ts"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.2",

@@ -30,6 +30,7 @@ import {
 import type { AppServerMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
 
+import type { AgentGrants } from "./grants";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import { BrowserLimitReachedError } from "./workspaces";
@@ -38,6 +39,15 @@ import type { Workspaces } from "./workspaces";
 type SocketKind = "app" | "browser";
 
 export interface SocketData {
+  /**
+   * The caller's Privy access token, kept for the life of the socket.
+   *
+   * Held rather than re-requested because freezing has to work at the moment
+   * the button is pressed: revoking the agent's signer is a request Privy
+   * requires the *user* to authorize, and a round trip to fetch a fresh token
+   * first is a round trip during which the agent can still sign.
+   */
+  accessToken: string;
   kind: SocketKind;
   /** Established at upgrade from a verified Privy token. Never client-supplied. */
   userId: UserId;
@@ -53,6 +63,7 @@ type Socket = Bun.ServerWebSocket<SocketData>;
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
 export interface SocketDeps {
+  readonly grants: AgentGrants;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
@@ -216,6 +227,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
         }
         case "mandate.freeze": {
           const workspace = deps.workspaces.for(ws.data.userId);
+          // Local first, and synchronously. This is the layer our own policy
+          // engine reads, and it must never wait on a network call — a freeze
+          // that takes a round trip is a freeze the agent can outrun.
           const mandate = workspace.session.setFrozen(message.frozen);
           // Freezing stops the turn as well as the spending. Stopping only the
           // spending would leave the agent running against a wallet it can no
@@ -223,6 +237,13 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           // freeze is a statement about one wallet.
           if (message.frozen) {
             deps.runs.abort(workspace.session.id);
+            // Then the outer layer: take the signature away at Privy, so the
+            // agent could not sign even if every check in our code were
+            // bypassed. Allowed to fail — a stale token is ordinary — as long
+            // as the pane says so rather than claiming a revocation happened.
+            void deps.grants.revoke(ws.data.userId, ws.data.accessToken);
+          } else {
+            deps.grants.note(ws.data.userId, ws.data.accessToken);
           }
           publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
           return;
