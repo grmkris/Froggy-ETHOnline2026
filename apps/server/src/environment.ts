@@ -18,8 +18,10 @@
  * used, so a config dump or a log line cannot spill one.
  */
 
+import { decodeUserId } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 import type { ServiceMode, ServiceModes } from "@froggy/protocol";
-import { Config, Effect, Redacted } from "effect";
+import { Config, Effect, Redacted, Result } from "effect";
 
 /**
  * The placeholder values. A variable equal to its placeholder is *unset* as far
@@ -154,7 +156,11 @@ export interface Environment {
   /** Where the HBAR/USD rate every cap is computed from comes from. */
   readonly hederaMirrorNodeUrl: string;
   readonly hederaPrivateKey: string;
-  /** Concurrent Chromes allowed across all users. 0 means unlimited. */
+  /** Kill a browser nobody is watching or driving after this long. */
+  readonly browserIdleMs: number;
+  /** The judge's account: always gets a seat. Null when nobody is reserved. */
+  readonly demoUserId: UserId | null;
+  /** Concurrent browser workers across all users. 0 means unlimited. */
   readonly maxBrowsers: number;
   /** Which model backs the agent. `modes.model` is derived from it. */
   readonly modelProvider: ModelProvider;
@@ -178,6 +184,8 @@ export interface Environment {
   } | null;
   readonly privyAppId: string;
   readonly privyAppSecret: string;
+  /** Seats held back for the demo account while it is not using one. */
+  readonly reservedBrowsers: number;
   /** Where the SPA build lives in production. Empty means "dev, Vite serves it". */
   readonly staticDirectory: string;
 }
@@ -200,13 +208,26 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const chromeProfileDirectory = yield* Config.string(
       "CHROME_PROFILE_DIR"
     ).pipe(Config.withDefault(".froggy/chrome-profile"));
-    // One Chrome per signed-in user, uncapped by default — the call made for
-    // this build. Two Chromes are roughly a gigabyte, so a link that gets
-    // shared widely will exhaust the box; setting this is the mitigation, and
-    // it is a variable rather than a code change so it can be set under load.
+    // One browser process per signed-in user, eight at a time by default: a
+    // headless Chrome is half a gigabyte and change, so eight is comfortable
+    // on the deployment's memory and a link that gets shared widely queues
+    // rather than exhausting the box. One of the eight is held for the demo
+    // account, so a judge never waits behind testers. All three are variables
+    // rather than code so they can be moved under load.
     const maxBrowsers = yield* Config.number("MAX_BROWSERS").pipe(
-      Config.withDefault(0)
+      Config.withDefault(8)
     );
+    const reservedBrowsers = yield* Config.number("RESERVED_BROWSERS").pipe(
+      Config.withDefault(1)
+    );
+    const browserIdleMs = yield* Config.number("BROWSER_IDLE_MS").pipe(
+      Config.withDefault(10 * 60 * 1000)
+    );
+    const demoUserDid = yield* Config.string("DEMO_USER_DID").pipe(
+      Config.withDefault("")
+    );
+    const demoUser = decodeUserId(demoUserDid);
+    const demoUserId = Result.isSuccess(demoUser) ? demoUser.success : null;
     const databaseUrl = yield* secret("DATABASE_URL", PLACEHOLDER.databaseUrl);
 
     const privyAppId = yield* Config.string("PRIVY_APP_ID").pipe(
@@ -296,6 +317,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       anthropicApiKey: anthropicKey,
       appOrigin,
       blockPrivateNetwork: !isLoopback(appOrigin),
+      browserIdleMs,
+      demoUserId,
       chromeProfileDirectory,
       databaseUrl: Redacted.value(databaseUrl),
       graphApiKey: Redacted.value(graphApiKey),
@@ -331,6 +354,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
           : null,
       privyAppId,
       privyAppSecret: Redacted.value(privyAppSecret),
+      reservedBrowsers,
       staticDirectory,
     } satisfies Environment;
   }

@@ -97,6 +97,8 @@ export default defineRailway((ctx) => {
       HEDERA_FACILITATOR_URL: preserve(),
       HEDERA_MIRROR_NODE_URL: preserve(),
       HEDERA_PRIVATE_KEY: preserve(),
+      BROWSER_IDLE_MS: preserve(),
+      DEMO_USER_DID: preserve(),
       MAX_BROWSERS: preserve(),
       OPENAI_COMPATIBLE_API_KEY: preserve(),
       OPENAI_COMPATIBLE_BASE_URL: preserve(),
@@ -107,6 +109,7 @@ export default defineRailway((ctx) => {
       PRIVY_APP_SECRET: preserve(),
       PRIVY_AUTHORIZATION_KEY_ID: preserve(),
       PRIVY_AUTHORIZATION_PRIVATE_KEY: preserve(),
+      RESERVED_BROWSERS: preserve(),
     },
     healthcheck: "/health",
     // Generous: the first request starts Chromium, and a cold container pulling

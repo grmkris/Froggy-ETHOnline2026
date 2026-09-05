@@ -16,8 +16,11 @@ import { WS_PROTOCOL } from "@froggy/protocol";
 import { Context, Effect, Layer } from "effect";
 
 import { authenticate, bearerFromProtocols } from "./auth";
+import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
+import { createFreeze } from "./freeze";
 import { AgentGrants } from "./grants";
+import { InteractionRegistry } from "./interactions";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
@@ -25,6 +28,9 @@ import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
 import { Workspaces } from "./workspaces";
+
+/** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
+const SWEEP_INTERVAL_MS = 60_000;
 
 class FroggyServer extends Context.Service<
   FroggyServer,
@@ -68,6 +74,9 @@ class FroggyServer extends Context.Service<
 
       const workspaces = new Workspaces({
         blockPrivateNetwork: environment.blockPrivateNetwork,
+        browserIdleMs: environment.browserIdleMs,
+        demoUserId: environment.demoUserId,
+        isBusy: (sessionId) => runs.get(sessionId) !== null,
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
         modes: environment.modes,
@@ -95,6 +104,7 @@ class FroggyServer extends Context.Service<
         oraclePayTo: services.oracle.payTo,
         profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,
+        reservedBrowsers: environment.reservedBrowsers,
       });
 
       const grants = new AgentGrants({
@@ -105,12 +115,49 @@ class FroggyServer extends Context.Service<
         workspaces,
       });
 
-      const sockets = createSocketHandlers({
+      const interactions = new InteractionRegistry({
+        onRequest: (userId, request) => {
+          sinks.publishApp?.(userId, {
+            request,
+            type: "approval.request",
+            v: 1,
+          });
+        },
+        onResolved: (userId, requestId) => {
+          sinks.publishApp?.(userId, {
+            requestId,
+            type: "approval.resolved",
+            v: 1,
+          });
+        },
+      });
+
+      const freeze = createFreeze({
         grants,
+        interactions,
+        publishApp: (userId, message) => {
+          sinks.publishApp?.(userId, message);
+        },
+        runs,
+        workspaces,
+      });
+
+      const sockets = createSocketHandlers({
+        freeze,
+        interactions,
         runs,
         services,
         workspaces,
       });
+
+      // Browsers nobody is watching or driving are released on a slow clock.
+      // The profile stays; only the process goes, so eight seats serve more
+      // than eight people over an afternoon.
+      const sweep = setInterval(() => {
+        detached("idle browser sweep", async () => {
+          await workspaces.sweepIdle();
+        });
+      }, SWEEP_INTERVAL_MS);
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
@@ -175,6 +222,7 @@ class FroggyServer extends Context.Service<
         ),
         (running) =>
           Effect.promise(async () => {
+            clearInterval(sweep);
             await running.stop(true);
             await workspaces.closeAll();
             await services.shutdown();

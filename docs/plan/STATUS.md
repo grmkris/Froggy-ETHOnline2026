@@ -21,7 +21,19 @@ Updated Sat 5 Sep 2026, 18:00 CEST. The plan is `~/.claude/plans/please-review-t
 - `UserId` is the branded Privy DID, not a TypeID. Profile directories are the hashed DID.
 - The policy's per-payment cap is $0.25 rather than the spec's $0.02; the mandate's own per-transaction rule stays the binding number on screen. Tighten the JSON when the Graph payment path lands.
 
-## Landed by this session
+## Landed by this session (Sat 5 Sep)
 
 - P0.2 `8c99fd1`: Bun 1.4.2 pinned everywhere; hand-written `Bun.WebView` types removed.
-- P0.4: planning docs moved to `docs/plan/`, research to `docs/research/`, links rewritten, `docs/README.md` index.
+- P0.4 `07d41c8`: planning docs moved to `docs/plan/`, research to `docs/research/`, links rewritten, `docs/README.md` index.
+- P0.3 `8f060ff`: every prior-project name scrubbed from code and docs; `tools/check-names.ts` in `bun run check`.
+- P0.5 `3c860e9`: Railway runbook, profile volume 10 GB (applied), model variables preserved. `checkSuites` is true live.
+- P1.6 `56290f8`: model chosen by configuration (`selectModelProvider`), DashScope wired, the scripted model pays the oracle so a keyless run reaches the ledger and a receipt.
+- P1.1 `09bac94`: CAIP-2 network ids (`eip155:8453`, `eip155:84532`, `hedera:testnet`), Base mainnet USDC known, `user` provenance.
+- P1.2 `edf4435`: one browser worker process per user (`packages/browser/src/{worker,worker-host,worker-serve,remote}.ts`, `packages/protocol/src/worker.ts`), env allowlist, frame credits, cast-only-while-watched, private-network blocklist per tab, freeze reaches the browser, ADR 0006. Real spawn verified on the build box.
+- P1.3: seats and queue (`MAX_BROWSERS=8`, `RESERVED_BROWSERS=1` for `DEMO_USER_DID`, position on `BrowserState.queue`, automatic seating with the queued start replayed), idle sweep (`BROWSER_IDLE_MS`), `freeze.ts` as the one kill-switch function (mandate → run → parked approvals → browser → Privy signer), `interactions.ts` parking registry with the three-way race, `approval.resolve` honoured for the owning user only, open cards re-sent to a reconnecting tab, `POST /api/chat` answers 423 while frozen.
+
+## Blockers for the owner
+
+- The DashScope key in `secrets.env` is rejected by every DashScope host (`invalid_api_key` / "token expired"); the live model stays stubbed until a working key lands. Endpoint wired: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`, model `qwen3-max`.
+- `DEMO_USER_DID` needs the judge account's Privy DID before the reserved seat means anything.
+- Three untracked directories (`.claude/`, `.codex/`, `.grok/`) holding a workspace tool's skill file appeared in the tree on 5 Sep, not written by this session; they are left untracked and kept out of the formatter.

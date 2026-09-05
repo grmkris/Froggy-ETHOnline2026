@@ -145,6 +145,15 @@ export const BrowserState = Schema.Struct({
    */
   frozen: Schema.Boolean,
   interaction: InteractionMode,
+  /**
+   * Set while this user is waiting for a browser seat. `position` is
+   * one-based and `ahead` counts the people before them; the pane says
+   * "third in line" from it, and the seat is taken automatically when it
+   * frees up.
+   */
+  queue: Schema.NullOr(
+    Schema.Struct({ ahead: Schema.Int, position: Schema.Int })
+  ),
   status: BrowserStatus,
   tabs: Schema.Array(TabSummary),
   viewport: Schema.Struct({ height: Schema.Int, width: Schema.Int }),

@@ -96,6 +96,7 @@ export class RemoteBrowser implements BrowserHandle {
       error: null,
       frozen: false,
       interaction: "idle",
+      queue: null,
       status: "idle",
       tabs: [],
       viewport: options.viewport ?? DEFAULT_VIEWPORT,

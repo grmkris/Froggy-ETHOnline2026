@@ -119,6 +119,8 @@ export class BrowserSession implements BrowserHandle {
       error: this.error,
       frozen: this.frozenReason !== null,
       interaction: this.arbiter.interaction.mode,
+      // Queueing is the registry's business; a session is never in line.
+      queue: null,
       status: this.status,
       tabs: this.tabs.list(),
       viewport: this.viewport,

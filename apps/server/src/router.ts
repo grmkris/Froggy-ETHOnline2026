@@ -46,6 +46,7 @@ type ResponseBody =
       readonly runtime: string;
       readonly status: string;
     }
+  | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
   | Awaited<ReturnType<WorkspaceSession["walletSummary"]>>;
@@ -118,10 +119,17 @@ const handleApi = async (
   const sessionId = workspace.session.id;
 
   if (pathname === "/api/chat" && request.method === "POST") {
+    // A frozen wallet does not start turns. The policy engine would refuse
+    // every spend anyway; refusing the turn is what stops the agent burning
+    // model budget narrating refusals against a wallet it cannot use.
+    if (workspace.session.currentMandate.frozen) {
+      return json({ frozen: true }, 423);
+    }
     const decoded = decodeChatBody(await request.json());
     if (decoded._tag === "Failure") {
       return json({ error: "Malformed chat request." }, 400);
     }
+    deps.workspaces.touch(userId);
     return await handleChat(
       {
         browser: workspace.browser,

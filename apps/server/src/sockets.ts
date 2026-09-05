@@ -31,7 +31,8 @@ import type { AppServerMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
 
 import { detached } from "./detached";
-import type { AgentGrants } from "./grants";
+import type { FreezeControl } from "./freeze";
+import type { InteractionRegistry } from "./interactions";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import { BrowserLimitReachedError } from "./workspaces";
@@ -64,7 +65,8 @@ type Socket = Bun.ServerWebSocket<SocketData>;
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
 export interface SocketDeps {
-  readonly grants: AgentGrants;
+  readonly freeze: FreezeControl;
+  readonly interactions: InteractionRegistry;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
@@ -125,7 +127,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
   const handlers: Bun.WebSocketHandler<SocketData> = {
     close(ws) {
       appSockets.delete(ws);
-      browserSockets.delete(ws);
+      if (browserSockets.delete(ws)) {
+        deps.workspaces.unwatch(ws.data.userId);
+      }
       unsubscribes.get(ws)?.();
       unsubscribes.delete(ws);
     },
@@ -176,6 +180,7 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           return;
         }
         const workspace = deps.workspaces.for(ws.data.userId);
+        deps.workspaces.touch(ws.data.userId);
         if (message.type === "browser.take") {
           // Abort first, *then* take the page. Flipping only the gate buys 1.5
           // seconds before the next queued tool call grabs it straight back,
@@ -184,17 +189,24 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           deps.runs.abort(workspace.session.id);
         }
         try {
-          // The cap is checked here rather than inside the session, because
-          // this is the boundary where a refusal can still be turned into
-          // something the pane renders.
-          deps.workspaces.admitBrowser(ws.data.userId);
+          // The seat is taken here rather than inside the session, because
+          // this is the boundary where "every seat is taken" can still be
+          // turned into a queue position the pane renders. Only a message
+          // that would spawn a browser needs a seat; input into a browser that
+          // is not running is a no-op and must not put someone in line.
+          if (
+            message.type === "browser.start" ||
+            message.type === "browser.navigate"
+          ) {
+            deps.workspaces.admitBrowser(ws.data.userId, message.url);
+          }
           await workspace.browser.handleClientMessage(message);
         } catch (error) {
           if (error instanceof BrowserLimitReachedError) {
-            publishBrowserState(ws.data.userId, {
-              ...workspace.browser.state(),
-              error: error.message,
-            });
+            publishBrowserState(
+              ws.data.userId,
+              deps.workspaces.stateOf(ws.data.userId)
+            );
             return;
           }
           // The session has already recorded a start failure in its own status,
@@ -227,36 +239,17 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           return;
         }
         case "mandate.freeze": {
-          const workspace = deps.workspaces.for(ws.data.userId);
-          // Local first, and synchronously. This is the layer our own policy
-          // engine reads, and it must never wait on a network call — a freeze
-          // that takes a round trip is a freeze the agent can outrun.
-          const mandate = workspace.session.setFrozen(message.frozen);
-          // Freezing stops the turn as well as the spending. Stopping only the
-          // spending would leave the agent running against a wallet it can no
-          // longer use, narrating failures. It stops *this* user's turn: a
-          // freeze is a statement about one wallet.
+          // One function, whichever surface pressed the button. See freeze.ts
+          // for the five things it does and why the order matters.
           if (message.frozen) {
-            deps.runs.abort(workspace.session.id);
-            // The browser hears it too: the page stops loading and the
-            // agent's commands are refused, while the person keeps the wheel.
-            detached("browser freeze", async () => {
-              await workspace.browser.freeze("the wallet is frozen");
-            });
-            // Then the outer layer: take the signature away at Privy, so the
-            // agent could not sign even if every check in our code were
-            // bypassed. Allowed to fail — a stale token is ordinary — as long
-            // as the pane says so rather than claiming a revocation happened.
-            detached("agent revoke", async () => {
-              await deps.grants.revoke(ws.data.userId, ws.data.accessToken);
-            });
+            deps.freeze.freeze(
+              ws.data.userId,
+              "frozen from the wallet pane",
+              ws.data.accessToken
+            );
           } else {
-            deps.grants.note(ws.data.userId, ws.data.accessToken);
-            detached("browser unfreeze", async () => {
-              await workspace.browser.unfreeze();
-            });
+            deps.freeze.unfreeze(ws.data.userId, ws.data.accessToken);
           }
-          publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
           return;
         }
         case "mandate.update": {
@@ -267,11 +260,13 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           return;
         }
         case "approval.resolve": {
-          publishApp(ws.data.userId, {
-            requestId: message.requestId,
-            type: "approval.resolved",
-            v: 1,
-          });
+          // The registry checks the card is this user's and publishes the
+          // resolution itself; a stale or forged answer is simply ignored.
+          deps.interactions.resolve(
+            ws.data.userId,
+            message.requestId,
+            message.optionId
+          );
           break;
         }
         default: {
@@ -299,16 +294,22 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           const wallet = await workspace.session.walletSummary();
           sendApp(ws, { type: "wallet.state", v: 1, wallet });
         });
+        // A tab that opens mid-question gets the open cards, so an approval
+        // can be answered from whichever screen the person is looking at.
+        for (const request of deps.interactions.pendingFor(ws.data.userId)) {
+          sendApp(ws, { request, type: "approval.request", v: 1 });
+        }
         return;
       }
 
       browserSockets.add(ws);
+      deps.workspaces.watch(ws.data.userId);
       // Chrome is not started here. Opening the pane should cost nothing until
       // someone actually asks for a page; the state below says "idle" and the
       // pane renders its start button from it.
       ws.send(
         encodeBrowserServerMessage({
-          state: workspace.browser.state(),
+          state: deps.workspaces.stateOf(ws.data.userId),
           type: "browser.state",
           v: 1,
         })
