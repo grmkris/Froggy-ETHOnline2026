@@ -22,8 +22,8 @@ import { PrivyClient } from "@privy-io/node";
 
 import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
 import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
-import { privyTypedDataSigner } from "./evm-signer";
-import type { AgentTypedDataSigner } from "./evm-signer";
+import { privyAgentSigner } from "./evm-signer";
+import type { AgentEvmSigner } from "./evm-signer";
 
 /**
  * The two addresses, kept distinct on purpose.
@@ -62,7 +62,7 @@ export interface PrivyServer {
    * A signer for this wallet under the agent key and its policy, or null
    * when no agent key is configured. Never the user's own authority.
    */
-  readonly signerFor: (wallet: UserWallet) => AgentTypedDataSigner | null;
+  readonly signerFor: (wallet: UserWallet) => AgentEvmSigner | null;
   /** Returns the Privy DID, or null when the token is absent or invalid. */
   readonly verify: (accessToken: string) => Promise<string | null>;
 }
@@ -161,7 +161,7 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
     signerFor: (wallet) =>
       options.agent === null
         ? null
-        : privyTypedDataSigner(client, { agent: options.agent, wallet }),
+        : privyAgentSigner(client, { agent: options.agent, wallet }),
 
     verify: async (accessToken) => {
       try {

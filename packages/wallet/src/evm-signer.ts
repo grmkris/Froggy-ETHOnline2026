@@ -1,15 +1,23 @@
 /**
  * The agent's signature, from Privy, under the policy.
  *
- * `eth_signTypedData_v4` on the user's embedded wallet, authorized by the
- * agent's P-256 key — the additional signer the user granted, whose every
- * request Privy evaluates against the committed policy. A request the policy
- * does not allow comes back as a refusal from Privy naming the policy, and
- * that refusal is passed on as itself: it is the leash working, and the
- * receipt should say so in Privy's words.
+ * Two methods on the user's embedded wallet, both authorized by the agent's
+ * P-256 key — the additional signer the user granted, whose every request
+ * Privy evaluates against the committed policy:
+ *
+ *   - `eth_signTypedData_v4`, for the EIP-3009 authorization an EVM x402
+ *     payment is made of.
+ *   - `eth_signTransaction`, for an ERC-20 transfer the host then broadcasts.
+ *     Signing rather than sending, because Privy keeps its rolling
+ *     aggregations — the 24-hour cap on top-ups — for signing methods only.
+ *
+ * A request the policy does not allow comes back as a refusal from Privy
+ * naming the policy, and that refusal is passed on as itself: it is the leash
+ * working, and the receipt should say so in Privy's words.
  *
  * Privy speaks JSON. The x402 scheme hands over bigints, so every bigint in
- * the message becomes a decimal string on the way out.
+ * the message becomes a decimal string on the way out; transaction quantities
+ * go as hex.
  */
 
 import { APIError } from "@privy-io/node";
@@ -41,6 +49,26 @@ export interface AgentTypedDataSigner {
     readonly primaryType: string;
     readonly types: { readonly [name: string]: readonly TypedDataField[] };
   }) => Promise<string>;
+}
+
+/** A type-2 transaction, before Privy has signed it. Quantities as bigints. */
+export interface UnsignedEvmTransaction {
+  readonly chainId: number;
+  readonly data: string;
+  readonly gasLimit: bigint;
+  readonly maxFeePerGas: bigint;
+  readonly maxPriorityFeePerGas: bigint;
+  readonly nonce: number;
+  readonly to: string;
+  readonly value: bigint;
+}
+
+/** Both signatures the agent can ask for, from one wallet under one policy. */
+export interface AgentEvmSigner extends AgentTypedDataSigner {
+  /** Returns the RLP-encoded signed transaction, ready to broadcast. */
+  readonly signTransaction: (
+    transaction: UnsignedEvmTransaction
+  ) => Promise<string>;
 }
 
 /** Privy said no. The message is Privy's, verbatim. */
@@ -105,39 +133,76 @@ const typesOf = (source: {
     ])
   );
 
-export const privyTypedDataSigner = (
+const hex = (value: bigint): string => `0x${value.toString(16)}`;
+
+export const privyAgentSigner = (
   client: PrivyClient,
   input: { readonly agent: AgentKey; readonly wallet: UserWallet }
-): AgentTypedDataSigner => ({
-  address: input.wallet.address,
-  signTypedData: async (typedData) => {
-    try {
-      const signed = await client
-        .wallets()
-        .ethereum()
-        .signTypedData(input.wallet.id, {
-          // The agent key, and only the agent key: the user's token is not
-          // here, so nothing this signs can exceed what the policy allows.
-          authorization_context: {
-            authorization_private_keys: [input.agent.privateKey],
-          },
-          params: {
-            typed_data: {
-              domain: domainOf(typedData.domain),
-              message: jsonRecord(typedData.message),
-              primary_type: typedData.primaryType,
-              types: typesOf(typedData.types),
+): AgentEvmSigner => {
+  // The agent key, and only the agent key: the user's token is not here, so
+  // nothing this signs can exceed what the policy allows.
+  const authorization_context = {
+    authorization_private_keys: [input.agent.privateKey],
+  };
+  return {
+    address: input.wallet.address,
+    signTransaction: async (transaction) => {
+      try {
+        const signed = await client
+          .wallets()
+          .ethereum()
+          .signTransaction(input.wallet.id, {
+            authorization_context,
+            params: {
+              transaction: {
+                chain_id: transaction.chainId,
+                data: transaction.data,
+                gas_limit: hex(transaction.gasLimit),
+                max_fee_per_gas: hex(transaction.maxFeePerGas),
+                max_priority_fee_per_gas: hex(transaction.maxPriorityFeePerGas),
+                nonce: transaction.nonce,
+                to: transaction.to,
+                type: 2,
+                value: hex(transaction.value),
+              },
             },
-          },
-        });
-      return signed.signature;
-    } catch (error) {
-      if (error instanceof APIError) {
-        throw new PrivySignerRefusedError(
-          `Privy refused to sign: ${error.message}`
-        );
+          });
+        return signed.signed_transaction;
+      } catch (error) {
+        // Privy's refusal, in its words; anything else is rethrown as itself.
+        if (error instanceof APIError) {
+          throw new PrivySignerRefusedError(
+            `Privy refused to sign: ${error.message}`
+          );
+        }
+        throw error;
       }
-      throw error;
-    }
-  },
-});
+    },
+    signTypedData: async (typedData) => {
+      try {
+        const signed = await client
+          .wallets()
+          .ethereum()
+          .signTypedData(input.wallet.id, {
+            authorization_context,
+            params: {
+              typed_data: {
+                domain: domainOf(typedData.domain),
+                message: jsonRecord(typedData.message),
+                primary_type: typedData.primaryType,
+                types: typesOf(typedData.types),
+              },
+            },
+          });
+        return signed.signature;
+      } catch (error) {
+        if (error instanceof APIError) {
+          throw new PrivySignerRefusedError(
+            `Privy refused to sign: ${error.message}`
+          );
+        }
+        throw error;
+      }
+    },
+  };
+};

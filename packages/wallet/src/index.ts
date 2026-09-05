@@ -1,5 +1,14 @@
 export { PrivySignerRefusedError } from "./evm-signer";
-export type { AgentTypedDataSigner } from "./evm-signer";
+export type {
+  AgentEvmSigner,
+  AgentTypedDataSigner,
+  UnsignedEvmTransaction,
+} from "./evm-signer";
+export { encodeTransfer, ERC20_TRANSFER_ABI, isEvmAddress } from "./erc20";
+export { evmRpc, EvmRpcError } from "./evm-rpc";
+export type { EvmRpc, EvmTransactionReceipt } from "./evm-rpc";
+export { sendErc20Transfer } from "./transfer";
+export type { Erc20TransferInput, Erc20TransferOutcome } from "./transfer";
 export { memoryLedger } from "./ledger";
 export { postgresLedger } from "./ledger-postgres";
 export type { SpendLedger, SpendRow } from "./ledger";
