@@ -130,7 +130,7 @@ Rules: 2-4 minutes, at least 720p, Jonas's own voice, not sped up, not phone-rec
 - **The Privy deny-suite** is five recorded transcripts (0xevil, over-cap, over-daily, expired, frozen) captured once and unit-tested as fixtures, plus one manual live smoke pasted into PRIVY.md. No Privy secrets in CI; a flaky Privy call must not block deploys.
 - **A users table** exists (user or guest id, wallet id, pocket account id, pocket key ciphertext, telegram user id, frozen_at, expires_at) with Telegram nonces and the ledger persisted, so a restart does not reset caps or the frozen flag.
 - **Evidence files** (README skeleton, HEDERA.md, PRIVY.md, GRAPH.md, VALIDATION.md, FEEDBACK.md, ACQUISITION.md, AI-USE.md) are created as skeletons with `TODO(tx)` markers on Day 1; each landed beat adds its transaction id the same hour; Thursday is proofreading, not writing.
-- **Two builders are the planning assumption** until the third confirms by Sat 10:00; every stretch item is cancelled in that case.
+- **Three people are the planning assumption**, confirmed Sat 5 Sep: two full-time engineers on the code (Kristjan on Chrome and hosting, Hemang on Privy, Hedera and The Graph) plus Jonas on product, PM and go-to-market. No stretch item is cancelled for headcount; the engineering hours to Day 3 are unchanged, because the earlier estimate already assumed two people at the code (see `CODE_STATE_FABLE51.md` section 6).
 
 ---
 
