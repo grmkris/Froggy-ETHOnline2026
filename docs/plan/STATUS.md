@@ -1,6 +1,6 @@
 # Status against the plan
 
-Updated Sat 5 Sep 2026, 18:00 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
+Updated Sat 5 Sep 2026, 19:40 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
@@ -33,6 +33,9 @@ Updated Sat 5 Sep 2026, 18:00 CEST. The plan is `PLAN.md` beside this file (phas
 - P1.3: seats and queue (`MAX_BROWSERS=8`, `RESERVED_BROWSERS=1` for `DEMO_USER_DID`, position on `BrowserState.queue`, automatic seating with the queued start replayed), idle sweep (`BROWSER_IDLE_MS`), `freeze.ts` as the one kill-switch function (mandate → run → parked approvals → browser → Privy signer), `interactions.ts` parking registry with the three-way race, `approval.resolve` honoured for the owning user only, open cards re-sent to a reconnecting tab, `POST /api/chat` answers 423 while frozen.
 - P1.5 `f491806`: `publicHttpUrl` (scheme, credentials, literal private/loopback/link-local/CGNAT addresses, `.internal`/`.local` names), `safeFetch` (DNS refuse-private, manual redirects re-checked per hop, 15 s, 1 MB), both tools validate before anything is sent; `x-payment-response` is the base64 `SettleResponse` envelope on both sides.
 - P2.7 `539d0a3` (code; message on `9c2150c`): `ask` parks the tool call on a card through `InteractionRegistry`, outside the session lock; the answer is judged again with `approved`; `allow_session` writes an `ask_exemption` rule; `deny_stop` freezes with the answerer's token; timeout/aborted/unavailable are denial codes; `Receipt.approval` records the id and resolution. The in-app card itself is P3.5.
+- P3.0–3.6 `41dbe07`: the light workspace. Header strip (spent vs the widest rolling cap, driving dot, one stub chip, Freeze with confirm on unfreeze), the stream with receipts filed under the turn that produced them (server stamps `runId`/`at` on every assistant message), the live page as an inline card with a driving ring and a compact strip while it is scrolled away, tickets for receipts and approvals, the details drawer (policy, history, wallet), sign-in states (loading/failed/ready). Reducer, stream model, painter and letterbox mapping are unit-tested; e2e updated.
+- P3.7 `32d5569`: mandate editor in the drawer (`mandate.update`), `DELETE /api/me` wipes store rows, the workspace and the profile directory (`Store.forget`, `Workspaces.forget`); `e2e/policy.spec.ts`.
+- P3.8–3.9 `46367d2`: pop-out to a split pane (draggable, remembered width) and to `/browser` in its own window (`BroadcastChannel` claim/release, the tab drops its browser socket meanwhile); queue/starting/crashed overlays; phone is watch-only; `e2e/pop-out.spec.ts`.
 
 ## Blockers for the owner
 
