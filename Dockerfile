@@ -12,11 +12,12 @@
 # fonts and a pile of shared libraries. That is the cost of the product being a
 # browser you can watch.
 #
-# It needs no display server. Verified in this image: `Bun.WebView` with the
-# Chrome backend brings Chromium up, navigates, and produces screencast frames
-# with DISPLAY unset and no Xvfb — so there is deliberately no virtual framebuffer
-# here. If that ever stops being true the pane degrades to "No Chrome found" and
-# says so, rather than the container failing to start.
+# It needs no display server, and not by luck: `Bun.WebView` launches Chrome with
+# `--headless --ozone-platform=headless --no-startup-window` and software
+# rendering via SwiftShader. There is no window to want an X server, and
+# `Page.startScreencast` captures the compositor rather than a window — so there
+# is deliberately no Xvfb in this image. See `chrome-detect.ts` for the full
+# argument list Bun supplies.
 
 # ---- builder ----------------------------------------------------------------
 FROM oven/bun:1.4.0 AS builder

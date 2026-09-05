@@ -170,11 +170,35 @@ export const detectChrome = (
 };
 
 /**
- * Extra Chrome flags. `--no-sandbox` on Linux: Ubuntu 24.04 restricts
- * unprivileged user namespaces (AppArmor), and without the flag Chrome dies
- * with "No usable sandbox!" before the pipe opens — verified on this box.
- * `--disable-dev-shm-usage` keeps a small /dev/shm from crashing the
- * renderer.
+ * Extra Chrome flags — *in addition to* the ones Bun already supplies.
+ *
+ * Worth knowing what Bun contributes, because it is most of the list and it is
+ * why this runs on a machine with no display. Observed on Bun 1.4.0:
+ *
+ *   --headless --ozone-platform=headless --no-startup-window --disable-gpu
+ *   --use-angle=swiftshader-webgl --remote-debugging-pipe --no-first-run
+ *   --no-default-browser-check --disable-extensions --noerrdialogs
+ *   --disable-background-networking --disable-background-timer-throttling
+ *   --disable-backgrounding-occluded-windows --disable-renderer-backgrounding
+ *   --disable-ipc-flooding-protection --ozone-override-screen-size=800,600
+ *
+ * So `Bun.WebView` with the Chrome backend is headless by construction: there
+ * is no window to want a display server, and rendering goes through
+ * SwiftShader on the CPU. The screencast still works because
+ * `Page.startScreencast` captures the compositor's output, not a window.
+ *
+ * `--remote-debugging-pipe` rather than a port is also why a dead Chrome
+ * reports itself as "closed the pipe", and why no `--remote-allow-origins`
+ * hardening is needed: there is no socket for a visited page to connect to.
+ *
+ * What is left for us:
+ *
+ * `--no-sandbox` on Linux: Ubuntu 24.04 restricts unprivileged user namespaces
+ * (AppArmor) and a container has none at all, so without the flag Chrome dies
+ * with "No usable sandbox!" before the pipe opens — verified on both.
+ * `--disable-dev-shm-usage` keeps a 64 MB default `/dev/shm` from killing the
+ * renderer. `--hide-scrollbars` is cosmetic: they would be painted into the
+ * screencast and scroll nothing.
  */
 export const chromeArgv = (
   platform: NodeJS.Platform = process.platform
