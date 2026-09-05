@@ -9,10 +9,11 @@ Written Sat 5 Sep 2026. These files are the research, product and go-to-market p
 3. **`PRIZE_AUDIT_FABLE51.md`** - every track claim against the literal track text, the rules checklist, the overclaim watchlist, submission-form skeletons, the video rule check.
 4. **`TARGET_GROUPS_FABLE51.md`** - who we build for this week, three personas, where each segment is, first touch and return loop, who we skip, funnel targets and metrics.
 5. **`BUILD_IN_PUBLIC_FABLE51.md`** - Jonas's lane: channel rules, the daily artifact schedule, the two stunts, verbatim texts (peer issue, recruitment, consent, phone door), tester operations, ACQUISITION.md.
-6. **`CODE_STATE_FABLE51.md`** - the implementation audited on Sat 5 Sep against this plan: what works, what is stubbed, rule and safety risks, hours to the plan, the first five tasks.
-7. **`PIVOT_ASSESSMENT_FABLE51.md`** - the KIMI ideas (SquadPot, No Flake, Payback, Darepot, SecondOpinion, PAYDAY) and IDEAS.md's Allowance validated against the same evidence; decision and what we keep from them.
-8. **`RESEARCH_FABLE51.md`** - the research spine: rules, winners' anatomy, technical verification (browser, custody, Telegram, Graph), market, competition, segments, channels, prize expected value, fourteen corrections to the original plan, open questions.
-9. **`research_FABLE51/`** - the evidence: the brief and critic, nine dimension digests, six gap studies, four pivot red-teams (`pivot-*`), six product designs, three judge panels, the synthesis and two refutations (`panel-*`).
+6. **`USER_FLOWS_FABLE51.md`** - every path a human can take through the product, step by step, with a status per flow (built today versus which day it lands): the two doors and the phone door, the first ten minutes, the full job, grab and freeze, the Telegram return loop, the peer seller's arc, the judge, the degraded paths, and the ten-minute script for running a tester session.
+7. **`CODE_STATE_FABLE51.md`** - the implementation audited on Sat 5 Sep against this plan: what works, what is stubbed, rule and safety risks, hours to the plan, the first five tasks.
+8. **`PIVOT_ASSESSMENT_FABLE51.md`** - the KIMI ideas (SquadPot, No Flake, Payback, Darepot, SecondOpinion, PAYDAY) and IDEAS.md's Allowance validated against the same evidence; decision and what we keep from them.
+9. **`RESEARCH_FABLE51.md`** - the research spine: rules, winners' anatomy, technical verification (browser, custody, Telegram, Graph), market, competition, segments, channels, prize expected value, fourteen corrections to the original plan, open questions.
+10. **`research_FABLE51/`** - the evidence: the brief and critic, nine dimension digests, six gap studies, four pivot red-teams (`pivot-*`), six product designs, three judge panels, the synthesis and two refutations (`panel-*`).
 
 A note on `research_FABLE51/panel-refutations_FABLE51.md` and `panel-judgments_FABLE51.md`: the engineering refuter and one judge measured the proposals against the code tree as it stood on the night of 4 Sep. Their code-level points are the engineering owner's to accept or ignore; the plan above uses only their hour estimates and the rule-risk items.
 
