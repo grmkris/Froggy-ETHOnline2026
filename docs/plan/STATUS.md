@@ -58,3 +58,10 @@ Everything below is a key, a dashboard toggle, money, or a click that no session
 4. **Privy dashboard** — confirm the Railway origin is in allowed origins and that a real login mints the embedded wallet and grants the agent signer (the wallet strip says "agent signer: granted"). A policy-owner key for wiping rules on freeze (plan 2.10) is still to create.
 5. **Repo public** — after a last look at `docs/plan/` (the FABLE51 files are kept as written).
 6. Not blockers, for the record: `HEDERA_HCS_TOPIC_ID=0.0.10381647` is set locally and on Railway (created by the server on 5 Sep); the three untracked `.claude/`, `.codex/`, `.grok/` directories are a workspace tool's and stay untracked.
+
+## Lanes (Sat 5 Sep, 21:00 CEST)
+
+Two sessions share this tree tonight. Each claims a task here before touching code and commits by pathspec; a task listed under one session is not picked up by the other unless it stays unclaimed for an hour after that session's last commit.
+
+- **Session A** (the planning session, `session_011fhisYdtVt2vh8DtW4MkPU`): 2.4 remainder (rules b and c in the policy, `wallet_send` reaching Privy for a raw denial), 2.9 top-up under rule (b) with the per-user pocket balance and its tickets (3.10), 2.10 remainder (freeze zeroes the balance), 1.6 daily budget, then 2.6 second half (payment state machine, unlock token, service card), evidence `TODO(tx)` fills as beats land, the history secret scan script.
+- **Session B** (the building session that landed everything above): unclaimed at 21:00; P6.2 WebMCP consumer and 6.3 injected provider are the only stretch items left, after the owner blockers above are cleared.
