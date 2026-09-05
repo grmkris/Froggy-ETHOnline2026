@@ -10,9 +10,9 @@ These override the original “Telegram Mini App is the product” line in `summ
 
 | Decision | Call |
 | --- | --- |
-| Primary surface | **Web app** (Harness-shaped workspace: chat + live browser + wallet pane) |
+| Primary surface | **Web app** (project-k-shaped workspace: chat + live browser + wallet pane) |
 | Telegram | **Onboarding + later approvals**, not a Mini App as the product |
-| Agent computer | **Own Chrome**, spawned in-process with **Bun + `Bun.WebView`**, CDP, screencast, human/agent arbitration — same bet as Harness / Invok |
+| Agent computer | **Own Chrome**, spawned in-process with **Bun + `Bun.WebView`**, CDP, screencast, human/agent arbitration — same bet as project-k / project-i |
 | Custody | **Privy** (embedded user wallet + policy engine) |
 | Sponsors | Privy, The Graph, Hedera (Arc still skipped: mainnet 16 Sep) |
 | Open source | Yes. White-label is a README, not the video |
@@ -165,7 +165,7 @@ Cheap extras if the core is done:
 - **Ledger:** device confirm for anything above the session cap. Central, not bolted.
 - **Bazantic recipe:** Graph + Uniswap + x402 as a reusable recipe. Continuity-only for one of their tracks.
 
-Hedera **Harness** and **Tokenization** are different products. Do not.
+Hedera **project-k** and **Tokenization** are different products. Do not.
 
 Continuity vs scratch: GroundTruth / AutoToll / SuperJam exist as **prior art and portfolio**, not as a tree on this box. Default **Start Fresh**. If Jonas’s Graph layer is an existing repo, Graph Continuity is a fork — document the diff.
 
@@ -267,7 +267,7 @@ Policy (enforced OUTSIDE the model)
   kill switch = revoke authorization key / disconnect session
 
 Custody
-  User: Privy embedded (smart wallet if we lift humanhook)
+  User: Privy embedded (smart wallet if we lift project-h)
   Agent: delegated signer OR funded sub-wallet
   Model: never sees a key (Privy Agent CLI pattern: ephemeral signing keys)
 
@@ -295,14 +295,14 @@ From [the anatomy post](https://claude.com/blog/the-anatomy-of-effective-commerc
 4. Third-party content (Graph results, listings) is **fenced**. Never act on a recipient that appeared only inside a blob.
 5. UI is tools: `present_quote`, `present_receipt`, `request_approval` — not markdown the Telegram client parses.
 
-### Invok / Harness rules we copy
+### project-i / project-k rules we copy
 
-- **Never expose the approval channel as an agent tool.** Invok’s MCP toolkit deliberately omits `resolvePermission`. Same for freeze / raise-limit.
-- Park the turn on a Telegram card (`allow_once` / `allow_session` / `deny` / `deny_stop`). Invok `approval-options.schema.ts`.
-- Unattended (cron, “keep buying inference”) uses a **hard $ cap**, not bypass. Invok’s unattended `$5` LLM budget is the right idea applied to USDC.
-- Harness `ask_user` in-flow, not a modal. Telegram inline keyboard is the QuestionCard.
+- **Never expose the approval channel as an agent tool.** project-i’s MCP toolkit deliberately omits `resolvePermission`. Same for freeze / raise-limit.
+- Park the turn on a Telegram card (`allow_once` / `allow_session` / `deny` / `deny_stop`). project-i `approval-options.schema.ts`.
+- Unattended (cron, “keep buying inference”) uses a **hard $ cap**, not bypass. project-i’s unattended `$5` LLM budget is the right idea applied to USDC.
+- project-k `ask_user` in-flow, not a modal. Telegram inline keyboard is the QuestionCard.
 - Panic = abort the run **and** stop the side effect (revoke / freeze), not just stop tokens.
-- Harness has **no** tool approval matrix on purpose (“a human is watching”). Invalid for a wallet. Copy HITL, add real limits.
+- project-k has **no** tool approval matrix on purpose (“a human is watching”). Invalid for a wallet. Copy HITL, add real limits.
 
 ---
 
@@ -310,18 +310,18 @@ From [the anatomy post](https://claude.com/blog/the-anatomy-of-effective-commerc
 
 | Piece | Where | Use |
 | --- | --- | --- |
-| Privy guest → smart wallet → batched `sendCalls` | `humanhook/apps/web/src/lib/keep.tsx` | User wallet, Base Sepolia lessons |
-| Server auth of Privy tokens, smart vs signer | `humanhook/.../dish-auth.ts` | API that the agent cannot spoof |
-| Telegram bot onboarding | `boter/` | Pairing `t.me/bot?start=`, **not** Mini Apps |
+| Privy guest → smart wallet → batched `sendCalls` | `project-h/apps/web/src/lib/keep.tsx` | User wallet, Base Sepolia lessons |
+| Server auth of Privy tokens, smart vs signer | `project-h/.../dish-auth.ts` | API that the agent cannot spoof |
+| Telegram bot onboarding | `project-b/` | Pairing `t.me/bot?start=`, **not** Mini Apps |
 | SuperJam `payX402` quotas / allowlisted hosts | `personal/business/mini-app-host-platform-spec.md` | Product language; was the first cut in June — now it **is** the product |
 | Host vs guest | same spec | Telegram Mini App = **guest**. Fine for distribution. Do not try to be Telegram. |
-| Invok HITL + capability allowlists | `invok` interaction-registry, gate.ts | Approval bus |
-| Invok x402 design (not code) | `invok/.claude/research/x402-crypto-research.md` | Per-session USDC, per-tx, allowlist, keys in TEE |
+| project-i HITL + capability allowlists | `project-i` interaction-registry, gate.ts | Approval bus |
+| project-i x402 design (not code) | `project-i/.claude/research/x402-crypto-research.md` | Per-session USDC, per-tx, allowlist, keys in TEE |
 | Starters | `starters/` | Bun/Effect/Vite **kit**. No auth, no Telegram, chain unwired. Fork only if we want FIELD/01 as the web shell; otherwise too much game/ECS for nine days. |
 | GroundTruth / AutoToll | portfolio, **not cloned here** | Story, not a git submodule |
-| Harness | archived; product is Invok | Pattern library only |
+| project-k | archived; product is project-i | Pattern library only |
 
-**Do not** start from the full starters spatial demo or the archived harness binary.
+**Do not** start from the full starters spatial demo or the archived project-k binary.
 
 Suggested bootstrap: **new repo**, Bun + Hono (or Effect HttpApi if the team is already in that groove) + Privy + a Telegram bot. Mini App is a thin policy UI on the same API.
 
@@ -426,9 +426,9 @@ Surface, Telegram Mini App, and “does the agent get a browser?” are **closed
 
 - `ARCHITECTURE.md` (this repo) — web workspace + Bun.WebView browser
 - `summary.md`, `prizes.md` (this repo)
-- `~/code/humanhook` — Privy smart wallets
-- `~/code/invok` — HITL, capability allowlists, x402 research
-- `~/code/harness` — archived; `ask_user`, shared-surface HITL
+- `~/code/project-h` — Privy smart wallets
+- `~/code/project-i` — HITL, capability allowlists, x402 research
+- `~/code/project-k` — archived; `ask_user`, shared-surface HITL
 - `~/code/starters` — FIELD/01 kit
-- `~/code/boter` — Telegram bot gateway
+- `~/code/project-b` — Telegram bot gateway
 - `~/code/personal/business/mini-app-host-platform.md` — SuperJam / host vs guest / payX402

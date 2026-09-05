@@ -41,8 +41,8 @@ export type ServiceModes = typeof ServiceModes.Type;
 /**
  * One option on an approval card.
  *
- * The four kinds are the whole vocabulary, taken from invok so the same card
- * renders for any harness. `deny_stop` is distinct from `deny` because
+ * The four kinds are the whole vocabulary, so the same card renders on every
+ * surface. `deny_stop` is distinct from `deny` because
  * "no, and stop the run" and "no, try something else" are different
  * instructions and collapsing them loses the ability to say the first one.
  */

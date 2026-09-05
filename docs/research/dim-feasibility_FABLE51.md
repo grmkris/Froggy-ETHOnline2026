@@ -16,7 +16,7 @@ Hedera extras. hedera-dev PoC (created 2026-07-13, 5 commits, 2 stars): `package
 
 WebMCP. Chrome origin trial 149–156 (ends 2026-11-16); Chrome 150 moved to `document.modelContext` (navigator alias). Local Chrome 152 is inside the window, but no mainstream agent consumes it and anthropics/claude-code #30645 (WebMCP in the Claude Chrome extension) was closed "not planned". Only community bridges (WebMCP Bridge extension → Claude Code) exist. Cut it.
 
-Local repos. `find`/`mdfind` for invok, harness, humanhook, boter, starters and the mini-app-host-platform spec: none exist under ~ (only unrelated poker "harness" dirs and ~/bob-harness = metadao-futarchy). The "steal patterns from Invok" plan has nothing to steal from on this machine.
+Local repos. `find`/`mdfind` for project-i, project-k, project-h, project-b, starters and the mini-app-host-platform spec: none exist under ~ (only unrelated poker "harness" dirs and ~/bob-harness = metadao-futarchy). The "steal patterns from project-i" plan has nothing to steal from on this machine.
 
 Model. The claude-api skill in this environment says default `claude-opus-5` via `@anthropic-ai/sdk` (0.123.0), adaptive thinking; Vercel AI SDK `ai` 7.0.92 + `@ai-sdk/anthropic` 4.0.49 are fine for `streamText`. Avoid Fable 5.1 for the loop (forced `tool_choice` returns 400).
 
@@ -173,7 +173,7 @@ Sources:
 - https://github.com/anthropics/claude-code/issues/30645
 - https://ppc.land/chrome-149-origin-trial-puts-webmcp-in-developers-hands-at-last/
 
-### [high] conf 0.95: None of the local repos ARCHITECTURE.md/PLAN.md rely on (invok, harness, humanhook, boter, starters, mini-app-host-platform spec, ~/code) exist on this machine.
+### [high] conf 0.95: None of the local repos ARCHITECTURE.md/PLAN.md rely on (project-i, project-k, project-h, project-b, starters, mini-app-host-platform spec, ~/code) exist on this machine.
 
 Evidence: VERIFIED: `find ~ -maxdepth 5 -type d -iname <name>` and mdfind returned nothing for all five; ~/code does not exist; only unrelated matches (/Users/jonas/Documents/mushanghai/poker_arena/.../harness, ~/bob-harness = metadao-futarchy).
 
@@ -209,7 +209,7 @@ Sources:
 - Cut WebMCP (producer and consumer) from the submission; if a browser-wallet moment is wanted, spend at most one day on a stubbed EIP-1193 provider injected via Page.addScriptToEvaluateOnNewDocument that forwards eth_sendTransaction to the host and shows a policy reject.
 - Graph: start from Subgraph MCP over SSE with a Studio key for discovery/schema, but make the load-bearing query a direct GraphQL call to 2–3 Messari lending subgraphs (aave-v3 ethereum/base/arbitrum, all LIVE) so the demo does not depend on MCP resource activation; log the Graph snapshot hash into the receipt.
 - Agent loop: Vercel AI SDK streamText with @ai-sdk/anthropic and model `claude-opus-5`, ~12-step cap, tools browser_snapshot/browser_execute/x402_fetch/graph_query/wallet_*/ask_user; never expose resolvePermission/freeze as tools.
-- Drop the 'steal from invok/harness/humanhook/boter' line from the docs (they are not on this machine) or have whoever has them push the specific files (screencast.ts, arbitration.ts, keep.tsx) into a /reference folder on day 0.
+- Drop the 'steal from project-i/project-k/project-h/project-b' line from the docs (they are not on this machine) or have whoever has them push the specific files (screencast.ts, arbitration.ts, keep.tsx) into a /reference folder on day 0.
 
 ## Open questions
 
@@ -219,7 +219,7 @@ Sources:
 - Where did Bun's auto-detected HeadlessChrome/108 binary come from on this Mac, and does Bun 1.3.14 include the chrome-backend close() unhandled-rejection fix (#40991/#40992 closed 2026-09-01)?
 - Is the Graph testnet x402 gateway (testnet.gateway.thegraph.com) serving the Messari lending subgraphs, or only Studio-deployed testnet subgraphs? If not, the Privy-policied x402 spend must target mainnet gateway with real USDC on Base.
 - Which facilitator does Privy's createX402Client use on Base Sepolia by default, and does it require a Pay AI/Corbits/Coinbase key?
-- Who on the team actually has the invok/harness/humanhook/boter repos, if anyone?
+- Who on the team actually has the project-i/project-k/project-h/project-b repos, if anyone?
 - Subgraph Studio pricing above 100k queries/month was not fetched (thegraph.com/studio-pricing).
 
 ## All sources

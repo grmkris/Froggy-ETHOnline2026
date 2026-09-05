@@ -5,10 +5,8 @@
  * thirty frames a second a `setState` per frame would re-render the whole
  * workspace thirty times a second, and the chat pane would stutter every time
  * the page repainted. This hook owns the canvas bitmap directly and publishes
- * only the low-rate JSON state through React.
- *
- * Ported in spirit from invok's `use-browser-ws.ts`, including the parts that
- * are only obvious after they have gone wrong once.
+ * only the low-rate JSON state through React. Several details below are only
+ * obvious after they have gone wrong once.
  */
 
 import {

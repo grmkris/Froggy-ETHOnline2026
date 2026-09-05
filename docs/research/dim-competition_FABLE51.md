@@ -255,7 +255,7 @@ Sources:
 - Has Cloudflare Wallets moved past reservation-only since 19 Aug 2026, and is there any published plan to connect Browser Run handoff to Virtual Wallet spend?
 - Does Blocky402 settle x402 on Hedera mainnet today, or testnet V1 only, and which do the Hedera judges expect?
 - ChatGPT Atlas / Agent mode current purchase behaviour (openai.com returned 403): does agent mode still pause on payment, and did any crypto wallet connector survive the March checkout retreat?
-- Is there a public repo for 'Harness' or 'Invok' (the ~/code directories referenced in PLAN.md do not exist on this machine)? If Invok is public, judges may find it and you should credit it; if not, the pattern-copy claim is unverifiable to outsiders.
+- Is there a public repo for 'project-k' or 'project-i' (the ~/code directories referenced in PLAN.md do not exist on this machine)? If project-i is public, judges may find it and you should credit it; if not, the pattern-copy claim is unverifiable to outsiders.
 - Did any ETHGlobal HackMoney 2026 or Cannes 2026 project pair a screencast browser with a wallet policy? The showcase search only surfaced Lisbon projects; WebSearch budget ran out before HackMoney finalists could be checked.
 
 ## All sources

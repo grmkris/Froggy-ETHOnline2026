@@ -3,7 +3,7 @@
  * arbitration, no tab selection. The caller has already decided which tab is
  * being typed into and that the human should be credited for it.
  *
- * Ported from invok. The one thing worth restating: printable characters never
+ * The one thing worth restating: printable characters never
  * arrive here as key events. The client sends them as `input.text` from a
  * hidden input's `input` event, because that is the only path an IME
  * composition survives — synthesising keydowns for "ありがとう" produces

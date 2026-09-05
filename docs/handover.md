@@ -33,7 +33,7 @@ Every external service has a stub, chosen in `apps/server/src/environment.ts` wh
 | `HEDERA_ACCOUNT_ID` + `HEDERA_PRIVATE_KEY` | portal.hedera.com, ECDSA | Hedera track. Needs a real paid request end to end |
 | `ANTHROPIC_API_KEY` | console.anthropic.com | A model that can reason. Without it the loop runs a fixed script and says so |
 
-`PRIVY_APP_ID` / `PRIVY_APP_SECRET` are on this box already (humanhook's app). They are deliberately **not** set on Railway: that app's allowed-origins list does not include the Railway domain, so sign-in would fail confusingly rather than being cleanly stubbed. Either add the domain in Privy's dashboard or make a second app. Two dashboard toggles are invisible from the code and were a documented trap in humanhook — **guest accounts ON**, and **smart wallets enabled for Base Sepolia**, or `user.smartWallet` never fills.
+`PRIVY_APP_ID` / `PRIVY_APP_SECRET` are in `~/.config/secrets.env` on the build box. They are deliberately **not** set on Railway until that app's allowed-origins list includes the Railway domain; otherwise sign-in fails confusingly rather than being cleanly stubbed. Dashboard settings the code cannot see: email and Google login on, embedded wallets created on login, and the Railway origin allowed.
 
 Drop the values into `~/.config/secrets.env` for local work, and onto the Railway service for the deployment. Nothing needs rebuilding except `VITE_PRIVY_APP_ID`, which Vite inlines at build time.
 
@@ -49,11 +49,11 @@ Drop the values into `~/.config/secrets.env` for local work, and onto the Railwa
 ## What to build next, in order
 
 1. **Get the three keys in.** Everything else is decoration until the Graph query is live and one Hedera payment has really settled.
-2. **Approval cards.** The `ask` decision already exists and the protocol already carries `ApprovalRequest` with the four-kind vocabulary — but nothing renders it yet, so a spend over the threshold currently just reports that it needs a human. Port invok's `parkInteraction` three-way race (answer / abort / deadline).
+2. **Approval cards.** The `ask` decision already exists and the protocol already carries `ApprovalRequest` with the four-kind vocabulary — but nothing renders it yet, so a spend over the threshold currently just reports that it needs a human. Park the tool call in a three-way race (answer / abort / deadline).
 3. **Persist the ledger.** `packages/database` holds the schema; the running ledger is in-memory, which is why the service is pinned to one replica.
 4. **Mandate editing in the UI.** The protocol carries `mandate.update` and the server honours it; the pane only reads.
 5. **The Privy-signed Hedera payment.** `ClientHederaSigner` is a two-member interface, the Hiero SDK takes an async signer callback, and `@privy-io/node` exposes `wallets._rawSign` with `secp256k1_sign`. So the Hedera payment could be signed by a **Privy wallet under a Privy policy** — one leash across two chains, which no other submission will have. It needs the wallet's compressed public key to create the matching Hedera account. Attempt only once 1–3 are green; it is the headline, not the foundation.
-6. **Telegram.** Cut from the MVP and still cut. `~/code/boter` has no pairing flow to lift — that assumption in `docs/plan/ARCHITECTURE_v1.md` is wrong — so it is a fresh day of work that no sponsor is paying for.
+6. **Telegram.** Cut from the MVP and still cut. There is no pairing flow to lift, so it is a fresh day of work that no sponsor is paying for.
 
 ## Before submitting
 

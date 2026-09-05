@@ -7,7 +7,7 @@ This distills 118 research agents (9 dimensions, 2 verification lenses per high-
 - 2-3 people. Jonas Heinz owns build-in-public (X account, landing page, testers). Kristjan Grm (GitHub grmkris, owns the repo, likely prior ETHGlobal form: SessionFlow at Cannes) writes spec. Hemang Vora maybe.
 - Existing plan (PLAN.md, ARCHITECTURE.md): web workspace where human + AI share one Chrome (Bun.WebView + CDP screencast, human can grab/freeze), Privy embedded wallet + policy engine as the leash, Telegram as onboarding + approval pager, The Graph as the live data that drives spend, self-hosted x402 service on Hedera via Blocky402 as the thing the agent buys. Sponsors locked: Privy, The Graph, Hedera.
 - Dual goal: (A) win the targeted tracks, (B) attract real testers this week via build-in-public.
-- The prior-art repos the docs say to "steal from" (humanhook, invok, harness, boter, starters) are NOT on Jonas's machine. Only Kristjan may have them.
+- The prior-art repos the docs say to "steal from" (project-h, project-i, project-k, project-b, starters) are NOT on Jonas's machine. Only Kristjan may have them.
 
 ## 1. Hard rules (ETHOnline 2026)
 
@@ -100,7 +100,7 @@ Hedera AI & Agentic ~0.35 x $2k; Privy financial flow ~0.25 x $2.5k; Graph compo
 
 1. "Privy policy is the leash on the Hedera x402 payment" is false; only the EVM leg is Privy-gated.
 2. "Daily cap via Privy policy" only works for eth_signTransaction/eth_signUserOperation, not x402 typed data and not eth_sendTransaction.
-3. "Steal patterns from ~/code/invok, humanhook, boter" is not possible on Jonas's machine; those repos must come from Kristjan or be dropped.
+3. "Steal patterns from ~/code/project-i, project-h, project-b" is not possible on Jonas's machine; those repos must come from Kristjan or be dropped.
 4. Graph x402 on Base Sepolia is not a working path for Messari data; it is mainnet with real USDC or Studio key.
 5. WebMCP producer/consumer should be cut entirely.
 6. The demand section over-weights low-reach X posts; the strongest evidence is Reddit threads and the Bankr incident.
@@ -112,7 +112,7 @@ Hedera AI & Agentic ~0.35 x $2k; Privy financial flow ~0.25 x $2.5k; Graph compo
 ## 9. Open questions only the team can answer
 
 - Name. Who owns the Chrome slice vs Privy slice vs Hedera service vs build-in-public (one person must own Chrome full-time).
-- Does Kristjan have the invok/humanhook/boter repos and will he push the relevant files, or do we start clean?
+- Does Kristjan have the project-i/project-h/project-b repos and will he push the relevant files, or do we start clean?
 - Is Jonas's prior Graph layer a real repo? If yes, keep it OUT of the tree (Start Fresh) or register Graph Continuity with a documented diff; do not mix.
 - Are we willing to put ~$5-20 of real Base USDC into the demo wallet (Path A for Graph)?
 - Will the team run a Hetzner box (EUR 6-17/mo) for public testers?

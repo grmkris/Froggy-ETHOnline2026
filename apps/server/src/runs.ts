@@ -11,8 +11,6 @@
  * The SSE stream is tee'd and recorded so a reconnecting client can replay what
  * it missed, and the recorder is what keeps the model loop draining while
  * nobody is listening.
- *
- * Ported from harness's `packages/kernel/src/agent/runs.ts`.
  */
 
 import { RunId } from "@froggy/domain";

@@ -45,8 +45,7 @@ COPY packages ./packages
 
 # Vite inlines these at BUILD time. A variable set on the Railway service but not
 # declared here never reaches the bundle — a failure that looks exactly like the
-# feature being switched off, and the reason humanhook's Dockerfile carries the
-# same warning.
+# feature being switched off.
 ARG VITE_PRIVY_APP_ID=""
 ENV VITE_PRIVY_APP_ID=$VITE_PRIVY_APP_ID
 

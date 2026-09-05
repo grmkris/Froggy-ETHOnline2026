@@ -1,7 +1,7 @@
 /**
  * Privy, client side.
  *
- * Three moves lifted from humanhook, each of which exists because the naive
+ * Three moves, each of which exists because the naive
  * version broke:
  *
  *   1. **Dynamic `import()` inside an effect.** The bundle must not hard-depend

@@ -7,8 +7,6 @@
  * page mid-action. So the human always wins immediately and the agent is
  * merely asked to pause, bounded by a starvation cap so a person leaning on a
  * key cannot freeze the agent forever.
- *
- * Ported from invok, which ported it from harness.
  */
 import type { InteractionMode } from "@froggy/protocol";
 

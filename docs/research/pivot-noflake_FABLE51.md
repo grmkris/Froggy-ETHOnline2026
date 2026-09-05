@@ -70,7 +70,7 @@
 - Hedera judges have seen 10+ self-built x402 sellers this week and Tally already won for capped agent spend; a venue-finder that only our agent pays reads as a dummy unless it is a real, documented endpoint (upstream API named, pay-per-result metering, HCS receipts) that a peer team's agent could pay.
 - Privy policy does not cover the Hedera leg or a daily x402 budget (RESEARCH 4.2); the HBAR pocket is host-capped only. The README and video must say 'Privy is the leash on the referee and on stakes; the agent's HBAR pocket is host-capped'. Overclaiming here is the most likely disqualifying error in the write-up.
 - Privy prize base rate is low (1 of 4 tracks awarded at NY 2026; Deport The Dip, the closest Telegram+Privy analogue, won nothing) and the Graph leg is thin, so realistic EV is one Hedera slot plus an outside chance at Privy; do not plan on Graph money.
-- Team and environment unknowns unchanged from BRIEF s9: nobody has the invok/humanhook/boter repos on Jonas's machine, one person must own Chrome full-time, Bun 1.4.1 has been out for one day, and the plan needs a hosting day and worker-per-user isolation before any public tester touches it.
+- Team and environment unknowns unchanged from BRIEF s9: nobody has the project-i/project-h/project-b repos on Jonas's machine, one person must own Chrome full-time, Bun 1.4.1 has been out for one day, and the plan needs a hosting day and worker-per-user isolation before any public tester touches it.
 - Episodic usage: a plan takes days to resolve. Without demo-mode timers no tester completes a loop before submission, and even with them the 'day-2 return' evidence will be thin; expect fewer than 10 completed plans by 13 Sep.
 
 ## Red team

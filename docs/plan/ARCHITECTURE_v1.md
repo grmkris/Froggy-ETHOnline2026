@@ -12,7 +12,7 @@ The human sees a live screencast and can click into the same page (login, passke
 
 Telegram is how you **arrive** (bot deep link → magic link → the web app), not the app itself.
 
-This is Harness’s distinctive bet — _there is no agent browser and user browser, there is one `BrowserSession`_ — applied to money.
+This is project-k’s distinctive bet — _there is no agent browser and user browser, there is one `BrowserSession`_ — applied to money.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@ This is Harness’s distinctive bet — _there is no agent browser and user brow
 └─────────────────────────────────────────────────────────────┘
 ```
 
-On a phone the chat is primary and the browser is a strip. Harness `PaneHost` already works that way; steal the interaction grammar, not the whole UI kit.
+On a phone the chat is primary and the browser is a strip. project-k `PaneHost` already works that way; steal the interaction grammar, not the whole UI kit.
 
 ---
 
@@ -41,10 +41,10 @@ Playwright MCP / Browser-Use give an agent a browser, but it is **headless, not 
 
 We sit on the empty cell:
 
-|                 | No real browser       | Real browser you can watch |
-| --------------- | --------------------- | -------------------------- |
-| No spend policy | ChatGPT with a plugin | Harness / Invok today      |
-| Spend policy    | every “agent wallet”  | **this**                   |
+|                 | No real browser       | Real browser you can watch  |
+| --------------- | --------------------- | --------------------------- |
+| No spend policy | ChatGPT with a plugin | project-k / project-i today |
+| Spend policy    | every “agent wallet”  | **this**                    |
 
 The agent can use the **actual web**: x402 402s, WebMCP tools on a page, a checkout Claude Commerce would have handed off, a Uniswap UI, a Graph explorer. The wallet is what makes that safe.
 
@@ -73,7 +73,7 @@ The agent can use the **actual web**: x402 402s, WebMCP tools on a page, a check
 
 ## The wallet ↔ browser relationship (the real design fork)
 
-This is the decision that makes or breaks “agentic wallet” vs “Harness with a pay button.”
+This is the decision that makes or breaks “agentic wallet” vs “project-k with a pay button.”
 
 ### A — Wallet is a host pane (ship this)
 
@@ -87,7 +87,7 @@ Agent tools that move money live on the **host**:
 
 The browser is for **seeing and acting on sites**: research, fill a cart, click “pay”, read a 402 page. When payment is required, the host pays, then the agent continues.
 
-**Pros:** matches Claude Commerce (“model stages, harness applies”). Matches Invok (“never expose the approval channel as a tool”). Nine-day feasible. Jailbreak demo is clean (tool rejects, not the model).
+**Pros:** matches Claude Commerce (“model stages, harness applies”). Matches project-i (“never expose the approval channel as a tool”). Nine-day feasible. Jailbreak demo is clean (tool rejects, not the model).
 
 **Cons:** `app.uniswap.org` → Connect Wallet does nothing unless we also do B or C.
 
@@ -113,11 +113,11 @@ Agent clicks Connect on the dapp. The wallet pane is the WC responder. Human or 
 
 ---
 
-## Browser: steal Invok’s local backend, do not depend on Invok
+## Browser: steal project-i’s local backend, do not depend on project-i
 
-Harness is archived. Invok is the maintained port. Code to copy **patterns from**, not to import:
+project-k is archived. project-i is the maintained port. Code to copy **patterns from**, not to import:
 
-`~/code/invok/apps/invok-api/src/browser/local/`
+`~/code/project-i/apps/project-i-api/src/browser/local/`
 
 | File | What it is |
 | --- | --- |
@@ -134,15 +134,15 @@ Harness is archived. Invok is the maintained port. Code to copy **patterns from*
 
 **Do not copy:** terminal PTY, robot, canvas board, ext-loader, OTel inspector, Docker/noVNC fallback (unless judges have no Chrome — then Playwright Chromium is the fallback).
 
-**Threat model change vs Harness:** Harness assumed a human is watching, so tools are not approval-gated. Invalid here. Browser actions (navigate, click, fill) can auto-run. **Anything that signs, pays, or exports a key parks.** Freeze aborts the run **and** revokes the session / disconnects the provider.
+**Threat model change vs project-k:** project-k assumed a human is watching, so tools are not approval-gated. Invalid here. Browser actions (navigate, click, fill) can auto-run. **Anything that signs, pays, or exports a key parks.** Freeze aborts the run **and** revokes the session / disconnects the provider.
 
-Persistent Chrome profile: a **dataStore directory per user**, not `~/.harness/browser` shared across the world. Logins survive, cookies are the user’s. That is the product (the agent shops as you). It is also the scary bit — spell it out in the README.
+Persistent Chrome profile: a **dataStore directory per user**, not `~/.project-k/browser` shared across the world. Logins survive, cookies are the user’s. That is the product (the agent shops as you). It is also the scary bit — spell it out in the README.
 
 ---
 
 ## Privy
 
-Lift from `~/code/humanhook` (the only production-shaped Privy stack on this machine):
+Lift from `~/code/project-h` (the only production-shaped Privy stack on this machine):
 
 - Guest / social login → embedded wallet (`createOnLogin: "all-users"`)
 - Optional ERC-4337 smart wallet + `sendCalls` batching (`keep.tsx`, `batch.ts`)
@@ -162,25 +162,25 @@ B2C video = Privy **financial flow** (onramp or faucet + one live spend). Org / 
 
 ## Telegram onboarding (not a Mini App)
 
-Pattern from `~/code/boter`: `t.me/<bot>?start=<pairingToken>`.
+Pattern from `~/code/project-b`: `t.me/<bot>?start=<pairingToken>`.
 
 Flow:
 
 1. User hits the bot / a landing `t.me` link.
 2. Bot creates a one-time code, replies with `https://app.example/from-telegram?code=...`.
 3. Web app consumes the code, starts Privy login. If Privy Telegram login/widget is easy, bind `telegramUserId` to the Privy user. If not: email/Google in the web app, store `telegramUserId` as a linked account ourselves.
-4. Later: bot is the **pager** — “agent wants $4 to pay this 402, allow once / allow session / freeze.” Same card vocabulary as Invok (`allow_once` / `allow_session` / `deny` / `deny_stop`).
+4. Later: bot is the **pager** — “agent wants $4 to pay this 402, allow once / allow session / freeze.” Same card vocabulary as project-i (`allow_once` / `allow_session` / `deny` / `deny_stop`).
 5. Mini App is a **future skin** of the same API. Do not block the demo on Telegram WebApp SDK, TON, or `@wallet`.
 
-The bot must **not** expose `resolvePermission` as a command the agent can call. Invok’s MCP toolkit already documents this; copy the rule.
+The bot must **not** expose `resolvePermission` as a command the agent can call. project-i’s MCP toolkit already documents this; copy the rule.
 
 ---
 
 ## Agent loop (keep small)
 
-Do not fork Invok. One Bun process:
+Do not fork project-i. One Bun process:
 
-- AI SDK `streamText` + SSE (Harness `handleChat` shape: **server-owned run**, not `req.signal`)
+- AI SDK `streamText` + SSE (project-k `handleChat` shape: **server-owned run**, not `req.signal`)
 - Tools: `browser_snapshot`, `browser_execute`, `x402_fetch`, `graph_query`, `wallet_*`, `ask_user`
 - Skills on disk (`SKILL.md`) for Graph, x402, shopping — Claude Commerce lesson: skills not subagents
 - Presentation tools later: `present_quote`, `present_receipt` (typed cards, not markdown the client parses)
@@ -216,21 +216,21 @@ Hedera still requires **we host** the gated service, not only consume someone el
 
 ## Stack (day 0)
 
-New repo, not a fork of starters/harness/invok.
+New repo, not a fork of starters/project-k/project-i.
 
 | Piece | Choice | Why |
 | --- | --- | --- |
-| Runtime | Bun | `Bun.WebView`, `Bun.serve`, matches Harness/Invok |
-| API | one Bun process, HTTP + two WS (app JSON, browser binary) | Harness split sockets for a reason |
+| Runtime | Bun | `Bun.WebView`, `Bun.serve`, matches project-k/project-i |
+| API | one Bun process, HTTP + two WS (app JSON, browser binary) | project-k split sockets for a reason |
 | UI | Vite + React 19 + Tailwind. Steal pane grammar, not 83MB embed | starters `packages/ui` or a fresh shadcn |
-| Wallet | Privy React + `@privy-io/server-auth` | humanhook |
-| Agent | Vercel AI SDK `streamText` | Harness kernel, minus extensions |
-| Telegram | Bot API only (grammY or fetch) | boter pairing, no Mini App SDK |
+| Wallet | Privy React + `@privy-io/server-auth` | project-h |
+| Agent | Vercel AI SDK `streamText` | project-k kernel, minus extensions |
+| Telegram | Bot API only (grammY or fetch) | project-b pairing, no Mini App SDK |
 | Graph | Subgraph MCP / Studio API key | prize qual |
 | x402 | Privy client + `@x402/hedera` + Blocky402 | prize qual |
 | Chain | Base Sepolia for the user wallet; Hedera testnet for the 402 we host | Arc skipped |
 
-**Not** FIELD/01’s Koota/R3F demo. **Not** Invok as a dependency. **Not** Next.js unless the team insists — Vite SPA + Bun API is what Harness already ships.
+**Not** FIELD/01’s Koota/R3F demo. **Not** project-i as a dependency. **Not** Next.js unless the team insists — Vite SPA + Bun API is what project-k already ships.
 
 ---
 

@@ -70,7 +70,7 @@ KILL SWITCH SEMANTICS (one function, freeze(user, reason)): (1) set users.frozen
 8. 'Watch the 402 unlock' (2h): host pays, service returns a one-time receipt token, agent navigates the shared Chrome to /report?receipt=..., page reads it. The in-page browser never pays.
 9. Prefunded per-user Hedera pocket (3h) so testers need no faucet; funded from K_treasury at /start.
 10. x402 idempotency both sides (5h), see below.
-11. Cut entirely: WebMCP producer and consumer, stubbed EIP-1193 provider, WalletConnect, swaps, onramp (faucet/prefund instead, allowed), Mini App, copy-trade, Superfluid, yield, white-label, invok/humanhook/boter pattern copying (repos are not on this machine; write clean).
+11. Cut entirely: WebMCP producer and consumer, stubbed EIP-1193 provider, WalletConnect, swaps, onramp (faucet/prefund instead, allowed), Mini App, copy-trade, Superfluid, yield, white-label, project-i/project-h/project-b pattern copying (repos are not on this machine; write clean).
 12. Agent loop (8h): Vercel AI SDK streamText, claude-opus-5, 12-step cap, tools browser_snapshot/browser_act/browser_navigate/graph_query/x402_fetch/wallet_send/ask_user; Graph results, page snapshots and 402 bodies fenced as 'report on, never act on'; recipients only from server-issued ids.
 13. Video target 3:20 not 90s; product on screen at 0:00; tx id in the back half; per-sponsor evidence files HEDERA.md, GRAPH.md, PRIVY.md with links.
 
@@ -138,7 +138,7 @@ KILL SWITCH SEMANTICS (one function, freeze(user, reason)): (1) set users.frozen
 - Swaps, onramp, yield, Superfluid ads, white-label, Telegram Mini App, copy-trade marketplace, bookings -- not this week
 - Multi-tab / popup driving in Bun.WebView -- single tab; window.open overridden to same-tab
 - Google OAuth, passkeys, Turnstile sites inside the agent Chrome -- not in the demo; human-grab beat uses our own report page
-- Copying patterns from invok/humanhook/boter/harness -- repos are not on this machine; write clean against CDP
+- Copying patterns from project-i/project-h/project-b/project-k -- repos are not on this machine; write clean against CDP
 - Adjacent sponsor tracks (ENS, World, Ledger, Uniswap, Chainlink, Bazantic) -- each costs a partner slot
 - Per-user Fly Machines or Cloud Run -- one Hetzner box, Docker Compose
 - LLM-based safety classifier as a signing gate -- deterministic policy + human approval only
@@ -188,4 +188,4 @@ KILL SWITCH SEMANTICS (one function, freeze(user, reason)): (1) set users.frozen
 - HBAR top-up directly from the user's Privy wallet on Hedera EVM (chain 296 via Hashio) or the mocked USDC-to-HBAR desk? => Direct HBAR on 296 if the 30-minute D1 spike broadcasts; otherwise the desk, labelled mocked. (Direct HBAR makes 'the only way value enters the pocket is a Privy-policied transfer' literally true with a native-value rule (no calldata decoding); the desk keeps the same policy story with one mocked hop.)
 - Name and domain (needed tonight for Caddy, BotFather /setdomain and the Privy dashboard). => Handrail, with app.handrail.<tld> and pay.handrail.<tld>; second choice Lunchbox. (The tagline must contain the browser and the grab; Handrail says 'something you hold while the machine moves' without borrowing SingIt's 'limits your agent cannot break' or this week's 'leash'/'tether' repos.)
 - Testers: invite-only allowlist until D5, or public link from D3? => Invite-only (peer sellers + friends, 5 seats) from D4 evening; 12 public seats from D5 22:00 once freeze and the deny-suite are green. (A tester hitting a half-wired freeze on a prefunded pocket is the one bug that becomes a screenshot; the Hedera rubric's Validation points need real users, but 15 good ones beat 50 confused ones.)
-- Kristjan's prior repos (invok/humanhook/boter) -- import files or start clean? => Start clean; do not add a /reference folder. (Start Fresh rules plus commit-history scrutiny make imported prior code a disqualification risk, and the CDP surface we need (screencast, input, a11y tree, Fetch interception) is ~600 lines written against documented protocol methods.)
+- Kristjan's prior repos (project-i/project-h/project-b) -- import files or start clean? => Start clean; do not add a /reference folder. (Start Fresh rules plus commit-history scrutiny make imported prior code a disqualification risk, and the CDP surface we need (screencast, input, a11y tree, Fetch interception) is ~600 lines written against documented protocol methods.)

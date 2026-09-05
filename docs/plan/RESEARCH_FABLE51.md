@@ -19,7 +19,7 @@ Sibling files: `README.md` (the index), `PRODUCT_FABLE51.md` (the refined produc
 7. **The video is the submission.** Partners judge asynchronously from the repo, showcase page and video. Two of the closest failed analogues had no video on their showcase at all. Winners put the running product on screen within a minute and a real transaction id in the back half.
 8. **Real demand is on Reddit, not on the X posts the plan cites.** The Bankr drain thread, the "$90 it can't spend without me" thread and the r/ethdev "how do we let an AI use a wallet" thread are the strongest signals. Four of the seven X posts in the plan have under 1,200 views.
 9. **Sponsors will not amplify you mid-event.** The org accounts reply only to themselves. The people who do engage are the Hedera community account, two named Hedera DevRel people, The Graph's reply threads, and one ETHGlobal mentor.
-10. **The prior-art repos are not on Jonas's machine.** `~/code/invok`, `humanhook`, `boter`, `harness`, `starters` do not exist here. Either Kristjan pushes the specific files or the team starts clean.
+10. **The prior-art repos are not on Jonas's machine.** `~/code/project-i`, `project-h`, `project-b`, `project-k`, `starters` do not exist here. Either Kristjan pushes the specific files or the team starts clean.
 
 ---
 
@@ -230,7 +230,7 @@ Expected about $2,300; ceiling $12,000 (five first places: $2,000 + 4 x $2,500).
 
 1. "Privy policy is the leash on the Hedera x402 payment" (ARCHITECTURE §Privy, PLAN §7, §9) is false. Only the EVM leg is Privy-gated. See 4.2.
 2. "Per-tx and rolling USDC cap" via Privy (PLAN §7) works only for `eth_signTransaction` and `eth_signUserOperation`. Not for x402 typed data, and not for `eth_sendTransaction`. The daily x402 budget is a host ledger.
-3. "Steal patterns from `~/code/invok`, `humanhook`, `boter`" (ARCHITECTURE §Browser, §Privy, §Telegram; PLAN §8) is not possible on Jonas's machine. The repos are not here. Kristjan must push the specific files or the team starts clean, and the plan should say which.
+3. "Steal patterns from `~/code/project-i`, `project-h`, `project-b`" (ARCHITECTURE §Browser, §Privy, §Telegram; PLAN §8) is not possible on Jonas's machine. The repos are not here. Kristjan must push the specific files or the team starts clean, and the plan should say which.
 4. Graph x402 on Base Sepolia (PLAN §4 "Graph — Best AI use case") is not a working path for Messari lending data. It is mainnet with real USDC, or a Studio key.
 5. WebMCP producer and consumer (ARCHITECTURE §Agent loop, PLAN §1) should be cut entirely.
 6. The demand section (PLAN §2) over-weights low-reach X posts. Four of seven cited posts have under 1,200 views. The strongest evidence is the Reddit threads and the Bankr incident.
@@ -255,7 +255,7 @@ Expected about $2,300; ceiling $12,000 (five first places: $2,000 + 4 x $2,500).
 - Whether @jaycoolh is Jake Hall (strong circumstantial match).
 - ETHOnline 2026 registration and per-track submission counts (ETHGlobal reported "1300+ hackers" at kickoff).
 
-Questions only the team can answer: the name; who owns the Chrome slice full-time; whether Kristjan can push the invok, humanhook and boter files; whether Jonas's Graph layer is a real repo; whether the team will put $5 to $20 of real Base USDC in the demo wallet; whether the team will run a Hetzner box.
+Questions only the team can answer: the name; who owns the Chrome slice full-time; whether Kristjan can push the project-i, project-h and project-b files; whether Jonas's Graph layer is a real repo; whether the team will put $5 to $20 of real Base USDC in the demo wallet; whether the team will run a Hetzner box.
 
 ---
 

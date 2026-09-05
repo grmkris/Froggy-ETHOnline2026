@@ -6,7 +6,7 @@
  * binary came from, because "no browser" and "the wrong browser" look identical
  * in the pane otherwise.
  *
- * Ported from invok, whose comments below record the bugs that shaped it.
+ * The comments below record the bugs that shaped it.
  *
  * Pure: env, home and platform are inputs, so the table is unit-testable.
  */

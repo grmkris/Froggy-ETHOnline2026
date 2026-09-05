@@ -203,7 +203,7 @@ The `pay` MCP tool (pocket_pay, pocket_balance, pocket_receipts against the same
 ## 14. Changes versus `PLAN_v1.md` and `ARCHITECTURE_v1.md`
 
 - "Privy policy is the leash on the Hedera x402 payment" is false; the custody split in section 4 replaces it, and the Privy raw-sign Hedera wrapper is struck.
-- "Steal from \~/code/humanhook, invok, boter": patterns only, disclosed; nothing copied; the repos are not on Jonas's machine.
+- "Steal from \~/code/project-h, project-i, project-b": patterns only, disclosed; nothing copied; the repos are not on Jonas's machine.
 - The A/B/C wallet-browser fork resolves to A (host pays, no in-page wallet); B and C are removed, not parked.
 - Telegram is a pager with pairing codes, not the onboarding front door and not an approver; no Mini App.
 - WebMCP, the injected provider, WalletConnect, the swap tool, the onramp and the persistent profile are cut.

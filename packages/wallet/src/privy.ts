@@ -3,10 +3,10 @@
  *
  * Two jobs: say who a caller is, and say which addresses are theirs.
  *
- * There is no user table. Privy's DID *is* the identity — the same choice
- * humanhook made, and for the same reason: a local users table is a second
- * source of truth about who someone is, and the first time the two disagree you
- * have an authentication bug rather than a data bug.
+ * There is no identity table. Privy's DID *is* the identity, because a local
+ * users table that also answers "who is this" is a second source of truth, and
+ * the first time the two disagree you have an authentication bug rather than a
+ * data bug.
  *
  * Note the two tokens. The **access token** answers "who is this" and is
  * verified against a cached JWKS with no network call. The **identity token**
