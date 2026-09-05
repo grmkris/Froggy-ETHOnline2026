@@ -39,6 +39,7 @@ import type { ReactElement } from "react";
 
 import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
+import type { WebMcpStatus } from "../../lib/webmcp";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { DigestSettings } from "./digest-settings";
 import { DirectoryPanel } from "./directory-panel";
@@ -48,6 +49,7 @@ import { TelegramSettings } from "./telegram-settings";
 interface DetailsDrawerProps {
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
+  readonly webMcp: WebMcpStatus;
   readonly onDeleteData: () => void;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSaveMandate: (mandate: Mandate) => void;
@@ -171,11 +173,13 @@ const About = ({
   onDeleteData,
   sessionId,
   wallet,
+  webMcp,
 }: {
   readonly modes: ServiceModes | null;
   readonly onDeleteData: () => void;
   readonly sessionId: string | null;
   readonly wallet: WalletSummary | null;
+  readonly webMcp: WebMcpStatus;
 }): ReactElement => {
   const identity = useIdentity();
   return (
@@ -191,6 +195,12 @@ const About = ({
         <dd>{wallet === null ? "—" : SIGNER_WORDS[wallet.agentSigner]}</dd>
         <dt className="text-muted-foreground">Session</dt>
         <dd className="text-machine">{sessionId ?? "—"}</dd>
+        <dt className="text-muted-foreground">WebMCP</dt>
+        <dd>
+          {webMcp.kind === "registered"
+            ? `${webMcp.tools} tools offered to this browser's agent`
+            : "unavailable in this browser (needs Web Model Context)"}
+        </dd>
       </dl>
       {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
         <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
@@ -233,6 +243,7 @@ const About = ({
 export const DetailsDrawer = ({
   mandate,
   modes,
+  webMcp,
   onDeleteData,
   onOpenChange,
   onSaveMandate,
@@ -279,6 +290,7 @@ export const DetailsDrawer = ({
             onDeleteData={onDeleteData}
             sessionId={sessionId}
             wallet={wallet}
+            webMcp={webMcp}
           />
         </TabsContent>
       </Tabs>

@@ -37,6 +37,7 @@ import { useBrowserSocket } from "../hooks/use-browser-socket";
 import { useMediaQuery } from "../hooks/use-media-query";
 import { usePopOut } from "../hooks/use-pop-out";
 import { useReceipts } from "../hooks/use-receipts";
+import { useWebMcp } from "../hooks/use-webmcp";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { useSessionToken } from "../lib/session-token";
 import { buildStream, lastBrowserTurn } from "../lib/stream-model";
@@ -135,6 +136,15 @@ export const WorkspacePage = (): ReactElement => {
 
   const frozen = app.mandate?.frozen ?? false;
   const drive = driveModeOf(browser.state, frozen);
+  // The wallet as tools for this browser's own agent, through the same leash.
+  const webMcp = useWebMcp({
+    mandate: app.mandate,
+    receipts: app.receipts,
+    send: (text) => {
+      void chat.sendMessage({ metadata: { at: Date.now() }, text });
+    },
+    wallet: app.wallet,
+  });
   const items = useMemo(
     () => buildStream(chat.messages, app.receipts),
     [app.receipts, chat.messages]
@@ -295,6 +305,7 @@ export const WorkspacePage = (): ReactElement => {
       <DetailsDrawer
         mandate={app.mandate}
         modes={app.modes}
+        webMcp={webMcp}
         onDeleteData={() => {
           void (async () => {
             const token = await getToken();
