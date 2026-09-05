@@ -353,6 +353,7 @@ export const handleRequest = async (
       {
         gate: deps.services.oracle,
         graph: deps.services.graph,
+        hcs: deps.services.hcs,
         publicUrl: deps.oracleUrl,
       },
       request

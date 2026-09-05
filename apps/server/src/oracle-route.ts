@@ -18,7 +18,9 @@ import {
   encodeSettlementHeader,
   paymentFrom,
 } from "@froggy/payments";
-import type { OracleGate } from "@froggy/payments";
+import type { HcsWriter, OracleGate } from "@froggy/payments";
+
+import { detached } from "./detached";
 
 /** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. */
 const PRICE_TINYBARS = "5000000";
@@ -26,6 +28,7 @@ const PRICE_TINYBARS = "5000000";
 export interface OracleDeps {
   readonly gate: OracleGate;
   readonly graph: GraphClient;
+  readonly hcs: HcsWriter;
   readonly publicUrl: string;
 }
 
@@ -71,6 +74,23 @@ export const handleOracleRequest = async (
       { error: settled.error ?? "Payment was not settled." },
       { status: 402 }
     );
+  }
+
+  if (settled.transactionId !== null) {
+    // The public note. Not awaited: the buyer paid and is owed an answer now;
+    // the note is for whoever audits later.
+    const { transactionId } = settled;
+    detached("hcs sale note", async () => {
+      await deps.hcs.record({
+        amount: requirements.amount,
+        asset: requirements.asset,
+        at: Date.now(),
+        kind: "sold",
+        network: requirements.network,
+        ref: null,
+        transactionId,
+      });
+    });
   }
 
   // Queried *after* settlement so the buyer pays for a fresh answer rather than

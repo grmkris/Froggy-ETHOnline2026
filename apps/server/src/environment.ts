@@ -159,6 +159,8 @@ export interface Environment {
   /** The account our own paid endpoint is paid *to*. */
   readonly hederaPayTo: string;
   /** Where the HBAR/USD rate every cap is computed from comes from. */
+  /** The HCS topic settlements are noted on. Empty: created at first use. */
+  readonly hederaHcsTopicId: string;
   readonly hederaMirrorNodeUrl: string;
   readonly hederaPrivateKey: string;
   /** Kill a browser nobody is watching or driving after this long. */
@@ -274,6 +276,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     // service paying itself is a demo of nothing, and the settlement is only
     // visible on a mirror node if the HBAR actually moves between two
     // accounts. Two accounts is the shape worth showing.
+    const hederaHcsTopicId = yield* Config.string("HEDERA_HCS_TOPIC_ID").pipe(
+      Config.withDefault("")
+    );
     const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
       Config.withDefault("")
     );
@@ -362,6 +367,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       graphGatewayUrl,
       hederaAccountId,
       hederaFacilitatorUrl,
+      hederaHcsTopicId,
       hederaMirrorNodeUrl,
       hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),

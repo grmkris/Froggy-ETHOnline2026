@@ -16,13 +16,20 @@
 
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
-import type { OracleGate, Payer, RateSource } from "@froggy/payments";
+import type {
+  HcsWriter,
+  OracleGate,
+  Payer,
+  RateSource,
+} from "@froggy/payments";
 import {
   evmPayer,
   liveHbarRates,
+  liveHcsWriter,
   liveHederaPayer,
   liveOracleGate,
   stubHbarRates,
+  stubHcsWriter,
   stubHederaPayer,
   stubOracleGate,
 } from "@froggy/payments";
@@ -50,6 +57,8 @@ export interface Services {
     wallet: { readonly address: string; readonly id: string } | null
   ) => readonly Payer[];
   readonly graph: GraphClient;
+  /** One public note per settlement, on a Hedera topic. A stub posts nothing. */
+  readonly hcs: HcsWriter;
   readonly ledger: SpendLedger;
   readonly oracle: OracleGate;
   readonly payer: Payer;
@@ -93,6 +102,15 @@ export const createServices = (options: ServiceOptions): Services => {
         })
       : stubHederaPayer();
 
+  const hcs =
+    environment.modes.hedera === "live"
+      ? liveHcsWriter({
+          accountId: environment.hederaAccountId,
+          privateKey: environment.hederaPrivateKey,
+          topicId: environment.hederaHcsTopicId,
+        })
+      : stubHcsWriter();
+
   const rates =
     environment.modes.hedera === "live"
       ? liveHbarRates({ mirrorNodeUrl: environment.hederaMirrorNodeUrl })
@@ -133,6 +151,7 @@ export const createServices = (options: ServiceOptions): Services => {
       ];
     },
     graph,
+    hcs,
     ledger: sql === null ? memoryLedger() : postgresLedger(sql),
     oracle,
     payer,

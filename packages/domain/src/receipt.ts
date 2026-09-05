@@ -53,6 +53,8 @@ export const Evidence = Schema.Struct({
 export type Evidence = typeof Evidence.Type;
 
 export const Settlement = Schema.Struct({
+  /** The Hedera Consensus Service note about this payment, when one was posted. */
+  hcsSequence: Schema.optional(Schema.Int),
   network: Schema.String,
   /** Chain-native transaction identifier. Hedera's is not a 0x hash. */
   transactionId: Schema.String,

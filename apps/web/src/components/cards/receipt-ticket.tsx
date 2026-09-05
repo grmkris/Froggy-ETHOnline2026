@@ -141,6 +141,9 @@ export const ReceiptTicket = ({
             value={receipt.settlement.transactionId}
           />
         )}
+        {receipt.settlement?.hcsSequence === undefined ? null : (
+          <StubLine label="hcs" value={`#${receipt.settlement.hcsSequence}`} />
+        )}
         {receipt.failure === undefined ? null : (
           <StubLine label="not settled" value={receipt.failure} />
         )}

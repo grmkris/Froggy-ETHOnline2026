@@ -98,6 +98,8 @@ export interface SpendRequest {
   readonly settle: () => Promise<{
     /** Why it failed, in the words of whoever refused. Only when `ok` is false. */
     readonly error?: string;
+    /** The HCS note about this payment, when one was posted. */
+    readonly hcsSequence?: number;
     readonly network: string;
     readonly ok: boolean;
     readonly stubbed: boolean;
@@ -116,6 +118,16 @@ interface Judged {
   readonly quote: Quote;
   readonly usdMicros: UsdMicros;
 }
+
+/** A settlement record, with the HCS note only when there is one. */
+const settlementOf = (
+  network: string,
+  transactionId: string,
+  hcsSequence: number | undefined
+): Receipt["settlement"] =>
+  hcsSequence === undefined
+    ? { network, transactionId }
+    : { hcsSequence, network, transactionId };
 
 /** No money moved. The shape a failed or abandoned settlement reports. */
 const unpaid = (request: SpendRequest): Settled => ({
@@ -1004,7 +1016,11 @@ export class WorkspaceSession {
       settlement:
         outcome.transactionId === null
           ? undefined
-          : { network: outcome.network, transactionId: outcome.transactionId },
+          : settlementOf(
+              outcome.network,
+              outcome.transactionId,
+              outcome.hcsSequence
+            ),
       spendId: row.id,
       stubbed: outcome.stubbed,
     });

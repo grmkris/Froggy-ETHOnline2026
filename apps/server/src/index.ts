@@ -88,6 +88,18 @@ class FroggyServer extends Context.Service<
           "Could not read the facilitator's fee payer. The paid endpoint will advertise a 402 nobody can pay."
         );
       }
+      // The audit topic. Created at first use when none is configured, so a
+      // fresh deployment still leaves a trail; the log says which topic.
+      const topic = yield* Effect.promise(
+        async () => await services.hcs.ensure()
+      );
+      if (services.hcs.mode === "live") {
+        yield* Effect.log(
+          topic === null
+            ? "No HCS topic could be created; settlements will not be noted publicly."
+            : `Settlements are noted on HCS topic ${topic}.`
+        );
+      }
       const quotes = createQuotes(services.rates);
 
       const interactions = new InteractionRegistry({

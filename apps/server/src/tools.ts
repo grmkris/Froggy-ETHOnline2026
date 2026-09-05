@@ -415,9 +415,30 @@ export const buildTools = (deps: ToolDeps) => {
               stubbed: attempt.stubbed,
               transactionId: settlement?.transactionId ?? null,
             };
-            return paid.ok
+            if (!paid.ok) {
+              return {
+                ...outcome,
+                error: `the seller answered ${paid.status}`,
+              };
+            }
+            if (outcome.transactionId === null || attempt.stubbed) {
+              return outcome;
+            }
+            // The buyer's public note, awaited: its sequence number belongs
+            // on the receipt, and a note that fails to post costs nothing
+            // but the number.
+            const note = await services.hcs.record({
+              amount: requirement.amount,
+              asset: requirement.asset,
+              at: Date.now(),
+              kind: "paid",
+              network: outcome.network,
+              ref: null,
+              transactionId: outcome.transactionId,
+            });
+            return note === null
               ? outcome
-              : { ...outcome, error: `the seller answered ${paid.status}` };
+              : { ...outcome, hcsSequence: note.sequenceNumber };
           },
         };
         if (lastEvidence !== undefined) {
