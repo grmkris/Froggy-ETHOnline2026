@@ -20,7 +20,7 @@
  * processes rather than within one.
  */
 
-import { ReceiptId, SessionId, SpendId } from "@froggy/domain";
+import { DirectoryId, ReceiptId, SessionId, SpendId } from "@froggy/domain";
 import {
   bigint,
   boolean,
@@ -156,3 +156,25 @@ export const telegramPairings = pgTable("telegram_pairings", {
     .unique()
     .references(() => users.did),
 });
+
+/** Paid endpoints a person added, one row per URL per person. */
+export const directory = pgTable(
+  "directory",
+  {
+    amount: text("amount").notNull(),
+    asset: text("asset").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    host: text("host").notNull(),
+    id: typeIdPrimaryKey(DirectoryId),
+    label: text("label").notNull(),
+    network: text("network").notNull(),
+    payTo: text("pay_to").notNull(),
+    url: text("url").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+  },
+  (table) => [uniqueIndex("directory_user_url").on(table.userId, table.url)]
+);

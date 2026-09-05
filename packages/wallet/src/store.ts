@@ -12,10 +12,22 @@
  */
 
 import { Mandate, NO_DIGEST, Receipt } from "@froggy/domain";
-import type { DigestSchedule, TelegramPairing, UserId } from "@froggy/domain";
+import type {
+  DigestSchedule,
+  DirectoryEntry,
+  TelegramPairing,
+  UserId,
+} from "@froggy/domain";
 import { Result, Schema } from "effect";
 
 export interface Store {
+  readonly directory: {
+    /** Replaces an entry for the same URL. */
+    readonly add: (userId: UserId, entry: DirectoryEntry) => Promise<void>;
+    /** Oldest first. */
+    readonly list: (userId: UserId) => Promise<readonly DirectoryEntry[]>;
+    readonly remove: (userId: UserId, id: string) => Promise<void>;
+  };
   readonly digest: {
     /** Every user with a digest hour set, for the scheduler's minute tick. */
     readonly all: () => Promise<
@@ -84,10 +96,34 @@ export const memoryStore = (): Store => {
   const receipts = new Map<UserId, Receipt[]>();
   const digests = new Map<UserId, DigestSchedule>();
   const pairings = new Map<UserId, TelegramPairing>();
+  const entries = new Map<UserId, DirectoryEntry[]>();
   const unpair = (userId: UserId): void => {
     pairings.delete(userId);
   };
   return {
+    directory: {
+      add: async (userId, entry) => {
+        await Promise.resolve();
+        const list = (entries.get(userId) ?? []).filter(
+          (existing) => existing.url !== entry.url
+        );
+        list.push(entry);
+        entries.set(userId, list);
+      },
+      list: async (userId) => {
+        await Promise.resolve();
+        return [...(entries.get(userId) ?? [])].toSorted(
+          (a, b) => a.addedAt - b.addedAt
+        );
+      },
+      remove: async (userId, id) => {
+        await Promise.resolve();
+        entries.set(
+          userId,
+          (entries.get(userId) ?? []).filter((entry) => entry.id !== id)
+        );
+      },
+    },
     telegram: {
       forUser: async (userId) => {
         await Promise.resolve();
@@ -134,6 +170,7 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await Promise.resolve();
+      entries.delete(userId);
       unpair(userId);
       digests.delete(userId);
       frozen.delete(userId);

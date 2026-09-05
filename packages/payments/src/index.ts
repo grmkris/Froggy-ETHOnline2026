@@ -2,6 +2,8 @@ export { liveOracleGate, STUB_PAY_TO, stubOracleGate } from "./oracle";
 export type { LiveOracleOptions } from "./oracle";
 export { liveHederaPayer, STUB_ACCOUNT_ID, stubHederaPayer } from "./payer";
 export type { LivePayerOptions } from "./payer";
+export { assess, probe402 } from "./probe";
+export type { Assessment, ProbeOption, ProbeSummary } from "./probe";
 export { decodeSettlementHeader, encodeSettlementHeader } from "./settlement";
 export type { SettlementHeader } from "./settlement";
 export {

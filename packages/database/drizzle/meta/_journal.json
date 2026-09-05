@@ -22,6 +22,13 @@
       "when": 1788629449627,
       "tag": "0002_first_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788630085589,
+      "tag": "0003_lush_exiles",
+      "breakpoints": true
     }
   ]
 }

@@ -233,6 +233,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
         runs: deps.runs,
         services: deps.services,
         session: workspace.session,
+        workspaces: deps.workspaces,
       },
       { messages, sessionId: workspace.session.id }
     );

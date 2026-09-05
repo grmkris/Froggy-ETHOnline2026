@@ -37,12 +37,14 @@ import {
 import { tool } from "ai";
 import { Schema } from "effect";
 
+import { describeProbe, probeUrl } from "./directory";
 import { OutboundRefusedError, readCapped, safeFetch } from "./outbound";
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
+import type { Workspaces } from "./workspaces";
 
 const OUTPUT_CAP = 50_000;
 
@@ -68,6 +70,8 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
 export interface ToolDeps {
   /** This caller's own Chrome. One per signed-in user, never shared. */
   readonly browser: BrowserHandle;
+  /** For the probe, which reads through the same outbound rules as a fetch. */
+  readonly workspaces: Workspaces;
   /** False for a job: nobody can be asked, so an `ask` is refused. */
   readonly interactive?: boolean;
   readonly run: ChatRun;
@@ -246,7 +250,7 @@ export const buildTools = (deps: ToolDeps) => {
         // request had already been sent. The allowlist was always the control;
         // asking it first is what makes it one.
         if (!session.allowsHost(target.host)) {
-          return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested.`;
+          return `Refused before sending: ${target.host} is not on the mandate's list of hosts this agent may pay. Nothing was requested. Use x402_probe to see what it costs; only the person can add it to the directory.`;
         }
         // A digest is a summary, not a shopping trip: unattended, it pays at
         // most once, however many paid pages it finds.
@@ -356,6 +360,16 @@ export const buildTools = (deps: ToolDeps) => {
         }
         return cap(paidBody ?? "Paid, but the server returned no body.");
       },
+      inputSchema: std(Schema.Struct({ url: Schema.String })),
+    }),
+
+    x402_probe: tool({
+      description:
+        "Ask a URL what it costs without paying it. Says whether this wallet could pay the 402 it answers with, and why not otherwise. Never pays.",
+      execute: async ({ url }) =>
+        describeProbe(
+          await probeUrl({ services, workspaces: deps.workspaces }, url)
+        ),
       inputSchema: std(Schema.Struct({ url: Schema.String })),
     }),
 

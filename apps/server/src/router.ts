@@ -13,12 +13,15 @@
  */
 
 import { DigestSchedule } from "@froggy/domain";
-import type { UserId } from "@froggy/domain";
+import type { DirectoryEntry, UserId } from "@froggy/domain";
+import type { ProbeSummary } from "@froggy/payments";
 import { Schema } from "effect";
 
 import { authenticate, bearerFromRequest } from "./auth";
 import { handleChat } from "./chat";
 import type { ChatRequest } from "./chat";
+import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
+import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import { handleOracleRequest } from "./oracle-route";
@@ -57,6 +60,10 @@ type ResponseBody =
       readonly link: string | null;
     }
   | { readonly paired: boolean; readonly since: number | null }
+  | { readonly entries: readonly DirectoryEntry[] }
+  | { readonly removed: boolean }
+  | AddOutcome
+  | ProbeSummary
   | DigestSchedule
   | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
@@ -136,6 +143,94 @@ const serveStatic = async (
   return new Response(Bun.file(`${directory}/index.html`));
 };
 
+/** A turn from the web chat. Refused while frozen; started otherwise. */
+const handleChatPost = async (
+  deps: RouterDeps,
+  request: Request,
+  workspace: Awaited<ReturnType<Workspaces["hydrate"]>>,
+  userId: UserId
+): Promise<Response> => {
+  const sessionId = workspace.session.id;
+  // A frozen wallet does not start turns. The policy engine would refuse
+  // every spend anyway; refusing the turn is what stops the agent burning
+  // model budget narrating refusals against a wallet it cannot use.
+  if (workspace.session.currentMandate.frozen) {
+    return json({ frozen: true }, 423);
+  }
+  const decoded = decodeChatBody(await request.json());
+  if (decoded._tag === "Failure") {
+    return json({ error: "Malformed chat request." }, 400);
+  }
+  deps.workspaces.touch(userId);
+  return await handleChat(
+    {
+      browser: workspace.browser,
+      oracleUrl: deps.oracleUrl,
+      runs: deps.runs,
+      services: deps.services,
+      session: workspace.session,
+      workspaces: deps.workspaces,
+    },
+    {
+      // SAFETY: the envelope is decoded above; the elements are the AI SDK's
+      // `UIMessage` union, which `convertToModelMessages` validates on the
+      // very next hop. Restating that union here would be a second copy of a
+      // type the SDK owns and versions.
+      messages: decoded.success.messages as unknown as ChatRequest["messages"],
+      sessionId,
+    }
+  );
+};
+
+const UrlBody = Schema.Struct({ url: Schema.String });
+const decodeUrlBody = Schema.decodeUnknownResult(UrlBody);
+
+/**
+ * The directory: list, probe, add, remove.
+ *
+ * Probing pays nothing and changes nothing. Adding is the one write that
+ * makes a stranger payable, and it is a person's click, never a tool.
+ */
+const handleDirectory = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId,
+  pathname: string
+): Promise<Response> => {
+  const directoryDeps = {
+    services: deps.services,
+    workspaces: deps.workspaces,
+  };
+  if (pathname === "/api/directory/probe" && request.method === "POST") {
+    const decoded = decodeUrlBody(await request.json());
+    if (decoded._tag === "Failure") {
+      return json({ error: "Malformed probe request." }, 400);
+    }
+    return json(await probeUrl(directoryDeps, decoded.success.url));
+  }
+  if (pathname === "/api/directory" && request.method === "POST") {
+    const decoded = decodeUrlBody(await request.json());
+    if (decoded._tag === "Failure") {
+      return json({ error: "Malformed directory request." }, 400);
+    }
+    const outcome = await addToDirectory(
+      directoryDeps,
+      userId,
+      decoded.success.url
+    );
+    return json(outcome, outcome.kind === "added" ? 200 : 422);
+  }
+  if (pathname.startsWith("/api/directory/") && request.method === "DELETE") {
+    const id = pathname.slice("/api/directory/".length);
+    const removed = await removeFromDirectory(directoryDeps, userId, id);
+    return json({ removed }, removed ? 200 : 404);
+  }
+  if (pathname === "/api/directory") {
+    return json({ entries: await deps.services.store.directory.list(userId) });
+  }
+  return json({ error: "Not found." }, 404);
+};
+
 /** The digest schedule: read it, or replace it. */
 const handleDigest = async (
   deps: RouterDeps,
@@ -177,35 +272,7 @@ const handleApi = async (
   const sessionId = workspace.session.id;
 
   if (pathname === "/api/chat" && request.method === "POST") {
-    // A frozen wallet does not start turns. The policy engine would refuse
-    // every spend anyway; refusing the turn is what stops the agent burning
-    // model budget narrating refusals against a wallet it cannot use.
-    if (workspace.session.currentMandate.frozen) {
-      return json({ frozen: true }, 423);
-    }
-    const decoded = decodeChatBody(await request.json());
-    if (decoded._tag === "Failure") {
-      return json({ error: "Malformed chat request." }, 400);
-    }
-    deps.workspaces.touch(userId);
-    return await handleChat(
-      {
-        browser: workspace.browser,
-        oracleUrl: deps.oracleUrl,
-        runs: deps.runs,
-        services: deps.services,
-        session: workspace.session,
-      },
-      {
-        // SAFETY: the envelope is decoded above; the elements are the AI SDK's
-        // `UIMessage` union, which `convertToModelMessages` validates on the
-        // very next hop. Restating that union here would be a second copy of a
-        // type the SDK owns and versions.
-        messages: decoded.success
-          .messages as unknown as ChatRequest["messages"],
-        sessionId,
-      }
-    );
+    return await handleChatPost(deps, request, workspace, userId);
   }
 
   if (pathname === "/api/chat/stop" && request.method === "POST") {
@@ -235,6 +302,10 @@ const handleApi = async (
 
   if (pathname === "/api/telegram") {
     return await handleTelegram(deps, request, userId);
+  }
+
+  if (pathname.startsWith("/api/directory")) {
+    return await handleDirectory(deps, request, userId, pathname);
   }
 
   if (pathname === "/api/me" && request.method === "DELETE") {

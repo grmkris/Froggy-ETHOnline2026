@@ -484,6 +484,66 @@ export class WorkspaceSession {
     return this.mandate;
   }
 
+  /**
+   * A directory entry the person added: its host and payee become payable.
+   *
+   * Appended to the existing allowlist rules rather than replacing them, so
+   * what the server put there at birth (its own oracle) stays. Published,
+   * because the pane's policy list must show the new payee the moment it is
+   * payable and not on the next reconnect.
+   */
+  allow(entry: { readonly host: string; readonly payeeId: string }): Mandate {
+    this.mandate = {
+      ...this.mandate,
+      rules: this.mandate.rules.map((rule) => {
+        if (
+          rule._tag === "host_allowlist" &&
+          !rule.hosts.includes(entry.host)
+        ) {
+          return { ...rule, hosts: [...rule.hosts, entry.host] };
+        }
+        if (
+          rule._tag === "payee_allowlist" &&
+          !rule.payeeIds.includes(entry.payeeId)
+        ) {
+          return { ...rule, payeeIds: [...rule.payeeIds, entry.payeeId] };
+        }
+        return rule;
+      }),
+    };
+    this.persistMandate();
+    this.deps.onMandate?.(this.mandate);
+    return this.mandate;
+  }
+
+  /** The reverse of `allow`, for an entry the person removed. */
+  disallow(entry: {
+    readonly host: string;
+    readonly payeeId: string;
+  }): Mandate {
+    this.mandate = {
+      ...this.mandate,
+      rules: this.mandate.rules.map((rule) => {
+        if (rule._tag === "host_allowlist") {
+          return {
+            ...rule,
+            hosts: rule.hosts.filter((host) => host !== entry.host),
+          };
+        }
+        if (rule._tag === "payee_allowlist") {
+          return {
+            ...rule,
+            payeeIds: rule.payeeIds.filter((id) => id !== entry.payeeId),
+          };
+        }
+        return rule;
+      }),
+    };
+    this.persistMandate();
+    this.deps.onMandate?.(this.mandate);
+    return this.mandate;
+  }
+
   setFrozen(frozen: boolean): Mandate {
     this.mandate = { ...this.mandate, frozen };
     // The flag is the kill switch; it must outlive the process. Persisted

@@ -41,6 +41,7 @@ import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { DigestSettings } from "./digest-settings";
+import { DirectoryPanel } from "./directory-panel";
 import { MandateEditor } from "./mandate-editor";
 import { TelegramSettings } from "./telegram-settings";
 
@@ -252,6 +253,7 @@ export const DetailsDrawer = ({
         <TabsList className="w-full">
           <TabsTrigger value="policy">Policy</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="directory">Directory</TabsTrigger>
           <TabsTrigger value="about">Wallet</TabsTrigger>
         </TabsList>
         <TabsContent className="pt-4" value="policy">
@@ -267,6 +269,9 @@ export const DetailsDrawer = ({
               <ReceiptTicket compact key={receipt.id} receipt={receipt} />
             ))
           )}
+        </TabsContent>
+        <TabsContent className="pt-4" value="directory">
+          <DirectoryPanel receipts={receipts} />
         </TabsContent>
         <TabsContent className="pt-4" value="about">
           <About

@@ -155,3 +155,7 @@ export type ReceiptId = typeof ReceiptId.Type;
 /** One question put to the human about one spend. */
 export const ApprovalId = makeIdSchema("apr", "ApprovalId");
 export type ApprovalId = typeof ApprovalId.Type;
+
+/** A paid endpoint a person has added to their directory. */
+export const DirectoryId = makeIdSchema("dir", "DirectoryId");
+export type DirectoryId = typeof DirectoryId.Type;

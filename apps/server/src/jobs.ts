@@ -136,6 +136,7 @@ export const runDailyFor = async (
         run,
         services: deps.services,
         session,
+        workspaces: deps.workspaces,
       }),
     });
     summary = await result.text;

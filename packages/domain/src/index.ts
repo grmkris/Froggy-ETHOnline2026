@@ -16,10 +16,12 @@ export {
   ApprovalResolution,
 } from "./approval";
 export { DigestSchedule, NO_DIGEST } from "./digest";
+export { DirectoryEntry } from "./directory";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
   ApprovalId,
+  DirectoryId,
   MandateId,
   makeIdSchema,
   ReceiptId,

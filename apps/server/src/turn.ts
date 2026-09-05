@@ -29,6 +29,7 @@ import type { ChatRun, ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { buildTools } from "./tools";
+import type { Workspaces } from "./workspaces";
 
 /**
  * Twelve steps.
@@ -68,6 +69,7 @@ export interface TurnDeps {
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly session: WorkspaceSession;
+  readonly workspaces: Workspaces;
 }
 
 export interface TurnInput {
@@ -90,6 +92,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       run,
       services: deps.services,
       session: deps.session,
+      workspaces: deps.workspaces,
     }),
   });
   return { run, result };

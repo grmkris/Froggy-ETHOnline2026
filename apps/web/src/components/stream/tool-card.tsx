@@ -15,6 +15,7 @@ import {
   KeyboardIcon,
   MousePointerClickIcon,
   ReceiptTextIcon,
+  SearchIcon,
   SendIcon,
   WalletIcon,
 } from "lucide-react";
@@ -68,6 +69,11 @@ const STORIES = {
   wallet_status: {
     icon: WalletIcon,
     sentence: () => "Checked the wallet",
+    tone: "plain",
+  },
+  x402_probe: {
+    icon: SearchIcon,
+    sentence: (input) => `Asked what ${hostOf(input.url ?? "")} costs`,
     tone: "plain",
   },
   x402_fetch: {
