@@ -1,8 +1,11 @@
 # docs
 
-- `handover.md` — where the build is, what is stubbed, what to build next.
+- `plan/PLAN.md` — the operative plan: decisions, architecture, backlog with the state of every task, owner steps, timeline.
+- `plan/STATUS.md` — what has landed in the tree, kept by the session doing the building.
+- `plan/DECISIONS.md` — every place the spec and the plan differ, and which of those are still open.
+- `plan/` — the FABLE51 product spec, prize audit, user flows and day plans (`plan/README.md` is the reading order); `plan/archive/` is the brainstorm that preceded them.
+- `handover.md` — the 4 Sep handover: what works, the demo order, and the defect list with the commit that closed each item.
 - `prizes.md` — the ETHOnline 2026 track text, verbatim.
 - `decisions/` — architecture decision records.
 - `privy-agent-policy.json` — the default-deny policy the agent signs under.
-- `plan/` — the product spec, prize audit, user flows, day plans and the brainstorm that preceded them in `plan/archive/`; `plan/README.md` is the reading order and `plan/STATUS.md` is what has landed.
 - `research/` — the research digests behind the plan, kept verbatim as evidence.

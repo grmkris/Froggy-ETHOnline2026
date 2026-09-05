@@ -85,7 +85,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 |  |  |
 | --- | --- |
 | `apps/web` | The three panes. Frames never touch React state. |
-| `apps/server` | One Bun process: SPA, API, both sockets, the agent loop, Chrome. |
+| `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one browser worker process per user. |
 | `packages/domain` | Money, mandates, decisions, receipts — as Effect Schema. |
 | `packages/protocol` | Both wire protocols and the screencast frame envelope. |
 | `packages/browser` | The shared Chrome. Knows nothing about money. |
@@ -105,10 +105,10 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 ## Where this is
 
-`docs/handover.md` — what works, what is stubbed, what to build next, and the demo in the order it should be shown.
+`docs/plan/STATUS.md` — what has landed. `docs/plan/PLAN.md` — the plan. `docs/plan/DECISIONS.md` — what is still open. `docs/handover.md` — the demo in the order it should be shown, and the defect list with the commit that closed each one.
 
 ## Known limits
 
-- The Chrome profile is persistent, so the agent browses as _you_. That is the point and also the risk; it lives in `CHROME_PROFILE_DIR` and deleting it signs the agent out of everything.
-- `Bun.WebView` wants a real window, so a container needs a display. Where the browser cannot start the pane says so and everything else keeps working.
-- The spend ledger is in-memory, so the deployment runs at one replica. `packages/database` holds the schema a second one would need.
+- Each signed-in user's Chrome profile is persistent, so the agent browses as _you_. That is the point and also the risk. Profiles live under `CHROME_PROFILE_DIR` in a directory named by a hash of the Privy identity, and deleting one signs that agent out of everything.
+- `Bun.WebView` launches Chrome headless on its own, so a container needs no display server. Where Chrome cannot start, the pane says so and everything else keeps working.
+- Browser seats live in one server process, so the deployment runs at one replica. The spend ledger, mandates, receipts and the frozen flag are in Postgres when `DATABASE_URL` is set and in memory otherwise, and the wallet pane says which.
