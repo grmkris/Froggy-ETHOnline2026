@@ -7,12 +7,21 @@ A web workspace where a human and an AI share **one Chrome**. The human watches 
 Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph** (why it spent), **Hedera x402** (how it paid).
 
 ```
-┌──────────────────────────┬──────────────────────────┬─────────────────┐
-│  chat                    │  the shared page         │  wallet         │
-│  ask · steer · stop      │  agent drives · you can  │  caps · rules   │
-│                          │  grab it · amber = agent │  receipts · 🧊  │
-└──────────────────────────┴──────────────────────────┴─────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  $0.12 of $10.00 today ▮▮▯▯▯   ● agent is driving   ❄ Freeze  │
+├──────────────────────────────────────────────────────────────┤
+│  you: buy the lending snapshot and tell me what it says       │
+│  🐸  asked The Graph · requested a paid resource · checked …  │
+│      ┌── the shared page, live, amber ring ─────────────────┐ │
+│      │  you can click in, take it, split it out, pop it out │ │
+│      └──────────────────────────────────────────────────────┘ │
+│      ┌ $0.0040 · paid the oracle ── ✂ ── rule · tx · evidence ┐│
+│  ┌ YOUR CALL  $1.50 to seller.example ── ✂ ── stop · no · … ┐  │
+│  [ ask Froggy to do something…                              ↑ ] │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+The conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers reach your phone through Telegram, where the daily digest lands too.
 
 ## Run it
 
@@ -84,7 +93,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 |  |  |
 | --- | --- |
-| `apps/web` | The three panes. Frames never touch React state. |
+| `apps/web` | The workspace: header strip, the stream with tickets, the live page card and its pop-outs, the details drawer. Frames never touch React state. |
 | `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one browser worker process per user. |
 | `packages/domain` | Money, mandates, decisions, receipts — as Effect Schema. |
 | `packages/protocol` | Both wire protocols and the screencast frame envelope. |
@@ -102,6 +111,17 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 - **Reserve before you pay.** The ledger row is written before the outbound call, with an idempotency key, so a retried tool call cannot pay twice.
 - **Page text is fenced.** It reaches the model prefixed as data, from a string constant that cannot be edited away in a prompt.
 - **Freeze aborts the run first, then takes the page.** The other order gives the next queued tool call the page back 1.5 seconds later.
+
+## Surfaces
+
+- **The workspace.** Chat-first; the page is a card in the stream, or a pane beside it, or a window of its own. Receipts are tickets: what and why on the body, rule id, transaction and evidence on the stub. A refusal is a stamp.
+- **Telegram.** Pair with a code from the drawer. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; `/freeze` is the kill switch; a plain message runs the same agent on the same mandate.
+- **The daily digest.** One unattended turn a day at the hour you pick, bounded to a minute, a dozen steps, five cents and one paid request; nobody can be asked, so anything over the threshold is refused.
+- **The directory.** Paste a URL and it is probed, never paid; if the 402 is one this wallet can honour, one click makes it payable, and that click is the only way a stranger's host reaches the allowlist.
+
+## Evidence
+
+`docs/evidence/HEDERA.md`, `GRAPH.md`, `PRIVY.md` hold the on-chain and live-data evidence as it lands, with `TODO` marking what is still to be recorded. `docs/evidence/AI-USE.md` says how AI was used, in the product and in building it.
 
 ## Where this is
 
