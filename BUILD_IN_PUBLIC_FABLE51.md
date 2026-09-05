@@ -11,7 +11,7 @@ Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 1. **Jonas's personal account carries the narrative.** A project account, if any, posts receipts only. Cold accounts in a week with near-zero ETHOnline chatter on X do not travel; the one format that over-reached from a small account was a problem statement developers recognize (@0xblockboy's "authorize once, spend under a limit": 34k views, 202 bookmarks), not a product explainer (about 1.2k views).
 2. **Link in the first reply, never in the body.** Native clips under 2:20, front-loaded; the Chrome and the policy card visible in the first three seconds of every clip.
 3. **Receipts, not adjectives.** Every post is tied to a thing that shipped that day: a HashScan link, a Basescan link, a policy denial with its id, a grab clip. One number per post.
-4. **Address people, never logos.** Sponsor org accounts do not amplify builders mid-event. The accounts that reply: @HederaCommunity, @ed__marquez, @jaycoolh, @narb_s, @JulioMCruz, the Hbar Happy Hour hosts @Mauii_MW and @filhetu, @thehbarbull, @graphprotocol reply threads. Tag @privy_io exactly once, with the policy JSON. File a real GitHub issue on blockydevs/blocky402 if we hit a gotcha; that is their visible surface.
+4. **Address people, never logos.** Sponsor org accounts do not amplify builders mid-event. The accounts that reply: @HederaCommunity, @ed__marquez, @jaycoolh, @narb_s, @JulioMCruz, the Hbar Happy Hour hosts @Mauii_MW and @filhetu, @thehbarbull, @graphprotocol reply threads. Tag @privy_io exactly once, with the policy JSON. Post any Blocky402 gotcha in Hedera Discord build-support; the blockydevs/blocky402 repo returned 404 on 4 Sep, so a GitHub issue only if it goes public.
 5. **Vocabulary.** Pocket, allowance, lunch money. Never "give the AI your wallet". Never "spending limits your agent cannot break" (SingIt's line) and never "leash" as a name (taken this week).
 6. **No live link before a stranger has a receipt through "Try it".** Until the guest path works (Day 3 target), posts link the repo and the clip; the live URL sits behind an invite code. The first 30-60 minutes after a post decide its reach, and a burst that lands on an email-only door with one shared Chrome is the screenshot we cannot afford.
 7. **Cadence.** At most two posts a day, then 60 minutes of replying to every reply. One recap thread Wed 9 Sep. Build-in-public dies if it is nobody's fixed block: Jonas's afternoons, 15:00-17:00, are it.
@@ -24,14 +24,14 @@ Times are CEST. X posts go out at 15:00 CEST (09:00 US Eastern).
 | Channel | Use | Rule |
 |---|---|---|
 | X (personal account) | The narrative, one clip or receipt a day | Link in first reply; tag people not orgs; 60 minutes of replies |
-| GitHub issues on the peer sellers' repos | The primary-segment first touch | Only after our agent has paid their 402; the issue carries the HashScan link and a clip; text in section 4 |
+| GitHub issues on the peer sellers' repos | The primary-segment first touch | The "we paid your 402" issue only after our agent has paid it, with the HashScan link and a clip (text in section 4); a short Sunday ask for their URL and payTo is a separate, smaller issue |
 | Hedera Discord build-support | Technical questions and the settlement links | Office hours Mon-Tue 14:00 UTC; ask the duplicate-settle question there; post the first HashScan |
 | ETHGlobal Discord #mentorship-help | A real question to @JulioMCruz (idempotent settle, the Privy types map) with the link riding on it | It is a mentoring channel; a 110-word recruitment paragraph is off-topic. Ask a mod on Day 2 whether a showcase channel exists |
 | ETHGlobal Discord partner channels | Technical framing only | Ask a mod before any promotion |
 | x402 builders Telegram (600+) | The 402-probe card ("this is what your 402 looks like to a buyer"), the hedera:testnet route snippet | Product on screen; most members sell on Base, so lead with the probe, not the pitch |
 | t.me/graphhackers (about 480, Graph support engineers present) | Graph day: the receipt with deployment ids, the registry, the docs PR, one real question | Not t.me/graphprotocol |
 | Graph Discord #mcp-servers | Same artifact, aimed at MCP users | |
-| Privy Developer Slack (privy.io/slack) | One post: the policy JSON and the kill-switch clip | Once |
+| Privy Developer Slack (privy.io/slack) | One post: the policy JSON and the jailbreak clip | Once |
 | Reddit | One fresh r/ethdev self-post on Tue 8 (rules allow it) answering the 25 Aug "how do we let an AI use a wallet without unrestricted control" question with the blocked card; replies into r/ClaudeAI 1vhp54h, r/AI_Agents 1vsy715 and the r/OpenClawUseCases thread; r/alphaandbetausers on Wed 9 with the product shown | The named threads are two to four weeks old, so a reply reaches the OP (worth a DM), not readers. Write replies without a bare link (name the repo, put the URL in a follow-up comment) so automod does not remove them. Expect single-digit starts from Reddit |
 | Farcaster | Dropped unless Jonas already has followers there | No ETHOnline conversation exists on Farcaster to tap |
 | Hbar Happy Hour Spaces | Ask @Mauii_MW / @filhetu for two minutes with a live transaction | Only with a HashScan link in hand |
@@ -46,7 +46,7 @@ Each artifact exists because the product shipped it that day. If the thing did n
 | Day | Artifact | Post | Tags and where |
 |---|---|---|---|
 | Sat 5 | The live screencast pane (15 seconds) | Post 1: "Building an agent browser you can grab, with a Privy leash, for ETHOnline. Shipping a receipt every day until Sunday the 13th." Repo link in the first reply, no live link | Join privy.io/slack, Hedera Discord, t.me/graphhackers, ETHGlobal Discord; DM @JulioMCruz with a real question |
-| Sun 6 | The first Blocky402 settlement on HashScan; the graphprotocol/docs fix PR | Post 2: the HashScan screenshot, "first Blocky402-settled request on Hedera, 0.05 tHBAR for a four-protocol lending brief" | @jaycoolh, @ed__marquez; reply under @HederaCommunity's latest post; the PR link as a reply into @graphprotocol's builder thread and in t.me/graphhackers; issues on five peer repos asking for URL and payTo |
+| Sun 6 | The first Blocky402 settlement on HashScan; the graphprotocol/docs fix PR | Post 2: the HashScan screenshot, "first Blocky402-settled request on Hedera, 0.05 tHBAR for a four-deployment lending brief" | @jaycoolh, @ed__marquez; reply under @HederaCommunity's latest post; the PR link as a reply into @graphprotocol's builder thread and in t.me/graphhackers; issues on five peer repos asking for URL and payTo |
 | Mon 7 | Basescan: the agent paid The Graph $0.01 a query under Privy policy <id>; the first peer paid (fare402) | Post 3: the Basescan receipt card; the fare402 issue "Our agent paid your 402 (HashScan inside)" | @graphprotocol reply thread; the duplicate-settle question in Hedera office hours; five more peer issues; check-in 1 |
 | Tue 8 | The 20-second jailbreak clip; the guest path is live | Post 4: "I told it to send everything to 0xevil. Privy said no. Policy id on screen." First post with the live link in the first reply, only if a stranger produced a receipt that morning | @privy_io once, Privy Slack; the r/ethdev self-post; replies into the three named threads; feedback session 14:00 EDT; tester wave 1 |
 | Wed 9 | The recap thread; Graph day | Recap thread (Day 0 versus Day 5 screenshots, real numbers: starts, receipts, blocked, peers). "The blocked board is open: try to make it pay someone it should not; nothing to win but your handle on the board and in the README." | t.me/graphhackers and Graph Discord with the receipt and one real question; DM @PaulBarba12; tester wave 2; peer pings; ask for the Happy Hour slot |
@@ -73,7 +73,7 @@ Each artifact exists because the product shipped it that day. If the thing did n
 
 **Recruitment (adapt per venue; on X the link goes in the first reply).**
 
-> We are building an open-source agentic wallet for ETHOnline: the agent gets a real Chrome you can watch and take over, and a Privy policy (per-tx cap, daily cap, allowlist, kill switch) that holds even if you jailbreak the prompt. Testnet only, nothing to buy, nothing to install, desktop browser needed. Ten minutes: open the link, your pocket is already funded, tell it to pay 0xevil and watch Privy say no, then let it buy a Hedera x402 brief on camera. Everything you break is credited by handle in the build log and the README. [link]
+> We are building an open-source agentic wallet for ETHOnline: the agent gets a real Chrome you can watch and take over, and a Privy policy on the EVM wallet plus host-enforced caps on the Hedera pocket (per-call cap, daily cap, allowlist, kill switch) that hold even if you jailbreak the prompt. Testnet only, nothing to buy, nothing to install, desktop browser needed. Ten minutes: open the link, your pocket is already funded, tell it to pay 0xevil and watch Privy say no, then let it buy a Hedera x402 brief on camera. Everything you break is credited by handle in the build log and the README. [link]
 
 **Phone door (landing page, when a phone is detected).**
 
@@ -97,13 +97,13 @@ Each artifact exists because the product shipped it that day. If the thing did n
 
 **Activation metric.** Time from the "Try it" click to the first receipt card; target 90 seconds.
 
-**Day 2.** The digest at their hour: the number and its delta, what it bought, what was refused with the policy id, links, Freeze and Open buttons. Counted as a return: an "Open workspace" press, a poll answer, a reply. Freeze is reported separately. Target: three returns from twelve first receipts; write that in VALIDATION.md before the numbers exist.
+**Day 2.** The digest at their hour: the number and its delta, what it bought, what was refused with the policy id, links, Freeze and Open buttons. Counted as a return: an "Open workspace" press, a poll answer, a reply. Freeze is reported separately. Target: three returns from twelve first receipts (stretch targets; the expected range is 2-4 from 4-8, see TARGET_GROUPS section 8); write that in VALIDATION.md before the numbers exist.
 
 **Bugs.** `/bug` as a DM to the bot. No open tester group: three members in a group on Tuesday reads as a dead product; the empty-room signal stays private.
 
 **Directory pays are opt-in.** The receipt card offers "also buy from N peer services (max 0.1 tHBAR each)?" as a click, never automatic; the cron pays our brief plus at most one directory endpoint, round-robin. A tester's agent buying four strangers' services unasked is the behaviour the secondary segment came here to avoid.
 
-**Capacity and judges.** Six concurrent Chrome workers, one reserved for judges and never handed to a tester; idle kill at ten minutes; the seventh visitor gets the Chrome-less job and a queue position with a Telegram ping if paired. Counter reset at submission so async judges (13-16 Sep) never see "guest limit reached".
+**Capacity and judges.** Six concurrent Chrome workers, one reserved for judges and never handed to a tester; idle kill at ten minutes; the sixth concurrent tester gets the Chrome-less job and a queue position with a Telegram ping if paired. Counter reset at submission so async judges (13-16 Sep) never see "guest limit reached".
 
 **Legal minimums on the landing (not legal advice).** An Impressum (a missing Anbieterkennzeichnung is a standard Abmahnung target in Germany), a short privacy notice naming the controllers, the processors (Privy, Anthropic, the host, Telegram) and the retention (session end; receipts kept), the AI label, and "testnet only". Never write a tester identifier into an HCS message.
 

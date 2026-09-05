@@ -28,7 +28,7 @@ The repo-hygiene block at the end is the engineering owner's lane; it is here be
 
 ---
 
-## C. Accounts and keys (the third builder, else Kristjan; 2-3 hours)
+## C. Accounts and keys (the third builder; else Kristjan takes the Privy items and Jonas takes the Hedera accounts, settlement and Graph curls with Kristjan reviewing; 2-3 hours)
 
 | Item | How | Pass |
 |---|---|---|

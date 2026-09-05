@@ -222,7 +222,7 @@ Author estimates from the rules, past winners and this week's peer count; not me
 | Graph AI Use Case (From Scratch) | $2,500 / 1,500 / 1,000 | 0.20 | about $300 |
 | Privy Best B2B financial product | $2,500 | 0.10 | $250 |
 
-Expected about $2,300; ceiling about $11,500. The base rate for any partner prize is roughly 8 to 10% of showcased projects. Adjacent tracks (ENS v2, World Selfie Check, Ledger, Uniswap, Chainlink, Bazantic) each cost one of the three partner slots and are gated by hardware, beta access or feedback forms. None is free.
+Expected about $2,300; ceiling $12,000 (five first places: $2,000 + 4 x $2,500). The base rate for any partner prize is roughly 8 to 10% of showcased projects. Adjacent tracks (ENS v2, World Selfie Check, Ledger, Uniswap, Chainlink, Bazantic) each cost one of the three partner slots and are gated by hardware, beta access or feedback forms. None is free.
 
 ---
 

@@ -111,8 +111,8 @@ The design panel scored every proposal as three named users. Their answers shape
 
 | Metric | Target | Definition |
 |---|---|---|
-| Starts | 25 | "Try it" or sign-in that created a pocket |
-| First receipts | 12 | A settled Blocky402 payment from a stranger's pocket |
+| Starts | 25 (stretch; expected 8-15) | "Try it" or sign-in that created a pocket |
+| First receipts | 12 (stretch; expected 4-8) | A settled Blocky402 payment from a stranger's pocket |
 | Blocked cards from strangers | 5 | A Privy denial or host provenance refusal credited to a non-team handle |
 | Day-2 returns | 3 | Pressed "Open workspace" on the digest, answered the poll, or replied; Freeze is reported separately, not counted |
 | Peer endpoints paid | 2 by recording, 4 by submission | Settlement tx to a non-team payTo |

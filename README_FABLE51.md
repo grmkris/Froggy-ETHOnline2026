@@ -17,7 +17,7 @@ A note on `research_FABLE51/panel-refutations_FABLE51.md` and `panel-judgments_F
 
 ## The decision in one paragraph
 
-Do not pivot. Build the agentic wallet: a web workspace where the agent drives a real Chrome you can watch, grab and freeze, and spends from a prefunded pocket whose rules live outside the model (a Privy policy on the EVM leg, a host ledger on the Hedera pocket). The wedge this week is "paste your hedera:testnet 402, a leashed agent pays it on camera", with our own Graph-grounded lending brief as the first directory entry. Primary testers are the peer x402 sellers on Hedera testnet; secondary are developers whose coding agent spends money. Sponsors stay Privy, The Graph, Hedera (five tracks, three slots). From the KIMI rounds we take the receipt-card discipline, the no-pot adversarial stunt and dated kill checks, and nothing else.
+Do not pivot. Build the agentic wallet: a web workspace where the agent drives a real Chrome you can watch, grab and freeze, and spends from a prefunded pocket whose rules live outside the model (a Privy policy on the EVM leg, a host ledger on the Hedera pocket). The wedge this week is "paste your hedera:testnet 402, a leashed agent pays it on camera", with our own Graph-grounded lending brief as the first directory entry. Primary testers are the peer x402 sellers on Hedera testnet; secondary are developers whose coding agent spends money. Sponsors stay Privy, The Graph, Hedera (three slots; four tracks, five if the Intents approval ships). From the KIMI rounds we take the receipt-card discipline, the no-pot adversarial stunt, the paid-verdict endpoint as the shape of our Hedera brief, and dated kill checks, and nothing else.
 
 ## The twelve changes versus `docs/PLAN.md` and `docs/architecture.md`
 
@@ -32,7 +32,7 @@ Do not pivot. Build the agentic wallet: a web workspace where the agent drives a
 9. **The tester funnel is jailbreak-first**: two buttons, a Chrome-less first receipt when no seat is free, a phone door, opt-in directory pays, directory rows exempt from the freeze because peers ship late.
 10. **Cut entirely:** WebMCP, the injected provider, WalletConnect, swaps, onramp, Mini App, ERC-8004, Intents in v1, the metered watch, the MCP pay tool (first post-submission item), and every fourth-sponsor track (ENS, World, Ledger, Uniswap, Chainlink, Bazantic).
 11. **Start Fresh hygiene** is a checklist item with pass criteria: disclose every pattern source in AI-USE.md, rewrite any "ported from" file that lacks a public source, untrack anything local, a fresh Privy app, granular commits, never a history rewrite.
-12. **The eight-day plan replaces the nine-day cut**: video Friday, submission Saturday 20:00 CEST with a 16-hour buffer, and three dated cut lines (Sun 12:00 isolation, Tue 22:00 public testers, Wed 22:00 all stretch).
+12. **The eight-day plan replaces the nine-day cut**: video Friday, submission Saturday 20:00 CEST with a 22-hour buffer, and four dated cut lines (Sun 6 12:00 isolation transport swap, Mon 7 22:00 agent loop or fix day, Tue 8 22:00 public testers and concurrency-1 fallback, Wed 9 22:00 all stretch).
 
 ## Status
 

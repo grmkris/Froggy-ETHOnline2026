@@ -131,7 +131,7 @@ Agentic wallet and Allowance are one architecture; Allowance scores higher becau
 
 - **Tue 8 Sep 22:00 CEST.** If no stranger has a receipt from the hosted URL, public testers are cut to judge mode plus peers paid by our agent; build-in-public switches to clips and repo links only. All five tracks still qualify.
 - **Wed 9 Sep 22:00 CEST.** Any red core item (browser isolation, Hedera settlement, four-deployment Graph, Privy denial, Privy top-up, freeze) cancels every stretch item; Thursday becomes a fix day.
-- **If the browser slips past Wed.** Testers get the workspace at concurrency 1 with a queue; the video records on the reserved judge worker. The one-liner keeps the browser only if it is on screen at 0:00 of the video.
+- **If isolation is still red at Tue 8 Sep 22:00 CEST.** Testers get the workspace at concurrency 1 with a queue; the video records on the reserved judge worker. The one-liner keeps the browser only if it is on screen at 0:00 of the video.
 
 ## 9. Evidence
 

@@ -6,7 +6,7 @@ Written Sat 5 Sep 2026. Every claim we intend to make on the ETHOnline 2026 subm
 
 ## 0. Slot accounting and the tracks we enter
 
-Up to three partner prizes per project; a partner with multiple tracks counts once. We select exactly **Privy, The Graph, Hedera** and enter five tracks:
+Up to three partner prizes per project; a partner with multiple tracks counts once. We select exactly **Privy, The Graph, Hedera** and enter four tracks, five if the Intents approval ships:
 
 | Partner | Track | Prize | Enter? |
 |---|---|---|---|
@@ -19,7 +19,7 @@ Up to three partner prizes per project; a partner with multiple tracks counts on
 | Hedera | Open Source: Improve the Hedera Harness | | No: different product |
 | Ledger, ENS, World, Uniswap, Chainlink, Bazantic | | | No: each costs a fourth slot that does not exist; Ledger additionally requires the Ledger Key Ring CLI, so a Privy wallet does not count |
 
-Author's expected value: Hedera 0.4 x $2k + Privy flow 0.3 x $2.5k + Graph composable 0.3 x about $1.5k + Graph AI 0.25 x about $1.5k + Privy B2B 0.1 x $2.5k, about $2.6k expected, $11.5k ceiling. The base rate for any partner prize is 8-10% of showcased projects, so the plan optimizes evidence on screen, not features.
+Author's expected value: Hedera 0.4 x $2k + Privy flow 0.3 x $2.5k + Graph composable 0.3 x about $1.5k + Graph AI 0.2 x about $1.5k + Privy B2B 0.1 x $2.5k, about $2.5k expected, $12k ceiling (five first places). The base rate for any partner prize is 8-10% of showcased projects, so the plan optimizes evidence on screen, not features.
 
 ---
 
@@ -29,12 +29,12 @@ Author's expected value: Hedera 0.4 x $2k + Privy flow 0.3 x $2.5k + Graph compo
 
 | Bullet | Our evidence | Where a judge finds it |
 |---|---|---|
-| Live x402-gated service on `hedera:testnet` settled through Blocky402 | Our brief endpoint: `@x402/hedera` server-side verify and settle against `https://api.testnet.blocky402.com`, fee payer read from `/supported` at boot, payTo a real 0.0.x account, HBAR asset 0.0.0, 0.0125 tHBAR per protocol | A curl printed in README and HEDERA.md that returns a 402 from another network |
+| Live x402-gated service on `hedera:testnet` settled through Blocky402 | Our brief endpoint: `@x402/hedera` server-side verify and settle against `https://api.testnet.blocky402.com`, fee payer read from `/supported` at boot, payTo a real 0.0.x account, HBAR asset 0.0.0, 0.0125 tHBAR per deployment | A curl printed in README and HEDERA.md that returns a 402 from another network |
 | Agent consumes it and completes a real paid request | The per-user pocket pays it (and fare402) on camera; the daily cron pays it once per tester per day | Video 0:48-1:25; HEDERA.md transaction ids |
 | README with setup, architecture, payment flow | README sections plus a payment-flow diagram | README; HEDERA.md adds tx ids, HCS topic, accounts, facilitator, price, idempotency notes |
 | Video at most five minutes showing the paid request executing | One unbroken take: the 402 body with the facilitator URL, the settle, the HashScan page, the HCS message | Video 0:48-1:25 |
 
-**Extra points we take:** metered pricing per protocol rather than a flat charge (the price is fixed in the 402 before the work runs, so "metered" means priced by the requested protocol count, stated honestly); a verifiable payment audit trail on HCS (one message per settlement carrying buyer pocket, price, settlement tx, deployment ids and block; never a tester identifier); discovery via `/.well-known/x402.json` and a directory of external endpoints the pocket has paid ("budgets across providers" is literally the directory); Validation with real strangers' receipts in VALIDATION.md and ACQUISITION.md (the 15/100 weight comes from Hedera's hedera-skills rubric and is INFERRED to apply; we pursue it because the winner anatomy rewards visible evidence regardless).
+**Extra points we take:** metered pricing per deployment rather than a flat charge (the price is fixed in the 402 before the work runs, so "metered" means priced by the requested deployment count, stated honestly); a verifiable payment audit trail on HCS (one message per settlement carrying buyer pocket, price, settlement tx, deployment ids and block; never a tester identifier); discovery via `/.well-known/x402.json` and a directory of external endpoints the pocket has paid ("budgets across providers" is literally the directory); Validation with real strangers' receipts in VALIDATION.md and ACQUISITION.md (the 15/100 weight comes from Hedera's hedera-skills rubric and is INFERRED to apply; we pursue it because the winner anatomy rewards visible evidence regardless).
 
 **Skipped:** ERC-8004 or HCS-14 identity, A2A/ACP, Scheduled Transactions, HTS USDC settlement, a self-hosted facilitator.
 
@@ -54,7 +54,7 @@ Author's expected value: Hedera 0.4 x $2k + Privy flow 0.3 x $2.5k + Graph compo
 | Not a single subgraph | Four deployment ids on screen at 0:24-0:48 and on every receipt |
 | What became easier | GRAPH.md: one query, one parser, one registry; adding Spark was one JSON line; freshness gate returns "unavailable" over stale data (the provenance and fail-closed behaviour Graph praised at Lisbon 2026) |
 
-**Risks.** A single-subgraph client at judging is this track's stated disqualifier: the four-deployment registry lands before any other Graph work. A deployment goes stale mid-week (Zerolend already is; Explorer shows the Messari deployments as "last updated 2 years ago" and live sync must be probed Day 1 with `_meta { block { number } }`); Spark is the spare and deeptrace's Base set (Aave v3 Base, Seamless, Moonwell) is the fallback. The shape is crowded (atlas had 86 deployments); our differentiator is that the standardized answer drives a payment. We do not author a standardized subgraph or a Substreams module, which the track also rewards, so placing is uncertain.
+**Risks.** A single-subgraph client at judging is this track's stated disqualifier: the four-deployment registry lands before any other Graph work. A deployment goes stale mid-week (Zerolend already is; Explorer's "last updated" dates for these deployments are old and none of the four has been queried by us since March, so live sync must be probed Day 1 with `_meta { block { number } }`); the registry runs on three deployments if one goes stale, and deeptrace's Base set (Aave v3 Base, Seamless, Moonwell) is the replacement. The shape is crowded (atlas had 86 deployments); our differentiator is that the standardized answer drives a payment. We do not author a standardized subgraph or a Substreams module, which the track also rewards, so placing is uncertain.
 
 **Extra:** the Subgraph MCP as the second product; deployment id and block on every receipt; the graphprotocol/docs and graph-client fix PR for the non-resolving testnet host, cited in FEEDBACK.md; the Agent0 ERC-8004 read-back explicitly not claimed.
 
@@ -92,7 +92,7 @@ Author's expected value: Hedera 0.4 x $2k + Privy flow 0.3 x $2.5k + Graph compo
 
 **Risks.** Privy slots often go unawarded (1 of 4 at ETHGlobal New York 2026); judges reward clean use of the exact named feature in a polished UI, so the top-up must be unmistakably a Privy wallet action with its policy id on screen. The nearest Telegram-plus-Privy analogue (Deport The Dip) won nothing. If the 296 spike fails the transfer runs on Base Sepolia to the treasury (still a Privy transfer) and the tHBAR credit is labelled "mock bridge (testnet)" on screen and in the README; a labelled transfer that is not what happened would be the disqualifying overclaim. Never claim a Privy daily cap on typed-data x402 payments. A stateful aggregation without per-wallet scope sums across the app; verify scope on Day 4.
 
-**Extra:** stateful aggregation on screen; the typed-data policy from Privy's own x402 recipe; `wallet_send` exposed on purpose so the denial is Privy's default deny, not a missing tool; the honest "why Privy does not gate Hedera" section; Telegram OAuth login if the Saturday DID test passes.
+**Extra:** stateful aggregation on screen; the typed-data policy from Privy's own x402 recipe; `wallet_send` exposed on purpose so the denial is Privy's default deny, not a missing tool; the honest "why Privy does not gate Hedera" section; Telegram OAuth login if the Sunday DID test passes.
 
 ---
 
