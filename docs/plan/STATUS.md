@@ -1,6 +1,6 @@
 # Status against the plan
 
-Updated Sat 5 Sep 2026, 21:05 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
+Updated Sat 5 Sep 2026, 22:10 CEST. The plan is `PLAN.md` beside this file (phases P0–P6, imported from the build box on 5 Sep); `DECISIONS.md` lists what is still open; this file records what has landed in the tree and where it deviates.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
@@ -39,6 +39,7 @@ Updated Sat 5 Sep 2026, 21:05 CEST. The plan is `PLAN.md` beside this file (phas
 - P3.5/3.11 `3763463`: approval round trip e2e (`e2e/approval.spec.ts`), plus policy and pop-out specs; 19 e2e green.
 - P2.11 `7b1cb1d`: daily digest — schedule per user (migration 0001, `GET/PUT /api/digest`, drawer control), minute scheduler (`scheduler.ts`, tested), `runDailyFor` on the same loop with `interactive: false`, one minute / twelve steps / five cents / one paid request, report to a sink.
 - P4 `c2759e0`: Telegram via the Chat SDK (ADR 0007): pairing codes (`/api/telegram`, `/start CODE`), digest card, approval card wired into the same `InteractionRegistry`, `/freeze` and a freeze button, DM chat on the shared `turn.ts` loop recorded into the run; `run.started` app message; migration 0002; live only with token + webhook secret. Owner: BotFather token, secret, `setWebhook`, `TELEGRAM_BOT_USERNAME`.
+- P2.8 `8bf511f`: 402 probe (`packages/payments/src/probe.ts`, per-option reasons), `x402_probe` tool, per-user directory (migration 0003, `GET/POST/DELETE /api/directory`, `POST /api/directory/probe`), adding an entry puts host and payee on the mandate's allowlists (`session.allow`/`disallow`), Directory tab in the drawer with paid counts.
 
 ## Blockers for the owner
 
