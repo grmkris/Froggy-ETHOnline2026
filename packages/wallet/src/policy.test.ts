@@ -100,13 +100,42 @@ describe("authorize", () => {
   it("pays an address the human typed, subject to every other rule", () => {
     // Provenance is about where the string came from, not whether it should
     // be paid: a person's own address passes this gate and then meets the
-    // allowlist and the caps like any other.
+    // caps like any other.
     const allow = rule();
     const decision = decide(
       [{ _tag: "payee_allowlist", id: allow, payeeIds: ["0xdead"] }],
       { intent: { payee: payee({ id: "0xdead", provenance: "user" }) } }
     );
     expect(decision._tag).toBe("allow");
+  });
+
+  it("lets a person pay an address they typed even when the allowlist omits it", () => {
+    // Naming a payee is the act the allowlist stands in for. The host still
+    // caps the amount; whether the signer will sign for that address is the
+    // signer's policy to decide, and a refusal there lands on the receipt.
+    const allow = rule();
+    const cap = rule();
+    const decision = decide(
+      [
+        { _tag: "payee_allowlist", id: allow, payeeIds: ["0.0.5005"] },
+        { _tag: "per_tx_cap", id: cap, maxUsdMicros: micros(1_000_000) },
+      ],
+      { intent: { payee: payee({ id: "0xdead", provenance: "user" }) } }
+    );
+    expect(decision).toEqual({ _tag: "allow", satisfied: [allow, cap] });
+  });
+
+  it("still refuses a server-proposed payee the allowlist omits", () => {
+    const allow = rule();
+    const decision = decide(
+      [{ _tag: "payee_allowlist", id: allow, payeeIds: ["0.0.5005"] }],
+      { intent: { payee: payee({ id: "0.0.9999", provenance: "server" }) } }
+    );
+    expect(decision).toMatchObject({
+      _tag: "deny",
+      code: "payee_not_allowed",
+      ruleId: allow,
+    });
   });
 
   it("names the rule that refused, so a refusal is traceable", () => {

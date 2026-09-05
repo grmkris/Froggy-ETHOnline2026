@@ -178,6 +178,15 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
   }
 
   for (const rule of rulesOfKind(mandate, "payee_allowlist")) {
+    // An address the person typed this turn is theirs to pay. The allowlist
+    // is for payees the server or a 402 proposed; a person naming a payee is
+    // the act the allowlist stands in for. Every cap below still applies, and
+    // so does the signer's own policy — Privy is the outer leash, and a typed
+    // address it has no rule for is refused there, in its words.
+    if (intent.payee.provenance === "user") {
+      satisfied.push(rule.id);
+      continue;
+    }
     const allowed = rule.payeeIds.map(normalizePayeeId);
     if (!allowed.includes(normalizePayeeId(intent.payee.id))) {
       return deny(
