@@ -42,6 +42,7 @@ import { useIdentity } from "../../lib/privy";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { DigestSettings } from "./digest-settings";
 import { MandateEditor } from "./mandate-editor";
+import { TelegramSettings } from "./telegram-settings";
 
 interface DetailsDrawerProps {
   readonly mandate: Mandate | null;
@@ -209,6 +210,7 @@ const About = ({
         ))}
       </div>
       <DigestSettings />
+      <TelegramSettings configured={modes?.telegram === "live"} />
       <div className="flex flex-wrap gap-2 pt-2">
         {identity.stubbed ? null : (
           <Button

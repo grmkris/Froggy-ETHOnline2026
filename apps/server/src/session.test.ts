@@ -37,6 +37,7 @@ const MODES: ServiceModes = {
   hedera: "stub",
   model: "stub",
   privy: "stub",
+  telegram: "stub",
 };
 
 const ALICE = userId("did:privy:session-test");

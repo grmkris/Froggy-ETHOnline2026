@@ -138,3 +138,21 @@ export const mandates = pgTable("mandates", {
     .primaryKey()
     .references(() => users.did),
 });
+
+/**
+ * One Telegram account per person, one person per Telegram account.
+ *
+ * The thread id is the DM the bot opened, kept so a digest or a freeze notice
+ * can be posted without waiting for the person to write first.
+ */
+export const telegramPairings = pgTable("telegram_pairings", {
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  telegramUserId: text("telegram_user_id").primaryKey(),
+  threadId: text("thread_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.did),
+});

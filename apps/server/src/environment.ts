@@ -43,6 +43,8 @@ const PLACEHOLDER = {
   privyAppSecret: "REPLACE_ME_PRIVY_APP_SECRET",
   privyAuthorizationKeyId: "REPLACE_ME_PRIVY_KEY_QUORUM_ID",
   privyAuthorizationPrivateKey: "REPLACE_ME_PRIVY_AUTHORIZATION_KEY",
+  telegramBotToken: "REPLACE_ME_TELEGRAM_BOT_TOKEN",
+  telegramWebhookSecret: "",
 } as const;
 
 const isPlaceholder = (value: string, placeholder: string): boolean =>
@@ -189,6 +191,10 @@ export interface Environment {
   readonly privyAppSecret: string;
   /** Seats held back for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
+  /** The bot's @username, for the pairing deep link. Empty until set. */
+  readonly telegramBotUsername: string;
+  readonly telegramBotToken: string;
+  readonly telegramWebhookSecret: string;
   /** Where the SPA build lives in production. Empty means "dev, Vite serves it". */
   readonly staticDirectory: string;
 }
@@ -302,6 +308,18 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       openAiCompatibleModel,
     });
 
+    const telegramBotToken = yield* secret(
+      "TELEGRAM_BOT_TOKEN",
+      PLACEHOLDER.telegramBotToken
+    );
+    const telegramWebhookSecret = yield* secret(
+      "TELEGRAM_WEBHOOK_SECRET_TOKEN",
+      PLACEHOLDER.telegramWebhookSecret
+    );
+    const telegramBotUsername = yield* Config.string(
+      "TELEGRAM_BOT_USERNAME"
+    ).pipe(Config.withDefault(""));
+
     const modes: ServiceModes = {
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
       // The key alone. The deployments are pinned in `packages/graph`'s
@@ -319,6 +337,15 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       privy: modeOf(
         [privyAppId, PLACEHOLDER.privyAppId],
         [Redacted.value(privyAppSecret), PLACEHOLDER.privyAppSecret]
+      ),
+      // Token and webhook secret together: a bot that answers unverified
+      // webhooks is a bot anyone on the internet can freeze wallets through.
+      telegram: modeOf(
+        [Redacted.value(telegramBotToken), PLACEHOLDER.telegramBotToken],
+        [
+          Redacted.value(telegramWebhookSecret),
+          PLACEHOLDER.telegramWebhookSecret,
+        ]
       ),
     };
 
@@ -367,6 +394,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       privyAppSecret: Redacted.value(privyAppSecret),
       reservedBrowsers,
       staticDirectory,
+      telegramBotToken: Redacted.value(telegramBotToken),
+      telegramBotUsername,
+      telegramWebhookSecret: Redacted.value(telegramWebhookSecret),
     } satisfies Environment;
   }
 );

@@ -12,7 +12,7 @@
  */
 
 import { Mandate, NO_DIGEST, Receipt } from "@froggy/domain";
-import type { DigestSchedule, UserId } from "@froggy/domain";
+import type { DigestSchedule, TelegramPairing, UserId } from "@froggy/domain";
 import { Result, Schema } from "effect";
 
 export interface Store {
@@ -38,6 +38,14 @@ export interface Store {
   readonly mandates: {
     readonly load: (userId: UserId) => Promise<Mandate | null>;
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
+  };
+  readonly telegram: {
+    readonly forUser: (userId: UserId) => Promise<TelegramPairing | null>;
+    /** Whose account this Telegram user is, or null when nobody has paired it. */
+    readonly lookup: (telegramUserId: string) => Promise<UserId | null>;
+    /** Replaces any earlier pairing on either side. */
+    readonly pair: (userId: UserId, pairing: TelegramPairing) => Promise<void>;
+    readonly unpair: (userId: UserId) => Promise<void>;
   };
   readonly receipts: {
     readonly append: (userId: UserId, receipt: Receipt) => Promise<void>;
@@ -75,7 +83,39 @@ export const memoryStore = (): Store => {
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
   const digests = new Map<UserId, DigestSchedule>();
+  const pairings = new Map<UserId, TelegramPairing>();
+  const unpair = (userId: UserId): void => {
+    pairings.delete(userId);
+  };
   return {
+    telegram: {
+      forUser: async (userId) => {
+        await Promise.resolve();
+        return pairings.get(userId) ?? null;
+      },
+      lookup: async (telegramUserId) => {
+        await Promise.resolve();
+        for (const [userId, pairing] of pairings) {
+          if (pairing.telegramUserId === telegramUserId) {
+            return userId;
+          }
+        }
+        return null;
+      },
+      pair: async (userId, pairing) => {
+        await Promise.resolve();
+        for (const [other, existing] of pairings) {
+          if (existing.telegramUserId === pairing.telegramUserId) {
+            pairings.delete(other);
+          }
+        }
+        pairings.set(userId, pairing);
+      },
+      unpair: async (userId) => {
+        await Promise.resolve();
+        unpair(userId);
+      },
+    },
     digest: {
       all: async () => {
         await Promise.resolve();
@@ -94,6 +134,7 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await Promise.resolve();
+      unpair(userId);
       digests.delete(userId);
       frozen.delete(userId);
       mandates.delete(userId);

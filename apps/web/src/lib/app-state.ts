@@ -127,6 +127,21 @@ const onServer = (
         notices: [notice, ...state.notices].slice(0, MAX_NOTICES),
       };
     }
+    case "run.started": {
+      if (message.surface === "web") {
+        return state;
+      }
+      const notice: Notice = {
+        at,
+        id: `run:${message.runId}`,
+        text: `A turn started from ${message.surface === "telegram" ? "Telegram" : "the daily digest"}. Reload to follow it here.`,
+        tone: "info",
+      };
+      return {
+        ...state,
+        notices: [notice, ...state.notices].slice(0, MAX_NOTICES),
+      };
+    }
     case "pong": {
       return state;
     }

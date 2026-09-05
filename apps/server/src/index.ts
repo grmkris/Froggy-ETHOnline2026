@@ -22,7 +22,7 @@ import { createFreeze } from "./freeze";
 import type { FreezeControl } from "./freeze";
 import { AgentGrants } from "./grants";
 import { InteractionRegistry } from "./interactions";
-import { logDigestSink, runDailyFor } from "./jobs";
+import { runDailyFor } from "./jobs";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
@@ -30,6 +30,8 @@ import { createDigestScheduler } from "./scheduler";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
+import { liveTelegramPager, stubTelegramPager } from "./telegram/pager";
+import type { TelegramPager } from "./telegram/pager";
 import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
@@ -61,7 +63,7 @@ class FroggyServer extends Context.Service<
         Pick<
           ReturnType<typeof createSocketHandlers>,
           "publishApp" | "publishBrowserState"
-        > & { freeze: FreezeControl }
+        > & { freeze: FreezeControl; pager: TelegramPager }
       > = {};
 
       // Fetched once at boot, so the first payment is not the first time
@@ -111,6 +113,8 @@ class FroggyServer extends Context.Service<
         // rather than in the session so the session never learns what a
         // browser or a signer is.
         ask: async (userId, input) => {
+          // The same question, on the phone too, with the same four answers.
+          sinks.pager?.postApproval(userId, input.request);
           const outcome = await interactions.park({ ...input, userId });
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
             sinks.freeze?.freeze(
@@ -204,12 +208,32 @@ class FroggyServer extends Context.Service<
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
+      // The pager. Live only with a bot token *and* a webhook secret; the
+      // stub answers 404 and says so.
+      const pager: TelegramPager =
+        environment.modes.telegram === "live"
+          ? liveTelegramPager({
+              botToken: environment.telegramBotToken,
+              botUsername: environment.telegramBotUsername,
+              freeze,
+              interactions,
+              oracleUrl,
+              publishApp: sockets.publishApp,
+              runs,
+              services,
+              webhookSecret: environment.telegramWebhookSecret,
+              workspaces,
+            })
+          : stubTelegramPager();
+      sinks.pager = pager;
+
       // Digests run unattended, under the person's own mandate, with nobody
-      // to ask. The sink is a log until a Telegram thread exists to post to.
+      // to ask. They land on the pager: a Telegram thread when paired, the
+      // log otherwise.
       const scheduler = createDigestScheduler({
         run: async (userId) => {
           await runDailyFor(
-            { oracleUrl, runs, services, sink: logDigestSink(), workspaces },
+            { oracleUrl, runs, services, sink: pager, workspaces },
             userId
           );
         },
@@ -225,6 +249,7 @@ class FroggyServer extends Context.Service<
         environment,
         grants,
         oracleUrl,
+        pager,
         runs,
         services,
         workspaces,

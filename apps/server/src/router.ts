@@ -25,6 +25,7 @@ import { handleOracleRequest } from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
+import type { TelegramPager } from "./telegram/pager";
 import type { Workspaces } from "./workspaces";
 
 export const ORACLE_PATH = "/oracle/snapshot";
@@ -50,6 +51,12 @@ type ResponseBody =
       readonly status: string;
     }
   | { readonly deleted: true }
+  | {
+      readonly code: string;
+      readonly expiresAt: number;
+      readonly link: string | null;
+    }
+  | { readonly paired: boolean; readonly since: number | null }
   | DigestSchedule
   | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
@@ -63,10 +70,39 @@ export interface RouterDeps {
   readonly environment: Environment;
   readonly grants: AgentGrants;
   readonly oracleUrl: string;
+  readonly pager: TelegramPager;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
 }
+
+/** Telegram pairing: whether there is one, mint a code, or drop it. */
+const handleTelegram = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId
+): Promise<Response> => {
+  if (request.method === "POST") {
+    if (deps.pager.mode === "stub") {
+      return json(
+        { error: "Telegram is not configured on this deployment." },
+        404
+      );
+    }
+    const minted = deps.pager.codes.mint(userId);
+    return json({
+      code: minted.code,
+      expiresAt: minted.expiresAt,
+      link: deps.pager.link(minted.code),
+    });
+  }
+  if (request.method === "DELETE") {
+    await deps.services.store.telegram.unpair(userId);
+    return json({ paired: false, since: null });
+  }
+  const pairing = await deps.services.store.telegram.forUser(userId);
+  return json({ paired: pairing !== null, since: pairing?.since ?? null });
+};
 
 /**
  * Refuse in one shape, for every reason.
@@ -197,6 +233,10 @@ const handleApi = async (
     return await handleDigest(deps, request, userId);
   }
 
+  if (pathname === "/api/telegram") {
+    return await handleTelegram(deps, request, userId);
+  }
+
   if (pathname === "/api/me" && request.method === "DELETE") {
     // Their run stops, their browser closes, their profile and their records
     // go. The ledger's spend rows stay: money that moved is not a preference.
@@ -229,6 +269,12 @@ export const handleRequest = async (
       runtime: "bun",
       status: "ok",
     });
+  }
+
+  // Outside the `/api` group on purpose: Telegram authenticates with its
+  // secret header, which the adapter checks, not with a Privy token.
+  if (pathname === "/telegram/webhook" && request.method === "POST") {
+    return await deps.pager.webhook(request);
   }
 
   if (pathname === ORACLE_PATH) {

@@ -8,7 +8,7 @@
  * "frozen at 14:02, unfrozen at 14:09" stays answerable.
  */
 
-import { mandates, receipts, users } from "@froggy/database";
+import { mandates, receipts, telegramPairings, users } from "@froggy/database";
 import { decodeUserId, NO_DIGEST } from "@froggy/domain";
 import type { DigestSchedule, UserId } from "@froggy/domain";
 import { desc, eq, isNotNull } from "drizzle-orm";
@@ -25,6 +25,61 @@ export const postgresStore = (sql: Sql): Store => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
   return {
+    telegram: {
+      forUser: async (userId) => {
+        const rows = await database
+          .select({
+            since: telegramPairings.createdAt,
+            telegramUserId: telegramPairings.telegramUserId,
+            threadId: telegramPairings.threadId,
+          })
+          .from(telegramPairings)
+          .where(eq(telegramPairings.userId, userId))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined
+          ? null
+          : {
+              since: row.since.getTime(),
+              telegramUserId: row.telegramUserId,
+              threadId: row.threadId,
+            };
+      },
+      lookup: async (telegramUserId) => {
+        const rows = await database
+          .select({ userId: telegramPairings.userId })
+          .from(telegramPairings)
+          .where(eq(telegramPairings.telegramUserId, telegramUserId))
+          .limit(1);
+        const [row] = rows;
+        if (row === undefined) {
+          return null;
+        }
+        const decoded = decodeUserId(row.userId);
+        return Result.isSuccess(decoded) ? decoded.success : null;
+      },
+      pair: async (userId, pairing) => {
+        await ensureUser(userId);
+        // Either side may have been paired before; both old rows go.
+        await database
+          .delete(telegramPairings)
+          .where(eq(telegramPairings.userId, userId));
+        await database
+          .delete(telegramPairings)
+          .where(eq(telegramPairings.telegramUserId, pairing.telegramUserId));
+        await database.insert(telegramPairings).values({
+          createdAt: new Date(pairing.since),
+          telegramUserId: pairing.telegramUserId,
+          threadId: pairing.threadId,
+          userId,
+        });
+      },
+      unpair: async (userId) => {
+        await database
+          .delete(telegramPairings)
+          .where(eq(telegramPairings.userId, userId));
+      },
+    },
     digest: {
       all: async () => {
         const rows = await database
@@ -70,6 +125,9 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await database
+        .delete(telegramPairings)
+        .where(eq(telegramPairings.userId, userId));
       await database.delete(receipts).where(eq(receipts.userId, userId));
       await database.delete(mandates).where(eq(mandates.userId, userId));
       // The row itself stays: the ledger's spends reference it, and a spend

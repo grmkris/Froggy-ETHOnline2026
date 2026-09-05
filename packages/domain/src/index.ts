@@ -62,6 +62,7 @@ export {
   UsdMicros,
   usdMicros,
 } from "./money";
+export { TelegramPairing } from "./telegram";
 export { isPrivateAddress, isPrivateHostname, publicHttpUrl } from "./url";
 export type { PublicUrlCheck } from "./url";
 export {

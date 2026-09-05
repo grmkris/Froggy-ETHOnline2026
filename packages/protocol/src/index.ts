@@ -9,6 +9,7 @@ export {
   decodeAppServerMessage,
   encodeAppClientMessage,
   encodeAppServerMessage,
+  RunSurface,
   ServiceMode,
   ServiceModes,
   WalletSummary,

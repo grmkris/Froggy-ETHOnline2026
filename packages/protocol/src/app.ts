@@ -36,7 +36,12 @@ export const ServiceModes = Schema.Struct({
   hedera: ServiceMode,
   model: ServiceMode,
   privy: ServiceMode,
+  telegram: ServiceMode,
 });
+
+/** Where a turn was started from. The web app shows a turn it did not start. */
+export const RunSurface = Schema.Literals(["web", "telegram", "digest"]);
+export type RunSurface = typeof RunSurface.Type;
 export type ServiceModes = typeof ServiceModes.Type;
 
 /**
@@ -174,6 +179,17 @@ export const AppServerMessage = Schema.Union([
     ...Envelope,
     requestId: Schema.String,
     type: Schema.Literals(["approval.resolved"]),
+  }),
+  /**
+   * A turn began somewhere other than this tab — a Telegram message, the
+   * daily digest. The tab cannot attach to it mid-stream, so it says so and
+   * offers a reload, which resumes the run's replay.
+   */
+  Schema.Struct({
+    ...Envelope,
+    runId: Schema.String,
+    surface: RunSurface,
+    type: Schema.Literals(["run.started"]),
   }),
   Schema.Struct({
     ...Envelope,

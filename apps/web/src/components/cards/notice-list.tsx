@@ -1,4 +1,4 @@
-/** Things the socket said that are not state: protocol errors, mostly. */
+/** Things the socket said that are not state: protocol errors, turns started elsewhere. */
 
 import { Button } from "@froggy/ui/components/button";
 import { XIcon } from "lucide-react";
@@ -10,6 +10,11 @@ interface NoticeListProps {
   readonly onDismiss: (id: string) => void;
 }
 
+const TONE: Record<Notice["tone"], string> = {
+  error: "bg-refused-soft",
+  info: "bg-brand-soft",
+};
+
 export const NoticeList = ({
   notices,
   onDismiss,
@@ -18,11 +23,22 @@ export const NoticeList = ({
     <ul className="space-y-1.5">
       {notices.map((notice) => (
         <li
-          className="bg-refused-soft flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+          className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${TONE[notice.tone]}`}
           key={notice.id}
           role="alert"
         >
           <span className="flex-1">{notice.text}</span>
+          {notice.tone === "info" ? (
+            <Button
+              onClick={() => {
+                globalThis.location.reload();
+              }}
+              size="xs"
+              variant="secondary"
+            >
+              Reload
+            </Button>
+          ) : null}
           <Button
             aria-label="Dismiss"
             onClick={() => {

@@ -39,6 +39,7 @@ const MODES: ServiceModes = {
   hedera: "stub",
   model: "stub",
   privy: "stub",
+  telegram: "stub",
 };
 
 /**

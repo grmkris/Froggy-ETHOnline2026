@@ -54,15 +54,6 @@ export interface DigestSink {
   readonly deliver: (report: DigestReport) => Promise<void>;
 }
 
-export const logDigestSink = (): DigestSink => ({
-  deliver: async (report) => {
-    await Promise.resolve();
-    console.info(
-      `[digest] ${report.userId} ${report.outcome}${report.reason === null ? "" : ` (${report.reason})`}: ${report.summary || "(no summary)"} — spent $${(report.spentUsdMicros / 1_000_000).toFixed(4)} over ${report.receipts.length} receipt(s)`
-    );
-  },
-});
-
 export interface JobDeps {
   readonly now?: () => number;
   readonly oracleUrl: string;

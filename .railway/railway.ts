@@ -111,6 +111,9 @@ export default defineRailway((ctx) => {
       PRIVY_AUTHORIZATION_KEY_ID: preserve(),
       PRIVY_AUTHORIZATION_PRIVATE_KEY: preserve(),
       RESERVED_BROWSERS: preserve(),
+      TELEGRAM_BOT_TOKEN: preserve(),
+      TELEGRAM_BOT_USERNAME: preserve(),
+      TELEGRAM_WEBHOOK_SECRET_TOKEN: preserve(),
       // Baked into the web bundle at build time, via the Dockerfile ARG of the
       // same name. Absent from this list it would be deleted on the next
       // apply, and the deployed client would quietly fall back to the local
