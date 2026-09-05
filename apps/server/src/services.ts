@@ -57,7 +57,6 @@ export const createServices = (options: ServiceOptions): Services => {
       ? liveGraphClient({
           apiKey: environment.graphApiKey,
           gatewayUrl: environment.graphGatewayUrl,
-          subgraphId: environment.graphSubgraphId,
         })
       : stubGraphClient();
 

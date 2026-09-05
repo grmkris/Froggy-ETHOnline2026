@@ -25,7 +25,24 @@ import { Quote } from "./money";
  * body can be large and it is already stored with the spend, but the digest is
  * what makes "this number is the one it acted on" checkable later.
  */
+/**
+ * One index that contributed to (or was refused from) an answer.
+ *
+ * On the receipt because "the agent paid on the strength of this number" is
+ * only checkable if the receipt says which deployment, at which block. A
+ * source URL alone is a claim about a gateway, not about the data.
+ */
+export const EvidenceDeployment = Schema.Struct({
+  blockNumber: Schema.NullOr(Schema.Finite),
+  id: Schema.String,
+  label: Schema.String,
+  /** `fresh`, `stale` or `unavailable`. A stale index contributed nothing. */
+  status: Schema.String,
+});
+export type EvidenceDeployment = typeof EvidenceDeployment.Type;
+
 export const Evidence = Schema.Struct({
+  deployments: Schema.Array(EvidenceDeployment),
   query: Schema.String,
   snapshotHash: Schema.String,
   source: Schema.String,

@@ -55,6 +55,7 @@ export {
 } from "./money";
 export {
   Evidence,
+  EvidenceDeployment,
   Receipt,
   Settlement,
   spendStatus,

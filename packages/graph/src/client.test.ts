@@ -75,6 +75,15 @@ describe("describeCheapestBorrow", () => {
   it("says so plainly when nothing matched", async () => {
     const snapshot = await stubGraphClient().lendingMarkets("NOPE");
 
-    expect(describeCheapestBorrow(snapshot)).toContain("No active markets");
+    expect(describeCheapestBorrow(snapshot)).toContain("No usable markets");
+  });
+
+  it("cites the deployment and block behind the number", async () => {
+    const snapshot = await stubGraphClient().lendingMarkets("USDC");
+
+    // The provenance is the claim the Graph tracks are judged on. An answer
+    // that does not say which index it came from is not checkable.
+    expect(describeCheapestBorrow(snapshot)).toMatch(/block \d+/u);
+    expect(describeCheapestBorrow(snapshot)).toContain("indexes fresh");
   });
 });

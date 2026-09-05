@@ -34,7 +34,6 @@ const PLACEHOLDER = {
   // placeholder would make a real local database indistinguishable from none.
   databaseUrl: "",
   graphApiKey: "REPLACE_ME_GRAPH_STUDIO_KEY",
-  graphSubgraphId: "REPLACE_ME_SUBGRAPH_ID",
   hederaAccountId: "0.0.0",
   hederaPrivateKey: "0xREPLACE_ME",
   privyAgentPolicyId: "REPLACE_ME_PRIVY_POLICY_ID",
@@ -96,7 +95,6 @@ export interface Environment {
   readonly databaseUrl: string;
   readonly graphApiKey: string;
   readonly graphGatewayUrl: string;
-  readonly graphSubgraphId: string;
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
   readonly hederaPrivateKey: string;
@@ -173,9 +171,6 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     ).pipe(Config.withDefault(PLACEHOLDER.privyAgentPolicyId));
 
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
-    const graphSubgraphId = yield* Config.string("GRAPH_SUBGRAPH_ID").pipe(
-      Config.withDefault(PLACEHOLDER.graphSubgraphId)
-    );
     const graphGatewayUrl = yield* Config.string("GRAPH_GATEWAY_URL").pipe(
       Config.withDefault("https://gateway.thegraph.com/api")
     );
@@ -211,10 +206,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
 
     const modes: ServiceModes = {
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
-      graph: modeOf(
-        [Redacted.value(graphApiKey), PLACEHOLDER.graphApiKey],
-        [graphSubgraphId, PLACEHOLDER.graphSubgraphId]
-      ),
+      // The key alone. The deployments are pinned in `packages/graph`'s
+      // registry rather than configured, because *which* four indexes the
+      // answer came from is a claim the receipt makes and code is where a
+      // claim like that can be reviewed.
+      graph: modeOf([Redacted.value(graphApiKey), PLACEHOLDER.graphApiKey]),
       // Both halves are needed: an account with no key cannot sign, and a key
       // with no account cannot be addressed. Half-configured is not half-live.
       hedera: modeOf(
@@ -240,7 +236,6 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       databaseUrl: Redacted.value(databaseUrl),
       graphApiKey: Redacted.value(graphApiKey),
       graphGatewayUrl,
-      graphSubgraphId,
       hederaAccountId,
       hederaFacilitatorUrl,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),

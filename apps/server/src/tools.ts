@@ -25,7 +25,11 @@
 import type { BrowserSession } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
-import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
+import {
+  describeCheapestBorrow,
+  describeDeployments,
+  snapshotHash,
+} from "@froggy/graph";
 import { decodePaymentChallenge } from "@froggy/payments";
 import { tool } from "ai";
 import { Schema } from "effect";
@@ -128,12 +132,18 @@ export const buildTools = (deps: ToolDeps) => {
 
     graph_query: tool({
       description:
-        "Live lending markets across protocols from The Graph, cheapest borrow first. This is the evidence a spend has to be justified by — query it before you pay for anything derived from it.",
+        "Live lending markets across four pinned Graph deployments — Aave v3 on Ethereum and Base, Compound v3, Spark — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. This is the evidence a spend has to be justified by; query it before you pay for anything derived from it.",
       execute: async ({ symbol }) => {
         const snapshot = await services.graph.lendingMarkets(symbol);
         // Held so a payment made right after a query can cite what it was
         // acting on, rather than the receipt saying only that money moved.
         lastEvidence = {
+          deployments: snapshot.deployments.map((deployment) => ({
+            blockNumber: deployment.blockNumber,
+            id: deployment.id,
+            label: `${deployment.label} (${deployment.chain})`,
+            status: deployment.status,
+          })),
           query: snapshot.query,
           snapshotHash: snapshotHash(snapshot),
           source: snapshot.source,
@@ -142,7 +152,9 @@ export const buildTools = (deps: ToolDeps) => {
         const stub = snapshot.stubbed
           ? "\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]"
           : "";
-        return cap(`${describeCheapestBorrow(snapshot)}${stub}`);
+        return cap(
+          `${describeCheapestBorrow(snapshot)}\n\n${describeDeployments(snapshot)}${stub}`
+        );
       },
       inputSchema: std(
         Schema.Struct({
