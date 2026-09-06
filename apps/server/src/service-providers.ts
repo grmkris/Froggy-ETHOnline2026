@@ -383,6 +383,31 @@ const pollImage = async (
     : response;
 };
 
+const ImageMime = Schema.Literals(["image/png", "image/jpeg", "image/webp"]);
+const imageArtifact = (
+  base64: string,
+  mime: typeof ImageMime.Type
+): NonNullable<ServiceResult["artifact"]> => {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(base64)) {
+    throw new Error("Provider returned invalid image encoding.");
+  }
+  const bytes = Buffer.from(base64, "base64");
+  if (bytes.byteLength > 3 * 1024 * 1024) {
+    throw new Error("Provider response exceeded the size limit.");
+  }
+  const signatures = {
+    "image/png": bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a",
+    "image/jpeg": bytes.subarray(0, 3).toString("hex") === "ffd8ff",
+    "image/webp":
+      bytes.subarray(0, 4).toString() === "RIFF" &&
+      bytes.subarray(8, 12).toString() === "WEBP",
+  };
+  if (!signatures[mime]) {
+    throw new Error("Provider returned invalid image data.");
+  }
+  return { mime, base64 };
+};
+
 const imageResult = async (
   response: Response,
   base: ServiceResult,
@@ -394,19 +419,34 @@ const imageResult = async (
     throw new Error("Provider returned no image.");
   }
   if (image.b64_json !== undefined && image.b64_json !== "") {
-    const bytes = Buffer.from(image.b64_json, "base64");
-    // PNG signature: never label arbitrary bytes as an image.
-    if (bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
-      throw new Error("Provider returned invalid PNG data.");
-    }
     return {
       ...base,
       text: "Your image is ready.",
-      artifact: { mime: "image/png", base64: image.b64_json },
+      artifact: imageArtifact(image.b64_json, "image/png"),
     };
   }
   if (image.url === undefined || image.url === "") {
     throw new Error("Provider returned no image location.");
+  }
+  // BlockRun falls back to a data URI when its media mirror is unavailable.
+  // Decode only the supported raster formats; never fetch or render arbitrary data URLs.
+  if (image.url.startsWith("data:")) {
+    const inline =
+      /^data:(?<mime>image\/(?:png|jpeg|webp));base64,(?<encoded>[A-Za-z0-9+/]+={0,2})$/u.exec(
+        image.url
+      );
+    const encoded = inline?.groups?.["encoded"];
+    if (encoded === undefined) {
+      throw new Error("Provider returned an unsupported inline image.");
+    }
+    return {
+      ...base,
+      text: "Your image is ready.",
+      artifact: imageArtifact(
+        encoded,
+        Schema.decodeUnknownSync(ImageMime)(inline?.groups?.["mime"])
+      ),
+    };
   }
   const media = await safeFetch(image.url, {}, outbound);
   const [mime] = (media.headers.get("content-type") ?? "").split(";");

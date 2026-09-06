@@ -23,7 +23,7 @@ Prices above are Froggy's fixed task prices. Supplier limits are ceilings, not c
    api.you.com=0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f,blockrun.ai=0xe9030014F5DAe217d0A152f02A043567b16c1aBf
    ```
 
-   These addresses were read from the providers' own unpaid 402 responses at 22:29 UTC on 6 September; see `MARKETPLACE_QUOTES.json`. Reverify before a later activation. A changed recipient is refused rather than auto-approved.
+   These addresses were rechecked against the providers' own unpaid 402 responses on 7 September; see `MARKETPLACE_QUOTES.json`. Reverify before a later activation. A changed recipient is refused rather than auto-approved.
 
 3. Keep `EVM_NETWORK=eip155:8453` and the existing funded, policy-controlled `TREASURY_WALLET_ID` / `TREASURY_EVM_ADDRESS` configuration. A signing failure is surfaced; it never falls back to a different wallet.
 4. Configure a server-only `X_API_BEARER_TOKEN` with the appropriate X API access and credit budget. The app does not read the operator's personal xurl store.
@@ -60,3 +60,19 @@ Local verification on 7 September: `bun run check`, `bun run build`, and all 39 
 - X results are a bounded sample of public posts, not an exhaustive study or verified facts. Web search excerpts likewise remain source claims.
 
 Provider contracts: [You.com machine payments](https://you.com/docs/administration/machine-payments/x402), [BlockRun image generation](https://blockrun.ai/docs/api-reference/image-generation), [BlockRun speech](https://blockrun.ai/docs/api-reference/text-to-speech), [X search](https://docs.x.com/x-api/posts/search/introduction), [MCP transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+
+## Production recheck — 7 September 2026
+
+Deployment `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25` is SUCCESS and runs marketplace commit `f7fa2ee`. The public health endpoint returns 200 with live integration modes, the distributed CLI includes service/MCP commands, and unauthenticated service/MCP calls return 401. Health's live modes do not imply that marketplace suppliers are configured.
+
+Production has neither `SERVICE_SUPPLIER_PAYEES` nor `X_API_BEARER_TOKEN`. The treasury's attached policy `wdct7xe9re788wr3htum96pw` was read directly from Privy: its x402 rule allows only The Graph's recipient, up to 0.02 USDC. It does not authorize You.com or BlockRun. All five new services therefore remain unavailable; setting payees without updating the policy would make supplier signing fail after the customer payment.
+
+Fresh unpaid probes returned valid Base USDC offers: You.com search 0.005, BlockRun image 0.053501, inference 0.002 and short speech 0.002. The configured adapter ceilings cover these examples. No authorization was signed or submitted during this review.
+
+The previous Hedera oracle transaction was independently queried through the mainnet mirror and returned SUCCESS. The Graph Base transaction was independently queried using `eth_getTransactionReceipt` and returned `0x1`. These prove the existing financial integrations, not a new marketplace purchase.
+
+Review found and fixed one documented provider compatibility gap: when BlockRun cannot mirror an image to its media host, it may return a raster data URI in `data[].url`. The adapter now decodes only bounded PNG/JPEG/WebP data with matching file signatures; executable or mislabeled payloads are rejected. Tests also check the settlement receipt returned by the final image poll. This follow-up fix is local until released.
+
+Activation order remains: review and merge the narrow treasury supplier rules, configure matching payees, then run a small customer-funded purchase through each adapter and record both settlement legs and delivered results. X separately needs a server API credential. Public MCP OAuth is still plan task 2.6; existing bearer/stdio MCP is implemented.
+
+Follow-up validation: `bun run check` and `bun run build` pass; 22 focused payment/provider tests pass. The first default-concurrency browser run passed 36 checks and timed out on three initial-wallet assertions; their snapshots showed the expected balance afterward. The complete recheck with `bun run e2e --workers=2` passed all 39. No timeout was raised, assertion weakened, or application startup behavior changed. Parallel startup timing remains worth monitoring.

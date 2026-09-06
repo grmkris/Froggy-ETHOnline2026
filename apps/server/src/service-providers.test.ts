@@ -223,7 +223,17 @@ describe("service providers", () => {
     const setup = fixture([
       Response.json(offer("53501"), { status: 402 }),
       Response.json({ id: "img_fixture" }, { status: 202 }),
-      Response.json({ data: [{ b64_json: "iVBORw0KGgo=" }] }),
+      Response.json(
+        { data: [{ b64_json: "iVBORw0KGgo=" }] },
+        {
+          headers: {
+            "payment-response": encodeSettlementHeader({
+              network: "eip155:8453",
+              transactionId: "0ximage-settlement",
+            }),
+          },
+        }
+      ),
     ]);
     const result = await runServiceProvider(
       setup.services,
@@ -231,9 +241,50 @@ describe("service providers", () => {
       setup.outbound
     );
     expect(result.artifact?.mime).toBe("image/png");
+    expect(result.upstreamTransactionId).toBe("0ximage-settlement");
     expect(setup.requests[2]?.payment).toBe("test-proof");
     expect(setup.requests[2]?.url).toContain("/images/generations/img_fixture");
     expect(setup.signatures()).toBe(1);
+  });
+  it("accepts the inline raster fallback without another fetch or signature", async () => {
+    const setup = fixture([
+      Response.json(offer("53501"), { status: 402 }),
+      Response.json({ data: [{ url: "data:image/png;base64,iVBORw0KGgo=" }] }),
+    ]);
+    const result = await runServiceProvider(
+      setup.services,
+      { ...input, service: "image" },
+      setup.outbound
+    );
+    expect(result.artifact).toEqual({
+      mime: "image/png",
+      base64: "iVBORw0KGgo=",
+    });
+    expect(setup.requests).toHaveLength(2);
+    expect(setup.signatures()).toBe(1);
+  });
+  it("refuses executable or mislabeled inline image payloads without retrying payment", async () => {
+    await Promise.all(
+      [
+        "data:image/svg+xml;base64,PHN2Zz4=",
+        "data:image/png;base64,PHNjcmlwdD4=",
+      ].map(async (url) => {
+        const setup = fixture([
+          Response.json(offer("53501"), { status: 402 }),
+          Response.json({ data: [{ url }] }),
+        ]);
+        await rejectsWith(
+          runServiceProvider(
+            setup.services,
+            { ...input, service: "image" },
+            setup.outbound
+          ),
+          "image"
+        );
+        expect(setup.requests).toHaveLength(2);
+        expect(setup.signatures()).toBe(1);
+      })
+    );
   });
   it("cancels streaming responses as soon as they cross the byte limit", async () => {
     let cancelled = false;
