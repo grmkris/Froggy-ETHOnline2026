@@ -104,6 +104,7 @@ R1-Q1 C · R1-Q2 A · R1-Q2b agree · R1-Q3 mainnet (silent on the fallback) · 
 - 21:06 to 21:10 CEST: the Privy `raw_sign` spike. Ethereum and Solana wallets refused ("not supported for this low-level signature endpoint"); a cosmos-type wallet signed, became Hedera account `0.0.10396162` and paid a transfer signed only through Privy; the policy cannot condition raw bytes. Posted to the group at 21:11 CEST with a recommendation to move custody to Privy on Monday. Kristjan to Jonas at 21:08 CEST (2570): "ur already in repo ser".
 - 21:20 CEST: task 2.4 built: Add funds through Privy's fiat onramp in the drawer's Wallet tab, the address with Copy, the service credit named, the Hedera account linked; browser test added. The live onramp waits for the owner's dashboard toggle and sign-in.
 - 21:23 CEST: the onboarding change deployed as `6f66acb7` after CI; `/health` on the live URL reports `hederaAccounts: own` and every mode live except Telegram. Tonight's six steps are done. Jonas at 21:17 CEST (2571): "fried my brain in sauna".
+- 21:30 CEST: status posted to the group at Kristjan's request: the live URL, what to try, the owner items that gate mainnet and real money, the custody decision, and what comes next in the plan.
 
 ## Open questions and disagreements
 
