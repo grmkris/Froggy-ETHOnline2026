@@ -91,6 +91,12 @@ Iteration-2 core per `docs/plan/NEXT_ITERATION.md`, all in stub mode, gate and 2
 
 Smoke-tested end to end on a stub server: mint, curl the CLI, `brief` through Node to a done task, sale public by id, revoke kills the token.
 
-## Lanes (Sun 6 Sep, 18:50 CEST) — iteration 2
+Later the same evening:
+
+- **Deployed.** `9d787f5` pushed at 20:40 CEST after the full gate (format, type-aware lint, typecheck, tests, knip, build, 24 browser tests); CI green; Railway deployment `377f3771` live at 20:46 CEST with migrations 0005 and 0006 applied; `/health`, `/.well-known/x402.json`, `/froggy-cli.js` (163 KB of JavaScript), `/froggy/SKILL.md` answer, `/api/agents` and `/api/tasks` refuse without a token. Three findings the plain lint had missed (`lint:types`) fixed first. The evening's timestamps in the record and the plan were recomputed from the transcript and the relay (they had been guessed, up to four hours late).
+- `045ec63` **freeze removal, phase 2**: the browser worker's frozen gate, the protocol commands, the state flag, the error class and the grey drive mode are gone; deployment `ee35e9a1` at 20:55 CEST.
+- **Task 1.5, per-person Hedera accounts**: `packages/wallet/src/keystore.ts` (AES-256-GCM under `HEDERA_KEK`), `packages/payments/src/accounts.ts` (the host opens and funds accounts), `apps/server/src/hedera-accounts.ts` (open at first need, fund at top-up, the person's own payer), `Store.hedera`, `WalletSummary.hederaAccountId`, the drawer row and `wallet_status` field, `/health` `hederaAccounts: own|host`. Proven on testnet at 20:57 CEST: account `0.0.10396038` opened by the float and paying a `froggy brief` task; ids in `docs/evidence/HEDERA.md`. Production needs `HEDERA_KEK` set on Railway to open accounts; without it the host pocket pays, as before.
+
+## Lanes (Sun 6 Sep, 21:00 CEST) — iteration 2
 
 - **Session F** (the facilitator session running the Telegram grilling; Fable 5.1): claims the iteration-2 core per `docs/plan/NEXT_ITERATION.md` tasks 1.1 to 1.7: seller durability (`apps/server/src/oracle-route.ts`, `packages/payments/src/oracle.ts`), the task API and lifecycle (`apps/server/src/tasks.ts` new, `router.ts`, `packages/domain/src/id.ts`, `packages/protocol/src/**`), agent tokens (`apps/server/src/auth.ts`, `router.ts`, settings drawer in `apps/web/src/components/details/**`), the settle and refund fix in `apps/server/src/session.ts` and `paid-request.ts`, freeze removal across `apps/server/src/freeze.ts`, `sockets.ts`, `telegram/**`, `apps/web/src/**`, and the CLI plus skill (`apps/cli/**` new, `skills/froggy/**` new). Database changes go in new migrations only. Commits by pathspec; please stay out of those paths until this block is updated.

@@ -25,6 +25,7 @@ curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
 | 5 Sep 2026 | 0.05 HBAR, pocket `0.0.9700388` → payee `0.0.10377647`, fee paid by the facilitator | [`1788625330.599677104`](https://hashscan.io/testnet/transaction/1788625330.599677104) | SUCCESS |
 | 5 Sep 2026 | 0.05 HBAR paid by the agent's scripted turn against the local oracle in live mode, with an HCS note on each side | facilitator tx [`0.0.7162784@1788632323.333261031`](https://hashscan.io/testnet/transaction/1788632323.333261031); topic [`0.0.10381647`](https://hashscan.io/testnet/topic/0.0.10381647) messages #1 (sold) and #2 (paid) | SUCCESS |
 | 6 Sep 2026 06:09 UTC | 0.05 HBAR paid to the **hosted** service at `app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC` by our own payer code (`packages/payments/src/payer.ts`) from the build box: 402 with `feePayer 0.0.7162784`, payment built, retried with `X-PAYMENT`, 200 with the twelve-index answer (Euler 2.76% cheapest) and the settlement in `payment-response` | [`0.0.7162784@1788674975.439553201`](https://hashscan.io/testnet/transaction/1788674975.439553201) | SUCCESS |
+| 6 Sep 2026 20:57 CEST | 0.619 HBAR ($0.05), a person's **own** account `0.0.10396038` → service account `0.0.10377647`, for a `froggy brief` task bought through the CLI; the account itself opened seconds earlier by the float | [`0.0.7162784@1788721041.121729048`](https://hashscan.io/testnet/transaction/0.0.7162784%401788721041.121729048) | SUCCESS |
 | TODO(tx) | the same request started from the chat, on camera, with the unlocked page opening in the shared Chrome |  |  |
 | TODO(tx) | a peer seller's 402, added through the directory, paid by the agent |  |  |
 
@@ -38,11 +39,14 @@ Every settlement leaves one note on Hedera Consensus Service topic `0.0.10381647
 curl "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10381647/messages?order=asc"
 ```
 
-## The pocket
+## The person's own account
 
-One host account (`0.0.9700388`) pays every Hedera 402; each person spends their **share** of it, kept as a balance in the ledger. A new person is credited a starting allowance once (`POCKET_STARTING_USD`, fifty cents by default); every Hedera payment draws the balance down inside the same lock as the reservation and is given back if the payment is abandoned or fails; a top-up under the Privy policy (`wallet_topup`, USDC on Base Sepolia to the treasury) credits it one-to-one; a freeze zeroes it. The strip shows what is left. A payment the balance cannot cover is refused as `pocket_exhausted` before anything is sent — the mandate's caps still apply on top.
+Since 6 Sep each person has a Hedera account of their own. The host account (`0.0.9700388` on testnet) is Froggy's float. At a person's first Hedera payment the server generates an ECDSA key for them, the host creates an account for that key with its EVM alias and an opening balance worth their pocket plus 0.1 HBAR for fees, the key is sealed under `HEDERA_KEK` (AES-256-GCM, `packages/wallet/src/keystore.ts`) and stored on their row, and from then on their account pays every 402: a receipt and a seller's book name them, not the host (`apps/server/src/hedera-accounts.ts`, `packages/payments/src/accounts.ts`). A top-up under the Privy policy credits the ledger and moves the same value in HBAR from the float into their account at the mirror-node rate. The ledger pocket stays the dollar view and the cap. Without a KEK the deployment pays from the host pocket as before and `/health` says `hederaAccounts: host`; with one it says `own`.
 
-This is deliberately not one Hedera account per person. The wording everywhere is therefore "freeze zeroes your allowance", never "deletes the key": the key stays with the host, and what the person loses on a freeze is their share.
+Proven on testnet, 6 Sep 2026 at 20:57 CEST, on a local server in live Hedera mode with everything else stubbed:
+
+- The person's account `0.0.10396038` (alias `0xf414b55f8bf6a8be80ba597a5ff48301626b7a4c`) was opened by [`0.0.9700388@1788721040.053929866`](https://hashscan.io/testnet/transaction/0.0.9700388%401788721040.053929866): 6.29 HBAR from the float for a $0.50 pocket at $0.0807 per HBAR plus the margin, creation fee 0.62 HBAR paid by the float.
+- `froggy brief USDC` through the served CLI then paid Froggy's task price from that account: [`0.0.7162784@1788721041.121729048`](https://hashscan.io/testnet/transaction/0.0.7162784%401788721041.121729048), 0.619 HBAR ($0.05) to the service account `0.0.10377647`, fee paid by Blocky402's fee payer `0.0.7162784`. Task `tsk_01m1w1ac81esn82wjary5mnjth`, sale `sal_01m1w1ac81esn82wj0ms85qcjk`; the brief came back from twelve live Messari indexes. The account held 5.67 HBAR afterwards and the ledger pocket $0.45; `GET /api/wallet` named the account.
 
 ## The service card and the unlocked page
 
@@ -51,4 +55,6 @@ This is deliberately not one Hedera account per person. The wording everywhere i
 
 ## Not yet
 
-- The payment state machine with mirror-node reconciliation on a facilitator timeout (plan item 2.6, second half). Today a facilitator error after `/settle` was sent is recorded as a failed payment and the pocket is refunded; the mirror node is not consulted to check whether the HBAR moved anyway.
+- The wallet pane shows the ledger's dollar figure, not the account's on-chain balance; the drawer links the account on HashScan instead.
+- A top-up whose HBAR transfer fails leaves the ledger credited and the account short; the tool's answer says so, and nothing retries it yet.
+- `HEDERA_KEK` is one secret on the deployment: lose it and every person's key is unrecoverable (testnet HBAR today). The owner keeps a copy outside Railway.

@@ -113,7 +113,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 - **Stop aborts the run first, then withdraws every open ticket.** "Stop the agent" on a ticket does both. There is no freeze: the controls are Stop, the ticket, the caps and Disconnect.
 - **The sale is written before the work.** A paid proof is settled, hashed and filed; the same proof presented twice is answered from the book, and an answer that fails after the money moved is a failed sale with the settlement on it, never a 500 with a debit. A payment sent and not confirmed is `uncertain` and is not refunded until the mirror node says it did not land.
 - **Privy is the outer leash on the EVM leg.** Every signature the agent asks for goes through Privy's policy engine under a committed default-deny policy; an address the person typed passes the host's checks and is refused by Privy in Privy's words, on the receipt.
-- **The pocket is a share, not a key.** The Hedera leg is paid from one host account; each person spends their share of it, credited once and topped up under the Privy policy. The next iteration opens one Hedera account per person and funds it from the treasury's HBAR float; until then "your allowance" is the honest phrase and "your account" is not.
+- **Each person has a Hedera account of their own.** Opened by Froggy's float at their first Hedera payment, funded worth their pocket, its key sealed under a server secret; from then on their account pays every 402 and a seller's book names them, not the host. A top-up credits the ledger and moves the same value in HBAR into the account at the mirror-node rate. Without the secret a deployment pays from the host pocket, and `/health` says which.
 
 ## The demo, in order
 
@@ -150,13 +150,13 @@ curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
 
 **Host-side, not Privy.** The Hedera leg: the pocket balance, the per-transaction and rolling caps, idempotency, the provenance gate on page-derived addresses, the daily model budget. Privy evaluates policies only on transactions it can decode, and a Hedera transaction is a raw signature to it.
 
-**Testnet, or not yet run live.** All Hedera value is testnet HBAR. The top-up sends Base Sepolia USDC to a treasury we control and credits the pocket at par; nothing is bridged. The typed-data x402 payment to The Graph's gateway is built and unverified until the demo wallet holds USDC on Base. The login-time grant of the agent signer is unverified against a real login; the refusal transcript comes from a wallet created with the same grant shape.
+**Testnet, or not yet run live.** All Hedera value is testnet HBAR. The top-up sends Base Sepolia USDC to a treasury we control, credits the pocket at par and moves the same value in HBAR from the float into the person's own account; nothing is bridged. The typed-data x402 payment to The Graph's gateway is built and unverified until the demo wallet holds USDC on Base. The login-time grant of the agent signer is unverified against a real login; the refusal transcript comes from a wallet created with the same grant shape.
 
 **Known gaps.** Privy's daily aggregation is app-wide and updates after signing, so two simultaneous top-ups can both pass; the host serializes each person's spends. A facilitator error after settlement is recorded as failed without consulting the mirror node. The pocket is a per-user balance, not a per-user account.
 
 ## Not in scope
 
-Mainnet value for anyone but the team's demo wallet. Guest access without sign-in. Swaps, onramps, bridges, the injected `window.ethereum` provider, the WebMCP consumer. A per-user Hedera account. Anything that changes spending authority as a tool.
+Mainnet value for anyone but the team's demo wallet. Guest access without sign-in. Swaps, onramps, bridges, the injected `window.ethereum` provider, the WebMCP consumer. Anything that changes spending authority as a tool.
 
 ## Team
 
