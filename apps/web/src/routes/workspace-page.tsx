@@ -31,6 +31,7 @@ import { ApprovalTicket } from "../components/cards/approval-ticket";
 import { NoticeList } from "../components/cards/notice-list";
 import { Composer } from "../components/composer";
 import { DetailsDrawer } from "../components/drawer/details-drawer";
+import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
 import { TopBar } from "../components/top-bar";
 import { useAppSocket } from "../hooks/use-app-socket";
@@ -58,18 +59,6 @@ const composerLock = (frozen: boolean, connected: boolean): string | null => {
   }
   return connected ? null : "Connecting…";
 };
-
-const Empty = (): ReactElement => (
-  <div className="mx-auto max-w-md py-16 text-center">
-    <p className="font-display text-xl font-semibold">
-      Ask for something that costs money.
-    </p>
-    <p className="text-muted-foreground mt-2 text-sm">
-      The mandate decides whether it happens. You will see the page, the
-      receipt, and the rule — in that order.
-    </p>
-  </div>
-);
 
 /** Stands in for the card while a window holds the page. */
 const Elsewhere = ({
@@ -285,7 +274,17 @@ export const WorkspacePage = (): ReactElement => {
           <Stream
             asking={app.approvals.length > 0}
             busy={busy}
-            empty={<Empty />}
+            empty={
+              <EmptyState
+                disabled={disabledReason !== null}
+                mandate={app.mandate}
+                modes={app.modes}
+                onSend={(text) => {
+                  void chat.sendMessage({ metadata: { at: Date.now() }, text });
+                }}
+                wallet={app.wallet}
+              />
+            }
             items={items}
             liveAfter={liveAfter}
             liveCard={liveCard}
@@ -329,11 +328,11 @@ export const WorkspacePage = (): ReactElement => {
             <Composer
               busy={busy}
               disabledReason={disabledReason}
-              empty={chat.messages.length === 0}
               onSend={(text) => {
                 void chat.sendMessage({ metadata: { at: Date.now() }, text });
               }}
               onStop={stop}
+              suggestions={[]}
             />
           </div>
         </div>

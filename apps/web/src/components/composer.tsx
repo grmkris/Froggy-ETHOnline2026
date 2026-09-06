@@ -15,26 +15,21 @@ import { useState } from "react";
 
 import { sendsOnKey } from "../lib/keymap";
 
-const SUGGESTIONS = [
-  "What's the cheapest USDC borrow right now?",
-  "Buy the lending snapshot and tell me what it says.",
-  "Send 5 USDC to 0xdead0000000000000000000000000000deadbeef",
-] as const;
-
 interface ComposerProps {
   readonly busy: boolean;
   readonly disabledReason: string | null;
-  readonly empty: boolean;
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
+  /** Things worth asking next, as chips. Empty when there is nothing to say. */
+  readonly suggestions: readonly string[];
 }
 
 export const Composer = ({
   busy,
   disabledReason,
-  empty,
   onSend,
   onStop,
+  suggestions,
 }: ComposerProps): React.ReactElement => {
   const [draft, setDraft] = useState("");
   const disabled = disabledReason !== null;
@@ -49,9 +44,9 @@ export const Composer = ({
 
   return (
     <div className="space-y-2">
-      {empty && !disabled ? (
+      {suggestions.length > 0 && !disabled ? (
         <div className="flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((suggestion) => (
+          {suggestions.map((suggestion) => (
             <button
               className="bg-card shadow-card hover:bg-accent rounded-full border px-3 py-1.5 text-left text-xs transition-colors"
               key={suggestion}
