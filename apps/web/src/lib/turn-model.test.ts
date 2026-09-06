@@ -10,7 +10,7 @@ import {
 import type { Receipt } from "@froggy/domain";
 
 import type { FroggyMessage } from "./stream-model";
-import { groupParts, matchReceipts } from "./turn-model";
+import { groupParts, matchReceipts, turnCost } from "./turn-model";
 
 const receipt = (at: number, toolCallId?: string): Receipt => {
   const base: Receipt = {
@@ -154,5 +154,31 @@ describe("groupParts", () => {
     };
     const kinds = groupParts(turn).map((block) => block.kind);
     expect(kinds).toEqual(["reasoning", "tool"]);
+  });
+});
+
+describe("turnCost", () => {
+  it("is nothing when nothing was attempted", () => {
+    expect(turnCost([])).toBeNull();
+  });
+
+  it("counts payments and refusals and sums only what settled", () => {
+    const paid = {
+      ...receipt(1),
+      settlement: { network: "hedera:testnet", transactionId: "t" },
+    };
+    const refused: Receipt = {
+      ...receipt(2),
+      decision: { _tag: "deny", code: "frozen", message: "frozen" },
+    };
+    const unpaid: Receipt = {
+      ...receipt(3),
+      failure: "the seller answered 500",
+    };
+    expect(turnCost([paid, refused, unpaid])).toEqual({
+      payments: 1,
+      refusals: 2,
+      usdMicros: 4000,
+    });
   });
 });

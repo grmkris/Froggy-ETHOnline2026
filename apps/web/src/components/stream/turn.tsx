@@ -6,6 +6,7 @@
  * what it thought, what it did — then the page it opened, then the receipts.
  */
 
+import { formatUsd } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
 import { Bubble, BubbleContent } from "@froggy/ui/components/bubble";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
@@ -18,7 +19,7 @@ import {
 import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
-import { groupParts, matchReceipts } from "../../lib/turn-model";
+import { groupParts, matchReceipts, turnCost } from "../../lib/turn-model";
 import type { ClaimedReceipts, TurnBlock } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { BrowseCard } from "./browse-card";
@@ -97,6 +98,28 @@ const Blocks = ({
   </>
 );
 
+/** "This turn: $0.0040 · 1 payment · 2 refusals", or nothing to say. */
+const TurnCostLine = ({
+  receipts,
+}: {
+  readonly receipts: readonly Receipt[];
+}): ReactElement | null => {
+  const cost = turnCost(receipts);
+  if (cost === null) {
+    return null;
+  }
+  const words = [
+    `This turn: ${formatUsd(cost.usdMicros)}`,
+    `${cost.payments} payment${cost.payments === 1 ? "" : "s"}`,
+    ...(cost.refusals === 0
+      ? []
+      : [`${cost.refusals} refusal${cost.refusals === 1 ? "" : "s"}`]),
+  ];
+  return (
+    <p className="text-machine text-muted-foreground">{words.join(" · ")}</p>
+  );
+};
+
 /** What the person wrote, joined: their message is one bubble, not parts. */
 const textOf = (message: FroggyMessage): string =>
   message.parts
@@ -148,6 +171,7 @@ export const Turn = ({
         {claimed.unclaimed.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />
         ))}
+        {live ? null : <TurnCostLine receipts={receipts} />}
         {live ? null : (
           <TurnActions onRetry={paid ? null : onRetry} text={textOf(message)} />
         )}

@@ -191,3 +191,33 @@ export const groupParts = (message: FroggyMessage): readonly TurnBlock[] => {
   flush();
   return blocks;
 };
+
+export interface TurnCost {
+  /** Payments that settled. */
+  readonly payments: number;
+  /** Refused by the mandate, or allowed and not paid. */
+  readonly refusals: number;
+  /** What the settled payments came to, in USD millionths. */
+  readonly usdMicros: number;
+}
+
+/** The turn's money in three numbers; null when nothing was even attempted. */
+export const turnCost = (receipts: readonly Receipt[]): TurnCost | null => {
+  if (receipts.length === 0) {
+    return null;
+  }
+  const settled = receipts.filter(
+    (receipt) => receipt.settlement !== undefined
+  );
+  return {
+    payments: settled.length,
+    refusals: receipts.filter(
+      (receipt) =>
+        receipt.decision._tag === "deny" || receipt.failure !== undefined
+    ).length,
+    usdMicros: settled.reduce(
+      (sum, receipt) => sum + receipt.intent.usdMicros,
+      0
+    ),
+  };
+};
