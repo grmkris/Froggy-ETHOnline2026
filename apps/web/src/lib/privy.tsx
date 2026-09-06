@@ -37,7 +37,19 @@ import {
 } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-import { privyAppId, privyConfigured } from "../environment";
+import { onrampEnvironment, privyAppId, privyConfigured } from "../environment";
+
+/** USDC on Base mainnet: where a card purchase lands. */
+const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+/**
+ * What came of opening Privy's fiat onramp. `refused` carries Privy's own
+ * words: the dashboard toggle being off, a region it does not serve, a
+ * closed window.
+ */
+export type FundOutcome =
+  | { readonly kind: "confirmed" | "submitted" }
+  | { readonly kind: "refused"; readonly reason: string };
 
 /**
  * Where sign-in stands.
@@ -51,6 +63,14 @@ import { privyAppId, privyConfigured } from "../environment";
 type IdentityStatus = "failed" | "loading" | "local" | "ready";
 
 export interface Identity {
+  /**
+   * Opens Privy's fiat onramp (card, Apple Pay where offered) toward USDC on
+   * Base for `address`. Null without a Privy sign-in: the local identity has
+   * no wallet to fund.
+   */
+  readonly addFunds:
+    | ((input: { readonly address: string }) => Promise<FundOutcome>)
+    | null;
   /** The money address: the smart account when there is one, else the signer. */
   readonly address: string | null;
   readonly authenticated: boolean;
@@ -94,6 +114,7 @@ const localToken = (): string => {
 };
 
 const LOCAL: Identity = {
+  addFunds: null,
   address: null,
   // True: there *is* a caller, and the server will accept them. `stubbed`
   // is what tells the UI not to call it a sign-in.
@@ -111,6 +132,7 @@ const nobody = async (): Promise<null> => await Promise.resolve(null);
 
 /** Privy is configured and has not answered yet. */
 const LOADING: Identity = {
+  addFunds: null,
   address: null,
   authenticated: false,
   login: unavailable,
@@ -139,6 +161,13 @@ interface PrivyModule {
     children: ReactNode;
     config: unknown;
   }) => React.ReactElement;
+  readonly useFiatOnramp: () => {
+    fund: (options: {
+      destination: { address: string; asset: string; chain: string };
+      environment: "production" | "sandbox";
+      source: { defaultAsset: string };
+    }) => Promise<{ status: "confirmed" | "submitted" }>;
+  };
   readonly useLogin: () => { login: () => void };
   readonly usePrivy: () => {
     authenticated: boolean;
@@ -168,6 +197,7 @@ const PrivyBridge = ({
 }): null => {
   const { authenticated, getAccessToken, logout, ready, user } = mod.usePrivy();
   const { login } = mod.useLogin();
+  const { fund } = mod.useFiatOnramp();
 
   /**
    * Privy's callbacks, held rather than depended on.
@@ -182,9 +212,9 @@ const PrivyBridge = ({
    * boundary below caught the throw and blamed HTTPS or the app id, which is
    * what the deployed app said while both were correct.
    */
-  const callbacks = useRef({ getAccessToken, login, logout });
+  const callbacks = useRef({ fund, getAccessToken, login, logout });
   useEffect(() => {
-    callbacks.current = { getAccessToken, login, logout };
+    callbacks.current = { fund, getAccessToken, login, logout };
   });
 
   // Stable for the life of the bridge, so a consumer can hold one in a
@@ -199,6 +229,30 @@ const PrivyBridge = ({
     async () => await callbacks.current.getAccessToken(),
     []
   );
+  const addFunds = useCallback(
+    async ({ address }: { readonly address: string }): Promise<FundOutcome> => {
+      try {
+        const result = await callbacks.current.fund({
+          destination: {
+            address,
+            asset: USDC_BASE_MAINNET,
+            chain: "eip155:8453",
+          },
+          environment: onrampEnvironment,
+          source: { defaultAsset: "eur" },
+        });
+        return { kind: result.status };
+      } catch (error) {
+        // Privy's words, verbatim: the toggle is off, the region is not
+        // served, the person closed the window. Never a retry on its own.
+        return {
+          kind: "refused",
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    []
+  );
 
   // Smart account first: that is where money is. Falling back to the embedded
   // EOA covers a user who has one but no smart wallet.
@@ -207,6 +261,7 @@ const PrivyBridge = ({
 
   useEffect(() => {
     onChange({
+      addFunds,
       address,
       authenticated,
       login: doLogin,
@@ -221,6 +276,7 @@ const PrivyBridge = ({
     // is a new object on every render, and the two strings that matter are
     // read out of it above.
   }, [
+    addFunds,
     address,
     authenticated,
     doLogin,

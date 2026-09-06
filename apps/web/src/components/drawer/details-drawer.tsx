@@ -35,10 +35,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@froggy/ui/components/tabs";
+import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { hederaAccountUrl, shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
+import type { FundOutcome, Identity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
 import { ReceiptTicket } from "../cards/receipt-ticket";
@@ -104,6 +106,104 @@ const SignerPolicy = (): ReactElement | null => {
       <span className="text-machine text-foreground/80">{policyId}</span>: a
       spend the mandate allows can still be refused there, and Privy says why.
     </p>
+  );
+};
+
+/** The money address, with a copy button once there is one. */
+const WalletAddress = ({
+  wallet,
+}: {
+  readonly wallet: WalletSummary | null;
+}): ReactElement => {
+  const [copied, setCopied] = useState(false);
+  const address = wallet?.address ?? null;
+  if (address === null) {
+    return <>—</>;
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span className="break-all">{address}</span>
+      <Button
+        onClick={() => {
+          void (async () => {
+            await navigator.clipboard.writeText(address);
+            setCopied(true);
+          })();
+        }}
+        size="xs"
+        variant="outline"
+      >
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </span>
+  );
+};
+
+const outcomeWords = (outcome: FundOutcome | "opening"): string => {
+  if (outcome === "opening") {
+    return "Privy is opening the onramp…";
+  }
+  switch (outcome.kind) {
+    case "confirmed": {
+      return "Confirmed: the funds are on their way to your wallet.";
+    }
+    case "submitted": {
+      return "Submitted: the funds arrive in a few minutes.";
+    }
+    case "refused": {
+      return `Privy could not open the onramp: ${outcome.reason}`;
+    }
+    default: {
+      return "";
+    }
+  }
+};
+
+/**
+ * Adding money: Privy's fiat onramp toward USDC on Base, from the drawer.
+ *
+ * One button and one sentence. Without a Privy sign-in there is nothing to
+ * fund and the sentence says so; a refusal is Privy's own reason, verbatim.
+ */
+const AddFunds = ({
+  identity,
+  wallet,
+}: {
+  readonly identity: Identity;
+  readonly wallet: WalletSummary | null;
+}): ReactElement => {
+  const [outcome, setOutcome] = useState<FundOutcome | "opening" | null>(null);
+  const { addFunds } = identity;
+  const address = wallet?.address ?? null;
+  if (addFunds === null || address === null) {
+    return (
+      <p className="text-muted-foreground text-xs">
+        {identity.stubbed
+          ? "Adding funds needs a Privy sign-in; this build runs a local identity."
+          : "Adding funds needs a wallet; sign in first."}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <Button
+        disabled={outcome === "opening"}
+        onClick={() => {
+          setOutcome("opening");
+          void (async () => {
+            setOutcome(await addFunds({ address }));
+          })();
+        }}
+        size="sm"
+      >
+        Add funds
+      </Button>
+      <p className="text-muted-foreground text-xs">
+        {outcome === null
+          ? "Card or Apple Pay through Privy, landing as USDC on Base. The service credit above is what Froggy spends on Hedera for you."
+          : outcomeWords(outcome)}
+      </p>
+    </div>
   );
 };
 
@@ -217,14 +317,16 @@ const About = ({
     <div className="space-y-4 text-sm">
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
         <dt className="text-muted-foreground">Wallet</dt>
-        <dd className="text-machine">{wallet?.address ?? "—"}</dd>
+        <dd className="text-machine">
+          <WalletAddress wallet={wallet} />
+        </dd>
         <dt className="text-muted-foreground">Signer</dt>
         <dd className="text-machine">
           {shortAddress(wallet?.signerAddress ?? null)}
         </dd>
         <dt className="text-muted-foreground">Agent</dt>
         <dd>{wallet === null ? "—" : SIGNER_WORDS[wallet.agentSigner]}</dd>
-        <dt className="text-muted-foreground">Pocket</dt>
+        <dt className="text-muted-foreground">Service credit</dt>
         <dd className="text-money">
           {wallet?.pocketUsdMicros === null ||
           wallet?.pocketUsdMicros === undefined
@@ -247,6 +349,7 @@ const About = ({
       {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
         <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
       )}
+      <AddFunds identity={identity} wallet={wallet} />
       <div className="flex flex-wrap gap-1">
         {Object.entries(modes ?? {}).map(([name, mode]) => (
           <Badge
