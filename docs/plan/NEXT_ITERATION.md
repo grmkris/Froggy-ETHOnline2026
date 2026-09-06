@@ -161,6 +161,22 @@ Owner "run" is the nightly agent run under Kristjan (R1-Q11). Owner "Kristjan" i
 
 ## 7. Feasibility gates, fallbacks, missing access
 
+## The overnight run, Sun 6 to Mon 7 Sep (decided 21:40 CEST)
+
+Kristjan's direction: mainnet everywhere, and everything in place so he can test end to end on mainnet in the morning; the run works until it is done and posts status in the group after each phase. Morning flows that must work, in this order: login to a wallet with real balances; a chat turn buying a brief on mainnet (HBAR to Froggy's oracle through Blocky402, USDC from the treasury to The Graph by x402); Hermes on Contabo buying a task from Telegram; a top-up moving USDC into the treasury and the same value in HBAR into the person's account.
+
+| Phase | What | Needs from the owner |
+| --- | --- | --- |
+| A | Mainnet keys and the treasury (done 21:40 CEST); the allowance model (`POCKET_STARTING_USD=0`, account opens at first top-up, `STARTING_CREDIT_DIDS` for the team); the Blocky402 mainnet gate script; the flip runbook | HBAR to the two aliases; $5 USDC to the treasury |
+| B | The wallet home above the chat with live balances (Base RPC, mirror node), address and account with Copy, Add funds, Top up credit, Connect an agent, recent receipts | nothing |
+| C | Telegram: the bot's token and username to Railway, webhook registered, pairing, digest and approval cards verified; `/health` telegram live | the bot in BotFather, token in `~/.config/secrets.env` |
+| D | Flip production to mainnet once one Blocky402 settlement passes; HCS topic on mainnet; evidence | the HBAR from phase A |
+| E | 2.2 Graph brief evidence; 2.3 the treasury pays The Graph by x402 on Base, API key fallback | the USDC from phase A |
+| F | 2.1 prep: the skill installed into Hermes on Contabo, one task through Hermes' CLI | nothing |
+| G | Custody to Privy: a cosmos-type wallet per person as their Hedera key; the sealed keys and `HEDERA_KEK` retired | nothing |
+
+Spend cap for the night: 25 HBAR from the float and $5 USDC from the treasury; every transaction id goes into the evidence files. Owner items outside the night: the €10 onramp, the card spender and merchant, the video owner.
+
 | Gate | Check | When | Fallback |
 | --- | --- | --- | --- |
 | G1 Blocky402 mainnet | Task 0.2: a real settlement without an API key | Mon 12:00 CEST | **None accepted (R1-Q3, Kristjan).** If refused: request a key from Blocky402 the same hour; if none arrives, the Hedera beat cannot be recorded on mainnet and the team decides then. The facilitator's advice remains a labelled testnet beat. |
