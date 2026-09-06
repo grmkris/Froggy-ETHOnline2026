@@ -30,6 +30,7 @@ import type { ChatRun, ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { buildTools } from "./tools";
+import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
 /**
@@ -61,6 +62,10 @@ Ground a spend in evidence. Query The Graph before paying for something derived
 from it, and cite the number that justified the cost. The paid lending snapshot
 lives at ${oracleUrl}.
 
+When a paid request comes back with an unlocked-page link, open that link in the
+shared browser with browser_navigate so the person watches the page unlock, then
+tell them what it says.
+
 Be brief. Narrate what you are about to do before you do it, because the person
 is watching the page change.`;
 
@@ -72,6 +77,7 @@ export interface TurnDeps {
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly session: WorkspaceSession;
+  readonly unlocks: UnlockTokens;
   readonly workspaces: Workspaces;
 }
 
@@ -118,6 +124,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       run,
       services: deps.services,
       session: deps.session,
+      unlocks: deps.unlocks,
       userText: userTextOf(input.messages),
       workspaces: deps.workspaces,
     }),

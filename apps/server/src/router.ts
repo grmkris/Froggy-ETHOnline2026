@@ -31,6 +31,8 @@ import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import type { TelegramPager } from "./telegram/pager";
+import { renderUnlock } from "./unlock";
+import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
 export const ORACLE_PATH = "/oracle/snapshot";
@@ -78,6 +80,8 @@ const json = (body: ResponseBody, status = 200): Response =>
 export interface RouterDeps {
   readonly budget: ModelBudget;
   readonly environment: Environment;
+  /** One-time links to unlocked pages, opened by the shared browser. */
+  readonly unlocks: UnlockTokens;
   readonly grants: AgentGrants;
   readonly oracleUrl: string;
   readonly pager: TelegramPager;
@@ -174,6 +178,7 @@ const handleChatPost = async (
         runs: deps.runs,
         services: deps.services,
         session: workspace.session,
+        unlocks: deps.unlocks,
         workspaces: deps.workspaces,
       },
       {
@@ -342,6 +347,60 @@ const handleApi = async (
   return json({ error: "Not found." }, 404);
 };
 
+interface ServiceCard {
+  readonly description: string;
+  readonly facilitator: string;
+  readonly hcsTopic: string | null;
+  readonly name: string;
+  readonly resources: readonly {
+    readonly asset: string;
+    readonly description: string;
+    readonly method: "GET";
+    readonly network: string;
+    readonly payTo: string;
+    readonly price: string;
+    readonly scheme: "exact";
+    readonly url: string;
+  }[];
+  readonly source: string;
+  readonly version: 1;
+}
+
+const serviceCard = (deps: RouterDeps): ServiceCard => {
+  const { environment } = deps;
+  const [requirement] = deps.services.oracle.challenge({
+    description: "Cross-protocol USDC lending snapshot, cheapest borrow first.",
+    units: "5000000",
+    url: deps.oracleUrl,
+  }).accepts;
+  return {
+    description:
+      "A live cross-protocol lending snapshot from The Graph, sold per query over x402 on Hedera testnet and settled through a facilitator. Every settlement leaves a public note on a Hedera Consensus Service topic.",
+    facilitator: environment.hederaFacilitatorUrl,
+    hcsTopic:
+      environment.hederaHcsTopicId === "" ? null : environment.hederaHcsTopicId,
+    name: "Froggy lending oracle",
+    resources:
+      requirement === undefined
+        ? []
+        : [
+            {
+              asset: requirement.asset,
+              description:
+                "GET with ?symbol=USDC. Answers 402 with an x402 v2 challenge; a paid request returns the snapshot and the settlement in the payment-response header.",
+              method: "GET",
+              network: requirement.network,
+              payTo: requirement.payTo,
+              price: requirement.amount,
+              scheme: "exact",
+              url: deps.oracleUrl,
+            },
+          ],
+    source: "https://github.com/grmkris/agentic-wallet",
+    version: 1,
+  };
+};
+
 export const handleRequest = async (
   deps: RouterDeps,
   request: Request
@@ -360,6 +419,20 @@ export const handleRequest = async (
   // secret header, which the adapter checks, not with a Privy token.
   if (pathname === "/telegram/webhook" && request.method === "POST") {
     return await deps.pager.webhook(request);
+  }
+
+  // The shared Chrome opens this with no token: the link is the credential,
+  // it works once, and it expires. See unlock.ts.
+  if (pathname.startsWith("/unlocked/") && request.method === "GET") {
+    return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
+  }
+
+  // The service card: what this server sells, how it is paid, where the
+  // trail is. Plain JSON anyone can curl before they pay.
+  if (pathname === "/.well-known/x402.json") {
+    return Response.json(serviceCard(deps), {
+      headers: { "cache-control": "public, max-age=300" },
+    });
   }
 
   if (pathname === ORACLE_PATH) {

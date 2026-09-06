@@ -10,7 +10,7 @@
  * policy does, inside `spend`.
  */
 
-import type { Evidence } from "@froggy/domain";
+import type { Evidence, Receipt } from "@froggy/domain";
 import { publicHttpUrl } from "@froggy/domain";
 import {
   challengeFrom,
@@ -55,6 +55,8 @@ export type PaidRequestOutcome =
       readonly body: string;
       /** True when a payment was made to get this answer. */
       readonly paid: boolean;
+      /** The receipt of the payment that bought this answer, when one was made. */
+      readonly receipt: Receipt | null;
       readonly status: number;
     }
   | { readonly kind: "refused"; readonly message: string };
@@ -206,6 +208,7 @@ export const paidRequest = async (
       body: await readCapped(first),
       kind: "answered",
       paid: false,
+      receipt: null,
       status: first.status,
     };
   }
@@ -344,6 +347,7 @@ export const paidRequest = async (
     body: paidBody ?? "Paid, but the server returned no body.",
     kind: "answered",
     paid: true,
+    receipt: result.receipt,
     status: paidStatus,
   };
 };

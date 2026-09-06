@@ -44,6 +44,8 @@ import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
+import { unlockPath } from "./unlock";
+import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
 const OUTPUT_CAP = 50_000;
@@ -89,6 +91,8 @@ export interface ToolDeps {
   readonly run: ChatRun;
   readonly services: Services;
   readonly session: WorkspaceSession;
+  /** One-time links to the page a payment unlocked, for the shared browser. */
+  readonly unlocks: UnlockTokens;
 }
 
 /**
@@ -352,7 +356,7 @@ export const buildTools = (deps: ToolDeps) => {
 
     x402_fetch: tool({
       description:
-        "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit.",
+        "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit. A paid answer comes with a one-time link to the unlocked page; open it with browser_navigate so the person watches the page unlock.",
       execute: async ({ url }) => {
         const outcome = await paidRequest(
           {
@@ -365,7 +369,29 @@ export const buildTools = (deps: ToolDeps) => {
           },
           { url }
         );
-        return outcome.kind === "refused" ? outcome.message : cap(outcome.body);
+        if (outcome.kind === "refused") {
+          return outcome.message;
+        }
+        if (!outcome.paid || outcome.receipt === null) {
+          return cap(outcome.body);
+        }
+        // The page the person watches unlock. The browser never paid and
+        // holds no key; it opens a one-time link to what the host bought.
+        const { receipt } = outcome;
+        const token = deps.unlocks.mint({
+          amountLabel: formatUsd(receipt.intent.usdMicros),
+          body: outcome.body,
+          hcsSequence: receipt.settlement?.hcsSequence ?? null,
+          network: receipt.settlement?.network ?? null,
+          purpose: receipt.intent.purpose,
+          transactionId: receipt.settlement?.transactionId ?? null,
+          url,
+          userId: session.userId,
+        });
+        const link = `${services.environment.appOrigin}${unlockPath(token)}`;
+        return cap(
+          `${outcome.body}\n\n[Paid. The unlocked page for the person is ${link} — open it with browser_navigate so they see it in the shared browser. It opens once.]`
+        );
       },
       inputSchema: std(Schema.Struct({ url: Schema.String })),
     }),

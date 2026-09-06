@@ -20,6 +20,7 @@ import { createModel } from "./model";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import { buildTools } from "./tools";
+import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
 /** A minute. Long enough for three tool calls, short enough to be a job. */
@@ -63,6 +64,7 @@ export interface JobDeps {
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly sink: DigestSink;
+  readonly unlocks: UnlockTokens;
   readonly workspaces: Workspaces;
 }
 
@@ -145,6 +147,7 @@ export const runDailyFor = async (
         run,
         services: deps.services,
         session,
+        unlocks: deps.unlocks,
         workspaces: deps.workspaces,
       }),
     });

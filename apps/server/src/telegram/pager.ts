@@ -34,6 +34,7 @@ import type { DigestReport, DigestSink } from "../jobs";
 import type { ChatRunRegistry } from "../runs";
 import type { Services } from "../services";
 import { recordTurn, sseOf, startTurn } from "../turn";
+import type { UnlockTokens } from "../unlock";
 import type { Workspaces } from "../workspaces";
 import {
   APPROVAL_ACTION,
@@ -89,6 +90,7 @@ export interface LivePagerDeps {
   readonly publishApp: (userId: UserId, message: AppServerMessage) => void;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
+  readonly unlocks: UnlockTokens;
   readonly webhookSecret: string;
   readonly workspaces: Workspaces;
 }
@@ -240,6 +242,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
           runs: deps.runs,
           services: deps.services,
           session: workspace.session,
+          unlocks: deps.unlocks,
           workspaces: deps.workspaces,
         },
         { messages, sessionId: workspace.session.id }

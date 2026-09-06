@@ -33,6 +33,7 @@ import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
 import { liveTelegramPager, stubTelegramPager } from "./telegram/pager";
 import type { TelegramPager } from "./telegram/pager";
+import { UnlockTokens } from "./unlock";
 import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
@@ -216,6 +217,9 @@ class FroggyServer extends Context.Service<
         stepsPerDay: environment.modelStepsPerDay,
       });
 
+      // One-time links to the pages payments unlock, opened by the shared Chrome.
+      const unlocks = new UnlockTokens();
+
       const sockets = createSocketHandlers({
         freeze,
         interactions,
@@ -244,6 +248,7 @@ class FroggyServer extends Context.Service<
               botToken: environment.telegramBotToken,
               botUsername: environment.telegramBotUsername,
               budget,
+              unlocks,
               freeze,
               interactions,
               oracleUrl,
@@ -268,6 +273,7 @@ class FroggyServer extends Context.Service<
               runs,
               services,
               sink: pager,
+              unlocks,
               workspaces,
             },
             userId
@@ -284,6 +290,7 @@ class FroggyServer extends Context.Service<
       const routerDeps = {
         budget,
         environment,
+        unlocks,
         grants,
         oracleUrl,
         pager,
