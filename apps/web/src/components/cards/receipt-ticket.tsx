@@ -17,10 +17,13 @@ import {
   TicketStub,
 } from "@froggy/ui/components/ticket";
 
-import { clockTime, shortId } from "../../lib/format";
+import { layerOf } from "../../lib/denial";
+import { clockTime, explorerUrl, shortId } from "../../lib/format";
 
 interface ReceiptTicketProps {
   readonly compact?: boolean;
+  /** Arrived while the person was watching: the refusal stamps itself in. */
+  readonly fresh?: boolean;
   readonly receipt: Receipt;
 }
 
@@ -66,11 +69,84 @@ const StubLine = ({
   </span>
 );
 
+/** The transaction, linked to its explorer when we know one. */
+const TransactionLine = ({
+  network,
+  transactionId,
+}: {
+  readonly network: string;
+  readonly transactionId: string;
+}): React.ReactElement => {
+  const url = explorerUrl(network, transactionId);
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="opacity-60">{network}</span>
+      {url === null ? (
+        <span className="text-foreground/80">{transactionId}</span>
+      ) : (
+        <a
+          className="text-foreground/80 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          href={url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {transactionId}
+        </a>
+      )}
+    </span>
+  );
+};
+
+/** The machine facts: the rule, the code, the transaction, the evidence. */
+const ReceiptStub = ({
+  receipt,
+  ruleId,
+}: {
+  readonly receipt: Receipt;
+  readonly ruleId: string | undefined;
+}): React.ReactElement => (
+  <TicketStub className="flex flex-wrap gap-x-4 gap-y-1">
+    {receipt.decision._tag === "deny" ? (
+      <StubLine label="code" value={receipt.decision.code} />
+    ) : null}
+    {ruleId === undefined ? null : (
+      <StubLine label="rule" value={shortId(ruleId, 14)} />
+    )}
+    {receipt.approval === undefined ? null : (
+      <StubLine
+        label="approval"
+        value={APPROVAL_WORDS[receipt.approval.resolution]}
+      />
+    )}
+    {receipt.settlement === undefined ? null : (
+      <TransactionLine
+        network={receipt.settlement.network}
+        transactionId={receipt.settlement.transactionId}
+      />
+    )}
+    {receipt.settlement?.hcsSequence === undefined ? null : (
+      <StubLine label="hcs" value={`#${receipt.settlement.hcsSequence}`} />
+    )}
+    {receipt.failure === undefined ? null : (
+      <StubLine label="not settled" value={receipt.failure} />
+    )}
+    {receipt.evidence === undefined ? null : (
+      <StubLine
+        label="evidence"
+        value={`${shortId(receipt.evidence.snapshotHash, 12)} · ${receipt.evidence.deployments.length} index${receipt.evidence.deployments.length === 1 ? "" : "es"}`}
+      />
+    )}
+    <StubLine label="quote" value={receipt.quote.source} />
+  </TicketStub>
+);
+
 export const ReceiptTicket = ({
   compact = false,
+  fresh = false,
   receipt,
 }: ReceiptTicketProps): React.ReactElement => {
   const refused = receipt.decision._tag === "deny";
+  const layer = compact ? null : layerOf(receipt);
   const ruleId =
     receipt.decision._tag === "allow"
       ? receipt.decision.satisfied.at(-1)
@@ -101,10 +177,20 @@ export const ReceiptTicket = ({
                 {receipt.intent.purpose}
               </p>
             )}
+            {layer === null ? null : (
+              <p className="mt-1.5 text-xs">
+                <span className="font-medium">{layer.who}</span>{" "}
+                <span className="text-muted-foreground">{layer.why}</span>
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             {refused ? (
-              <span className="stamp-refused">Refused</span>
+              <span
+                className={fresh ? "stamp-refused stamp-in" : "stamp-refused"}
+              >
+                Refused
+              </span>
             ) : (
               <span className="text-muted-foreground text-xs">
                 {clockTime(receipt.at)}
@@ -122,39 +208,7 @@ export const ReceiptTicket = ({
         </div>
       </TicketBody>
       <TicketPerforation />
-      <TicketStub className="flex flex-wrap gap-x-4 gap-y-1">
-        {receipt.decision._tag === "deny" ? (
-          <StubLine label="code" value={receipt.decision.code} />
-        ) : null}
-        {ruleId === undefined ? null : (
-          <StubLine label="rule" value={shortId(ruleId, 14)} />
-        )}
-        {receipt.approval === undefined ? null : (
-          <StubLine
-            label="approval"
-            value={APPROVAL_WORDS[receipt.approval.resolution]}
-          />
-        )}
-        {receipt.settlement === undefined ? null : (
-          <StubLine
-            label={receipt.settlement.network}
-            value={receipt.settlement.transactionId}
-          />
-        )}
-        {receipt.settlement?.hcsSequence === undefined ? null : (
-          <StubLine label="hcs" value={`#${receipt.settlement.hcsSequence}`} />
-        )}
-        {receipt.failure === undefined ? null : (
-          <StubLine label="not settled" value={receipt.failure} />
-        )}
-        {receipt.evidence === undefined ? null : (
-          <StubLine
-            label="evidence"
-            value={`${shortId(receipt.evidence.snapshotHash, 12)} · ${receipt.evidence.deployments.length} index${receipt.evidence.deployments.length === 1 ? "" : "es"}`}
-          />
-        )}
-        <StubLine label="quote" value={receipt.quote.source} />
-      </TicketStub>
+      <ReceiptStub receipt={receipt} ruleId={ruleId} />
     </Ticket>
   );
 };

@@ -41,6 +41,7 @@ import { useReceipts } from "../hooks/use-receipts";
 import { useWebMcp } from "../hooks/use-webmcp";
 import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
+import { scrollToLive } from "../lib/scroll-to-live";
 import { useSessionToken } from "../lib/session-token";
 import {
   buildStream,
@@ -265,9 +266,7 @@ export const WorkspacePage = (): ReactElement => {
         }}
         onShowBrowser={() => {
           setWanted(true);
-          document
-            .querySelector('[data-slot="driving-ring"]')
-            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          scrollToLive();
         }}
         wallet={app.wallet}
       />
@@ -277,11 +276,7 @@ export const WorkspacePage = (): ReactElement => {
             <div className="px-4 pt-3">
               <BrowserStrip
                 drive={drive}
-                onJump={() => {
-                  document
-                    .querySelector('[data-slot="driving-ring"]')
-                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                }}
+                onJump={scrollToLive}
                 painter={painter}
                 url={currentUrl}
               />

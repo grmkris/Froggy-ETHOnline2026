@@ -19,6 +19,8 @@ import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
 import { isToolPart, toolCallOf } from "../../lib/tool-call";
+import { matchReceipts } from "../../lib/turn-model";
+import type { ClaimedReceipts } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { MarkdownText } from "./markdown-text";
 import { Reasoning } from "./reasoning";
@@ -34,9 +36,11 @@ interface TurnProps {
 
 const Parts = ({
   asking,
+  claimed,
   message,
 }: {
   readonly asking: boolean;
+  readonly claimed: ClaimedReceipts;
   readonly message: FroggyMessage;
 }): ReactElement => (
   <>
@@ -78,7 +82,12 @@ const Parts = ({
             · {part.type}
           </p>
         ) : (
-          <ToolCard asking={asking} call={call} key={key} />
+          <ToolCard
+            asking={asking}
+            call={call}
+            key={key}
+            receipt={claimed.byCall.get(call.toolCallId) ?? null}
+          />
         );
       }
       return null;
@@ -111,15 +120,17 @@ export const Turn = ({
       </Message>
     );
   }
+  // A receipt sits on the card of the call that spent; the rest under the turn.
+  const claimed = matchReceipts(message, receipts);
   return (
     <Message align="start" className="text-[15px] leading-relaxed">
       <MessageAvatar className="bg-primary shadow-card mt-1 size-7 min-w-7 self-start">
         <FrogMark className="size-5" />
       </MessageAvatar>
       <MessageContent className="gap-2">
-        <Parts asking={asking} message={message} />
+        <Parts asking={asking} claimed={claimed} message={message} />
         {after}
-        {receipts.map((receipt) => (
+        {claimed.unclaimed.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />
         ))}
       </MessageContent>

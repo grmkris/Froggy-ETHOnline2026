@@ -26,3 +26,28 @@ export const hostOf = (url: string): string => {
 /** Seconds left on a deadline, never negative. */
 export const secondsLeft = (expiresAt: number, now = Date.now()): number =>
   Math.max(0, Math.ceil((expiresAt - now) / 1000));
+
+/**
+ * Where to look a transaction up, for the networks this wallet pays on.
+ * Null for anything else: a wrong explorer is worse than none.
+ */
+export const explorerUrl = (
+  network: string,
+  transactionId: string
+): string | null => {
+  const id = encodeURIComponent(transactionId);
+  switch (network) {
+    case "hedera:testnet": {
+      return `https://hashscan.io/testnet/transaction/${id}`;
+    }
+    case "eip155:84532": {
+      return `https://sepolia.basescan.org/tx/${id}`;
+    }
+    case "eip155:8453": {
+      return `https://basescan.org/tx/${id}`;
+    }
+    default: {
+      return null;
+    }
+  }
+};

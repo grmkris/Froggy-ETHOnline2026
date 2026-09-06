@@ -8,6 +8,7 @@
  * the summary; the JSON is for when someone wants to check.
  */
 
+import type { Receipt } from "@froggy/domain";
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,6 +25,7 @@ import { storyOf } from "../../lib/tool-stories";
 import type { Tone } from "../../lib/tool-stories";
 import { summarize } from "../../lib/tool-summary";
 import type { Outcome } from "../../lib/tool-summary";
+import { MoneyBody } from "./money-card";
 
 const TONE: Record<Tone, string> = {
   money: "border-brand/30 bg-brand-soft/50",
@@ -50,22 +52,27 @@ interface ToolCardProps {
   /** An approval card is open somewhere on the page. */
   readonly asking?: boolean;
   readonly call: ToolCall;
+  /** The receipt this call produced, when it spent or tried to. */
+  readonly receipt?: Receipt | null;
 }
 
 export const ToolCard = ({
   asking = false,
   call,
+  receipt = null,
 }: ToolCardProps): ReactElement => {
   const story = storyOf(call.name);
   const summary = summarize(call);
   const status = toolStatus(call, summary, { asking });
   const IconOf = story.icon;
+  const refusedReceipt = receipt?.decision._tag === "deny";
   return (
     <Collapsible
       className={cn(
         "data-open:shadow-card rounded-xl border text-sm transition-colors",
         TONE[story.tone],
-        PHASE[status.phase]
+        PHASE[status.phase],
+        refusedReceipt && "border-refused/40 bg-card"
       )}
       data-phase={status.phase}
       data-tool={call.name}
@@ -84,7 +91,8 @@ export const ToolCard = ({
           data-slot="chevron"
         />
       </CollapsibleTrigger>
-      {summary === null ? null : (
+      {receipt === null ? null : <MoneyBody call={call} receipt={receipt} />}
+      {summary === null || receipt !== null ? null : (
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pb-2.5 pl-9">
           <span className={cn("font-medium", OUTCOME_TEXT[summary.outcome])}>
             {summary.headline}
