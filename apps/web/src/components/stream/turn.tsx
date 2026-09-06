@@ -9,6 +9,7 @@
 import type { Receipt } from "@froggy/domain";
 import { Bubble, BubbleContent } from "@froggy/ui/components/bubble";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
+import { Marker } from "@froggy/ui/components/marker";
 import {
   Message,
   MessageAvatar,
@@ -20,6 +21,7 @@ import type { FroggyMessage } from "../../lib/stream-model";
 import { isToolPart, toolCallOf } from "../../lib/tool-call";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { MarkdownText } from "./markdown-text";
+import { Reasoning } from "./reasoning";
 import { ToolCard } from "./tool-card";
 
 interface TurnProps {
@@ -29,13 +31,6 @@ interface TurnProps {
   readonly message: FroggyMessage;
   readonly receipts: readonly Receipt[];
 }
-
-const Reasoning = ({ text }: { readonly text: string }): ReactElement => (
-  <details className="text-muted-foreground text-xs">
-    <summary className="cursor-pointer select-none">Thinking</summary>
-    <p className="mt-1 whitespace-pre-wrap">{text}</p>
-  </details>
-);
 
 const Parts = ({
   asking,
@@ -58,8 +53,23 @@ const Parts = ({
       }
       if (part.type === "reasoning") {
         return part.text.trim() === "" ? null : (
-          <Reasoning key={key} text={part.text} />
+          <Reasoning
+            key={key}
+            live={part.state === "streaming"}
+            text={part.text}
+          />
         );
+      }
+      if (part.type === "step-start") {
+        // A hairline between steps; not before the first, not after the last.
+        return index > 0 && index < message.parts.length - 1 ? (
+          <Marker
+            aria-hidden
+            className="min-h-2"
+            key={key}
+            variant="separator"
+          />
+        ) : null;
       }
       if (isToolPart(part)) {
         const call = toolCallOf(part);

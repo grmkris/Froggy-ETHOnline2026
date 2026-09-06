@@ -9,7 +9,7 @@ import {
 } from "@froggy/domain";
 import type { Receipt, RunId as RunIdType } from "@froggy/domain";
 
-import { buildStream, lastBrowserTurn } from "./stream-model";
+import { buildStream, lastBrowserTurn, showThinking } from "./stream-model";
 import type { FroggyMessage } from "./stream-model";
 
 const receipt = (runId: RunIdType, at: number): Receipt => ({
@@ -85,5 +85,63 @@ describe("buildStream", () => {
     ]);
     expect(lastBrowserTurn([turn("m1"), browserTurn, turn("m3")])).toBe("m2");
     expect(lastBrowserTurn([turn("m1")])).toBeNull();
+  });
+});
+
+describe("showThinking", () => {
+  const asked: FroggyMessage = {
+    id: "u1",
+    parts: [{ text: "hi", type: "text" }],
+    role: "user",
+  };
+
+  it("shows the gap between sending and the first byte", () => {
+    expect(showThinking([asked], "submitted")).toBe(true);
+    expect(showThinking([asked], "streaming")).toBe(true);
+  });
+
+  it("shows nothing once words or a tool call are on screen", () => {
+    expect(
+      showThinking(
+        [asked, turn("a1", undefined, [{ text: "Sure", type: "text" }])],
+        "streaming"
+      )
+    ).toBe(false);
+    expect(
+      showThinking(
+        [
+          asked,
+          turn("a1", undefined, [
+            {
+              input: {},
+              state: "input-streaming",
+              toolCallId: "c1",
+              type: "tool-graph_query",
+            },
+          ]),
+        ],
+        "streaming"
+      )
+    ).toBe(false);
+  });
+
+  it("shows the gap between one step and the next", () => {
+    expect(
+      showThinking(
+        [
+          asked,
+          turn("a1", undefined, [
+            { text: "Sure", type: "text" },
+            { type: "step-start" },
+          ]),
+        ],
+        "streaming"
+      )
+    ).toBe(true);
+  });
+
+  it("shows nothing when the chat is idle or errored", () => {
+    expect(showThinking([asked], "ready")).toBe(false);
+    expect(showThinking([], "error")).toBe(false);
   });
 });

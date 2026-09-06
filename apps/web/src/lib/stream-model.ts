@@ -10,7 +10,7 @@
  */
 
 import type { Receipt } from "@froggy/domain";
-import type { UIMessage } from "ai";
+import type { ChatStatus, UIMessage } from "ai";
 
 /** What the server stamps on a message. Both fields are absent on a client draft. */
 interface TurnMetadata {
@@ -70,4 +70,30 @@ export const buildStream = (
   return earlier.length === 0
     ? turns
     : [{ kind: "earlier", receipts: earlier }, ...turns];
+};
+
+/**
+ * Is the model at work with nothing on screen to show for it?
+ *
+ * Submitted and not yet answered; streaming with no assistant part yet; or
+ * the last thing that arrived is a step boundary, so one step's words are
+ * done and the next has not begun. In each the person is looking at a gap,
+ * and the gap gets a marker rather than silence.
+ */
+export const showThinking = (
+  messages: readonly FroggyMessage[],
+  status: ChatStatus
+): boolean => {
+  if (status === "submitted") {
+    return true;
+  }
+  if (status !== "streaming") {
+    return false;
+  }
+  const last = messages.at(-1);
+  if (last === undefined || last.role !== "assistant") {
+    return true;
+  }
+  const tail = last.parts.at(-1);
+  return tail === undefined || tail.type === "step-start";
 };

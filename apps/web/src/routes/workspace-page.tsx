@@ -42,7 +42,11 @@ import { useWebMcp } from "../hooks/use-webmcp";
 import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { useSessionToken } from "../lib/session-token";
-import { buildStream, lastBrowserTurn } from "../lib/stream-model";
+import {
+  buildStream,
+  lastBrowserTurn,
+  showThinking,
+} from "../lib/stream-model";
 import type { FroggyMessage } from "../lib/stream-model";
 
 const SPRING = { damping: 38, stiffness: 420, type: "spring" } as const;
@@ -290,7 +294,7 @@ export const WorkspacePage = (): ReactElement => {
             items={items}
             liveAfter={liveAfter}
             liveCard={liveCard}
-            thinking={chat.status === "submitted"}
+            thinking={showThinking(chat.messages, chat.status)}
           />
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-4">
             <NoticeList
