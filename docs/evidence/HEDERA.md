@@ -37,7 +37,12 @@ Every settlement leaves one note on Hedera Consensus Service topic `0.0.10381647
 curl "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10381647/messages?order=asc"
 ```
 
+## The pocket
+
+One host account (`0.0.9700388`) pays every Hedera 402; each person spends their **share** of it, kept as a balance in the ledger. A new person is credited a starting allowance once (`POCKET_STARTING_USD`, fifty cents by default); every Hedera payment draws the balance down inside the same lock as the reservation and is given back if the payment is abandoned or fails; a top-up under the Privy policy (`wallet_topup`, USDC on Base Sepolia to the treasury) credits it one-to-one; a freeze zeroes it. The strip shows what is left. A payment the balance cannot cover is refused as `pocket_exhausted` before anything is sent — the mandate's caps still apply on top.
+
+This is deliberately not one Hedera account per person. The wording everywhere is therefore "freeze zeroes your allowance", never "deletes the key": the key stays with the host, and what the person loses on a freeze is their share.
+
 ## Not yet
 
-- One pocket per user (today one shared pocket account, capped by the mandate per user).
-- The payment state machine with mirror-node reconciliation on a facilitator timeout (plan item 2.6, second half).
+- The payment state machine with mirror-node reconciliation on a facilitator timeout (plan item 2.6, second half), the one-time unlock token and the `/.well-known/x402.json` service card.
