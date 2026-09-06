@@ -8,6 +8,8 @@
  * code that leaks.
  */
 
+import { randomInt } from "node:crypto";
+
 import type { UserId } from "@froggy/domain";
 
 /** No 0/O/1/I: read aloud, typed on a phone. */
@@ -32,7 +34,7 @@ export class PairingCodes {
 
   constructor(options: { now?: () => number; random?: () => number } = {}) {
     this.now = options.now ?? Date.now;
-    this.random = options.random ?? Math.random;
+    this.random = options.random ?? (() => randomInt(2 ** 32) / 2 ** 32);
   }
 
   /** A fresh code for this person; any earlier one of theirs is void. */

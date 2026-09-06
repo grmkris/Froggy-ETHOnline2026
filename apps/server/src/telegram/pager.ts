@@ -93,7 +93,7 @@ export interface LivePagerDeps {
 }
 
 const NOT_PAIRED =
-  "This chat is not paired with a Froggy account yet. Open Froggy, go to Details → Wallet → Telegram, and send the code here as /start CODE.";
+  "This chat is not paired with a Froggy account yet. Open Froggy, go to Connect an agent → Telegram, and send the code here as /start CODE.";
 
 export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
   const { store } = deps.services;

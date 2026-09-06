@@ -17,7 +17,6 @@ import { PublicKey } from "@hiero-ledger/sdk";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import {
   AccountId,
-  createClientHederaSigner,
   createHederaClient,
   ExactHederaScheme,
   Hbar,
@@ -142,16 +141,6 @@ const payerFromSigner = (
   };
 };
 
-export const liveHederaPayer = (options: LivePayerOptions): Payer =>
-  payerFromSigner(
-    createClientHederaSigner(
-      options.accountId,
-      PrivateKey.fromStringECDSA(options.privateKey),
-      { network: options.network }
-    ),
-    options.network
-  );
-
 export interface SignerPayerOptions {
   readonly accountId: string;
   readonly network: HederaNetwork;
@@ -205,7 +194,12 @@ export const signerHederaPayer = (options: SignerPayerOptions): Payer => {
       transaction.setTransactionId(
         TransactionId.generate(AccountId.fromString(feePayer))
       );
-      const client = createHederaClient(options.network);
+      // Mainnet's default signs for many nodes. Duplicated x402 headers then
+      // exceed the hosted HTTP header limit before reaching our handler.
+      // Three SDK-selected nodes retain failover while bounding the proof.
+      const client = createHederaClient(
+        options.network
+      ).setMaxNodesPerTransaction(3);
       try {
         transaction.freezeWith(client);
         await transaction.signWith(publicKey, options.signBytes);
@@ -216,6 +210,16 @@ export const signerHederaPayer = (options: SignerPayerOptions): Payer => {
     },
   };
   return payerFromSigner(signer, options.network);
+};
+
+export const liveHederaPayer = (options: LivePayerOptions): Payer => {
+  const key = PrivateKey.fromStringECDSA(options.privateKey);
+  return signerHederaPayer({
+    accountId: options.accountId,
+    network: options.network,
+    publicKey: key.publicKey.toStringRaw(),
+    signBytes: async (bytes) => await Promise.resolve(key.sign(bytes)),
+  });
 };
 
 /** The placeholder payer account while no Hedera key exists. */

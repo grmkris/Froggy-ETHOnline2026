@@ -1,6 +1,6 @@
 # Wallet UI implementation
 
-The approved direction is implemented locally: **a calm wallet with a playful frog accent**. The product story is **a wallet for your agents: fund tasks, set spending limits, watch the work, and keep receipts**.
+The approved direction is deployed: **a calm wallet with a playful frog accent**. The product story is **a wallet for your agents: fund tasks, set spending limits, watch the work, and keep receipts**.
 
 This work started from `a587f55`. The concurrent `56c9d34` bridge-record update changed only documentation and was preserved. This report now records the release candidate prepared after deployment was authorized. GitHub CI and Railway record the release outcome for its commit; the local verification below is complete.
 
@@ -56,4 +56,8 @@ Browser configuration pins external services to stubs, uses the selected web por
 3. **Human review:** try the first task without coaching and on a physical phone, including the software keyboard. Browser device emulation and automated keyboard checks are the evidence available in this pass.
 4. **Mainnet release:** follow the existing conditional cutover after the accounts are funded and a Blocky402 settlement is verified. The UI release does not change networks, move funds, or make the private repository public. Public repository access remains a submission requirement.
 
-Plans 001, 003 and 004 are implemented locally. Plan 002's interface portion is implemented; its durable financial completion remains explicitly incomplete.
+Plans 001, 003 and 004 are deployed. Plan 002's interface portion is implemented; its durable financial completion remains explicitly incomplete.
+
+## Live release follow-up
+
+The UI shipped at `6608fcc` with GitHub CI run `34062079388` green. The live desktop/mobile sign-in and Privy email form were exercised without page errors. Mainnet configuration and subsequent live findings are recorded in [the mainnet release evidence](../docs/evidence/MAINNET_RELEASE.md). Final payment and Telegram fixes are being verified for the combined release with marketplace/MCP/CLI work.

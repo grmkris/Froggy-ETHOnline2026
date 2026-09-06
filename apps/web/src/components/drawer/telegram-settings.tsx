@@ -1,17 +1,12 @@
-/**
- * Pair a Telegram account: mint a code here, send it there.
- *
- * The code is the only credential in the exchange. It is minted while signed
- * in, it lives ten minutes, and it is spent the moment the bot sees it, so a
- * screenshot of this drawer is not a way into someone's wallet.
- */
-
+/** Link Telegram through a short-lived code minted by the signed-in person. */
 import { Button } from "@froggy/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useSessionToken } from "../../lib/session-token";
+import { CopyButton } from "../copy-button";
 
 const Status = Schema.Struct({
   paired: Schema.Boolean,
@@ -27,36 +22,80 @@ const decodeMinted = Schema.decodeUnknownSync(Minted);
 
 const PairingHint = ({
   minted,
-  onSent,
+  checking,
+  onCheck,
 }: {
-  readonly minted: typeof Minted.Type | null;
-  readonly onSent: () => void;
-}): ReactElement | null =>
-  minted === null ? null : (
-    <div className="bg-paper-deep/70 space-y-1 rounded-xl p-3">
-      <p className="text-xs">Send this to the bot within ten minutes:</p>
-      <p className="text-money text-2xl tracking-[0.2em]">{minted.code}</p>
-      {minted.link === null ? (
-        <p className="text-machine">/start {minted.code}</p>
-      ) : (
+  readonly minted: typeof Minted.Type;
+  readonly checking: boolean;
+  readonly onCheck: () => void;
+}): ReactElement => {
+  const [expired, setExpired] = useState(() => Date.now() >= minted.expiresAt);
+  useEffect(() => {
+    const timer = setTimeout(
+      () => {
+        setExpired(true);
+      },
+      Math.max(0, minted.expiresAt - Date.now())
+    );
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [minted.expiresAt]);
+
+  if (expired) {
+    return (
+      <output className="block">
+        This code expired. Get a new code to connect.
+      </output>
+    );
+  }
+  return (
+    <div className="bg-muted space-y-3 rounded-xl p-3">
+      <p>Open the bot in Telegram, then tap Start to link your account.</p>
+      {minted.link === null ? null : (
         <a
-          className="text-brand text-xs underline"
+          className="text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
           href={minted.link}
           rel="noreferrer"
           target="_blank"
         >
-          Open Telegram with the code filled in
+          Open Telegram
         </a>
       )}
-      <Button onClick={onSent} size="xs" variant="ghost">
-        I sent it
-      </Button>
+      <p className="text-muted-foreground text-xs">
+        Or send this command to the bot. Keep it private; it expires in ten
+        minutes.
+      </p>
+      <p className="text-money text-lg break-all select-all">
+        /start {minted.code}
+      </p>
+      <div className="flex flex-wrap items-start gap-2">
+        <CopyButton
+          label="Copy Telegram command"
+          text={`/start ${minted.code}`}
+        />
+        <Button
+          className="min-h-11"
+          disabled={checking}
+          onClick={onCheck}
+          size="sm"
+          variant="ghost"
+        >
+          {checking ? "Checking…" : "Check connection"}
+        </Button>
+      </div>
+      <output className="text-muted-foreground block text-xs">
+        Waiting for Telegram. This updates when you finish linking.
+      </output>
     </div>
   );
+};
 
 export const TelegramSettings = ({
+  active,
   configured,
 }: {
+  readonly active: boolean;
   readonly configured: boolean;
 }): ReactElement => {
   const { getToken } = useSessionToken();
@@ -65,21 +104,6 @@ export const TelegramSettings = ({
     const token = await getToken();
     return token === null ? {} : { authorization: `Bearer ${token}` };
   };
-
-  const status = useQuery({
-    enabled: configured,
-    queryFn: async () => {
-      const response = await fetch("/api/telegram", {
-        headers: await headers(),
-      });
-      if (!response.ok) {
-        throw new Error(`telegram: ${response.status}`);
-      }
-      return decodeStatus(await response.json());
-    },
-    queryKey: ["telegram"],
-  });
-
   const mint = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/telegram", {
@@ -92,7 +116,27 @@ export const TelegramSettings = ({
       return decodeMinted(await response.json());
     },
   });
-
+  const status = useQuery({
+    enabled: configured && active,
+    queryFn: async () => {
+      const response = await fetch("/api/telegram", {
+        headers: await headers(),
+      });
+      if (!response.ok) {
+        throw new Error(`telegram: ${response.status}`);
+      }
+      return decodeStatus(await response.json());
+    },
+    queryKey: ["telegram"],
+    refetchInterval: (query) =>
+      active &&
+      mint.data !== undefined &&
+      mint.data.expiresAt > Date.now() &&
+      query.state.data?.paired !== true
+        ? 2000
+        : false,
+    retry: false,
+  });
   const unpair = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/telegram", {
@@ -110,57 +154,104 @@ export const TelegramSettings = ({
     },
   });
 
-  if (!configured) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Telegram is not configured on this deployment.
-      </p>
-    );
-  }
-
   const paired = status.data?.paired === true;
+  const connectionLabel =
+    mint.data === undefined ? "Connect Telegram" : "Get a new code";
   return (
-    <div className="space-y-2 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <span>
-          Telegram
-          <span className="text-muted-foreground block text-xs">
-            Your digest, approval questions with buttons, and a way to talk to
-            the agent from your phone.
-          </span>
-        </span>
-        {paired ? (
-          <Button
-            onClick={() => {
-              unpair.mutate();
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Unpair
-          </Button>
-        ) : (
-          <Button
-            disabled={mint.isPending}
-            onClick={() => {
-              mint.mutate();
-            }}
-            size="sm"
-          >
-            Pair
-          </Button>
-        )}
+    <section
+      aria-label="Telegram connection"
+      className="space-y-3 rounded-xl border p-4 text-sm"
+    >
+      <div>
+        <h3 className="font-medium">Telegram</h3>
+        <p className="text-muted-foreground mt-1 text-xs">
+          Talk to Froggy and answer approval requests from your phone, using
+          this wallet’s limits.
+        </p>
       </div>
-      {paired ? (
-        <p className="text-brand text-xs">Paired.</p>
+      {configured ? (
+        <>
+          {status.isPending ? (
+            <output className="block">Checking Telegram connection…</output>
+          ) : null}
+          {status.isError ? (
+            <div className="space-y-2">
+              <p className="text-destructive" role="alert">
+                Couldn’t check your Telegram connection.
+              </p>
+              <Button
+                className="min-h-11"
+                disabled={status.isFetching}
+                onClick={() => {
+                  void status.refetch();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Retry Telegram status
+              </Button>
+            </div>
+          ) : null}
+          {status.data === undefined ? null : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <output
+                className={paired ? "text-primary" : "text-muted-foreground"}
+              >
+                {paired ? "Telegram connected." : "Telegram not connected."}
+              </output>
+              {paired ? (
+                <Button
+                  className="min-h-11"
+                  disabled={unpair.isPending}
+                  onClick={() => {
+                    unpair.mutate();
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  {unpair.isPending ? "Disconnecting…" : "Disconnect Telegram"}
+                </Button>
+              ) : (
+                <Button
+                  className="min-h-11"
+                  disabled={mint.isPending || status.isError}
+                  onClick={() => {
+                    mint.mutate();
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  {mint.isPending ? "Creating code…" : connectionLabel}
+                </Button>
+              )}
+            </div>
+          )}
+          {mint.isError ? (
+            <p className="text-destructive" role="alert">
+              Couldn’t create a Telegram code. Try again.
+            </p>
+          ) : null}
+          {unpair.isError ? (
+            <p className="text-destructive" role="alert">
+              Couldn’t confirm the disconnect. Try again.
+            </p>
+          ) : null}
+          {paired || mint.data === undefined ? null : (
+            <PairingHint
+              key={mint.data.code}
+              checking={status.isFetching}
+              minted={mint.data}
+              onCheck={() => {
+                void status.refetch();
+              }}
+            />
+          )}
+        </>
       ) : (
-        <PairingHint
-          minted={mint.data ?? null}
-          onSent={() => {
-            void status.refetch();
-          }}
-        />
+        <p className="text-muted-foreground">
+          Telegram is not configured on this deployment.
+        </p>
       )}
-    </div>
+    </section>
   );
 };

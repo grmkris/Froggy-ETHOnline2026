@@ -253,7 +253,6 @@ const About = ({
         ))}
       </div>
       <DigestSettings />
-      <TelegramSettings configured={modes?.telegram === "live"} />
       <div className="flex flex-wrap gap-2 pt-2">
         {identity.stubbed ? null : (
           <Button
@@ -339,7 +338,11 @@ export const DetailsDrawer = ({
         <TabsContent className="pt-4" value="directory">
           <DirectoryPanel receipts={receipts} />
         </TabsContent>
-        <TabsContent className="pt-4" keepMounted value="agents">
+        <TabsContent className="space-y-6 pt-4" keepMounted value="agents">
+          <TelegramSettings
+            active={open && tab === "agents"}
+            configured={modes?.telegram === "live"}
+          />
           <AgentSettings active={open && tab === "agents"} />
         </TabsContent>
         <TabsContent className="flex flex-col gap-6 pt-4" value="about">
