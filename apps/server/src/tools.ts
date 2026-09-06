@@ -23,7 +23,7 @@
  */
 
 import type { BrowserHandle } from "@froggy/browser";
-import { KNOWN_ASSETS, publicHttpUrl } from "@froggy/domain";
+import { formatUsd, KNOWN_ASSETS, publicHttpUrl } from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
@@ -206,6 +206,52 @@ export const buildTools = (deps: ToolDeps) => {
     });
   };
 
+  /**
+   * A USDC transfer from the person's wallet, signed under the policy.
+   *
+   * The signer's refusal and the chain's are both facts for the receipt, in
+   * the refuser's words, never a reason to retry. Called only from inside
+   * `session.spend`, after the mandate allowed and the ledger reserved.
+   */
+  const transferUsdc = async (to: string, units: string) => {
+    const transfers = services.evmTransfersFor(session.agentWallet);
+    if (transfers === null) {
+      return {
+        error: "the agent has no signer on this wallet yet",
+        network: "eip155:84532",
+        ok: false,
+        stubbed: false,
+        transactionId: null,
+      };
+    }
+    try {
+      const outcome = await transfers.send({ to, units: BigInt(units) });
+      const settled = {
+        network: "eip155:84532",
+        ok: outcome.status === "success",
+        stubbed: false,
+        transactionId: outcome.hash,
+      };
+      return outcome.status === "success"
+        ? settled
+        : { ...settled, error: "the transfer reverted on chain" };
+    } catch (error) {
+      if (
+        error instanceof PrivySignerRefusedError ||
+        error instanceof EvmRpcError
+      ) {
+        return {
+          error: error.message,
+          network: "eip155:84532",
+          ok: false,
+          stubbed: false,
+          transactionId: null,
+        };
+      }
+      throw error;
+    }
+  };
+
   return {
     browser_navigate: tool({
       description:
@@ -355,49 +401,7 @@ export const buildTools = (deps: ToolDeps) => {
           interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,
-          settle: async () => {
-            const transfers = services.evmTransfersFor(session.agentWallet);
-            if (transfers === null) {
-              return {
-                error: "the agent has no signer on this wallet yet",
-                network: "eip155:84532",
-                ok: false,
-                stubbed: false,
-                transactionId: null,
-              };
-            }
-            try {
-              const outcome = await transfers.send({
-                to,
-                units: BigInt(units),
-              });
-              const settled = {
-                network: "eip155:84532",
-                ok: outcome.status === "success",
-                stubbed: false,
-                transactionId: outcome.hash,
-              };
-              return outcome.status === "success"
-                ? settled
-                : { ...settled, error: "the transfer reverted on chain" };
-            } catch (error) {
-              // The signer said no, or the chain did. Either is a fact for
-              // the receipt, in the refuser's words, not a reason to retry.
-              if (
-                error instanceof PrivySignerRefusedError ||
-                error instanceof EvmRpcError
-              ) {
-                return {
-                  error: error.message,
-                  network: "eip155:84532",
-                  ok: false,
-                  stubbed: false,
-                  transactionId: null,
-                };
-              }
-              throw error;
-            }
-          },
+          settle: async () => await transferUsdc(to, units),
         });
 
         const { message, result } = await explainSpend(attempt);
@@ -427,9 +431,60 @@ export const buildTools = (deps: ToolDeps) => {
       ),
     }),
 
+    wallet_topup: tool({
+      description:
+        "Top up the Hedera pocket the paid requests are drawn from: send USDC on Base Sepolia from the person's wallet to the treasury, signed under the wallet's own policy, and the pocket is credited one-to-one. The policy allows at most 2 USDC per top-up and 5 USDC per rolling day; the mandate's caps apply as well.",
+      execute: async ({ amountUsd }) => {
+        const treasury = services.environment.treasuryEvmAddress;
+        if (treasury === null) {
+          return "Top-ups are not configured on this deployment: no treasury address is set. Nothing was sent.";
+        }
+        const units = String(Math.round(amountUsd * 1_000_000));
+        const attempt = session.spend({
+          amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
+          idempotencyKey: `topup:${amountUsd}:${deps.run.id}`,
+          interactive: deps.interactive ?? true,
+          payeeId: treasury,
+          payeeLabel: "the pocket treasury",
+          // `server`: the treasury is configuration, not something the model
+          // or a page proposed, and the signer's policy names the same address.
+          provenance: "server",
+          purpose: `Top up the Hedera pocket with ${amountUsd} USDC (USDC to the treasury on Base Sepolia, pocket credited one-to-one)`,
+          runId: deps.run.id,
+          signal: deps.run.signal,
+          settle: async () => {
+            const settled = await transferUsdc(treasury, units);
+            if (settled.ok) {
+              // USDC has six decimals, so its units are USD millionths: the
+              // credit is the amount, at par, with the rate on the receipt.
+              await session.creditPocket(Number(units));
+            }
+            return settled;
+          },
+        });
+
+        const { message, result } = await explainSpend(attempt);
+        if (message !== null) {
+          return message;
+        }
+        if (result?.receipt.failure !== undefined) {
+          return `Allowed by the mandate, but the top-up did not go through: ${result.receipt.failure}. Stop here.`;
+        }
+        const transaction = result?.receipt.settlement?.transactionId;
+        return `Topped up: ${amountUsd} USDC to the treasury on Base Sepolia${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.`;
+      },
+      inputSchema: std(
+        Schema.Struct({
+          amountUsd: Schema.Finite.annotate({
+            description: "Amount in USDC, as a decimal number. At most 2.",
+          }),
+        })
+      ),
+    }),
+
     wallet_status: tool({
       description:
-        "The user's wallet and the mandate you operate under: caps, allowlists, and what has been spent so far.",
+        "The user's wallet and the mandate you operate under: caps, allowlists, what has been spent so far, and what is left in the Hedera pocket.",
       execute: async () => {
         const summary = await session.walletSummary();
         const mandate = session.currentMandate;
@@ -438,6 +493,7 @@ export const buildTools = (deps: ToolDeps) => {
             {
               address: summary.address,
               frozen: mandate.frozen,
+              pocketUsdMicros: summary.pocketUsdMicros,
               rules: mandate.rules,
               windowSpentUsdMicros: summary.windowSpentUsdMicros,
             },

@@ -17,6 +17,9 @@
  *   5. The agent's signer is revoked at Privy, so it could not sign even if
  *      every check in our code were bypassed. Allowed to fail, as long as
  *      the pane says so.
+ *   6. The pocket is zeroed. The Hedera leg is paid from a host account the
+ *      person only holds a share of; after a freeze the share is nothing,
+ *      and it stays nothing until a top-up.
  *
  * Unfreezing is a human action and only reverses the parts that are safe to
  * reverse: the mandate, the browser gate and the signer grant. Nothing that
@@ -58,6 +61,11 @@ export const createFreeze = (deps: FreezeDeps): FreezeControl => ({
     deps.interactions.abortAll(userId, reason);
     detached("browser freeze", async () => {
       await workspace.browser.freeze(reason);
+    });
+    detached("pocket zero", async () => {
+      await workspace.session.zeroPocket();
+      const wallet = await workspace.session.walletSummary();
+      deps.publishApp(userId, { type: "wallet.state", v: 1, wallet });
     });
     if (accessToken === null) {
       workspace.session.setAgentSigner(
