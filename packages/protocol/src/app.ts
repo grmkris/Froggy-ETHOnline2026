@@ -132,6 +132,12 @@ export const WalletSummary = Schema.Struct({
    * exactly like one with a full allowance left.
    */
   ledgerNote: Schema.NullOr(Schema.String),
+  /**
+   * What is left in the person's Hedera pocket, in USD millionths, or null
+   * when this deployment draws nothing from a pocket. A top-up raises it, a
+   * Hedera payment lowers it, a freeze zeroes it.
+   */
+  pocketUsdMicros: Schema.NullOr(Schema.Int),
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */
   signerAddress: Schema.NullOr(Schema.String),
   windowSpentUsdMicros: Schema.Int,

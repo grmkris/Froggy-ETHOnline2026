@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "pocket_usd_micros" bigint;

@@ -48,10 +48,26 @@ describe("memoryStore", () => {
     const store = memoryStore();
     await store.receipts.append(ALICE, receipt(NOW));
     await store.frozen.save(ALICE, true);
+    await store.pocket.adjust(ALICE, 500_000);
     await store.forget(ALICE);
     expect(await store.receipts.recent(ALICE, 10)).toEqual([]);
     expect(await store.frozen.load(ALICE)).toBe(false);
     expect(await store.mandates.load(ALICE)).toBeNull();
+    // Null, not zero: the next session credits the starting allowance again.
+    expect(await store.pocket.load(ALICE)).toBeNull();
+  });
+
+  it("keeps a pocket that never goes negative, and knows never from zero", async () => {
+    const store = memoryStore();
+    expect(await store.pocket.load(ALICE)).toBeNull();
+    expect(await store.pocket.adjust(ALICE, 500_000)).toBe(500_000);
+    expect(await store.pocket.adjust(ALICE, -200_000)).toBe(300_000);
+    // A debit the balance cannot cover floors at zero rather than going into
+    // debt; the policy is what stops it being asked for in the first place.
+    expect(await store.pocket.adjust(ALICE, -900_000)).toBe(0);
+    await store.pocket.adjust(ALICE, 100_000);
+    await store.pocket.zero(ALICE);
+    expect(await store.pocket.load(ALICE)).toBe(0);
   });
 
   it("returns receipts newest first, capped", async () => {

@@ -185,6 +185,11 @@ export interface Environment {
   readonly openAiCompatibleApiKey: string;
   readonly openAiCompatibleBaseUrl: string;
   readonly openAiCompatibleModel: string;
+  /**
+   * What a person's Hedera pocket holds before any top-up, in USD millionths.
+   * Testnet lunch money: enough for a few paid requests, credited once.
+   */
+  readonly pocketStartingUsdMicros: number;
   readonly port: number;
   /**
    * The agent's Privy authorization key and the policy it signs under.
@@ -310,6 +315,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const evmRpcUrl = yield* Config.string("BASE_SEPOLIA_RPC_URL").pipe(
       Config.withDefault("https://sepolia.base.org")
     );
+    const pocketStartingUsd = yield* Config.number("POCKET_STARTING_USD").pipe(
+      Config.withDefault(0.5)
+    );
     const treasuryEvmAddress = yield* Config.string(
       "TREASURY_EVM_ADDRESS"
     ).pipe(Config.withDefault(PLACEHOLDER.treasuryEvmAddress));
@@ -404,6 +412,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       openAiCompatibleApiKey: compatibleKey,
       openAiCompatibleBaseUrl,
       openAiCompatibleModel,
+      pocketStartingUsdMicros: Math.round(pocketStartingUsd * 1_000_000),
       port,
       // All three or none. Two of three is a deployment that would fail at the
       // first payment with an error from Privy rather than at boot with one

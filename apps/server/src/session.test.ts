@@ -579,3 +579,130 @@ describe("a spend over the approval threshold", () => {
     expect(result.receipt.approval?.resolution).toBe("allow_once");
   });
 });
+
+describe("the pocket", () => {
+  const pocketSession = (
+    store: Store,
+    startingUsdMicros: number
+  ): WorkspaceSession =>
+    new WorkspaceSession(
+      SessionId.generate(),
+      ALICE,
+      {
+        ledger: memoryLedger(),
+        modes: MODES,
+        onPolicyDecision: noop,
+        onReceipt: noop,
+        pocket: { networks: ["hedera:testnet"], startingUsdMicros },
+        quote: (_asset, now) => parQuote(now),
+        store,
+      },
+      { hosts: ["froggy.test"], payeeIds: ["0.0.1"] }
+    );
+
+  test("credits the starting allowance once, not once per session", async () => {
+    const store = memoryStore();
+    const first = pocketSession(store, 500_000);
+    await first.hydrate();
+    expect(first.pocket).toBe(500_000);
+    await first.creditPocket(250_000);
+
+    const second = pocketSession(store, 500_000);
+    await second.hydrate();
+    // The second session finds a pocket that exists and reads it; it does not
+    // hand out lunch money again.
+    expect(second.pocket).toBe(750_000);
+  });
+
+  test("draws the pocket down when a payment settles, and gives it back when one fails", async () => {
+    const store = memoryStore();
+    const session = pocketSession(store, 2_000_000);
+    await session.hydrate();
+
+    // One HBAR at par is one dollar.
+    await session.spend(request({ key: "paid" }));
+    expect(session.pocket).toBe(1_000_000);
+
+    await session.spend(
+      request({
+        key: "failed",
+        settle: async () => {
+          await Promise.resolve();
+          return {
+            error: "the facilitator said no",
+            network: "hedera:testnet",
+            ok: false,
+            stubbed: false,
+            transactionId: null,
+          };
+        },
+      })
+    );
+    expect(session.pocket).toBe(1_000_000);
+    expect(await store.pocket.load(ALICE)).toBe(1_000_000);
+  });
+
+  test("refuses a payment the pocket cannot cover, before anything is sent", async () => {
+    const session = pocketSession(memoryStore(), 500_000);
+    await session.hydrate();
+    let settled = false;
+
+    const result = await session.spend(
+      request({
+        key: "too-much",
+        settle: async () => {
+          settled = true;
+          await Promise.resolve();
+          return {
+            network: "hedera:testnet",
+            ok: true,
+            stubbed: false,
+            transactionId: "0.0.1@x",
+          };
+        },
+      })
+    );
+
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "pocket_exhausted",
+    });
+    expect(settled).toBe(false);
+    expect(session.pocket).toBe(500_000);
+  });
+
+  test("a saved mandate still lists the server's own payees", async () => {
+    const store = memoryStore();
+    const first = pocketSession(store, 0);
+    await first.hydrate();
+    // The person edits their mandate, and the edit is what gets saved.
+    first.updateMandate({
+      ...first.currentMandate,
+      rules: first.currentMandate.rules.map((rule) =>
+        rule._tag === "payee_allowlist" ? { ...rule, payeeIds: [] } : rule
+      ),
+    });
+    await Bun.sleep(1);
+
+    const later = new WorkspaceSession(
+      SessionId.generate(),
+      ALICE,
+      {
+        ledger: memoryLedger(),
+        modes: MODES,
+        onPolicyDecision: noop,
+        onReceipt: noop,
+        quote: (_asset, now) => parQuote(now),
+        store,
+      },
+      { hosts: ["froggy.test"], payeeIds: ["0.0.1", "0xtreasury"] }
+    );
+    await later.hydrate();
+    const allowlist = later.currentMandate.rules.find(
+      (rule) => rule._tag === "payee_allowlist"
+    );
+    expect(
+      allowlist?._tag === "payee_allowlist" ? allowlist.payeeIds : []
+    ).toEqual(["0.0.1", "0xtreasury"]);
+  });
+});

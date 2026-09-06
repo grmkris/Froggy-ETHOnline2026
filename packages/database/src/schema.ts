@@ -68,6 +68,16 @@ export const users = pgTable("users", {
    * both chains.
    */
   hederaKeyCiphertext: text("hedera_key_ciphertext"),
+  /**
+   * The Hedera pocket, as a balance in USD millionths.
+   *
+   * One host account pays every Hedera 402; this is the share of it each
+   * person may spend. A top-up under the Privy policy credits it, a spend
+   * draws it down inside the same lock as the reservation, a freeze zeroes
+   * it. Null means never initialised: the first session credits the
+   * starting allowance once, and null is how "once" is known.
+   */
+  pocketUsdMicros: bigint("pocket_usd_micros", { mode: "number" }),
   /** The wallet Privy minted at login, which we attach a signer to. */
   privyWalletAddress: text("privy_wallet_address"),
   privyWalletId: text("privy_wallet_id"),

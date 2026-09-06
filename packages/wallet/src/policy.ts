@@ -18,6 +18,7 @@ import type {
   DenialCode,
   Mandate,
   MandateRule,
+  Network,
   PolicyDecision,
   RuleId,
   SpendIntent,
@@ -42,6 +43,16 @@ export interface AuthorizeInput {
   readonly intent: SpendIntent;
   readonly mandate: Mandate;
   readonly now: number;
+  /**
+   * The person's pocket: their share of the host account that pays these
+   * networks. A spend on one of them must fit in the balance. Spends on any
+   * other network come from the person's own wallet and are not this
+   * balance's business. Absent when nothing is drawn from a pocket.
+   */
+  readonly pocket?: {
+    readonly balanceUsdMicros: number;
+    readonly networks: readonly Network[];
+  };
   /** Reserved and settled spends. Refused ones must not count against the cap. */
   readonly recent: readonly LedgerEntry[];
 }
@@ -135,6 +146,26 @@ const threshold = (
     satisfied.push(rule.id);
   }
   return null;
+};
+
+/**
+ * The pocket, after the caps and before the human: an allowance the person
+ * has not topped up is not a question for them to answer, it is a fact.
+ * Null when there is no pocket for this network or it covers the spend.
+ */
+const pocketShortfall = (input: AuthorizeInput): PolicyDecision | null => {
+  const { intent, pocket } = input;
+  if (
+    pocket === undefined ||
+    !pocket.networks.includes(intent.amount.asset.network) ||
+    intent.usdMicros <= pocket.balanceUsdMicros
+  ) {
+    return null;
+  }
+  return deny(
+    "pocket_exhausted",
+    `${formatUsd(intent.usdMicros)} is more than the ${formatUsd(pocket.balanceUsdMicros)} left in the pocket. Top it up to continue.`
+  );
 };
 
 export const authorize = (input: AuthorizeInput): PolicyDecision => {
@@ -235,6 +266,11 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
       );
     }
     satisfied.push(rule.id);
+  }
+
+  const shortfall = pocketShortfall(input);
+  if (shortfall !== null) {
+    return shortfall;
   }
 
   // 3. Last: the human's line.

@@ -29,6 +29,13 @@
       "when": 1788630085589,
       "tag": "0003_lush_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788636022976,
+      "tag": "0004_sloppy_kinsey_walden",
+      "breakpoints": true
     }
   ]
 }

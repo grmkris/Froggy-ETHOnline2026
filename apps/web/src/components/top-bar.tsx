@@ -7,6 +7,7 @@
  * a second click.
  */
 
+import { formatUsd } from "@froggy/domain";
 import type { Mandate } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
@@ -86,6 +87,18 @@ export const TopBar = ({
           >
             {shortAddress(wallet?.address ?? null)}
           </span>
+          {wallet?.pocketUsdMicros === null ||
+          wallet?.pocketUsdMicros === undefined ? null : (
+            <span
+              className="flex items-baseline gap-1 text-xs whitespace-nowrap"
+              title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it; a freeze zeroes it."
+            >
+              <span className="text-muted-foreground">pocket</span>
+              <span className="text-money text-sm leading-none">
+                {formatUsd(wallet.pocketUsdMicros)}
+              </span>
+            </span>
+          )}
           <span
             aria-live="polite"
             className="flex items-center gap-1.5 text-xs whitespace-nowrap"

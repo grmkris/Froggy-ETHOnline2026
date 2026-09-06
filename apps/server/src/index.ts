@@ -176,10 +176,17 @@ class FroggyServer extends Context.Service<
         // but is empty and therefore means nothing.
         oracleHost: new URL(oracleUrl).host,
         oraclePayTo: services.oracle.payTo,
+        // The Hedera leg is paid from one host account; each person spends
+        // their share of it, credited once and topped up under the policy.
+        pocket: {
+          networks: ["hedera:testnet"],
+          startingUsdMicros: environment.pocketStartingUsdMicros,
+        },
         profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,
         reservedBrowsers: environment.reservedBrowsers,
         store: services.store,
+        treasuryPayee: environment.treasuryEvmAddress,
       });
 
       const grants = new AgentGrants({

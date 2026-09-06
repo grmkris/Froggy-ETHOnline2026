@@ -4,7 +4,7 @@ import { MandateId, RuleId, SessionId, usdMicros } from "@froggy/domain";
 import type { Mandate, Payee, Provenance, SpendIntent } from "@froggy/domain";
 
 import { authorize } from "./policy";
-import type { LedgerEntry } from "./policy";
+import type { AuthorizeInput, LedgerEntry } from "./policy";
 
 const NOW = 1_756_000_000_000;
 
@@ -43,22 +43,74 @@ const mandate = (rules: Mandate["rules"], frozen = false): Mandate => ({
   sessionId: SessionId.generate(),
 });
 
+const withPocket = (
+  input: AuthorizeInput,
+  pocket: AuthorizeInput["pocket"]
+): AuthorizeInput => (pocket === undefined ? input : { ...input, pocket });
+
 const decide = (
   rules: Mandate["rules"],
   overrides: {
     approved?: boolean;
     frozen?: boolean;
     intent?: Partial<SpendIntent>;
+    pocket?: AuthorizeInput["pocket"];
     recent?: readonly LedgerEntry[];
   } = {}
 ) =>
-  authorize({
-    approved: overrides.approved ?? false,
-    intent: intent(overrides.intent),
-    mandate: mandate(rules, overrides.frozen ?? false),
-    now: NOW,
-    recent: overrides.recent ?? [],
+  authorize(
+    withPocket(
+      {
+        approved: overrides.approved ?? false,
+        intent: intent(overrides.intent),
+        mandate: mandate(rules, overrides.frozen ?? false),
+        now: NOW,
+        recent: overrides.recent ?? [],
+      },
+      overrides.pocket
+    )
+  );
+
+describe("the pocket", () => {
+  const hedera = {
+    balanceUsdMicros: 5000,
+    networks: ["hedera:testnet"],
+  } as const;
+
+  it("refuses a spend the pocket cannot cover, and says how much is left", () => {
+    const decision = decide([], { pocket: hedera });
+    expect(decision).toMatchObject({ _tag: "deny", code: "pocket_exhausted" });
+    expect(decision._tag === "deny" ? decision.message : "").toContain(
+      "$0.0050 left"
+    );
   });
+
+  it("allows a spend the pocket covers", () => {
+    const decision = decide([], {
+      intent: { usdMicros: micros(5000) },
+      pocket: hedera,
+    });
+    expect(decision._tag).toBe("allow");
+  });
+
+  it("ignores the pocket for a network the person's own wallet pays", () => {
+    const decision = decide([], {
+      intent: {
+        amount: {
+          asset: {
+            decimals: 6,
+            id: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            network: "eip155:84532",
+            symbol: "USDC",
+          },
+          units: "10000",
+        },
+      },
+      pocket: { balanceUsdMicros: 0, networks: ["hedera:testnet"] },
+    });
+    expect(decision._tag).toBe("allow");
+  });
+});
 
 describe("authorize", () => {
   it("allows a spend inside every rule", () => {

@@ -144,6 +144,8 @@ export const DenialCode = Schema.Literals([
   "network_not_allowed",
   "untrusted_provenance",
   "unpriceable",
+  /** The pocket the host pays from does not hold enough. A top-up fixes it. */
+  "pocket_exhausted",
   /** The policy asked, and the person said no. */
   "approval_denied",
   /** The policy asked, and nobody answered in time. */

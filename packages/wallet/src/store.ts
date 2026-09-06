@@ -51,6 +51,22 @@ export interface Store {
     readonly load: (userId: UserId) => Promise<Mandate | null>;
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
   };
+  /**
+   * The person's share of the host account that pays the Hedera leg, in USD
+   * millionths. Never negative: a debit larger than the balance floors at
+   * zero, and the policy is what stops it being asked for.
+   */
+  readonly pocket: {
+    /** Adds `deltaUsdMicros` (negative to draw down) and returns the new balance. */
+    readonly adjust: (
+      userId: UserId,
+      deltaUsdMicros: number
+    ) => Promise<number>;
+    /** Null when this person has never had a pocket, so a starting credit happens once. */
+    readonly load: (userId: UserId) => Promise<number | null>;
+    /** Freeze. A zero balance, not a missing one: the starting credit does not return. */
+    readonly zero: (userId: UserId) => Promise<void>;
+  };
   readonly telegram: {
     readonly forUser: (userId: UserId) => Promise<TelegramPairing | null>;
     /** Whose account this Telegram user is, or null when nobody has paired it. */
@@ -97,6 +113,7 @@ export const memoryStore = (): Store => {
   const digests = new Map<UserId, DigestSchedule>();
   const pairings = new Map<UserId, TelegramPairing>();
   const entries = new Map<UserId, DirectoryEntry[]>();
+  const pockets = new Map<UserId, number>();
   const unpair = (userId: UserId): void => {
     pairings.delete(userId);
   };
@@ -175,6 +192,7 @@ export const memoryStore = (): Store => {
       digests.delete(userId);
       frozen.delete(userId);
       mandates.delete(userId);
+      pockets.delete(userId);
       receipts.delete(userId);
     },
     frozen: {
@@ -195,6 +213,22 @@ export const memoryStore = (): Store => {
       save: async (userId, mandate) => {
         await Promise.resolve();
         mandates.set(userId, mandate);
+      },
+    },
+    pocket: {
+      adjust: async (userId, deltaUsdMicros) => {
+        await Promise.resolve();
+        const next = Math.max(0, (pockets.get(userId) ?? 0) + deltaUsdMicros);
+        pockets.set(userId, next);
+        return next;
+      },
+      load: async (userId) => {
+        await Promise.resolve();
+        return pockets.get(userId) ?? null;
+      },
+      zero: async (userId) => {
+        await Promise.resolve();
+        pockets.set(userId, 0);
       },
     },
     receipts: {

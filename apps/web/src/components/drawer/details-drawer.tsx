@@ -193,6 +193,13 @@ const About = ({
         </dd>
         <dt className="text-muted-foreground">Agent</dt>
         <dd>{wallet === null ? "—" : SIGNER_WORDS[wallet.agentSigner]}</dd>
+        <dt className="text-muted-foreground">Pocket</dt>
+        <dd className="text-money">
+          {wallet?.pocketUsdMicros === null ||
+          wallet?.pocketUsdMicros === undefined
+            ? "—"
+            : formatUsd(wallet.pocketUsdMicros)}
+        </dd>
         <dt className="text-muted-foreground">Session</dt>
         <dd className="text-machine">{sessionId ?? "—"}</dd>
         <dt className="text-muted-foreground">WebMCP</dt>

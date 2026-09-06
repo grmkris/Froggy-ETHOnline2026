@@ -17,7 +17,7 @@ import {
 } from "@froggy/database";
 import { DirectoryId, decodeUserId, NO_DIGEST } from "@froggy/domain";
 import type { DigestSchedule, DirectoryEntry, UserId } from "@froggy/domain";
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql as raw } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { Result } from "effect";
 import type { Sql } from "postgres";
@@ -200,10 +200,16 @@ export const postgresStore = (sql: Sql): Store => {
       await database.delete(receipts).where(eq(receipts.userId, userId));
       await database.delete(mandates).where(eq(mandates.userId, userId));
       // The row itself stays: the ledger's spends reference it, and a spend
-      // is a money record that outlives the person's preferences.
+      // is a money record that outlives the person's preferences. The pocket
+      // goes back to null, so a returning person is credited once more.
       await database
         .update(users)
-        .set({ digestHour: null, digestTimezone: null, frozenAt: null })
+        .set({
+          digestHour: null,
+          digestTimezone: null,
+          frozenAt: null,
+          pocketUsdMicros: null,
+        })
         .where(eq(users.did, userId));
     },
     frozen: {
@@ -221,6 +227,36 @@ export const postgresStore = (sql: Sql): Store => {
         await database
           .update(users)
           .set({ frozenAt: frozen ? new Date() : null })
+          .where(eq(users.did, userId));
+      },
+    },
+    pocket: {
+      adjust: async (userId, deltaUsdMicros) => {
+        await ensureUser(userId);
+        // One statement, so two concurrent adjustments serialise on the row
+        // rather than both reading the same balance and both writing over it.
+        const rows = await database
+          .update(users)
+          .set({
+            pocketUsdMicros: raw<number>`GREATEST(COALESCE(${users.pocketUsdMicros}, 0) + ${deltaUsdMicros}, 0)`,
+          })
+          .where(eq(users.did, userId))
+          .returning({ balance: users.pocketUsdMicros });
+        return rows[0]?.balance ?? 0;
+      },
+      load: async (userId) => {
+        const rows = await database
+          .select({ balance: users.pocketUsdMicros })
+          .from(users)
+          .where(eq(users.did, userId))
+          .limit(1);
+        return rows[0]?.balance ?? null;
+      },
+      zero: async (userId) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({ pocketUsdMicros: 0 })
           .where(eq(users.did, userId));
       },
     },

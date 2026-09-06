@@ -54,7 +54,12 @@ import type {
   WalletSummary,
 } from "@froggy/protocol";
 import { authorize } from "@froggy/wallet";
-import type { SpendLedger, Store, WalletAddresses } from "@froggy/wallet";
+import type {
+  AuthorizeInput,
+  SpendLedger,
+  Store,
+  WalletAddresses,
+} from "@froggy/wallet";
 import { Schema } from "effect";
 
 import { detached } from "./detached";
@@ -176,6 +181,16 @@ export interface SessionDeps {
   readonly now?: () => number;
   readonly onPolicyDecision: (decision: PolicyDecision) => void;
   readonly onReceipt: (receipt: Receipt) => void;
+  /**
+   * The pocket the host pays these networks from, as this person's share of
+   * it: a balance drawn down under the same lock as the reservation, given
+   * back when a payment is abandoned or fails, credited by a top-up and
+   * zeroed by a freeze. Absent when nothing is drawn from a pocket.
+   */
+  readonly pocket?: {
+    readonly networks: readonly Amount["asset"]["network"][];
+    readonly startingUsdMicros: number;
+  };
   readonly store: Store;
 }
 
@@ -379,6 +394,13 @@ export class WorkspaceSession {
    */
   private agentSigner: AgentSignerState = "pending";
   private agentNote: string | null = null;
+  /** The pocket balance as last read or written; null until hydrated. */
+  private pocketBalance: number | null = null;
+  /** What the server itself must be able to pay, whatever mandate is loaded. */
+  private readonly birthright: {
+    readonly hosts: readonly string[];
+    readonly payeeIds: readonly string[];
+  };
 
   constructor(
     id: SessionId,
@@ -393,6 +415,7 @@ export class WorkspaceSession {
     this.userId = userId;
     this.deps = deps;
     this.now = deps.now ?? Date.now;
+    this.birthright = allowlist;
     this.mandate = {
       createdAt: this.now(),
       frozen: false,
@@ -424,13 +447,31 @@ export class WorkspaceSession {
    */
   async hydrate(): Promise<void> {
     this.hydration ??= (async () => {
-      const [frozen, saved, recent] = await Promise.all([
+      const [frozen, saved, recent, pocket] = await Promise.all([
         this.deps.store.frozen.load(this.userId),
         this.deps.store.mandates.load(this.userId),
         this.deps.store.receipts.recent(this.userId, RECEIPT_HISTORY),
+        this.deps.store.pocket.load(this.userId),
       ]);
+      if (this.deps.pocket !== undefined) {
+        // Credited once. Null is "never had a pocket"; zero is a pocket that
+        // was spent or frozen, and it stays zero until a top-up.
+        this.pocketBalance =
+          pocket ??
+          (await this.deps.store.pocket.adjust(
+            this.userId,
+            this.deps.pocket.startingUsdMicros
+          ));
+      }
       if (saved !== null) {
-        this.mandate = { ...saved, frozen, sessionId: this.id };
+        // A mandate saved before a server payee existed — the treasury, say —
+        // would refuse that payee forever. The server's own hosts and payees
+        // are appended, never the person's removed.
+        this.mandate = this.withBirthright({
+          ...saved,
+          frozen,
+          sessionId: this.id,
+        });
       } else if (frozen) {
         this.mandate = { ...this.mandate, frozen };
       }
@@ -496,6 +537,65 @@ export class WorkspaceSession {
   setAgentSigner(state: AgentSignerState, note: string | null): void {
     this.agentSigner = state;
     this.agentNote = note;
+  }
+
+  /** What is left to spend from the pocket, or null when there is no pocket. */
+  get pocket(): number | null {
+    return this.deps.pocket === undefined ? null : (this.pocketBalance ?? 0);
+  }
+
+  /** A top-up landed: the pocket grows by what the treasury received. */
+  async creditPocket(usdMicros: number): Promise<number> {
+    this.pocketBalance = await this.deps.store.pocket.adjust(
+      this.userId,
+      usdMicros
+    );
+    return this.pocketBalance;
+  }
+
+  /** Freeze. Nothing left to draw from, whatever the mandate says later. */
+  async zeroPocket(): Promise<void> {
+    await this.deps.store.pocket.zero(this.userId);
+    this.pocketBalance = 0;
+  }
+
+  private withBirthright(mandate: Mandate): Mandate {
+    return {
+      ...mandate,
+      rules: mandate.rules.map((rule) => {
+        if (rule._tag === "host_allowlist") {
+          return {
+            ...rule,
+            hosts: [...new Set([...rule.hosts, ...this.birthright.hosts])],
+          };
+        }
+        if (rule._tag === "payee_allowlist") {
+          return {
+            ...rule,
+            payeeIds: [
+              ...new Set([...rule.payeeIds, ...this.birthright.payeeIds]),
+            ],
+          };
+        }
+        return rule;
+      }),
+    };
+  }
+
+  private drawsFromPocket(intent: SpendIntent): boolean {
+    return (
+      this.deps.pocket?.networks.includes(intent.amount.asset.network) ?? false
+    );
+  }
+
+  /** A payment that did not happen gives its pocket draw back. */
+  private async refund(judged: Judged): Promise<void> {
+    if (this.drawsFromPocket(judged.intent)) {
+      this.pocketBalance = await this.deps.store.pocket.adjust(
+        this.userId,
+        judged.usdMicros
+      );
+    }
   }
 
   /**
@@ -619,6 +719,7 @@ export class WorkspaceSession {
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",
       ledgerNote,
+      pocketUsdMicros: this.pocket,
       signerAddress: this.addresses.signer,
       windowSpentUsdMicros: spent,
     };
@@ -729,13 +830,20 @@ export class WorkspaceSession {
 
     const since = at - widestWindowMs(this.mandate);
     const recent = await this.deps.ledger.since(this.userId, since);
-    const decision = authorize({
+    const judgement: Draft<AuthorizeInput, "pocket"> = {
       approved,
       intent,
       mandate: this.mandate,
       now: at,
       recent: recent.map((row) => ({ at: row.at, usdMicros: row.usdMicros })),
-    });
+    };
+    if (this.deps.pocket !== undefined) {
+      judgement.pocket = {
+        balanceUsdMicros: this.pocketBalance ?? 0,
+        networks: this.deps.pocket.networks,
+      };
+    }
+    const decision = authorize(judgement);
 
     // Published before anything else happens, so the wallet pane shows the
     // refusal before the model has narrated it. The demo's whole point is that
@@ -808,6 +916,15 @@ export class WorkspaceSession {
         usdMicros: judged.usdMicros,
         userId: this.userId,
       });
+      // Drawn down here, inside the same lock as the reservation, so two
+      // spends cannot both fit in a balance that only holds one. Given back
+      // if the payment is abandoned or fails.
+      if (reservation.created && this.drawsFromPocket(judged.intent)) {
+        this.pocketBalance = await this.deps.store.pocket.adjust(
+          this.userId,
+          0 - judged.usdMicros
+        );
+      }
       return { judged, reservation, spendId };
     });
   }
@@ -977,6 +1094,7 @@ export class WorkspaceSession {
     if (abandoned !== null) {
       publish(unpaid(request));
       await this.deps.ledger.settle(row.id, "abandoned");
+      await this.refund(judged);
       return this.finish({
         abandoned,
         approval,
@@ -1002,6 +1120,9 @@ export class WorkspaceSession {
     }
     publish(outcome);
     await this.deps.ledger.settle(row.id, outcome.ok ? "settled" : "failed");
+    if (!outcome.ok) {
+      await this.refund(judged);
+    }
 
     return this.finish({
       abandoned: null,

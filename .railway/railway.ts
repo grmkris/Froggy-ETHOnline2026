@@ -118,6 +118,7 @@ export default defineRailway((ctx) => {
       TELEGRAM_WEBHOOK_SECRET_TOKEN: preserve(),
       TREASURY_EVM_ADDRESS: preserve(),
       BASE_SEPOLIA_RPC_URL: preserve(),
+      POCKET_STARTING_USD: preserve(),
       // Baked into the web bundle at build time, via the Dockerfile ARG of the
       // same name. Absent from this list it would be deleted on the next
       // apply, and the deployed client would quietly fall back to the local

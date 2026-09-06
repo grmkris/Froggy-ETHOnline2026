@@ -98,12 +98,16 @@ export interface WorkspaceDeps {
   /** The server's own oracle, allowlisted from the first moment. */
   readonly oracleHost: string;
   readonly oraclePayTo: string;
+  /** The pocket every session draws its Hedera payments from. See `SessionDeps.pocket`. */
+  readonly pocket?: SessionDeps["pocket"];
   readonly profileRoot: string;
   /** What an asset is worth. Null refuses the spend; see `quotes.ts`. */
   readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
   /** Seats held for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
   readonly store: Store;
+  /** Where a top-up sends USDC; allowlisted as a payee so the transfer can be judged. Null when unset. */
+  readonly treasuryPayee?: string | null;
 }
 
 /**
@@ -151,7 +155,7 @@ export class Workspaces {
       return existing;
     }
     const { ask } = this.deps;
-    const sessionDeps: SessionDeps = {
+    const withoutPocket: SessionDeps = {
       ledger: this.deps.ledger,
       modes: this.deps.modes,
       onMandate: (mandate) => {
@@ -166,6 +170,10 @@ export class Workspaces {
       },
       store: this.deps.store,
     };
+    const { pocket } = this.deps;
+    const sessionDeps: SessionDeps =
+      pocket === undefined ? withoutPocket : { ...withoutPocket, pocket };
+    const treasury = this.deps.treasuryPayee ?? null;
     const session = new WorkspaceSession(
       SessionId.generate(),
       userId,
@@ -175,7 +183,13 @@ export class Workspaces {
             ...sessionDeps,
             ask: async (input: AskInput) => await ask(userId, input),
           },
-      { hosts: [this.deps.oracleHost], payeeIds: [this.deps.oraclePayTo] }
+      {
+        hosts: [this.deps.oracleHost],
+        payeeIds:
+          treasury === null
+            ? [this.deps.oraclePayTo]
+            : [this.deps.oraclePayTo, treasury],
+      }
     );
     const profileDirectory = profileDirectoryFor(this.deps.profileRoot, userId);
     const onStateChange = (state: BrowserState): void => {

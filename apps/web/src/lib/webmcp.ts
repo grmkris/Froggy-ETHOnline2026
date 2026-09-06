@@ -73,7 +73,7 @@ export const webMcpTools = (
       const { wallet } = read();
       return wallet === null
         ? "The wallet is not connected yet."
-        : `Address ${wallet.address ?? "unknown"}; ${formatUsd(wallet.windowSpentUsdMicros)} spent in the current window; balance ${wallet.balanceLabel}.`;
+        : `Address ${wallet.address ?? "unknown"}; ${formatUsd(wallet.windowSpentUsdMicros)} spent in the current window; balance ${wallet.balanceLabel}; Hedera pocket ${wallet.pocketUsdMicros === null ? "none" : formatUsd(wallet.pocketUsdMicros)}.`;
     },
     inputSchema: NO_INPUT,
     name: "get_balance",
