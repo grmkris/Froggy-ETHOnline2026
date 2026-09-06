@@ -88,3 +88,20 @@ Rows 6, 8, 10, 12, 19, 21, 22, 28, 30, 31 and 32 to 37 above. In one paragraph: 
 - Telegram: a bot from BotFather, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET_TOKEN`, `TELEGRAM_BOT_USERNAME` on Railway, then `setWebhook`.
 - Privy dashboard: a policy-owner authorization key, so freeze can wipe the rules and rule (b) can be added to the policy.
 - Repo public on Sat 12, after the history scan.
+
+## Iteration 2, decided in the team grilling on Sun 6 Sep
+
+Recorded vote by vote in `docs/sync/telegram-grilling-session.md`; the plan is `docs/plan/NEXT_ITERATION.md`, marked proposed until the group confirms it. Where a row below disagrees with a row above, this block wins.
+
+| Row above | What changed on 6 Sep | Who |
+| --- | --- | --- |
+| 11, 20, 34 | **Freeze is removed entirely.** No kill switch in the header, on Telegram or in the API; Stop ends the run, "Stop the agent" on a ticket ends the run and withdraws open cards, Disconnect revokes an agent token. The pocket is no longer zeroed by anything. Landed `ee4b8dd`. | Kristjan, Jonas and Hemang agree |
+| 11, 34 | **One Hedera account per person**, funded from a treasury HBAR float at the mirror-node rate when the person tops up dollars; opened on the person's own Privy key if Monday's `raw_sign` spike passes, else custodied and labelled. The single host pocket stays only until that lands. | all three |
+| 14, 16 | **Everything on mainnet.** `HEDERA_NETWORK` is configuration (`780861e`); the default stays testnet. The fallback if Blocky402 mainnet refuses without a key is the one open split: Kristjan none, Jonas a labelled fallback, Hemang silent. | Kristjan; fallback open |
+| 8, 21 | Login is Google and email only; the wallet option is gone (`e253cfb`). The Agents tab connects an outside agent with a token and a skill (`e61978b`). | Kristjan |
+| 15 | The Graph track is the Composable/Standardized products track; the brief answers borrow and supply across the twelve Messari deployments; access through the server API key, the Base x402 upstream paid by the treasury. | Kristjan, Hemang; Jonas "or whatever fits" |
+| 31 | The product on camera is a personal agent buying tasks from Froggy: `POST /api/tasks` behind a 402, agent tokens, the served CLI and the skill (`363faf5`, `ae7a9a9`). | all three |
+| new | Pasted-address interpretation is in scope in full: classify, propose, execute with approval; Base via Privy swap from the person's session, Hedera via SaucerSwap, Linea propose-only. | Kristjan; Jonas and Hemang agree |
+| new | The MetaMask Card purchase is the second beat: Linea only, CCTP v2 from the Privy wallet when funds are short, sealed card store and masked autofill, 3DS as a ticket, pre-funded fallback. | Kristjan; others defer |
+| new | Prices: brief $0.05, browse $0.50 for 40 steps; the quote is the price; no refunds on failed paid work, the receipt says so. Real-money cap €100. | Kristjan |
+| 36, 37 | No ownership split: one agent run executes the plan nightly; Kristjan handles keys, money, dashboards and the card; Jonas with Kimi and Hemang with Claude test. Video owner still to name. | Kristjan, Hemang |
