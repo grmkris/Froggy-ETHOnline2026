@@ -135,6 +135,9 @@ export const nodes: readonly Node[] = [
     mayImport: [],
     mayUse: [
       "@base-ui/react",
+      // The headless message scroller behind the chat surface: zero runtime
+      // dependencies, React 19 peer. See docs/decisions/0008.
+      "@shadcn/react",
       "class-variance-authority",
       "cn",
       "lucide-react",
