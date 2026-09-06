@@ -172,7 +172,7 @@ describe("summarize wallet tools", () => {
         address: "0xabc",
         frozen: true,
         pocketUsdMicros: 250_000,
-        rules: {},
+        rules: [],
         windowSpentUsdMicros: 4000,
       },
       null,

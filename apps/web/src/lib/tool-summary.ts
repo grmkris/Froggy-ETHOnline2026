@@ -12,9 +12,9 @@
 
 import { formatUsd } from "@froggy/domain";
 import type { GraphQueryOutput } from "@froggy/protocol";
-import { Schema } from "effect";
 
 import type { ToolCall } from "./tool-call";
+import { walletStatusOf } from "./wallet-status";
 
 /** `asked` is an ask that ended without an allow: declined, or nobody to ask. */
 export type Outcome = "asked" | "info" | "ok" | "refused";
@@ -177,25 +177,12 @@ const topupSummary = (text: string): ToolSummary | null => {
   return spendOutcome(text);
 };
 
-/** What `wallet_status` writes, as far as a summary line needs it. */
-const WalletStatus = Schema.Struct({
-  frozen: Schema.Boolean,
-  pocketUsdMicros: Schema.optional(Schema.NullOr(Schema.Finite)),
-  windowSpentUsdMicros: Schema.Finite,
-});
-const decodeStatus = Schema.decodeUnknownResult(WalletStatus);
-
 const statusSummary = (text: string): ToolSummary | null => {
-  let decoded: ReturnType<typeof decodeStatus>;
-  try {
-    decoded = decodeStatus(JSON.parse(text));
-  } catch {
+  const status = walletStatusOf(text);
+  if (status === null) {
     return null;
   }
-  if (decoded._tag === "Failure") {
-    return null;
-  }
-  const { frozen, pocketUsdMicros, windowSpentUsdMicros } = decoded.success;
+  const { frozen, pocketUsdMicros, windowSpentUsdMicros } = status;
   const pocket =
     pocketUsdMicros === undefined || pocketUsdMicros === null
       ? []

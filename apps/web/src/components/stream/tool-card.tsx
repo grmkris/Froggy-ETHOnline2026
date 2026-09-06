@@ -24,9 +24,12 @@ import type { ToolPhase } from "../../lib/tool-status";
 import { storyLine, storyOf } from "../../lib/tool-stories";
 import type { Tone } from "../../lib/tool-stories";
 import { summarize } from "../../lib/tool-summary";
-import type { Outcome } from "../../lib/tool-summary";
+import type { Outcome, ToolSummary } from "../../lib/tool-summary";
+import { walletStatusOf } from "../../lib/wallet-status";
+import type { WalletStatus } from "../../lib/wallet-status";
 import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
+import { WalletStatusCard } from "./wallet-status-card";
 
 const TONE: Record<Tone, string> = {
   money: "border-brand/30 bg-brand-soft/50",
@@ -49,6 +52,45 @@ const OUTCOME_TEXT: Record<Outcome, string> = {
   refused: "text-refused",
 };
 
+/** What sits under the header: the receipt, the Graph, the wallet, or one line. */
+const Body = ({
+  call,
+  receipt,
+  summary,
+  wallet,
+}: {
+  readonly call: ToolCall;
+  readonly receipt: Receipt | null;
+  readonly summary: ToolSummary | null;
+  readonly wallet: WalletStatus | null;
+}): ReactElement | null => {
+  if (receipt !== null) {
+    return <MoneyBody call={call} receipt={receipt} />;
+  }
+  if (call.graph !== null) {
+    return <GraphSummary graph={call.graph} />;
+  }
+  if (wallet !== null) {
+    return <WalletStatusCard status={wallet} />;
+  }
+  if (summary === null) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pb-2.5 pl-9">
+      <span className={cn("font-medium", OUTCOME_TEXT[summary.outcome])}>
+        {summary.headline}
+      </span>
+      {summary.detail === null ? null : (
+        <span className="text-muted-foreground text-xs">{summary.detail}</span>
+      )}
+      {summary.stubbed ? (
+        <span className="text-machine text-muted-foreground">fixture</span>
+      ) : null}
+    </div>
+  );
+};
+
 interface ToolCardProps {
   /** An approval card is open somewhere on the page. */
   readonly asking?: boolean;
@@ -67,6 +109,10 @@ export const ToolCard = ({
   const status = toolStatus(call, summary, { asking });
   const IconOf = story.icon;
   const refusedReceipt = receipt?.decision._tag === "deny";
+  const wallet =
+    call.name === "wallet_status" && call.output !== null
+      ? walletStatusOf(call.output)
+      : null;
   return (
     <Collapsible
       className={cn(
@@ -92,25 +138,7 @@ export const ToolCard = ({
           data-slot="chevron"
         />
       </CollapsibleTrigger>
-      {receipt === null ? null : <MoneyBody call={call} receipt={receipt} />}
-      {call.graph === null || receipt !== null ? null : (
-        <GraphSummary graph={call.graph} />
-      )}
-      {summary === null || receipt !== null || call.graph !== null ? null : (
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pb-2.5 pl-9">
-          <span className={cn("font-medium", OUTCOME_TEXT[summary.outcome])}>
-            {summary.headline}
-          </span>
-          {summary.detail === null ? null : (
-            <span className="text-muted-foreground text-xs">
-              {summary.detail}
-            </span>
-          )}
-          {summary.stubbed ? (
-            <span className="text-machine text-muted-foreground">fixture</span>
-          ) : null}
-        </div>
-      )}
+      <Body call={call} receipt={receipt} summary={summary} wallet={wallet} />
       <CollapsibleContent className="space-y-2 border-t px-3 py-2">
         <pre className="text-machine max-h-40 overflow-auto whitespace-pre-wrap">
           {JSON.stringify(call.input, null, 2)}
