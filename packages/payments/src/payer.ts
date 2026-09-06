@@ -152,9 +152,14 @@ export const stubHederaPayer = (): Payer => ({
         stubbed: true,
       } satisfies PaymentAttempt;
     }
+    // A nonce, so two stub payments are two proofs rather than one replayed:
+    // the seller's book keys on the header, and a keyless demo that bought
+    // twice must be seen to have bought twice.
     const payload: PaymentPayload = {
       accepted: requirements,
-      payload: { transaction: "stub-unsigned-no-hedera-key-configured" },
+      payload: {
+        transaction: `stub-unsigned-no-hedera-key-configured-${Date.now()}-${crypto.randomUUID()}`,
+      },
       x402Version: X402_VERSION,
     };
     return {

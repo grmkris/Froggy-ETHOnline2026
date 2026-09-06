@@ -77,6 +77,8 @@ export interface TurnDeps {
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly session: WorkspaceSession;
+  /** Steps a turn may take. A paid browse buys a fixed number; chat keeps the default. */
+  readonly stepCap?: number;
   readonly unlocks: UnlockTokens;
   readonly workspaces: Workspaces;
 }
@@ -129,7 +131,10 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
     },
     // Judged between steps, so a day's steps run out before the next call
     // rather than after one that overshot.
-    stopWhen: [stepCountIs(STEP_CAP), () => deps.budget.exhausted(userId)],
+    stopWhen: [
+      stepCountIs(deps.stepCap ?? STEP_CAP),
+      () => deps.budget.exhausted(userId),
+    ],
     tools,
   });
   return { run, result };

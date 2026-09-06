@@ -12,11 +12,17 @@
  * about answering questions.
  */
 
-import { DigestSchedule } from "@froggy/domain";
-import type { DirectoryEntry, UserId } from "@froggy/domain";
+import { AgentTokenId, DigestSchedule } from "@froggy/domain";
+import type { AgentToken, DirectoryEntry, UserId } from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
 import { Schema } from "effect";
 
+import {
+  agentMayCall,
+  looksLikeAgentSecret,
+  mintAgentToken,
+  resolveAgentSecret,
+} from "./agents";
 import { authenticate, bearerFromRequest } from "./auth";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
@@ -26,6 +32,7 @@ import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
+import type { InteractionRegistry } from "./interactions";
 import {
   handleOracleRequest,
   handleSaleLookup,
@@ -34,6 +41,14 @@ import {
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
+import {
+  handleTaskEvents,
+  handleTaskGet,
+  handleTaskList,
+  handleTaskPost,
+  handleWalletPay,
+} from "./tasks";
+import type { TaskCaller, TaskDeps } from "./tasks";
 import type { TelegramPager } from "./telegram/pager";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
@@ -51,6 +66,10 @@ export const ORACLE_PATH = "/oracle/snapshot";
  */
 const ChatBody = Schema.Struct({ messages: Schema.Array(Schema.Unknown) });
 const decodeChatBody = Schema.decodeUnknownResult(ChatBody);
+const AgentBody = Schema.Struct({ label: Schema.String });
+const decodeAgentBody = Schema.decodeUnknownResult(AgentBody);
+
+const TASKS_PATH = "/api/tasks";
 const decodeDigest = Schema.decodeUnknownResult(DigestSchedule);
 
 /** Every JSON response this server sends. Named so the shapes stay enumerable. */
@@ -76,6 +95,9 @@ type ResponseBody =
   | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
+  | { readonly agents: readonly AgentToken[] }
+  | { readonly revoked: boolean }
+  | { readonly secret: string; readonly token: AgentToken }
   | Awaited<ReturnType<WorkspaceSession["walletSummary"]>>;
 
 const json = (body: ResponseBody, status = 200): Response =>
@@ -87,6 +109,7 @@ export interface RouterDeps {
   /** One-time links to unlocked pages, opened by the shared browser. */
   readonly unlocks: UnlockTokens;
   readonly grants: AgentGrants;
+  readonly interactions: InteractionRegistry;
   readonly oracleUrl: string;
   readonly pager: TelegramPager;
   readonly runs: ChatRunRegistry;
@@ -271,6 +294,118 @@ const handleDigest = async (
   return json(decoded.success);
 };
 
+/** Who is calling: a person with a Privy token, or an agent with a token the person minted. */
+const callerOf = async (
+  deps: RouterDeps,
+  request: Request,
+  pathname: string
+): Promise<{ readonly caller: TaskCaller } | Response> => {
+  const token = bearerFromRequest(request);
+  if (token === null) {
+    return json(UNAUTHORIZED, 401);
+  }
+  // An outside agent reaches tasks and the wallet's signing endpoint and
+  // nothing else; a token cannot approve, raise a cap, add a payee or change
+  // the mandate, however it asks.
+  if (looksLikeAgentSecret(token)) {
+    const agent = await resolveAgentSecret(
+      deps.services.store,
+      token,
+      Date.now()
+    );
+    if (agent === null) {
+      return json(UNAUTHORIZED, 401);
+    }
+    if (!agentMayCall(pathname, request.method)) {
+      return json({ error: "An agent token cannot do this." }, 403);
+    }
+    return { caller: { agentTokenId: agent.token.id, userId: agent.userId } };
+  }
+  const person = await authenticate(deps.services, token);
+  if (person === null) {
+    return json(UNAUTHORIZED, 401);
+  }
+  // Fire-and-forget, once per user. Nothing here waits on Privy.
+  deps.grants.note(person, token);
+  return { caller: { agentTokenId: null, userId: person } };
+};
+
+const TASK_EVENTS = /^\/api\/tasks\/(?<id>[^/]+)\/events$/u;
+const TASK_ONE = /^\/api\/tasks\/(?<id>[^/]+)$/u;
+
+/** Tasks and the wallet's signing endpoint: the routes an agent token may reach. */
+const handleTasks = async (
+  deps: RouterDeps,
+  request: Request,
+  workspace: Awaited<ReturnType<Workspaces["hydrate"]>>,
+  caller: TaskCaller,
+  pathname: string
+): Promise<Response | null> => {
+  const taskDeps: TaskDeps = {
+    budget: deps.budget,
+    interactions: deps.interactions,
+    oracleUrl: deps.oracleUrl,
+    runs: deps.runs,
+    services: deps.services,
+    tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
+    unlocks: deps.unlocks,
+    workspaces: deps.workspaces,
+  };
+  const { userId } = caller;
+  if (pathname === TASKS_PATH && request.method === "POST") {
+    return await handleTaskPost(taskDeps, request, workspace, caller);
+  }
+  if (pathname === TASKS_PATH && request.method === "GET") {
+    return await handleTaskList(taskDeps, workspace, userId);
+  }
+  const events = TASK_EVENTS.exec(pathname)?.groups?.["id"];
+  if (events !== undefined && request.method === "GET") {
+    return await handleTaskEvents(taskDeps, workspace, userId, events);
+  }
+  const one = TASK_ONE.exec(pathname)?.groups?.["id"];
+  if (one !== undefined && request.method === "GET") {
+    return await handleTaskGet(taskDeps, workspace, userId, one);
+  }
+  if (pathname === "/api/wallet/pay" && request.method === "POST") {
+    return await handleWalletPay(taskDeps, request, workspace, caller);
+  }
+  return null;
+};
+
+/** The tokens a person hands to outside agents: list, mint, revoke. */
+const handleAgents = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId,
+  pathname: string
+): Promise<Response | null> => {
+  if (pathname === "/api/agents" && request.method === "GET") {
+    return json({ agents: await deps.services.store.agents.list(userId) });
+  }
+  if (pathname === "/api/agents" && request.method === "POST") {
+    const decoded = decodeAgentBody(await request.json().catch(() => null));
+    if (decoded._tag === "Failure") {
+      return json({ error: 'Send {"label": "Hermes"}.' }, 400);
+    }
+    const minted = await mintAgentToken(
+      deps.services.store,
+      userId,
+      decoded.success.label,
+      Date.now()
+    );
+    return json({ secret: minted.secret, token: minted.token }, 201);
+  }
+  if (pathname.startsWith("/api/agents/") && request.method === "DELETE") {
+    const id = pathname.slice("/api/agents/".length);
+    if (!AgentTokenId.is(id)) {
+      return json({ revoked: false }, 404);
+    }
+    await deps.services.store.agents.revoke(userId, id);
+    return json({ revoked: true });
+  }
+  return null;
+};
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -284,15 +419,23 @@ const handleApi = async (
   // their receipts, their agent. There is no anonymous read here, so the check
   // is at the top of the group rather than repeated per route, where the next
   // route added would be the one that forgot it.
-  const token = bearerFromRequest(request);
-  const userId = await authenticate(deps.services, token);
-  if (userId === null || token === null) {
-    return json(UNAUTHORIZED, 401);
+  const resolved = await callerOf(deps, request, pathname);
+  if (resolved instanceof Response) {
+    return resolved;
   }
-  // Fire-and-forget, once per user. Nothing here waits on Privy.
-  deps.grants.note(userId, token);
+  const { caller } = resolved;
+  const { userId } = caller;
   const workspace = await deps.workspaces.hydrate(userId);
   const sessionId = workspace.session.id;
+
+  const tasks = await handleTasks(deps, request, workspace, caller, pathname);
+  if (tasks !== null) {
+    return tasks;
+  }
+  const agents = await handleAgents(deps, request, userId, pathname);
+  if (agents !== null) {
+    return agents;
+  }
 
   if (pathname === "/api/chat" && request.method === "POST") {
     return await handleChatPost(deps, request, workspace, userId);

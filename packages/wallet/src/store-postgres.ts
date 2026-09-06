@@ -249,6 +249,15 @@ export const postgresStore = (sql: Sql): Store => {
         const [row] = rows;
         return row === undefined ? null : taskOf(row);
       },
+      bySaleId: async (userId, saleId) => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(and(eq(tasks.userId, userId), eq(tasks.saleId, saleId)))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : taskOf(row);
+      },
       create: async (userId, task) => {
         await ensureUser(userId);
         await database.insert(tasks).values({

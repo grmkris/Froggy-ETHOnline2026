@@ -77,6 +77,8 @@ export interface Store {
       userId: UserId,
       key: string
     ) => Promise<Task | null>;
+    /** The task a sale bought, so a replayed proof finds it. */
+    readonly bySaleId: (userId: UserId, saleId: SaleId) => Promise<Task | null>;
     readonly create: (userId: UserId, task: Task) => Promise<void>;
     /** Newest first. */
     readonly list: (userId: UserId, limit: number) => Promise<readonly Task[]>;
@@ -275,6 +277,15 @@ export const memoryStore = (): Store => {
         await Promise.resolve();
         for (const task of tasks.values()) {
           if (task.userId === userId && task.idempotencyKey === key) {
+            return task;
+          }
+        }
+        return null;
+      },
+      bySaleId: async (userId, saleId) => {
+        await Promise.resolve();
+        for (const task of tasks.values()) {
+          if (task.userId === userId && task.saleId === saleId) {
             return task;
           }
         }

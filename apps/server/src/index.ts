@@ -292,6 +292,7 @@ class FroggyServer extends Context.Service<
         environment,
         unlocks,
         grants,
+        interactions,
         oracleUrl,
         pager,
         runs,
