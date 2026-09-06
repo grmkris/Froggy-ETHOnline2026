@@ -29,8 +29,11 @@ const ToolState = Schema.Literals([
   "approval-responded",
   "output-available",
   "output-error",
+  /** The person declined an SDK-level approval. Not raised by our tools,
+      which park an ask inside `execute`, but the SDK can emit it. */
+  "output-denied",
 ]);
-type ToolState = typeof ToolState.Type;
+export type ToolState = typeof ToolState.Type;
 
 const ToolCallSchema = Schema.Struct({
   errorText: Schema.optional(Schema.String),

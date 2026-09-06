@@ -1,88 +1,29 @@
 /**
  * What the agent did, as a card.
  *
- * Each tool has a sentence and an icon, so a turn reads as a short story
- * rather than a list of function names. The raw input and output are one
- * click away, never hidden, because "what exactly did it send" is the
- * question this product exists to answer.
+ * A sentence and an icon, a status word, then one line saying what it came
+ * to, read from the tool's own answer. The raw input and output are one click
+ * away, never hidden, because "what exactly did it send" is the question this
+ * product exists to answer. Closed by default: the story is the sentence and
+ * the summary; the JSON is for when someone wants to check.
  */
 
-import { cn } from "@froggy/ui/lib/utils";
 import {
-  BarChart3Icon,
-  CameraIcon,
-  GlobeIcon,
-  KeyboardIcon,
-  MousePointerClickIcon,
-  ReceiptTextIcon,
-  SearchIcon,
-  SendIcon,
-  WalletIcon,
-} from "lucide-react";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@froggy/ui/components/collapsible";
+import { cn } from "@froggy/ui/lib/utils";
+import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
-import { hostOf } from "../../lib/format";
-import type { ToolCall, ToolInput } from "../../lib/tool-call";
-
-type Icon = typeof GlobeIcon;
-type Tone = "money" | "page" | "plain";
-
-interface Story {
-  readonly icon: Icon;
-  readonly sentence: (input: ToolInput) => string;
-  readonly tone: Tone;
-}
-
-const STORIES = {
-  browser_click: {
-    icon: MousePointerClickIcon,
-    sentence: (input) => `Clicked ${input.ref ?? "an element"}`,
-    tone: "page",
-  },
-  browser_navigate: {
-    icon: GlobeIcon,
-    sentence: (input) => `Opened ${hostOf(input.url ?? "")}`,
-    tone: "page",
-  },
-  browser_snapshot: {
-    icon: CameraIcon,
-    sentence: () => "Read the page",
-    tone: "page",
-  },
-  browser_type: {
-    icon: KeyboardIcon,
-    sentence: (input) => `Typed “${(input.text ?? "").slice(0, 40)}”`,
-    tone: "page",
-  },
-  graph_query: {
-    icon: BarChart3Icon,
-    sentence: (input) =>
-      `Asked The Graph about ${input.symbol ?? "the market"}`,
-    tone: "plain",
-  },
-  wallet_send: {
-    icon: SendIcon,
-    sentence: (input) =>
-      `Tried to send ${input.amountUsd ?? "some"} USDC to ${input.to ?? "an address"}`,
-    tone: "money",
-  },
-  wallet_status: {
-    icon: WalletIcon,
-    sentence: () => "Checked the wallet",
-    tone: "plain",
-  },
-  x402_probe: {
-    icon: SearchIcon,
-    sentence: (input) => `Asked what ${hostOf(input.url ?? "")} costs`,
-    tone: "plain",
-  },
-  x402_fetch: {
-    icon: ReceiptTextIcon,
-    sentence: (input) =>
-      `Requested a paid resource at ${hostOf(input.url ?? "")}`,
-    tone: "money",
-  },
-} satisfies Record<string, Story>;
+import type { ToolCall } from "../../lib/tool-call";
+import { toolStatus } from "../../lib/tool-status";
+import type { ToolPhase } from "../../lib/tool-status";
+import { storyOf } from "../../lib/tool-stories";
+import type { Tone } from "../../lib/tool-stories";
+import { summarize } from "../../lib/tool-summary";
+import type { Outcome } from "../../lib/tool-summary";
 
 const TONE: Record<Tone, string> = {
   money: "border-brand/30 bg-brand-soft/50",
@@ -90,52 +31,75 @@ const TONE: Record<Tone, string> = {
   plain: "border-border bg-card",
 };
 
-const BY_NAME: ReadonlyMap<string, Story> = new Map(Object.entries(STORIES));
-
-const storyOf = (name: string): Story =>
-  BY_NAME.get(name) ?? {
-    icon: WalletIcon,
-    sentence: () => name,
-    tone: "plain",
-  };
-
-const statusWord = (call: ToolCall): string => {
-  if (call.state === "output-error") {
-    return "failed";
-  }
-  if (call.state === "output-available") {
-    return "done";
-  }
-  return "running…";
+/** The phase overrides the tone's border; waiting borrows the agent's amber. */
+const PHASE: Partial<Record<ToolPhase, string>> = {
+  denied: "border-refused/40",
+  failed: "border-destructive/40",
+  refused: "border-refused/40",
+  waiting: "border-drive-agent/60 bg-drive-agent-soft/70",
 };
 
-export const ToolCard = ({
-  call,
-}: {
+const OUTCOME_TEXT: Record<Outcome, string> = {
+  asked: "text-drive-agent",
+  info: "text-foreground",
+  ok: "text-foreground",
+  refused: "text-refused",
+};
+
+interface ToolCardProps {
+  /** An approval card is open somewhere on the page. */
+  readonly asking?: boolean;
   readonly call: ToolCall;
-}): ReactElement => {
+}
+
+export const ToolCard = ({
+  asking = false,
+  call,
+}: ToolCardProps): ReactElement => {
   const story = storyOf(call.name);
-  const status = statusWord(call);
+  const summary = summarize(call);
+  const status = toolStatus(call, summary, { asking });
   const IconOf = story.icon;
   return (
-    <details
+    <Collapsible
       className={cn(
-        "group open:shadow-card rounded-xl border text-sm transition-colors",
+        "data-open:shadow-card rounded-xl border text-sm transition-colors",
         TONE[story.tone],
-        status === "failed" && "border-destructive/40"
+        PHASE[status.phase]
       )}
+      data-phase={status.phase}
+      data-tool={call.name}
     >
-      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 select-none [&::-webkit-details-marker]:hidden">
-        <IconOf
-          className={cn(
-            "size-4 shrink-0 opacity-70",
-            status === "running…" && "motion-safe:animate-pulse"
-          )}
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left select-none [&[data-panel-open]_[data-slot=chevron]]:rotate-180">
+        <IconOf aria-hidden className="size-4 shrink-0 opacity-70" />
+        <span
+          className={cn("min-w-0 flex-1 truncate", status.live && "shimmer")}
+        >
+          {story.sentence(call.input)}
+        </span>
+        <span className="text-machine shrink-0 opacity-60">{status.label}</span>
+        <ChevronDownIcon
+          aria-hidden
+          className="size-3.5 shrink-0 opacity-50 transition-transform"
+          data-slot="chevron"
         />
-        <span className="flex-1 truncate">{story.sentence(call.input)}</span>
-        <span className="text-machine opacity-60">{status}</span>
-      </summary>
-      <div className="space-y-2 border-t px-3 py-2">
+      </CollapsibleTrigger>
+      {summary === null ? null : (
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pb-2.5 pl-9">
+          <span className={cn("font-medium", OUTCOME_TEXT[summary.outcome])}>
+            {summary.headline}
+          </span>
+          {summary.detail === null ? null : (
+            <span className="text-muted-foreground text-xs">
+              {summary.detail}
+            </span>
+          )}
+          {summary.stubbed ? (
+            <span className="text-machine text-muted-foreground">fixture</span>
+          ) : null}
+        </div>
+      )}
+      <CollapsibleContent className="space-y-2 border-t px-3 py-2">
         <pre className="text-machine max-h-40 overflow-auto whitespace-pre-wrap">
           {JSON.stringify(call.input, null, 2)}
         </pre>
@@ -147,7 +111,7 @@ export const ToolCard = ({
         {call.errorText === null ? null : (
           <p className="text-destructive text-xs">{call.errorText}</p>
         )}
-      </div>
-    </details>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };

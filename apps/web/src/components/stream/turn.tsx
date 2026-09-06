@@ -24,6 +24,8 @@ import { ToolCard } from "./tool-card";
 
 interface TurnProps {
   readonly after?: ReactElement | null;
+  /** An approval card is open: a running money tool is the one waiting. */
+  readonly asking?: boolean;
   readonly message: FroggyMessage;
   readonly receipts: readonly Receipt[];
 }
@@ -36,8 +38,10 @@ const Reasoning = ({ text }: { readonly text: string }): ReactElement => (
 );
 
 const Parts = ({
+  asking,
   message,
 }: {
+  readonly asking: boolean;
   readonly message: FroggyMessage;
 }): ReactElement => (
   <>
@@ -64,7 +68,7 @@ const Parts = ({
             · {part.type}
           </p>
         ) : (
-          <ToolCard call={call} key={key} />
+          <ToolCard asking={asking} call={call} key={key} />
         );
       }
       return null;
@@ -80,6 +84,7 @@ const textOf = (message: FroggyMessage): string =>
 
 export const Turn = ({
   after = null,
+  asking = false,
   message,
   receipts,
 }: TurnProps): ReactElement => {
@@ -102,7 +107,7 @@ export const Turn = ({
         <FrogMark className="size-5" />
       </MessageAvatar>
       <MessageContent className="gap-2">
-        <Parts message={message} />
+        <Parts asking={asking} message={message} />
         {after}
         {receipts.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />

@@ -284,6 +284,7 @@ export const WorkspacePage = (): ReactElement => {
             </div>
           ) : null}
           <Stream
+            asking={app.approvals.length > 0}
             busy={busy}
             empty={<Empty />}
             items={items}

@@ -31,6 +31,8 @@ import { ReceiptTicket } from "../cards/receipt-ticket";
 import { Turn } from "./turn";
 
 interface StreamProps {
+  /** An approval card is open somewhere on the page. */
+  readonly asking: boolean;
   readonly busy: boolean;
   readonly empty: ReactNode;
   readonly items: readonly StreamItem[];
@@ -81,6 +83,7 @@ const ThinkingMarker = (): ReactElement => (
 );
 
 export const Stream = ({
+  asking,
   busy,
   empty,
   items,
@@ -129,6 +132,7 @@ export const Stream = ({
                 >
                   <Turn
                     after={item.message.id === liveAfter ? liveCard : null}
+                    asking={asking}
                     message={item.message}
                     receipts={item.receipts}
                   />
