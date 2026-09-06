@@ -15,7 +15,7 @@ curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
 
 ## The agent's side
 
-- `packages/payments/src/payer.ts` builds the payment with `@x402/hedera` from the pocket account `0.0.9700388`; `apps/server/src/tools.ts` (`x402_fetch`) sends it only after the mandate allowed the spend and the ledger reserved it.
+- `packages/payments/src/payer.ts` builds the payment with `@x402/hedera` from the person's own account (opened by the float `0.0.9700388` at their first Hedera payment; the float itself pays on a deployment without `HEDERA_KEK`); `apps/server/src/tools.ts` (`x402_fetch`) sends it only after the mandate allowed the spend and the ledger reserved it.
 - `x402_probe` reads any 402 without paying; the person adds a seller to the directory, and only then is its host payable. Every option that cannot be paid says why (scheme, network, amount, fee payer).
 
 ## Settlements
