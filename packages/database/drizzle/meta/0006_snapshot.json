@@ -89,12 +89,8 @@
           "name": "agent_tokens_user_id_users_did_fk",
           "tableFrom": "agent_tokens",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -199,12 +195,8 @@
           "name": "directory_user_id_users_did_fk",
           "tableFrom": "directory",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -245,12 +237,8 @@
           "name": "mandates_user_id_users_did_fk",
           "tableFrom": "mandates",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -337,12 +325,8 @@
           "name": "receipts_user_id_users_did_fk",
           "tableFrom": "receipts",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -573,12 +557,8 @@
           "name": "spends_user_id_users_did_fk",
           "tableFrom": "spends",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -729,12 +709,8 @@
           "name": "tasks_user_id_users_did_fk",
           "tableFrom": "tasks",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -781,12 +757,8 @@
           "name": "telegram_pairings_user_id_users_did_fk",
           "tableFrom": "telegram_pairings",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "did"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["did"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -796,9 +768,7 @@
         "telegram_pairings_user_id_unique": {
           "name": "telegram_pairings_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
+          "columns": ["user_id"]
         }
       },
       "policies": {},
