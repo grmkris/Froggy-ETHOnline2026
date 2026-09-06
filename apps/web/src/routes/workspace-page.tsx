@@ -289,6 +289,7 @@ export const WorkspacePage = (): ReactElement => {
             items={items}
             liveAfter={liveAfter}
             liveCard={liveCard}
+            thinking={chat.status === "submitted"}
           />
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-4">
             <NoticeList
