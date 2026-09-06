@@ -171,7 +171,7 @@ Kristjan's direction: mainnet everywhere, and everything in place so he can test
 | B | **Done 22:15 CEST.** The wallet home above the chat: a dollar total, USDC on Base with the address, the person's Hedera account with its HBAR priced at the mirror rate, the service credit, Copy on every name, Add funds, Top up credit, Connect an agent, the last three receipts; balances read from the Base RPC and the mirror node with a 15 s cache; explorer links follow the network | nothing |
 | C | Telegram: the bot's token and username to Railway, webhook registered, pairing, digest and approval cards verified; `/health` telegram live | the bot in BotFather, token in `~/.config/secrets.env` |
 | D | Flip production to mainnet once one Blocky402 settlement passes; HCS topic on mainnet; evidence | the HBAR from phase A |
-| E | 2.2 Graph brief evidence; 2.3 the treasury pays The Graph by x402 on Base, API key fallback | the USDC from phase A |
+| E | **Code done 22:25 CEST; evidence waits for the USDC.** 2.3: `apps/server/src/treasury.ts` pays a supplier's 402 from the treasury wallet under its policy and notes the settlement on HCS; `graphFor` prefers the treasury when `GRAPH_PAY_PER_QUERY` is on and `TREASURY_WALLET_ID` names the wallet, then the person's wallet, then the API key. 2.2 brief evidence with the first mainnet run | the USDC from phase A |
 | F | 2.1 prep: the skill installed into Hermes on Contabo, one task through Hermes' CLI | nothing |
 | G | Custody to Privy: a cosmos-type wallet per person as their Hedera key; the sealed keys and `HEDERA_KEK` retired | nothing |
 
