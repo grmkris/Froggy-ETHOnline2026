@@ -16,7 +16,7 @@ import {
   TicketPerforation,
   TicketStub,
 } from "@froggy/ui/components/ticket";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { secondsLeft } from "../../lib/format";
 
@@ -42,6 +42,21 @@ export const ApprovalTicket = ({
   request,
 }: ApprovalTicketProps): React.ReactElement => {
   const [left, setLeft] = useState(() => secondsLeft(request.expiresAt));
+  const ticketRef = useRef<HTMLElement>(null);
+  // The card arrives while the person may be typing; focus must not be taken
+  // from a half-written message. Otherwise the safe answer is a keypress away.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLInputElement
+    ) {
+      return;
+    }
+    ticketRef.current
+      ?.querySelector<HTMLButtonElement>('[data-kind="deny"]')
+      ?.focus();
+  }, []);
   useEffect(() => {
     const timer = setInterval(() => {
       setLeft(secondsLeft(request.expiresAt));
@@ -52,7 +67,12 @@ export const ApprovalTicket = ({
   }, [request.expiresAt]);
 
   return (
-    <Ticket aria-label={request.title} className="rise-in" tone="asking">
+    <Ticket
+      aria-label={request.title}
+      className="rise-in"
+      ref={ticketRef}
+      tone="asking"
+    >
       <TicketBody>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -79,6 +99,7 @@ export const ApprovalTicket = ({
       <TicketStub className="flex flex-wrap items-center justify-end gap-2 py-3">
         {request.options.map((option) => (
           <Button
+            data-kind={option.kind}
             disabled={disabled || left === 0}
             key={option.id}
             onClick={() => {
