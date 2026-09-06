@@ -1,14 +1,12 @@
 /**
  * The few things worth a slash.
  *
- * Not a command language: four verbs a person reaches for while the agent
- * has the floor. Freeze and stop act at once, over the socket and the run;
- * status and top-up are asks, sent as a turn in plain words. There is no
- * `/unfreeze`, on purpose — unfreezing asks first, in the header.
+ * Not a command language: three verbs a person reaches for while the agent
+ * has the floor. Stop acts at once, on the run; status and top-up are asks,
+ * sent as a turn in plain words.
  */
 
 export type SlashCommand =
-  | { readonly kind: "freeze" }
   | { readonly kind: "status" }
   | { readonly kind: "stop" }
   | { readonly amountUsd: number; readonly kind: "topup" }
@@ -20,16 +18,11 @@ export type SlashCommand =
 
 export interface SlashEntry {
   readonly hint: string;
-  readonly name: "freeze" | "status" | "stop" | "topup";
+  readonly name: "status" | "stop" | "topup";
   readonly usage: string;
 }
 
 const SLASH_COMMANDS: readonly SlashEntry[] = [
-  {
-    hint: "Freeze the wallet now. Nothing is spent until you unfreeze.",
-    name: "freeze",
-    usage: "/freeze",
-  },
   {
     hint: "Stop the running turn, here and on the server.",
     name: "stop",
@@ -64,7 +57,7 @@ export const parseSlash = (text: string): SlashCommand | null => {
   }
   const [rawName = "", argument] = trimmed.slice(1).split(/\s+/u);
   const name = rawName.toLowerCase();
-  if (name === "freeze" || name === "stop" || name === "status") {
+  if (name === "stop" || name === "status") {
     return { kind: name };
   }
   if (name === "topup") {
@@ -73,12 +66,5 @@ export const parseSlash = (text: string): SlashCommand | null => {
       ? { amountUsd, kind: "topup" }
       : { kind: "unknown", name, reason: "needs an amount, like /topup 1" };
   }
-  return {
-    kind: "unknown",
-    name,
-    reason:
-      name === "unfreeze"
-        ? "unfreezing asks first; use the button in the header"
-        : "no such command",
-  };
+  return { kind: "unknown", name, reason: "no such command" };
 };

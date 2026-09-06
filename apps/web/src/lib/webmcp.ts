@@ -81,18 +81,14 @@ export const webMcpTools = (
   {
     annotations: { readOnlyHint: true },
     description:
-      "The mandate the agent is held to: caps, allowlists, approval threshold, whether it is frozen.",
+      "The mandate the agent is held to: caps, allowlists, approval threshold.",
     execute: async () => {
       await Promise.resolve();
       const { mandate } = read();
       if (mandate === null) {
         return "No mandate loaded yet.";
       }
-      return JSON.stringify(
-        { frozen: mandate.frozen, rules: mandate.rules },
-        null,
-        2
-      );
+      return JSON.stringify({ rules: mandate.rules }, null, 2);
     },
     inputSchema: NO_INPUT,
     name: "get_policy",

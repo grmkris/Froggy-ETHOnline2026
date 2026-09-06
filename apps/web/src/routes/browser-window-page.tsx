@@ -44,7 +44,7 @@ export const BrowserWindowPage = (): ReactElement => {
     };
   }, [painter]);
 
-  const drive = driveModeOf(browser.state, browser.state?.frozen ?? false);
+  const drive = driveModeOf(browser.state);
   return (
     <div className="flex h-dvh flex-col gap-3 p-3">
       <div className="flex items-center gap-2">

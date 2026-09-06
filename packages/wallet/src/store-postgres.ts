@@ -1,11 +1,10 @@
 /**
- * The durable store: frozen flags, mandates and receipts in Postgres.
+ * The durable store: mandates, receipts, sales, tasks and tokens in Postgres.
  *
  * Receipts and mandates are stored as documents. A receipt is an immutable
  * record of a past decision, and a mandate is whatever the person last
  * saved; normalising either into columns would mean a later schema change
- * silently rewrites history. `frozen_at` is a timestamp on the user row so
- * "frozen at 14:02, unfrozen at 14:09" stays answerable.
+ * silently rewrites history.
  */
 
 import {
@@ -496,28 +495,9 @@ export const postgresStore = (sql: Sql): Store => {
         .set({
           digestHour: null,
           digestTimezone: null,
-          frozenAt: null,
           pocketUsdMicros: null,
         })
         .where(eq(users.did, userId));
-    },
-    frozen: {
-      load: async (userId) => {
-        const rows = await database
-          .select({ frozenAt: users.frozenAt })
-          .from(users)
-          .where(eq(users.did, userId))
-          .limit(1);
-        const [row] = rows;
-        return row?.frozenAt !== null && row?.frozenAt !== undefined;
-      },
-      save: async (userId, frozen) => {
-        await ensureUser(userId);
-        await database
-          .update(users)
-          .set({ frozenAt: frozen ? new Date() : null })
-          .where(eq(users.did, userId));
-      },
     },
     pocket: {
       adjust: async (userId, deltaUsdMicros) => {
@@ -540,13 +520,6 @@ export const postgresStore = (sql: Sql): Store => {
           .where(eq(users.did, userId))
           .limit(1);
         return rows[0]?.balance ?? null;
-      },
-      zero: async (userId) => {
-        await ensureUser(userId);
-        await database
-          .update(users)
-          .set({ pocketUsdMicros: 0 })
-          .where(eq(users.did, userId));
       },
     },
     mandates: {

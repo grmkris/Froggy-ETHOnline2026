@@ -101,11 +101,6 @@ export type MandateRule = typeof MandateRule.Type;
 
 export const Mandate = Schema.Struct({
   createdAt: Schema.Int,
-  /**
-   * The kill switch. Frozen is checked before every other rule and cannot be
-   * cleared by the agent — there is no tool that writes this field.
-   */
-  frozen: Schema.Boolean,
   id: MandateId,
   rules: Schema.Array(MandateRule),
   sessionId: SessionId,
@@ -164,7 +159,7 @@ export const Deny = Schema.TaggedStruct("deny", {
   code: DenialCode,
   /** Plain sentence for the human. Never the only record — `code` is the record. */
   message: Schema.String,
-  /** Absent only for `frozen` and `unpriceable`, which are not rule-shaped. */
+  /** Absent only for `unpriceable`, and for `frozen` on receipts written before the kill switch was removed. */
   ruleId: Schema.optional(RuleId),
 });
 

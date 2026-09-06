@@ -12,7 +12,6 @@ import {
 
 const mandate: Mandate = {
   createdAt: 1,
-  frozen: false,
   id: MandateId.generate(),
   rules: [
     { _tag: "per_tx_cap", id: RuleId.generate(), maxUsdMicros: usd(2) },

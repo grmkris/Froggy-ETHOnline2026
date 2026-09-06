@@ -125,8 +125,8 @@ export const TelegramSettings = ({
         <span>
           Telegram
           <span className="text-muted-foreground block text-xs">
-            Your digest, approval questions with buttons, a freeze button, and a
-            way to talk to the agent from your phone.
+            Your digest, approval questions with buttons, and a way to talk to
+            the agent from your phone.
           </span>
         </span>
         {paired ? (

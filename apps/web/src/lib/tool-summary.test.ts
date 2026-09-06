@@ -170,7 +170,6 @@ describe("summarize wallet tools", () => {
     const text = JSON.stringify(
       {
         address: "0xabc",
-        frozen: true,
         pocketUsdMicros: 250_000,
         rules: [],
         windowSpentUsdMicros: 4000,
@@ -179,7 +178,7 @@ describe("summarize wallet tools", () => {
       2
     );
     expect(summarize(call("wallet_status", text))).toMatchObject({
-      detail: "Pocket $0.25 · frozen",
+      detail: "Pocket $0.25",
       headline: "$0.0040 spent in this window",
       outcome: "info",
     });

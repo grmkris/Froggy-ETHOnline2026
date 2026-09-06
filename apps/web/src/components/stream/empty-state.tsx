@@ -67,16 +67,9 @@ const MandateTicket = ({
   const pocket = wallet?.pocketUsdMicros ?? null;
   const { policyId } = useSessionIds();
   return (
-    <Ticket
-      aria-label="The mandate"
-      tone={mandate.frozen ? "muted" : "default"}
-    >
+    <Ticket aria-label="The mandate" tone="default">
       <TicketBody>
-        <p className="text-muted-foreground text-xs">
-          {mandate.frozen
-            ? "Frozen. Nothing is spent until you unfreeze."
-            : "The leash"}
-        </p>
+        <p className="text-muted-foreground text-xs">The leash</p>
         <p className="font-display mt-1 text-lg font-semibold">
           {caps ?? "No caps set: nothing may be spent."}
         </p>

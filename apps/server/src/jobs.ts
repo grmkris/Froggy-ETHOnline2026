@@ -98,9 +98,6 @@ export const runDailyFor = async (
     await deps.sink.deliver(report);
     return report;
   };
-  if (session.currentMandate.frozen) {
-    return await skip("the wallet is frozen");
-  }
   if (deps.runs.get(session.id) !== null) {
     return await skip("a turn is already running");
   }

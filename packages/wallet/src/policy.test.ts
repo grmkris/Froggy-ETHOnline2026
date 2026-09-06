@@ -35,9 +35,8 @@ const intent = (overrides: Partial<SpendIntent> = {}): SpendIntent => ({
   ...overrides,
 });
 
-const mandate = (rules: Mandate["rules"], frozen = false): Mandate => ({
+const mandate = (rules: Mandate["rules"]): Mandate => ({
   createdAt: NOW,
-  frozen,
   id: MandateId.generate(),
   rules,
   sessionId: SessionId.generate(),
@@ -52,7 +51,6 @@ const decide = (
   rules: Mandate["rules"],
   overrides: {
     approved?: boolean;
-    frozen?: boolean;
     intent?: Partial<SpendIntent>;
     pocket?: AuthorizeInput["pocket"];
     recent?: readonly LedgerEntry[];
@@ -63,7 +61,7 @@ const decide = (
       {
         approved: overrides.approved ?? false,
         intent: intent(overrides.intent),
-        mandate: mandate(rules, overrides.frozen ?? false),
+        mandate: mandate(rules),
         now: NOW,
         recent: overrides.recent ?? [],
       },
@@ -118,13 +116,6 @@ describe("authorize", () => {
       { _tag: "per_tx_cap", id: rule(), maxUsdMicros: micros(2_000_000) },
     ]);
     expect(decision._tag).toBe("allow");
-  });
-
-  it("refuses everything while frozen, before any other rule is consulted", () => {
-    // An empty rule list would otherwise allow: the point is that freezing does
-    // not depend on a rule existing, so it cannot be removed by editing rules.
-    const decision = decide([], { frozen: true });
-    expect(decision).toMatchObject({ _tag: "deny", code: "frozen" });
   });
 
   it("refuses a payee the model produced, even when it is on the allowlist", () => {

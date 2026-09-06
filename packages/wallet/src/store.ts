@@ -1,10 +1,9 @@
 /**
  * What survives a restart, beyond the ledger.
  *
- * Three things a redeploy must not forget: that a wallet was frozen — a kill
- * switch that resets on deploy is not a kill switch — the mandate a person
- * edited, and the receipts that say why money moved. The ledger already
- * outlives the process; this is the rest.
+ * What a redeploy must not forget: the mandate a person edited, the receipts
+ * that say why money moved, the sales book, the tasks and the agent tokens.
+ * The ledger already outlives the process; this is the rest.
  *
  * Same split as the ledger: an in-memory store when there is no database,
  * reported as `database=stub` in the pane, and a Postgres one otherwise,
@@ -104,16 +103,12 @@ export interface Store {
     readonly save: (userId: UserId, schedule: DigestSchedule) => Promise<void>;
   };
   /**
-   * Everything this store holds about one person: mandate, receipts, the
-   * frozen flag. The ledger's spend rows are not here — they are the money
+   * Everything this store holds about one person: mandate, receipts, tasks
+   * and tokens. The ledger's spend rows are not here — they are the money
    * record and stay — but nothing that says who this person was or what they
    * allowed survives.
    */
   readonly forget: (userId: UserId) => Promise<void>;
-  readonly frozen: {
-    readonly load: (userId: UserId) => Promise<boolean>;
-    readonly save: (userId: UserId, frozen: boolean) => Promise<void>;
-  };
   readonly mandates: {
     readonly load: (userId: UserId) => Promise<Mandate | null>;
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
@@ -131,8 +126,6 @@ export interface Store {
     ) => Promise<number>;
     /** Null when this person has never had a pocket, so a starting credit happens once. */
     readonly load: (userId: UserId) => Promise<number | null>;
-    /** Freeze. A zero balance, not a missing one: the starting credit does not return. */
-    readonly zero: (userId: UserId) => Promise<void>;
   };
   readonly telegram: {
     readonly forUser: (userId: UserId) => Promise<TelegramPairing | null>;
@@ -185,7 +178,6 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 };
 
 export const memoryStore = (): Store => {
-  const frozen = new Map<UserId, boolean>();
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
   const digests = new Map<UserId, DigestSchedule>();
@@ -392,20 +384,9 @@ export const memoryStore = (): Store => {
       entries.delete(userId);
       unpair(userId);
       digests.delete(userId);
-      frozen.delete(userId);
       mandates.delete(userId);
       pockets.delete(userId);
       receipts.delete(userId);
-    },
-    frozen: {
-      load: async (userId) => {
-        await Promise.resolve();
-        return frozen.get(userId) ?? false;
-      },
-      save: async (userId, value) => {
-        await Promise.resolve();
-        frozen.set(userId, value);
-      },
     },
     mandates: {
       load: async (userId) => {
@@ -427,10 +408,6 @@ export const memoryStore = (): Store => {
       load: async (userId) => {
         await Promise.resolve();
         return pockets.get(userId) ?? null;
-      },
-      zero: async (userId) => {
-        await Promise.resolve();
-        pockets.set(userId, 0);
       },
     },
     receipts: {

@@ -21,7 +21,7 @@ const BEATS = [
     "Leash",
     "Every payment goes through your mandate. The model cannot raise a limit.",
   ],
-  ["Freeze", "One button stops the run, the browser and the signer together."],
+  ["Stop", "One word ends the run, and one button disconnects an agent."],
 ] as const;
 
 const Frame = ({

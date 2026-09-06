@@ -92,7 +92,7 @@ export interface Services {
   readonly rates: RateSource;
   /** Releases anything this module acquired. Called from the server's scope. */
   readonly shutdown: () => Promise<void>;
-  /** Frozen flags, mandates and receipts; same live/stub split as the ledger. */
+  /** Mandates, receipts, sales, tasks and tokens; same live/stub split as the ledger. */
   readonly store: Store;
 }
 

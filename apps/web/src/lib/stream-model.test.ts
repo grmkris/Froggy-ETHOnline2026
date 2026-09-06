@@ -69,8 +69,8 @@ const receiptsAt = (
 const event = (at: number): TimelineEvent => ({
   at,
   id: `e${at}`,
-  kind: "frozen",
-  text: "frozen",
+  kind: "asked",
+  text: "asked",
 });
 
 const clocked = (id: string, at: number): FroggyMessage => ({

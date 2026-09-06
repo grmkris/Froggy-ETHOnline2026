@@ -1,7 +1,7 @@
 /**
  * What Froggy says on Telegram.
  *
- * Cards, so the four approval answers and the freeze button are buttons and
+ * Cards, so the four approval answers are buttons and
  * not instructions to type. The same four answers in the same order as the
  * web ticket; the wire just looks different. Built with the SDK's element
  * functions rather than JSX, so this file needs no runtime pragma.
@@ -16,7 +16,6 @@ import type { ButtonStyle, CardElement } from "chat";
 import type { DigestReport } from "../jobs";
 
 export const APPROVAL_ACTION = "approval";
-export const FREEZE_ACTION = "freeze";
 
 /** `requestId|optionId`, because a button carries one string. */
 const approvalValue = (requestId: string, optionId: string): string =>
@@ -49,9 +48,6 @@ const STYLE: Record<ApprovalKind, ButtonStyle> = {
   deny: "default",
   deny_stop: "danger",
 };
-
-const freezeButton = () =>
-  Button({ id: FREEZE_ACTION, label: "Freeze the wallet", style: "danger" });
 
 export const approvalCard = (request: ApprovalRequest): CardElement =>
   Card({
@@ -99,7 +95,6 @@ export const digestCard = (report: DigestReport): CardElement =>
           ),
         }),
       ]),
-      Actions([freezeButton()]),
     ],
     title: "Your daily digest",
   });
@@ -108,9 +103,8 @@ export const pairedCard = (): CardElement =>
   Card({
     children: [
       CardText(
-        "This chat is now your pager. Your daily digest lands here, approval questions come here with buttons, and you can talk to the agent by writing to it. /freeze stops everything."
+        "This chat is now your pager. Your daily digest lands here, approval questions come here with buttons, and you can talk to the agent by writing to it."
       ),
-      Actions([freezeButton()]),
     ],
     title: "Paired with Froggy",
   });

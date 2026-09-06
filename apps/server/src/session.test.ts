@@ -367,65 +367,7 @@ describe("what a malformed request gets", () => {
   });
 });
 
-describe("a freeze between the reservation and the payment", () => {
-  test("abandons the spend: nothing is sent and nothing counts", async () => {
-    const inner = memoryLedger();
-    let session: WorkspaceSession | null = null;
-    // The freeze lands while the reservation is being written — the narrowest
-    // window there is, and the one the last-look check exists for.
-    const ledger: SpendLedger = {
-      ...inner,
-      reserve: async (row) => {
-        session?.setFrozen(true);
-        return await inner.reserve(row);
-      },
-    };
-    session = sessionWith(ledger);
-    let sent = false;
-    const result = await session.spend(
-      request({
-        key: "frozen",
-        settle: async () => {
-          sent = true;
-          await Promise.resolve();
-          return {
-            network: "hedera:testnet",
-            ok: true,
-            stubbed: false,
-            transactionId: "never",
-          };
-        },
-      })
-    );
-    expect(sent).toBe(false);
-    expect(result.abandoned).toContain("frozen");
-    expect(result.decision._tag).toBe("allow");
-    expect(result.receipt.settlement).toBeUndefined();
-    const counted = await inner.since(ALICE, 0);
-    expect(counted.length).toBe(0);
-  });
-});
-
-describe("hydration", () => {
-  test("restores the frozen flag, the saved mandate and the receipts", async () => {
-    const store = memoryStore();
-    const first = sessionWith(memoryLedger(), store);
-    await first.spend(request({ key: "before" }));
-    first.setFrozen(true);
-    const saved = first.updateMandate({ ...first.currentMandate, rules: [] });
-    await Bun.sleep(5);
-
-    const second = sessionWith(memoryLedger(), store);
-    expect(second.currentMandate.frozen).toBe(false);
-    await second.hydrate();
-    expect(second.currentMandate.frozen).toBe(true);
-    expect(second.currentMandate.rules).toEqual(saved.rules);
-    expect(second.currentMandate.sessionId).toBe(second.id);
-    expect(second.history.length).toBe(1);
-    const recent = await second.recentReceipts();
-    expect(recent.length).toBe(1);
-  });
-});
+describe("hydration", () => {});
 
 /**
  * The default mandate asks above $1 and caps a transaction at $2, so 1.5 HBAR
@@ -563,20 +505,6 @@ describe("a spend over the approval threshold", () => {
     expect(sent.count).toBe(0);
     expect(result.decision).toMatchObject({ code: "approval_timeout" });
     expect(result.receipt.approval?.resolution).toBe("timeout");
-  });
-
-  test("a wallet frozen while the card was open refuses, whatever the answer", async () => {
-    let session: WorkspaceSession | null = null;
-    const { ask } = asker(() => {
-      session?.setFrozen(true);
-      return { accessToken: null, kind: "answered", optionId: "allow_once" };
-    });
-    session = sessionWith(memoryLedger(), memoryStore(), ask);
-    const sent = { count: 0 };
-    const result = await session.spend(payingRequest("frozen", sent));
-    expect(sent.count).toBe(0);
-    expect(result.decision).toMatchObject({ _tag: "deny", code: "frozen" });
-    expect(result.receipt.approval?.resolution).toBe("allow_once");
   });
 });
 

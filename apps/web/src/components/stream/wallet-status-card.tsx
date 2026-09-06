@@ -3,7 +3,7 @@
  *
  * `wallet_status` answers the model in JSON, and JSON is not what a person
  * reads. The same object as a small table: the address, what this window
- * has spent, what the pocket holds, whether the wallet is frozen, and how
+ * has spent, what the pocket holds, and how
  * many rules the mandate carries.
  */
 
@@ -44,7 +44,6 @@ export const WalletStatusCard = ({
         status.pocketUsdMicros === undefined ? null : (
           <Row label="pocket" value={formatUsd(status.pocketUsdMicros)} />
         )}
-        <Row label="frozen" value={status.frozen ? "yes" : "no"} />
         <Row
           label="rules"
           value={`${rules.length}${rules.length === 0 ? "" : `: ${rules.map((rule) => rule._tag.replaceAll("_", " ")).join(", ")}`}`}

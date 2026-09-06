@@ -5,7 +5,6 @@ import type { SuggestionInput } from "./suggestions";
 
 const quiet: SuggestionInput = {
   busy: false,
-  frozen: false,
   hasGraph: false,
   hasPaid: false,
   lastRefused: false,
@@ -14,14 +13,11 @@ const quiet: SuggestionInput = {
 };
 
 describe("suggestionsFor", () => {
-  it("says nothing before the first message, while busy, or when frozen", () => {
+  it("says nothing before the first message or while busy", () => {
     expect(suggestionsFor({ ...quiet, started: false })).toEqual([]);
     expect(suggestionsFor({ ...quiet, busy: true, hasGraph: true })).toEqual(
       []
     );
-    expect(
-      suggestionsFor({ ...quiet, frozen: true, lastRefused: true })
-    ).toEqual([]);
   });
 
   it("asks why after a refusal, and offers a top-up for an empty pocket", () => {
@@ -56,7 +52,6 @@ describe("suggestionInputFrom", () => {
   it("reads the flags off the page's state", () => {
     const input = suggestionInputFrom({
       busy: false,
-      frozen: false,
       messages: [
         { id: "u", parts: [{ text: "hi", type: "text" }], role: "user" },
         {

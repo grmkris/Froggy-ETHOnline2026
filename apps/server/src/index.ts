@@ -19,8 +19,6 @@ import { authenticate, bearerFromProtocols } from "./auth";
 import { ModelBudget } from "./budget";
 import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
-import { createFreeze } from "./freeze";
-import type { FreezeControl } from "./freeze";
 import { AgentGrants } from "./grants";
 import { InteractionRegistry } from "./interactions";
 import { runDailyFor } from "./jobs";
@@ -65,7 +63,7 @@ class FroggyServer extends Context.Service<
         Pick<
           ReturnType<typeof createSocketHandlers>,
           "publishApp" | "publishBrowserState"
-        > & { freeze: FreezeControl; pager: TelegramPager }
+        > & { pager: TelegramPager }
       > = {};
 
       // Fetched once at boot, so the first payment is not the first time
@@ -122,20 +120,17 @@ class FroggyServer extends Context.Service<
       });
 
       const workspaces = new Workspaces({
-        // The card goes up through the registry; "stop and freeze" is the one
-        // answer that does more than resolve the spend, and it does it here
-        // rather than in the session so the session never learns what a
-        // browser or a signer is.
+        // The card goes up through the registry; "stop the agent" is the one
+        // answer that does more than resolve the spend: it aborts the run and
+        // withdraws every other open card, here rather than in the session so
+        // the session never learns what a run is.
         ask: async (userId, input) => {
           // The same question, on the phone too, with the same four answers.
           sinks.pager?.postApproval(userId, input.request);
           const outcome = await interactions.park({ ...input, userId });
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
-            sinks.freeze?.freeze(
-              userId,
-              "stopped from the approval card",
-              outcome.accessToken
-            );
+            runs.abort(workspaces.for(userId).session.id);
+            interactions.abortAll(userId, "stopped from the approval card");
           }
           return outcome;
         },
@@ -199,16 +194,6 @@ class FroggyServer extends Context.Service<
         workspaces,
       });
 
-      const freeze = createFreeze({
-        grants,
-        interactions,
-        publishApp: (userId, message) => {
-          sinks.publishApp?.(userId, message);
-        },
-        runs,
-        workspaces,
-      });
-
       // Turns and steps per person per day; the demo account is exempt so a
       // judge mid-recording is never told to come back tomorrow.
       const budget = new ModelBudget({
@@ -221,7 +206,6 @@ class FroggyServer extends Context.Service<
       const unlocks = new UnlockTokens();
 
       const sockets = createSocketHandlers({
-        freeze,
         interactions,
         runs,
         services,
@@ -236,7 +220,6 @@ class FroggyServer extends Context.Service<
           await workspaces.sweepIdle();
         });
       }, SWEEP_INTERVAL_MS);
-      sinks.freeze = freeze;
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
@@ -249,7 +232,6 @@ class FroggyServer extends Context.Service<
               botUsername: environment.telegramBotUsername,
               budget,
               unlocks,
-              freeze,
               interactions,
               oracleUrl,
               publishApp: sockets.publishApp,

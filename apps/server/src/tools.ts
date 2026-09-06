@@ -4,7 +4,7 @@
  * Two rules govern this list, and both are structural rather than advisory:
  *
  *   1. **The approval channel is not a tool.** There is no `raise_limit`, no
- *      `resolve_approval`, no `unfreeze`. An agent that can approve its own
+ *      `resolve_approval`, no `raise_limit`. An agent that can approve its own
  *      spending has no leash, and a prompt telling it not to is a request, not
  *      a control. Freezing and approving arrive on the app socket, from a human.
  *   2. **Payment goes through the session, never around it.** `x402_fetch` signs
@@ -564,7 +564,6 @@ export const buildTools = (deps: ToolDeps) => {
           JSON.stringify(
             {
               address: summary.address,
-              frozen: mandate.frozen,
               pocketUsdMicros: summary.pocketUsdMicros,
               rules: mandate.rules,
               windowSpentUsdMicros: summary.windowSpentUsdMicros,

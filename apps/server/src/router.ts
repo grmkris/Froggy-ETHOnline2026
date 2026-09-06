@@ -95,7 +95,6 @@ type ResponseBody =
   | AddOutcome
   | ProbeSummary
   | DigestSchedule
-  | { readonly frozen: true }
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
   | { readonly agents: readonly AgentToken[] }
@@ -184,7 +183,7 @@ const serveStatic = async (
   return new Response(Bun.file(`${directory}/index.html`));
 };
 
-/** A turn from the web chat. Refused while frozen; started otherwise. */
+/** A turn from the web chat. */
 const handleChatPost = async (
   deps: RouterDeps,
   request: Request,
@@ -192,12 +191,6 @@ const handleChatPost = async (
   userId: UserId
 ): Promise<Response> => {
   const sessionId = workspace.session.id;
-  // A frozen wallet does not start turns. The policy engine would refuse
-  // every spend anyway; refusing the turn is what stops the agent burning
-  // model budget narrating refusals against a wallet it cannot use.
-  if (workspace.session.currentMandate.frozen) {
-    return json({ frozen: true }, 423);
-  }
   const decoded = decodeChatBody(await request.json());
   if (decoded._tag === "Failure") {
     return json({ error: "Malformed chat request." }, 400);

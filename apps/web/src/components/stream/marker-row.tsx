@@ -1,7 +1,7 @@
 /**
  * Something that happened to the wallet or the turn, between the turns.
  *
- * A freeze, an unfreeze or a pause for the person is a line across the
+ * A pause for the person is a line across the
  * conversation, because everything after it is different; a top-up, an
  * answer or a turn started elsewhere is a note in the margin. None has a
  * live role: the announcer says them once, and a marker that announced
@@ -20,9 +20,8 @@ import {
   HandIcon,
   PiggyBankIcon,
   SmartphoneIcon,
-  SnowflakeIcon,
-  SunIcon,
 } from "lucide-react";
+import type { SunIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import type { TimelineEvent } from "../../lib/app-state";
@@ -32,26 +31,18 @@ const ICON: Record<TimelineEvent["kind"], typeof SunIcon> = {
   answered: CheckIcon,
   asked: HandIcon,
   elsewhere: SmartphoneIcon,
-  frozen: SnowflakeIcon,
   topup: PiggyBankIcon,
-  unfrozen: SunIcon,
 };
 
 const TONE: Record<TimelineEvent["kind"], string> = {
   answered: "text-brand",
   asked: "text-drive-agent",
   elsewhere: "text-drive-human",
-  frozen: "text-drive-frozen",
   topup: "text-brand",
-  unfrozen: "text-muted-foreground",
 };
 
 /** A line across the conversation, or a note in its margin. */
-const ACROSS: ReadonlySet<TimelineEvent["kind"]> = new Set([
-  "asked",
-  "frozen",
-  "unfrozen",
-]);
+const ACROSS: ReadonlySet<TimelineEvent["kind"]> = new Set(["asked"]);
 
 export const MarkerRow = ({
   event,

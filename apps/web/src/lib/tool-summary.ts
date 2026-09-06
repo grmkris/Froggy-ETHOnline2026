@@ -182,12 +182,12 @@ const statusSummary = (text: string): ToolSummary | null => {
   if (status === null) {
     return null;
   }
-  const { frozen, pocketUsdMicros, windowSpentUsdMicros } = status;
+  const { pocketUsdMicros, windowSpentUsdMicros } = status;
   const pocket =
     pocketUsdMicros === undefined || pocketUsdMicros === null
       ? []
       : [`Pocket ${formatUsd(pocketUsdMicros)}`];
-  const detail = [...pocket, ...(frozen ? ["frozen"] : [])].join(" · ");
+  const detail = pocket.join(" · ");
   return summary(
     `${formatUsd(windowSpentUsdMicros)} spent in this window`,
     "info",

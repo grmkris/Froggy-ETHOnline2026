@@ -3,10 +3,10 @@
  *
  * One bot, one DM per person. It carries the daily digest, puts approval
  * questions in front of the person with the same four answers as the web
- * ticket, freezes on request, and — because the loop is the same loop —
+ * ticket, stops on request, and — because the loop is the same loop —
  * lets the person talk to the agent from their phone. A turn started here
  * runs on the same session, under the same mandate, in the same run
- * registry, so the web app can see it and the freeze button stops it.
+ * registry, so the web app can see it and a stop from either side ends it.
  *
  * Nothing here is reachable without a pairing: a Telegram account becomes
  * somebody's only through a code they minted while signed in, and every
@@ -28,7 +28,6 @@ import type { Thread } from "chat";
 import { ModelBudgetExhaustedError } from "../budget";
 import type { ModelBudget } from "../budget";
 import { detached } from "../detached";
-import type { FreezeControl } from "../freeze";
 import type { InteractionRegistry } from "../interactions";
 import type { DigestReport, DigestSink } from "../jobs";
 import type { ChatRunRegistry } from "../runs";
@@ -40,7 +39,6 @@ import {
   APPROVAL_ACTION,
   approvalCard,
   digestCard,
-  FREEZE_ACTION,
   pairedCard,
   parseApprovalValue,
 } from "./cards";
@@ -84,7 +82,6 @@ export interface LivePagerDeps {
   readonly botUsername: string;
   /** Turns and steps per person per day, shared with the web chat. */
   readonly budget: ModelBudget;
-  readonly freeze: FreezeControl;
   readonly interactions: InteractionRegistry;
   readonly oracleUrl: string;
   readonly publishApp: (userId: UserId, message: AppServerMessage) => void;
@@ -162,29 +159,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     await thread.post(pairedCard());
   });
 
-  bot.onSlashCommand("/freeze", async (event) => {
-    const userId = await whose(event.user.userId);
-    const thread = await bot.openDM(event.user.userId);
-    if (userId === null) {
-      await thread.post(NOT_PAIRED);
-      return;
-    }
-    deps.freeze.freeze(userId, "frozen from Telegram", null);
-    await thread.post(
-      "Frozen. The run is stopped, the browser is held, and nothing can be paid until you unfreeze from the workspace."
-    );
-  });
-
-  bot.onAction(FREEZE_ACTION, async (event) => {
-    const userId = await whose(event.user.userId);
-    if (userId === null) {
-      await event.thread?.post(NOT_PAIRED);
-      return;
-    }
-    deps.freeze.freeze(userId, "frozen from Telegram", null);
-    await event.thread?.post("Frozen.");
-  });
-
   bot.onAction(APPROVAL_ACTION, async (event) => {
     const userId = await whose(event.user.userId);
     const answer = parseApprovalValue(event.value);
@@ -199,7 +173,10 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       null
     );
     if (answer.optionId === "deny_stop" && taken) {
-      deps.freeze.freeze(userId, "stopped from Telegram", null);
+      // "Stop the agent": the run ends and every other open card is withdrawn.
+      const workspace = await deps.workspaces.hydrate(userId);
+      deps.runs.abort(workspace.session.id);
+      deps.interactions.abortAll(userId, "stopped from Telegram");
     }
     await event.thread?.post(
       taken ? "Noted." : "That question has already been answered."
@@ -217,12 +194,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       return;
     }
     const workspace = await deps.workspaces.hydrate(userId);
-    if (workspace.session.currentMandate.frozen) {
-      await thread.post(
-        "The wallet is frozen; unfreeze it from the workspace before asking for anything."
-      );
-      return;
-    }
     const history = histories.get(userId) ?? [];
     const incoming: UIMessage = {
       id: `tg-${message.id}`,

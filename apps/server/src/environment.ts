@@ -391,7 +391,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
         [Redacted.value(privyAppSecret), PLACEHOLDER.privyAppSecret]
       ),
       // Token and webhook secret together: a bot that answers unverified
-      // webhooks is a bot anyone on the internet can freeze wallets through.
+      // webhooks is a bot anyone on the internet can answer approval cards through.
       telegram: modeOf(
         [Redacted.value(telegramBotToken), PLACEHOLDER.telegramBotToken],
         [

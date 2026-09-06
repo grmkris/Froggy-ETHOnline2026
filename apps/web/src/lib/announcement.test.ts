@@ -50,9 +50,8 @@ const asking: ApprovalRequest = {
   title: "Approve $1.50 to the oracle",
 };
 
-const frozen: Mandate = {
+const plain: Mandate = {
   createdAt: 1,
-  frozen: true,
   id: MandateId.generate(),
   rules: [],
   sessionId: SessionId.generate(),
@@ -69,7 +68,7 @@ describe("announcementFor", () => {
     expect(
       announcementFor({
         approvals: [asking],
-        mandate: frozen,
+        mandate: plain,
         receipts: [refused(5)],
         since: 0,
       })
@@ -93,16 +92,5 @@ describe("announcementFor", () => {
         since: 9,
       })
     ).toBe("");
-  });
-
-  it("falls back to the freeze", () => {
-    expect(
-      announcementFor({
-        approvals: [],
-        mandate: frozen,
-        receipts: [],
-        since: 0,
-      })
-    ).toBe("The wallet is frozen.");
   });
 });

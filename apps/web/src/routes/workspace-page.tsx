@@ -57,12 +57,8 @@ import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 
 const SPRING = { damping: 38, stiffness: 420, type: "spring" } as const;
 
-const composerLock = (frozen: boolean, connected: boolean): string | null => {
-  if (frozen) {
-    return "The wallet is frozen. Unfreeze it to continue.";
-  }
-  return connected ? null : "Connecting…";
-};
+const composerLock = (connected: boolean): string | null =>
+  connected ? null : "Connecting…";
 
 /** Stands in for the card while a window holds the page. */
 const Elsewhere = ({
@@ -178,8 +174,7 @@ export const WorkspacePage = (): ReactElement => {
     void chat.stop();
   }, [chat, getToken]);
 
-  const frozen = app.mandate?.frozen ?? false;
-  const drive = driveModeOf(browser.state, frozen);
+  const drive = driveModeOf(browser.state);
   // The wallet as tools for this browser's own agent, through the same leash.
   const webMcp = useWebMcp({
     mandate: app.mandate,
@@ -196,7 +191,6 @@ export const WorkspacePage = (): ReactElement => {
   const suggestions = suggestionsFor(
     suggestionInputFrom({
       busy,
-      frozen,
       messages: chat.messages,
       pocketUsdMicros: app.wallet?.pocketUsdMicros ?? null,
       receipts: app.receipts,
@@ -261,7 +255,7 @@ export const WorkspacePage = (): ReactElement => {
     );
   };
   const liveCard = inlineCard();
-  const disabledReason = composerLock(frozen, app.connected);
+  const disabledReason = composerLock(app.connected);
   const sessionIds = useMemo(
     () => ({ hcsTopicId: app.hcsTopicId, policyId: app.policyId }),
     [app.hcsTopicId, app.policyId]
@@ -280,9 +274,6 @@ export const WorkspacePage = (): ReactElement => {
           drive={drive}
           mandate={app.mandate}
           modes={app.modes}
-          onFreeze={(next) => {
-            app.send({ frozen: next, type: "mandate.freeze", v: 1 });
-          }}
           onOpenDetails={() => {
             setDetailsOpen(true);
           }}
@@ -374,9 +365,7 @@ export const WorkspacePage = (): ReactElement => {
                 busy={busy}
                 disabledReason={disabledReason}
                 onCommand={(command) => {
-                  if (command.kind === "freeze") {
-                    app.send({ frozen: true, type: "mandate.freeze", v: 1 });
-                  } else if (command.kind === "stop") {
+                  if (command.kind === "stop") {
                     stop();
                   } else if (command.kind === "status") {
                     send("What is the state of the wallet and the mandate?");

@@ -4,7 +4,7 @@
  * The code is minted in the workspace by a signed-in person and typed into
  * Telegram as `/start CODE`. It is short because a person types it, random
  * because it is the only thing standing between a stranger's Telegram and
- * your wallet's freeze button, and short-lived because a code that lasts is a
+ * your wallet's approval cards, and short-lived because a code that lasts is a
  * code that leaks.
  */
 

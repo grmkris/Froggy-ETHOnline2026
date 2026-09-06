@@ -64,7 +64,7 @@ export const Composer = ({
   const commands = slashMatches(draft);
 
   // The queued message goes when the turn ends; if the composer has been
-  // locked meanwhile — a freeze, a lost socket — it goes back to the draft
+  // locked meanwhile — a lost socket — it goes back to the draft
   // rather than into a wallet that is no longer taking requests.
   useEffect(() => {
     const timer =

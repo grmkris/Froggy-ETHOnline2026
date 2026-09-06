@@ -26,7 +26,7 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
   await expect(ticket.getByText("Your call", { exact: true })).toBeVisible();
   // The four answers, in the order every surface uses.
   await expect(ticket.getByRole("button")).toHaveText([
-    "Stop and freeze",
+    "Stop the agent",
     "Not this time",
     "Allow for this session",
     "Allow once",

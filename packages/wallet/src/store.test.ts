@@ -50,11 +50,9 @@ describe("memoryStore", () => {
   it("forgets a person entirely", async () => {
     const store = memoryStore();
     await store.receipts.append(ALICE, receipt(NOW));
-    await store.frozen.save(ALICE, true);
     await store.pocket.adjust(ALICE, 500_000);
     await store.forget(ALICE);
     expect(await store.receipts.recent(ALICE, 10)).toEqual([]);
-    expect(await store.frozen.load(ALICE)).toBe(false);
     expect(await store.mandates.load(ALICE)).toBeNull();
     // Null, not zero: the next session credits the starting allowance again.
     expect(await store.pocket.load(ALICE)).toBeNull();
@@ -68,9 +66,9 @@ describe("memoryStore", () => {
     // A debit the balance cannot cover floors at zero rather than going into
     // debt; the policy is what stops it being asked for in the first place.
     expect(await store.pocket.adjust(ALICE, -900_000)).toBe(0);
-    await store.pocket.adjust(ALICE, 100_000);
-    await store.pocket.zero(ALICE);
-    expect(await store.pocket.load(ALICE)).toBe(0);
+    // A top-up after the floor is credited in full: zero is a balance, not a state.
+    expect(await store.pocket.adjust(ALICE, 100_000)).toBe(100_000);
+    expect(await store.pocket.load(ALICE)).toBe(100_000);
   });
 
   it("returns receipts newest first, capped", async () => {
@@ -83,23 +81,19 @@ describe("memoryStore", () => {
     expect(recent.map((r) => r.at)).toEqual([NOW + 2, NOW + 1]);
   });
 
-  it("round-trips a mandate and the frozen flag", async () => {
+  it("round-trips a mandate", async () => {
     const store = memoryStore();
     const mandate: Mandate = {
       createdAt: NOW,
-      frozen: false,
       id: MandateId.generate(),
       rules: [],
       sessionId: SessionId.generate(),
     };
     expect(await store.mandates.load(ALICE)).toBeNull();
-    expect(await store.frozen.load(ALICE)).toBe(false);
 
     await store.mandates.save(ALICE, mandate);
-    await store.frozen.save(ALICE, true);
 
     expect(await store.mandates.load(ALICE)).toEqual(mandate);
-    expect(await store.frozen.load(ALICE)).toBe(true);
   });
 });
 

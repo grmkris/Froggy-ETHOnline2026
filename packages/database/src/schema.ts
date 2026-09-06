@@ -6,8 +6,8 @@
  * answer to "who is this", and duplicating that here would create a second
  * answer that can disagree. What this row records is the opposite direction:
  * **what we are holding on that person's behalf** — the Privy wallet we
- * attached an agent signer to, the Hedera pocket we funded for them, and
- * whether they have frozen it. That is state we created, so it has to live
+ * attached an agent signer to and the Hedera pocket we funded for them. That
+ * is state we created, so it has to live
  * somewhere we own.
  *
  * Everything is keyed on the DID rather than on a session id. A session id is
@@ -57,14 +57,6 @@ export const users = pgTable("users", {
    */
   digestHour: integer("digest_hour"),
   digestTimezone: text("digest_timezone"),
-  /**
-   * When the user froze their wallet, or null.
-   *
-   * A timestamp rather than a boolean so an unfreeze is a new fact rather than
-   * a lost one: "frozen at 14:02, unfrozen at 14:09" is answerable, and it is
-   * the question you have after something goes wrong.
-   */
-  frozenAt: timestamp("frozen_at", { withTimezone: true }),
   /** `0.0.x`. The Hedera pocket the agent pays small amounts from. */
   hederaAccountId: text("hedera_account_id"),
   /**

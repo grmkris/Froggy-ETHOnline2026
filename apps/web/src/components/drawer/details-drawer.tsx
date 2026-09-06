@@ -132,11 +132,6 @@ const Policy = ({
           </span>
         </li>
       ))}
-      {mandate?.frozen === true ? (
-        <li className="bg-drive-frozen-soft rounded-xl p-3 text-sm">
-          Frozen. Nothing is allowed until you unfreeze it from the header.
-        </li>
-      ) : null}
     </ul>
     {mandate === null ? null : (
       <details className="rounded-xl border p-3">

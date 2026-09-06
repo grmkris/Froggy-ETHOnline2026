@@ -3,7 +3,7 @@
  *
  * Every route and both sockets go through here. Before this existed the
  * deployed instance was open: `curl` could drive the shared browser, read the
- * mandate, or unfreeze it, because a missing `Origin` was treated as a
+ * mandate, or answer a card, because a missing `Origin` was treated as a
  * trustworthy non-browser client. Same-origin is not authentication, and this
  * module is what replaced that reasoning.
  *

@@ -10,7 +10,7 @@ import {
   SpendId,
   usdMicros,
 } from "@froggy/domain";
-import type { Mandate, Receipt } from "@froggy/domain";
+import type { Receipt } from "@froggy/domain";
 import type { ApprovalRequest, WalletSummary } from "@froggy/protocol";
 
 import { bindingWindowCap, initialAppState, reduceApp } from "./app-state";
@@ -126,7 +126,6 @@ describe("bindingWindowCap", () => {
   it("picks the widest window, which is the one the pane's figure covers", () => {
     const cap = bindingWindowCap({
       createdAt: 0,
-      frozen: false,
       id: MandateId.generate(),
       rules: [
         {
@@ -149,14 +148,6 @@ describe("bindingWindowCap", () => {
   });
 });
 
-const mandateOf = (frozen: boolean): Mandate => ({
-  createdAt: 1,
-  frozen,
-  id: MandateId.generate(),
-  rules: [],
-  sessionId: SessionId.generate(),
-});
-
 const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
   address: null,
   agentNote: null,
@@ -169,38 +160,6 @@ const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
 });
 
 describe("timeline events", () => {
-  it("files a freeze and an unfreeze, but not the first mandate or a resend", () => {
-    let state = server(
-      initialAppState,
-      { mandate: mandateOf(false), type: "mandate.state", v: 1 },
-      10
-    );
-    expect(state.events).toEqual([]);
-    state = server(
-      state,
-      { mandate: mandateOf(true), type: "mandate.state", v: 1 },
-      20
-    );
-    expect(state.events.map((event) => event.kind)).toEqual(["frozen"]);
-    // A reconnect resends the same state; that is not a second freeze.
-    state = server(
-      state,
-      { mandate: mandateOf(true), type: "mandate.state", v: 1 },
-      25
-    );
-    expect(state.events).toHaveLength(1);
-    state = server(
-      state,
-      { mandate: mandateOf(false), type: "mandate.state", v: 1 },
-      30
-    );
-    expect(state.events.map((event) => event.kind)).toEqual([
-      "frozen",
-      "unfrozen",
-    ]);
-    expect(state.events.at(-1)?.at).toBe(30);
-  });
-
   it("files a top-up when the pocket grows, and nothing when it shrinks", () => {
     let state = server(
       initialAppState,

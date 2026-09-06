@@ -10,7 +10,6 @@ import { Schema } from "effect";
 
 export const WalletStatus = Schema.Struct({
   address: Schema.optional(Schema.NullOr(Schema.String)),
-  frozen: Schema.Boolean,
   pocketUsdMicros: Schema.optional(Schema.NullOr(Schema.Finite)),
   /** Only the kinds matter here; the drawer lays the rules out in full. */
   rules: Schema.optional(Schema.Array(Schema.Struct({ _tag: Schema.String }))),

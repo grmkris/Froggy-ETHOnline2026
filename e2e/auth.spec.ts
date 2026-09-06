@@ -4,7 +4,7 @@
  * The deployed instance was, for a while, drivable by anyone: every route and
  * both sockets answered a request with no credentials at all, because a
  * missing `Origin` header was treated as a trustworthy non-browser client.
- * `curl` could read the mandate, unfreeze the wallet, or type into the shared
+ * `curl` could read the mandate, answer a card, or type into the shared
  * Chrome.
  *
  * These are the assertions that make that a test failure rather than a thing

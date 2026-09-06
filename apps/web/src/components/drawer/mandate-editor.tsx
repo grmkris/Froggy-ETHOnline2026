@@ -2,8 +2,8 @@
  * The mandate, editable.
  *
  * Every rule the agent is held to, as a row a person can change. Saving sends
- * the whole mandate; the server keeps the session id and the frozen flag its
- * own, so an edit can never be a way to unfreeze. Nothing here is reachable
+ * the whole mandate; the server keeps the session id its own. Nothing here
+ * is reachable
  * by the agent — there is no tool that writes a rule.
  */
 

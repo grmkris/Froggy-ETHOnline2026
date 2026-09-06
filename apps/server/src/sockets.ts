@@ -7,7 +7,7 @@
  * The two sockets are separate because they have opposite shapes. The browser
  * socket is a firehose of large binary frames where the newest message
  * supersedes every earlier one and dropping is correct. The app socket is a
- * low-rate stream of small facts where every message matters — a freeze
+ * low-rate stream of small facts where every message matters — an approval
  * acknowledgement must not queue behind a backlog of JPEGs.
  *
  * Both are authenticated *and* origin-gated at upgrade. The token is what
@@ -31,7 +31,6 @@ import type { AppServerMessage, BrowserState } from "@froggy/protocol";
 import { Result } from "effect";
 
 import { detached } from "./detached";
-import type { FreezeControl } from "./freeze";
 import type { InteractionRegistry } from "./interactions";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
@@ -65,7 +64,6 @@ type Socket = Bun.ServerWebSocket<SocketData>;
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
 export interface SocketDeps {
-  readonly freeze: FreezeControl;
   readonly interactions: InteractionRegistry;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -236,20 +234,6 @@ export const createSocketHandlers = (deps: SocketDeps) => {
       switch (message.type) {
         case "ping": {
           sendApp(ws, { sentAt: message.sentAt, type: "pong", v: 1 });
-          return;
-        }
-        case "mandate.freeze": {
-          // One function, whichever surface pressed the button. See freeze.ts
-          // for the five things it does and why the order matters.
-          if (message.frozen) {
-            deps.freeze.freeze(
-              ws.data.userId,
-              "frozen from the wallet pane",
-              ws.data.accessToken
-            );
-          } else {
-            deps.freeze.unfreeze(ws.data.userId, ws.data.accessToken);
-          }
           return;
         }
         case "mandate.update": {

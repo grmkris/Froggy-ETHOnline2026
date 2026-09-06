@@ -32,19 +32,13 @@ export interface Notice {
 
 /**
  * Something that happened to the wallet while the conversation went on, and
- * belongs in it: a freeze, an unfreeze, a top-up. Filed in the stream at the
+ * belongs in it: a question, an answer, a top-up. Filed in the stream at the
  * moment it happened, as a marker between turns.
  */
 export interface TimelineEvent {
   readonly at: number;
   readonly id: string;
-  readonly kind:
-    | "answered"
-    | "asked"
-    | "elsewhere"
-    | "frozen"
-    | "topup"
-    | "unfrozen";
+  readonly kind: "answered" | "asked" | "elsewhere" | "topup";
   readonly text: string;
 }
 
@@ -54,7 +48,7 @@ const ANSWER_WORDS: Record<ApprovalResolution, string> = {
   allow_once: "allowed once",
   allow_session: "allowed for this session",
   deny: "not this time",
-  deny_stop: "stop and freeze",
+  deny_stop: "stop the agent",
   timeout: "nobody answered in time",
   unavailable: "there was no one to ask",
 };
@@ -108,7 +102,7 @@ export const initialAppState: AppState = {
 
 /** How many notices are kept on screen. Older ones are the log's problem. */
 const MAX_NOTICES = 3;
-/** How many timeline events are kept. A day of freezes is not this many. */
+/** How many timeline events are kept. A day of questions is not this many. */
 const MAX_EVENTS = 100;
 
 const approvalEvents = (
@@ -160,35 +154,6 @@ const runEvents = (
         },
       ];
 
-const mandateEvents = (
-  state: AppState,
-  message: Extract<AppServerMessage, { readonly type: "mandate.state" }>,
-  at: number
-): readonly TimelineEvent[] => {
-  const before = state.mandate?.frozen ?? null;
-  const after = message.mandate.frozen;
-  if (before === null || before === after) {
-    return [];
-  }
-  return after
-    ? [
-        {
-          at,
-          id: `frozen:${at}`,
-          kind: "frozen",
-          text: "The wallet was frozen. The pocket is zero and nothing is spent until it is unfrozen.",
-        },
-      ]
-    : [
-        {
-          at,
-          id: `unfrozen:${at}`,
-          kind: "unfrozen",
-          text: "The wallet was unfrozen.",
-        },
-      ];
-};
-
 const walletEvents = (
   state: AppState,
   message: Extract<AppServerMessage, { readonly type: "wallet.state" }>,
@@ -229,9 +194,6 @@ const eventsFrom = (
   }
   if (message.type === "run.started") {
     return runEvents(message, at);
-  }
-  if (message.type === "mandate.state") {
-    return mandateEvents(state, message, at);
   }
   if (message.type === "wallet.state") {
     return walletEvents(state, message, at);

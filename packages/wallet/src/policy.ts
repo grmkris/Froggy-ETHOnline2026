@@ -36,7 +36,7 @@ export interface AuthorizeInput {
    *
    * Only the threshold step reads it: an approval satisfies "is this big
    * enough to want a human", and nothing else. Every cap, allowlist and the
-   * kill switch are judged again, so a wallet frozen while the card was open
+   * answer are judged again, so a mandate edited while the card was open
    * still refuses.
    */
   readonly approved?: boolean;
@@ -171,15 +171,6 @@ const pocketShortfall = (input: AuthorizeInput): PolicyDecision | null => {
 export const authorize = (input: AuthorizeInput): PolicyDecision => {
   const { intent, mandate, now, recent } = input;
   const satisfied: RuleId[] = [];
-
-  // 1. The kill switch. Before everything, and not rule-shaped: freezing is a
-  //    property of the mandate itself, so there is no rule to delete to undo it.
-  if (mandate.frozen) {
-    return deny(
-      "frozen",
-      "The wallet is frozen. Unfreeze it in the wallet pane to allow spending again."
-    );
-  }
 
   // 2. Where the payee came from. A well-formed address is not a trusted one:
   //    this is the check that stops an address a page suggested from being paid.

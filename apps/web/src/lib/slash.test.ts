@@ -9,7 +9,6 @@ describe("parseSlash", () => {
   });
 
   it("reads the verbs, whatever the case", () => {
-    expect(parseSlash("/freeze")).toEqual({ kind: "freeze" });
     expect(parseSlash("/STOP ")).toEqual({ kind: "stop" });
     expect(parseSlash("/status")).toEqual({ kind: "status" });
   });
@@ -23,24 +22,11 @@ describe("parseSlash", () => {
     expect(parseSlash("/topup -2")).toMatchObject({ kind: "unknown" });
     expect(parseSlash("/topup lots")).toMatchObject({ kind: "unknown" });
   });
-
-  it("has no unfreeze, and says where to find it", () => {
-    const unfreeze = parseSlash("/unfreeze");
-    expect(unfreeze?.kind).toBe("unknown");
-    expect(unfreeze?.kind === "unknown" ? unfreeze.reason : "").toContain(
-      "header"
-    );
-    expect(parseSlash("/dance")).toMatchObject({
-      kind: "unknown",
-      name: "dance",
-    });
-  });
 });
 
 describe("slashMatches", () => {
   it("lists every command for a bare slash and narrows as you type", () => {
     expect(slashMatches("/").map((entry) => entry.name)).toEqual([
-      "freeze",
       "stop",
       "status",
       "topup",

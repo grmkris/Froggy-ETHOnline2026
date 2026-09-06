@@ -19,7 +19,6 @@ interface LeashMeterProps {
     readonly maxUsdMicros: number;
     readonly windowMs: number;
   } | null;
-  readonly frozen: boolean;
   readonly ledgerNote: string | null;
   readonly spentUsdMicros: number | null;
 }
@@ -31,16 +30,11 @@ const windowLabel = (windowMs: number): string => {
   return hours === 24 ? "today" : `per ${hours}h`;
 };
 
-const indicatorClass = (frozen: boolean, unreadable: boolean): string => {
-  if (frozen) {
-    return "bg-drive-frozen";
-  }
-  return unreadable ? "bg-drive-agent" : "bg-primary";
-};
+const indicatorClass = (unreadable: boolean): string =>
+  unreadable ? "bg-drive-agent" : "bg-primary";
 
 export const LeashMeter = ({
   cap,
-  frozen,
   ledgerNote,
   spentUsdMicros,
 }: LeashMeterProps): React.ReactElement => {
@@ -71,7 +65,7 @@ export const LeashMeter = ({
       </div>
       <Progress className="w-full" value={value}>
         <ProgressTrack className="bg-paper-deep h-1.5 w-full">
-          <ProgressIndicator className={indicatorClass(frozen, unreadable)} />
+          <ProgressIndicator className={indicatorClass(unreadable)} />
         </ProgressTrack>
       </Progress>
     </div>

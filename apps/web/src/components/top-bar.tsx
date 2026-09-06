@@ -2,8 +2,7 @@
  * The header strip: the wallet, the leash, who is driving, the kill switch.
  *
  * Everything a nervous person glances at lives on one line so it is never
- * scrolled away. When the wallet is frozen the whole strip greys, because a
- * frozen wallet that still looks lively is the kind of half-signal that gets
+ * scrolled away.
  * a second click.
  */
 
@@ -22,7 +21,6 @@ import { useMediaQuery } from "../hooks/use-media-query";
 import { bindingWindowCap } from "../lib/app-state";
 import { shortAddress } from "../lib/format";
 import { useIdentity } from "../lib/privy";
-import { FreezeButton } from "./freeze-button";
 import { LeashMeter } from "./leash-meter";
 
 interface TopBarProps {
@@ -30,7 +28,6 @@ interface TopBarProps {
   readonly drive: DriveMode;
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
-  readonly onFreeze: (frozen: boolean) => void;
   readonly onOpenDetails: () => void;
   readonly onShowBrowser: () => void;
   readonly wallet: WalletSummary | null;
@@ -52,7 +49,7 @@ const Pocket = ({
   pocketUsdMicros === null || pocketUsdMicros === undefined ? null : (
     <span
       className="flex items-baseline gap-1 text-xs whitespace-nowrap"
-      title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it; a freeze zeroes it."
+      title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it."
     >
       <span className="text-muted-foreground">pocket</span>
       <span className="text-money text-sm leading-none">
@@ -116,7 +113,6 @@ export const TopBar = ({
   drive,
   mandate,
   modes,
-  onFreeze,
   onOpenDetails,
   onShowBrowser,
   wallet,
@@ -125,13 +121,11 @@ export const TopBar = ({
   // One leash meter in the document at a time: the phone row and the wide
   // row are alternatives, not a CSS toggle over two copies.
   const phone = useMediaQuery("(max-width: 767px)");
-  const frozen = mandate?.frozen ?? false;
   const stubs = stubsOf(modes);
   return (
     <header
       className={cn(
-        "bg-background/80 sticky top-0 z-30 border-b backdrop-blur-md transition-colors",
-        frozen && "bg-drive-frozen-soft/80 saturate-50"
+        "bg-background/80 sticky top-0 z-30 border-b backdrop-blur-md transition-colors"
       )}
     >
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2.5">
@@ -149,7 +143,6 @@ export const TopBar = ({
             <div className="max-w-xs min-w-[11rem] flex-1">
               <LeashMeter
                 cap={bindingWindowCap(mandate)}
-                frozen={frozen}
                 ledgerNote={wallet?.ledgerNote ?? null}
                 spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
               />
@@ -171,7 +164,6 @@ export const TopBar = ({
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <FreezeButton frozen={frozen} onFreeze={onFreeze} />
           <Button
             aria-label="Show the browser"
             onClick={onShowBrowser}
@@ -197,7 +189,6 @@ export const TopBar = ({
           <div className="min-w-0 flex-1">
             <LeashMeter
               cap={bindingWindowCap(mandate)}
-              frozen={frozen}
               ledgerNote={wallet?.ledgerNote ?? null}
               spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
             />

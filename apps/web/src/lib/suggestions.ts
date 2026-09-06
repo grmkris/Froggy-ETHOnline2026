@@ -4,7 +4,7 @@
  * Not a menu: at most three chips, each earned by the state. A refusal
  * earns "why"; an empty pocket earns a top-up; a Graph answer with nothing
  * bought yet earns the purchase; a purchase earns the question about it.
- * Frozen or busy earns nothing, and before the first message the empty
+ * Busy earns nothing, and before the first message the empty
  * screen owns the suggestions.
  */
 
@@ -14,7 +14,6 @@ import type { FroggyMessage } from "./stream-model";
 
 export interface SuggestionInput {
   readonly busy: boolean;
-  readonly frozen: boolean;
   /** A Graph answer is on screen. */
   readonly hasGraph: boolean;
   /** A 402 was paid this session. */
@@ -30,7 +29,7 @@ export interface SuggestionInput {
 const LOW_POCKET_USD_MICROS = 100_000;
 
 export const suggestionsFor = (input: SuggestionInput): readonly string[] => {
-  if (!input.started || input.busy || input.frozen) {
+  if (!input.started || input.busy) {
     return [];
   }
   const chips: string[] = [];
@@ -54,14 +53,12 @@ export const suggestionsFor = (input: SuggestionInput): readonly string[] => {
 /** The flags the chips depend on, read off what the page already holds. */
 export const suggestionInputFrom = (page: {
   readonly busy: boolean;
-  readonly frozen: boolean;
   readonly messages: readonly FroggyMessage[];
   readonly pocketUsdMicros: number | null;
   /** Newest first. */
   readonly receipts: readonly Receipt[];
 }): SuggestionInput => ({
   busy: page.busy,
-  frozen: page.frozen,
   hasGraph: page.messages.some((message) =>
     message.parts.some((part) => part.type === "tool-graph_query")
   ),

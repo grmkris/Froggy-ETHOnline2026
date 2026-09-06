@@ -5,7 +5,7 @@
  * browser socket is a firehose of large binary frames where the newest message
  * supersedes every earlier one; this one is a low-rate stream of small facts
  * where every message matters. Sharing a socket would mean a backlog of frames
- * delaying a freeze acknowledgement.
+ * delaying an approval acknowledgement.
  */
 
 import {
@@ -80,15 +80,6 @@ export const AppClientMessage = Schema.Union([
     requestId: Schema.String,
     type: Schema.Literals(["approval.resolve"]),
   }),
-  /**
-   * The kill switch. A client message, never a tool — an agent that can call
-   * freeze can call unfreeze, and then it is not a kill switch.
-   */
-  Schema.Struct({
-    ...Envelope,
-    frozen: Schema.Boolean,
-    type: Schema.Literals(["mandate.freeze"]),
-  }),
   Schema.Struct({
     ...Envelope,
     mandate: Mandate,
@@ -135,7 +126,7 @@ export const WalletSummary = Schema.Struct({
   /**
    * What is left in the person's Hedera pocket, in USD millionths, or null
    * when this deployment draws nothing from a pocket. A top-up raises it, a
-   * Hedera payment lowers it, a freeze zeroes it.
+   * Hedera payment lowers it.
    */
   pocketUsdMicros: Schema.NullOr(Schema.Int),
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */

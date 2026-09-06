@@ -213,7 +213,7 @@ export interface SessionDeps {
    * The pocket the host pays these networks from, as this person's share of
    * it: a balance drawn down under the same lock as the reservation, given
    * back when a payment is abandoned or fails, credited by a top-up and
-   * zeroed by a freeze. Absent when nothing is drawn from a pocket.
+   * Absent when nothing is drawn from a pocket.
    */
   readonly pocket?: {
     readonly networks: readonly Amount["asset"]["network"][];
@@ -244,7 +244,7 @@ const APPROVAL_LABELS: Record<ApprovalKind, string> = {
   allow_once: "Allow once",
   allow_session: "Allow for this session",
   deny: "Not this time",
-  deny_stop: "Stop and freeze",
+  deny_stop: "Stop the agent",
 };
 
 const isApprovalKind = Schema.is(ApprovalKindSchema);
@@ -446,7 +446,6 @@ export class WorkspaceSession {
     this.birthright = allowlist;
     this.mandate = {
       createdAt: this.now(),
-      frozen: false,
       id: MandateId.generate(),
       rules: defaultRules({
         hosts: allowlist.hosts,
@@ -468,22 +467,21 @@ export class WorkspaceSession {
   }
 
   /**
-   * Load what a previous process persisted: the frozen flag, the mandate the
-   * person saved, and their recent receipts. Once. A session that has been
+   * Load what a previous process persisted: the mandate the person saved,
+   * their recent receipts and their pocket. Once. A session that has been
    * hydrated publishes its mandate, so a pane that opened before the load
    * finished sees the real one rather than the defaults.
    */
   async hydrate(): Promise<void> {
     this.hydration ??= (async () => {
-      const [frozen, saved, recent, pocket] = await Promise.all([
-        this.deps.store.frozen.load(this.userId),
+      const [saved, recent, pocket] = await Promise.all([
         this.deps.store.mandates.load(this.userId),
         this.deps.store.receipts.recent(this.userId, RECEIPT_HISTORY),
         this.deps.store.pocket.load(this.userId),
       ]);
       if (this.deps.pocket !== undefined) {
         // Credited once. Null is "never had a pocket"; zero is a pocket that
-        // was spent or frozen, and it stays zero until a top-up.
+        // was spent, and it stays zero until a top-up.
         this.pocketBalance =
           pocket ??
           (await this.deps.store.pocket.adjust(
@@ -497,11 +495,8 @@ export class WorkspaceSession {
         // are appended, never the person's removed.
         this.mandate = this.withBirthright({
           ...saved,
-          frozen,
           sessionId: this.id,
         });
-      } else if (frozen) {
-        this.mandate = { ...this.mandate, frozen };
       }
       const known = new Set(this.receipts.map((receipt) => receipt.id));
       for (const receipt of recent.toReversed()) {
@@ -581,12 +576,6 @@ export class WorkspaceSession {
     return this.pocketBalance;
   }
 
-  /** Freeze. Nothing left to draw from, whatever the mandate says later. */
-  async zeroPocket(): Promise<void> {
-    await this.deps.store.pocket.zero(this.userId);
-    this.pocketBalance = 0;
-  }
-
   private withBirthright(mandate: Mandate): Mandate {
     return {
       ...mandate,
@@ -630,12 +619,11 @@ export class WorkspaceSession {
    * Replace the mandate.
    *
    * The session id is forced rather than trusted: a client that posts someone
-   * else's mandate must not be able to reparent it, and `frozen` is preserved
-   * from the current mandate so a mandate edit can never be a way to unfreeze.
+   * else's mandate must not be able to reparent it.
    * Unfreezing is its own message.
    */
   updateMandate(next: Mandate): Mandate {
-    this.mandate = { ...next, frozen: this.mandate.frozen, sessionId: this.id };
+    this.mandate = { ...next, sessionId: this.id };
     this.persistMandate();
     return this.mandate;
   }
@@ -697,17 +685,6 @@ export class WorkspaceSession {
     };
     this.persistMandate();
     this.deps.onMandate?.(this.mandate);
-    return this.mandate;
-  }
-
-  setFrozen(frozen: boolean): Mandate {
-    this.mandate = { ...this.mandate, frozen };
-    // The flag is the kill switch; it must outlive the process. Persisted
-    // after the in-memory flip, never instead of it.
-    detached("frozen persist", async () => {
-      await this.deps.store.frozen.save(this.userId, frozen);
-    });
-    this.persistMandate();
     return this.mandate;
   }
 
@@ -1064,7 +1041,7 @@ export class WorkspaceSession {
       ({ approval } = asked);
       const { resolution } = approval;
       if (resolution === "allow_once" || resolution === "allow_session") {
-        // Judged again, with the answer in hand: the mandate may have frozen
+        // Judged again, with the answer in hand: the mandate may have changed
         // while the card was open, and the window may have filled.
         attempt = await this.judgeAndReserve(request, true);
       } else {
@@ -1114,12 +1091,10 @@ export class WorkspaceSession {
       });
     }
 
-    // The last look before money leaves. A freeze or a stop that landed while
-    // the reservation was being written must win here, not after the call.
+    // The last look before money leaves. A stop that landed while the
+    // reservation was being written must win here, not after the call.
     let abandoned: string | null = null;
-    if (this.mandate.frozen) {
-      abandoned = "the wallet was frozen before the payment was sent";
-    } else if (request.signal?.aborted === true) {
+    if (request.signal?.aborted === true) {
       abandoned = "the run was stopped before the payment was sent";
     }
     if (abandoned !== null) {

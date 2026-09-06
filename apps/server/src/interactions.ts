@@ -3,7 +3,7 @@
  *
  * When the policy says `ask`, the spend does not fail and it does not retry —
  * it parks here until one of three things happens: the person answers on the
- * app socket, the run is aborted (a freeze, a stop, a superseding turn), or
+ * app socket, the run is aborted (a stop, a superseding turn), or
  * the card's deadline passes. Whichever comes first settles it, and the
  * other two are then no-ops. Every outcome publishes `approval.resolved`, so
  * a second tab showing the same card clears it too.
@@ -21,9 +21,9 @@ export type ApprovalOutcome =
       readonly kind: "answered";
       readonly optionId: string;
       /**
-       * The answerer's Privy token, when the surface had one. "Stop and
-       * freeze" revokes the agent's signer, and Privy requires the user's own
-       * token for that — a freeze that could not revoke must say so.
+       * The answerer's Privy token, when the surface had one. Kept on the
+       * outcome so a surface that needs the person's own authority for a
+       * follow-up has it; the web socket carries one, Telegram does not.
        */
       readonly accessToken: string | null;
     }
@@ -129,7 +129,7 @@ export class InteractionRegistry {
     return true;
   }
 
-  /** Every card this user has open is denied. A freeze is the usual caller. */
+  /** Every card this user has open is denied. "Stop the agent" is the usual caller. */
   abortAll(userId: UserId, reason: string): void {
     // Deleting the current entry while iterating a Map is defined behaviour.
     for (const entry of this.parked.values()) {

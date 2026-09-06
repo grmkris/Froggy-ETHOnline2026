@@ -2,10 +2,10 @@
  * The one thing a screen reader should hear right now.
  *
  * One live region for the page, fed a sentence derived from state, so a new
- * approval, a fresh refusal and a freeze are said once each and nothing is
+ * approval and a fresh refusal are said once each and nothing is
  * said twice. Derived rather than remembered: what matters most is whatever
  * is true now, in this order. An approval waiting on the person outranks a
- * refusal that just landed, which outranks the wallet being frozen.
+ * refusal that just landed.
  */
 
 import type { Mandate, Receipt } from "@froggy/domain";
@@ -33,5 +33,5 @@ export const announcementFor = (input: AnnouncementInput): string => {
   ) {
     return `Refused: ${latest.decision.message}`;
   }
-  return input.mandate?.frozen === true ? "The wallet is frozen." : "";
+  return "";
 };
