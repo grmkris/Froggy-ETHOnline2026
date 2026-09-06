@@ -8,6 +8,10 @@
  * screen owns the suggestions.
  */
 
+import type { Receipt } from "@froggy/domain";
+
+import type { FroggyMessage } from "./stream-model";
+
 export interface SuggestionInput {
   readonly busy: boolean;
   readonly frozen: boolean;
@@ -46,3 +50,26 @@ export const suggestionsFor = (input: SuggestionInput): readonly string[] => {
   }
   return chips.slice(0, 3);
 };
+
+/** The flags the chips depend on, read off what the page already holds. */
+export const suggestionInputFrom = (page: {
+  readonly busy: boolean;
+  readonly frozen: boolean;
+  readonly messages: readonly FroggyMessage[];
+  readonly pocketUsdMicros: number | null;
+  /** Newest first. */
+  readonly receipts: readonly Receipt[];
+}): SuggestionInput => ({
+  busy: page.busy,
+  frozen: page.frozen,
+  hasGraph: page.messages.some((message) =>
+    message.parts.some((part) => part.type === "tool-graph_query")
+  ),
+  hasPaid: page.receipts.some(
+    (receipt) =>
+      receipt.settlement !== undefined && receipt.intent.host !== undefined
+  ),
+  lastRefused: page.receipts[0]?.decision._tag === "deny",
+  pocketUsdMicros: page.pocketUsdMicros,
+  started: page.messages.length > 0,
+});

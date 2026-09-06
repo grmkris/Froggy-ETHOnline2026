@@ -10,7 +10,12 @@ import {
 import type { Receipt, RunId as RunIdType } from "@froggy/domain";
 
 import type { TimelineEvent } from "./app-state";
-import { buildStream, lastBrowserTurn, showThinking } from "./stream-model";
+import {
+  buildStream,
+  lastBrowserTurn,
+  retryIdOf,
+  showThinking,
+} from "./stream-model";
 import type { FroggyMessage, StreamItem } from "./stream-model";
 
 const receipt = (runId: RunIdType, at: number): Receipt => ({
@@ -201,5 +206,14 @@ describe("buildStream with events", () => {
       [event(15)]
     );
     expect(stream.map(label)).toEqual(["m1", "e15", "d", "m3"]);
+  });
+});
+
+describe("retryIdOf", () => {
+  it("names the last assistant turn only while the chat stands in error", () => {
+    const messages = [clocked("a1", 1), clocked("a2", 2)];
+    expect(retryIdOf(messages, "error")).toBe("a2");
+    expect(retryIdOf(messages, "ready")).toBeNull();
+    expect(retryIdOf([], "error")).toBeNull();
   });
 });

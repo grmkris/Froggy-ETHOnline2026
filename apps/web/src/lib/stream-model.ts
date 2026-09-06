@@ -143,3 +143,18 @@ export const showThinking = (
   const tail = last.parts.at(-1);
   return tail === undefined || tail.type === "step-start";
 };
+
+/**
+ * The turn that can be asked again: the last assistant turn, while the chat
+ * stands in error. Any other time, none.
+ */
+export const retryIdOf = (
+  messages: readonly FroggyMessage[],
+  status: ChatStatus
+): string | null => {
+  if (status !== "error") {
+    return null;
+  }
+  const last = messages.findLast((message) => message.role === "assistant");
+  return last === undefined ? null : last.id;
+};

@@ -19,32 +19,37 @@ import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
 import { groupParts, matchReceipts } from "../../lib/turn-model";
-import type { ClaimedReceipts } from "../../lib/turn-model";
+import type { ClaimedReceipts, TurnBlock } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { BrowseCard } from "./browse-card";
 import { MarkdownText } from "./markdown-text";
 import { Reasoning } from "./reasoning";
 import { ToolCard } from "./tool-card";
+import { TurnActions } from "./turn-actions";
 
 interface TurnProps {
   readonly after?: ReactElement | null;
   /** An approval card is open: a running money tool is the one waiting. */
   readonly asking?: boolean;
   readonly message: FroggyMessage;
+  /** Ask the model again, when this turn ended in an error. */
+  readonly onRetry?: (() => void) | null;
   readonly receipts: readonly Receipt[];
 }
 
 const Blocks = ({
   asking,
+  blocks,
   claimed,
   message,
 }: {
   readonly asking: boolean;
+  readonly blocks: readonly TurnBlock[];
   readonly claimed: ClaimedReceipts;
   readonly message: FroggyMessage;
 }): ReactElement => (
   <>
-    {groupParts(message).map((block) => {
+    {blocks.map((block) => {
       const key = `${message.id}-${block.index}`;
       switch (block.kind) {
         case "text": {
@@ -102,6 +107,7 @@ export const Turn = ({
   after = null,
   asking = false,
   message,
+  onRetry = null,
   receipts,
 }: TurnProps): ReactElement => {
   if (message.role === "user") {
@@ -119,17 +125,32 @@ export const Turn = ({
   }
   // A receipt sits on the card of the call that spent; the rest under the turn.
   const claimed = matchReceipts(message, receipts);
+  const blocks = groupParts(message);
+  const live = blocks.some(
+    (block) =>
+      (block.kind === "text" || block.kind === "reasoning") && block.live
+  );
+  // Never ask a turn that paid to run again: that would be paying twice.
+  const paid = receipts.some((receipt) => receipt.settlement !== undefined);
   return (
     <Message align="start" className="text-[15px] leading-relaxed">
       <MessageAvatar className="bg-primary shadow-card mt-1 size-7 min-w-7 self-start">
         <FrogMark className="size-5" />
       </MessageAvatar>
       <MessageContent className="gap-2">
-        <Blocks asking={asking} claimed={claimed} message={message} />
+        <Blocks
+          asking={asking}
+          blocks={blocks}
+          claimed={claimed}
+          message={message}
+        />
         {after}
         {claimed.unclaimed.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />
         ))}
+        {live ? null : (
+          <TurnActions onRetry={paid ? null : onRetry} text={textOf(message)} />
+        )}
       </MessageContent>
     </Message>
   );

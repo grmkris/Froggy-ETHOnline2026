@@ -48,10 +48,11 @@ import { useSessionToken } from "../lib/session-token";
 import {
   buildStream,
   lastBrowserTurn,
+  retryIdOf,
   showThinking,
 } from "../lib/stream-model";
 import type { FroggyMessage } from "../lib/stream-model";
-import { suggestionsFor } from "../lib/suggestions";
+import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 
 const SPRING = { damping: 38, stiffness: 420, type: "spring" } as const;
 
@@ -191,21 +192,19 @@ export const WorkspacePage = (): ReactElement => {
     () => buildStream(chat.messages, app.receipts, app.events),
     [app.events, app.receipts, chat.messages]
   );
-  const suggestions = suggestionsFor({
-    busy,
-    frozen,
-    hasGraph: chat.messages.some((message) =>
-      message.parts.some((part) => part.type === "tool-graph_query")
-    ),
-    hasPaid: app.receipts.some(
-      (receipt) =>
-        receipt.settlement !== undefined && receipt.intent.host !== undefined
-    ),
-    lastRefused: app.receipts[0]?.decision._tag === "deny",
-    pocketUsdMicros: app.wallet?.pocketUsdMicros ?? null,
-    started: chat.messages.length > 0,
-  });
+  const suggestions = suggestionsFor(
+    suggestionInputFrom({
+      busy,
+      frozen,
+      messages: chat.messages,
+      pocketUsdMicros: app.wallet?.pocketUsdMicros ?? null,
+      receipts: app.receipts,
+    })
+  );
   const liveAfter = lastBrowserTurn(chat.messages);
+  // Only the turn that just failed can be asked again, and only while the
+  // error stands; clearing it is part of asking.
+  const retryId = retryIdOf(chat.messages, chat.status);
   const showLive =
     wanted ||
     popOut.mode === "window" ||
@@ -319,6 +318,11 @@ export const WorkspacePage = (): ReactElement => {
             items={items}
             liveAfter={liveAfter}
             liveCard={liveCard}
+            onRetry={(messageId) => {
+              chat.clearError();
+              void chat.regenerate({ messageId });
+            }}
+            retryId={retryId}
             thinking={showThinking(chat.messages, chat.status)}
           />
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">

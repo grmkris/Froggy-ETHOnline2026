@@ -40,6 +40,10 @@ interface StreamProps {
   /** The message the live page card sits under; null puts it at the top. */
   readonly liveAfter: string | null;
   readonly liveCard: ReactElement | null;
+  /** Ask the model again for the turn with this id. */
+  readonly onRetry: (messageId: string) => void;
+  /** The assistant turn that ended in an error, if the last one did. */
+  readonly retryId: string | null;
   /** The model has the turn and nothing has arrived yet. */
   readonly thinking: boolean;
 }
@@ -90,6 +94,8 @@ export const Stream = ({
   items,
   liveAfter,
   liveCard,
+  onRetry,
+  retryId,
   thinking,
 }: StreamProps): ReactElement => {
   const liveAtTop = liveCard !== null && liveAfter === null;
@@ -149,6 +155,13 @@ export const Stream = ({
                     after={item.message.id === liveAfter ? liveCard : null}
                     asking={asking}
                     message={item.message}
+                    onRetry={
+                      item.message.id === retryId
+                        ? () => {
+                            onRetry(item.message.id);
+                          }
+                        : null
+                    }
                     receipts={item.receipts}
                   />
                 </MessageScrollerItem>

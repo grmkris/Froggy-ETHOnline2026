@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { suggestionsFor } from "./suggestions";
+import { suggestionInputFrom, suggestionsFor } from "./suggestions";
 import type { SuggestionInput } from "./suggestions";
 
 const quiet: SuggestionInput = {
@@ -49,5 +49,38 @@ describe("suggestionsFor", () => {
     });
     expect(every.length).toBeLessThanOrEqual(3);
     expect(every.join(" ")).not.toContain("Buy the lending snapshot");
+  });
+});
+
+describe("suggestionInputFrom", () => {
+  it("reads the flags off the page's state", () => {
+    const input = suggestionInputFrom({
+      busy: false,
+      frozen: false,
+      messages: [
+        { id: "u", parts: [{ text: "hi", type: "text" }], role: "user" },
+        {
+          id: "a",
+          parts: [
+            {
+              input: {},
+              output: "x",
+              state: "output-available",
+              toolCallId: "c",
+              type: "tool-graph_query",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      pocketUsdMicros: 5,
+      receipts: [],
+    });
+    expect(input).toMatchObject({
+      hasGraph: true,
+      hasPaid: false,
+      lastRefused: false,
+      started: true,
+    });
   });
 });
