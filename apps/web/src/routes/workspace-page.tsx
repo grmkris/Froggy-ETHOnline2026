@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
+import { Announcer } from "../components/announcer";
 import {
   SplitPane,
   useSplitWidth,
@@ -257,6 +258,11 @@ export const WorkspacePage = (): ReactElement => {
 
   return (
     <div className="flex h-dvh flex-col">
+      <Announcer
+        approvals={app.approvals}
+        mandate={app.mandate}
+        receipts={app.receipts}
+      />
       <TopBar
         connected={app.connected}
         drive={drive}
