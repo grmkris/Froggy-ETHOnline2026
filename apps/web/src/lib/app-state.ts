@@ -10,7 +10,12 @@
  */
 
 import { formatUsd } from "@froggy/domain";
-import type { Mandate, PolicyDecision, Receipt } from "@froggy/domain";
+import type {
+  ApprovalResolution,
+  Mandate,
+  PolicyDecision,
+  Receipt,
+} from "@froggy/domain";
 import type {
   AppServerMessage,
   ApprovalRequest,
@@ -33,9 +38,26 @@ export interface Notice {
 export interface TimelineEvent {
   readonly at: number;
   readonly id: string;
-  readonly kind: "frozen" | "topup" | "unfrozen";
+  readonly kind:
+    | "answered"
+    | "asked"
+    | "elsewhere"
+    | "frozen"
+    | "topup"
+    | "unfrozen";
   readonly text: string;
 }
+
+/** How the person's answer reads in the margin. */
+const ANSWER_WORDS: Record<ApprovalResolution, string> = {
+  aborted: "the question was withdrawn",
+  allow_once: "allowed once",
+  allow_session: "allowed for this session",
+  deny: "not this time",
+  deny_stop: "stop and freeze",
+  timeout: "nobody answered in time",
+  unavailable: "there was no one to ask",
+};
 
 export interface AppState {
   readonly approvals: readonly ApprovalRequest[];
@@ -83,56 +105,130 @@ const MAX_NOTICES = 3;
 /** How many timeline events are kept. A day of freezes is not this many. */
 const MAX_EVENTS = 100;
 
+const approvalEvents = (
+  state: AppState,
+  message: Extract<AppServerMessage, { readonly type: "approval.request" }>,
+  at: number
+): readonly TimelineEvent[] =>
+  state.approvals.some((open) => open.id === message.request.id)
+    ? []
+    : [
+        {
+          at,
+          id: `asked:${message.request.id}`,
+          kind: "asked",
+          text: "Froggy paused, waiting for your answer.",
+        },
+      ];
+
+const receiptEvents = (
+  state: AppState,
+  message: Extract<AppServerMessage, { readonly type: "receipt.appended" }>
+): readonly TimelineEvent[] => {
+  const { approval, at, id } = message.receipt;
+  return approval === undefined ||
+    state.receipts.some((known) => known.id === id)
+    ? []
+    : [
+        {
+          at,
+          id: `answered:${approval.id}`,
+          kind: "answered",
+          text: `You answered: ${ANSWER_WORDS[approval.resolution]}.`,
+        },
+      ];
+};
+
+const runEvents = (
+  message: Extract<AppServerMessage, { readonly type: "run.started" }>,
+  at: number
+): readonly TimelineEvent[] =>
+  message.surface === "web"
+    ? []
+    : [
+        {
+          at,
+          id: `run:${message.runId}`,
+          kind: "elsewhere",
+          text: `A turn started from ${message.surface === "telegram" ? "Telegram" : "the daily digest"}. Reload to follow it here.`,
+        },
+      ];
+
+const mandateEvents = (
+  state: AppState,
+  message: Extract<AppServerMessage, { readonly type: "mandate.state" }>,
+  at: number
+): readonly TimelineEvent[] => {
+  const before = state.mandate?.frozen ?? null;
+  const after = message.mandate.frozen;
+  if (before === null || before === after) {
+    return [];
+  }
+  return after
+    ? [
+        {
+          at,
+          id: `frozen:${at}`,
+          kind: "frozen",
+          text: "The wallet was frozen. The pocket is zero and nothing is spent until it is unfrozen.",
+        },
+      ]
+    : [
+        {
+          at,
+          id: `unfrozen:${at}`,
+          kind: "unfrozen",
+          text: "The wallet was unfrozen.",
+        },
+      ];
+};
+
+const walletEvents = (
+  state: AppState,
+  message: Extract<AppServerMessage, { readonly type: "wallet.state" }>,
+  at: number
+): readonly TimelineEvent[] => {
+  const before = state.wallet?.pocketUsdMicros ?? null;
+  const after = message.wallet.pocketUsdMicros ?? null;
+  if (before === null || after === null || after <= before) {
+    return [];
+  }
+  return [
+    {
+      at,
+      id: `topup:${at}`,
+      kind: "topup",
+      text: `The pocket was topped up by ${formatUsd(after - before)}, to ${formatUsd(after)}.`,
+    },
+  ];
+};
+
 /**
- * What changed, as an event, when a state message differs from what we had.
+ * What changed, as an event, when a message differs from what we had.
  *
  * Only differences: the first mandate and the first wallet summary are the
- * starting point, not a change, and a reconnect resending the same state
- * must not file a second marker.
+ * starting point, not a change; a reconnect resending the same state, card
+ * or receipt must not file a second marker.
  */
 const eventsFrom = (
   state: AppState,
   message: AppServerMessage,
   at: number
 ): readonly TimelineEvent[] => {
+  if (message.type === "approval.request") {
+    return approvalEvents(state, message, at);
+  }
+  if (message.type === "receipt.appended") {
+    return receiptEvents(state, message);
+  }
+  if (message.type === "run.started") {
+    return runEvents(message, at);
+  }
   if (message.type === "mandate.state") {
-    const before = state.mandate?.frozen ?? null;
-    const after = message.mandate.frozen;
-    if (before === null || before === after) {
-      return [];
-    }
-    return after
-      ? [
-          {
-            at,
-            id: `frozen:${at}`,
-            kind: "frozen",
-            text: "The wallet was frozen. The pocket is zero and nothing is spent until it is unfrozen.",
-          },
-        ]
-      : [
-          {
-            at,
-            id: `unfrozen:${at}`,
-            kind: "unfrozen",
-            text: "The wallet was unfrozen.",
-          },
-        ];
+    return mandateEvents(state, message, at);
   }
   if (message.type === "wallet.state") {
-    const before = state.wallet?.pocketUsdMicros ?? null;
-    const after = message.wallet.pocketUsdMicros ?? null;
-    if (before === null || after === null || after <= before) {
-      return [];
-    }
-    return [
-      {
-        at,
-        id: `topup:${at}`,
-        kind: "topup",
-        text: `The pocket was topped up by ${formatUsd(after - before)}, to ${formatUsd(after)}.`,
-      },
-    ];
+    return walletEvents(state, message, at);
   }
   return [];
 };
@@ -182,6 +278,7 @@ const onServer = (
     case "receipt.appended": {
       return {
         ...state,
+        events: withEvents(state, message, at),
         receipts: mergeReceipts(state.receipts, [message.receipt]),
       };
     }
@@ -192,7 +289,11 @@ const onServer = (
       if (state.approvals.some((open) => open.id === message.request.id)) {
         return state;
       }
-      return { ...state, approvals: [...state.approvals, message.request] };
+      return {
+        ...state,
+        approvals: [...state.approvals, message.request],
+        events: withEvents(state, message, at),
+      };
     }
     case "approval.resolved": {
       return {
@@ -215,19 +316,9 @@ const onServer = (
       };
     }
     case "run.started": {
-      if (message.surface === "web") {
-        return state;
-      }
-      const notice: Notice = {
-        at,
-        id: `run:${message.runId}`,
-        text: `A turn started from ${message.surface === "telegram" ? "Telegram" : "the daily digest"}. Reload to follow it here.`,
-        tone: "info",
-      };
-      return {
-        ...state,
-        notices: [notice, ...state.notices].slice(0, MAX_NOTICES),
-      };
+      // A marker in the conversation, where the turn will appear, rather
+      // than a notice above the composer.
+      return { ...state, events: withEvents(state, message, at) };
     }
     case "pong": {
       return state;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  ApprovalId,
   MandateId,
   ReceiptId,
   RuleId,
@@ -220,5 +221,76 @@ describe("timeline events", () => {
       3
     );
     expect(state.events).toHaveLength(1);
+  });
+});
+
+const asking: ApprovalRequest = {
+  amountLabel: "$1.50",
+  detail: "Pay the oracle?",
+  expiresAt: 10,
+  id: "req-9",
+  options: [],
+  payeeLabel: "the oracle",
+  purpose: "a snapshot",
+  title: "Approve $1.50 to the oracle",
+};
+
+describe("timeline events for approvals and turns elsewhere", () => {
+  it("marks the pause once, however many times the card is resent", () => {
+    let state = server(
+      initialAppState,
+      { request: asking, type: "approval.request", v: 1 },
+      5
+    );
+    state = server(
+      state,
+      { request: asking, type: "approval.request", v: 1 },
+      6
+    );
+    expect(state.events.map((event) => event.kind)).toEqual(["asked"]);
+    expect(state.events[0]?.text).toContain("waiting for your answer");
+  });
+
+  it("marks the answer from the receipt that carries it, once", () => {
+    const answered: Receipt = {
+      ...receipt(50),
+      approval: { id: ApprovalId.generate(), resolution: "allow_once" },
+    };
+    let state = server(
+      initialAppState,
+      { receipt: answered, type: "receipt.appended", v: 1 },
+      51
+    );
+    state = server(
+      state,
+      { receipt: answered, type: "receipt.appended", v: 1 },
+      52
+    );
+    expect(state.events).toMatchObject([
+      { at: 50, kind: "answered", text: "You answered: allowed once." },
+    ]);
+  });
+
+  it("marks a turn started elsewhere in the conversation, not as a notice", () => {
+    const state = server(
+      initialAppState,
+      {
+        runId: RunId.generate(),
+        surface: "telegram",
+        type: "run.started",
+        v: 1,
+      },
+      7
+    );
+    expect(state.notices).toEqual([]);
+    expect(state.events).toMatchObject([{ kind: "elsewhere" }]);
+    expect(state.events[0]?.text).toContain("Telegram");
+    expect(
+      server(
+        state,
+        { runId: RunId.generate(), surface: "web", type: "run.started", v: 1 },
+        8
+      ).events
+    ).toHaveLength(1);
   });
 });
