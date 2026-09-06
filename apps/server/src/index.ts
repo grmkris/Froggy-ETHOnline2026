@@ -13,7 +13,7 @@
 
 import { BunRuntime } from "@effect/platform-bun";
 import { WS_PROTOCOL } from "@froggy/protocol";
-import { Context, Effect, Layer } from "effect";
+import { Config, Context, Effect, Layer } from "effect";
 
 import { authenticate, bearerFromProtocols } from "./auth";
 import { ModelBudget } from "./budget";
@@ -26,6 +26,7 @@ import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createDigestScheduler } from "./scheduler";
+import { cspModeOf, withSecurityHeaders } from "./security-headers";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
@@ -306,6 +307,14 @@ class FroggyServer extends Context.Service<
         workspaces,
       };
 
+      // Privy's wallet iframe and nothing else may be framed; `CSP_MODE=report`
+      // turns the policy into a report-only header without a code change.
+      const cspMode = cspModeOf(
+        yield* Config.string("CSP_MODE").pipe(Config.withDefault("enforce"))
+      );
+      const handleHttp = async (request: Request): Promise<Response> =>
+        withSecurityHeaders(await handleRequest(routerDeps, request), cspMode);
+
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           Bun.serve<SocketData>({
@@ -315,7 +324,7 @@ class FroggyServer extends Context.Service<
             ): Promise<Response | undefined> | Response | undefined {
               const { pathname } = new URL(request.url);
               if (pathname !== "/ws/app" && pathname !== "/ws/browser") {
-                return handleRequest(routerDeps, request);
+                return handleHttp(request);
               }
               // A WebSocket upgrade bypasses CORS entirely, and the browser
               // socket types into a Chrome logged into the user's sites — so
