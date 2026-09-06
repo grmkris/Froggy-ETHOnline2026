@@ -1,12 +1,18 @@
 # Status against the plan
 
-Updated Sun 6 Sep 2026, 20:45 CEST. The plan is `NEXT_ITERATION.md` beside this file (iteration 2, confirmed by the owner on 6 Sep; `PLAN.md` is the superseded iteration-1 plan); `DECISIONS.md` lists what was decided and what is still open; this file records what has landed in the tree and where it deviates.
+Updated Mon 7 Sep 2026. The operative plan is [NEXT_ITERATION.md](NEXT_ITERATION.md). The dated sections below are a historical implementation log, not the current blocker list.
 
-## Wallet UI release candidate
+## Current release
 
-The owner-approved direction is a calm wallet with a playful frog accent. Wallet-first navigation, separate wallet funds/task credit, direct agent setup, recoverable setup errors, retained one-time skill text, a shared funding panel, restrained motion and truthful Stop feedback are implemented locally. [Implementation record](../../plans/IMPLEMENTATION.md) and [screenshots](../evidence/ui-wallet/desktop.png).
+The product is **a wallet for your agents**: fund tasks, set spending limits, watch the work, and keep receipts. The calm wallet UI is deployed, with wallet funds separate from task credit, recoverable agent setup and funding requests, direct drawer destinations, restrained motion and truthful Stop feedback. See [the implementation record](../../plans/IMPLEMENTATION.md).
 
-The owner authorized deployment. The full repository gate, all 384 unit tests, all 35 stub browser tests and both builds pass. Imported skill metadata and Markdown formatting are fixed; no gate was weakened. Railway custody variables are preserved in IaC. Production still defaults to Hedera testnet and Base Sepolia; the planned mainnet cutover depends on funded accounts and verified settlement. GitHub CI and Railway record the release outcome. Durable funding confirmation and partial-allocation recovery remain open; the repository is still private.
+Production uses **Hedera mainnet and Base mainnet**, with a separate mainnet database and no automatic credit for new users. The hosted oracle returned a real paid HTTP 200 response after the release fixed oversized payment headers and premature HTTP timeouts; Hedera mirror SUCCESS and HCS sequence 2 match its sale. The funded Privy treasury separately paid The Graph 0.01 USDC on Base. [Release evidence](../evidence/MAINNET_RELEASE.md) distinguishes these proofs from untested person-facing journeys.
+
+Telegram linking is in **Connect an agent → Telegram**. The configured bot is `@froggy_onchainbot`; its webhook is healthy. The panel handles expired codes, retries, disconnect errors and automatic confirmation. A person must open the bot and tap Start to complete their link.
+
+Marketplace and MCP/CLI source `f7fa2ee` is deployed with green CI. The final provider follow-up `6fcd329` adds bounded inline-image handling without activating suppliers. The combined source passed the full gate (410 unit tests), all 39 browser tests and both builds. [The marketplace handoff](../evidence/MARKETPLACE.md) lists its provider configuration and activation limits.
+
+Remaining work: explicit approval of the reviewed treasury supplier rules, then configuration and paid delivery proofs; an X API credential; official MCP OAuth and the public agents page (task 2.6); a real signed-in onramp/top-up journey and durable funding recovery. Repository publication and demo recording remain owner decisions. Earlier testnet and missing-key notes below describe past states.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
