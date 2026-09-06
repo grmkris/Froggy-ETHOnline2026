@@ -25,6 +25,8 @@ import type { UIMessage } from "ai";
 import { Chat } from "chat";
 import type { Thread } from "chat";
 
+import { ModelBudgetExhaustedError } from "../budget";
+import type { ModelBudget } from "../budget";
 import { detached } from "../detached";
 import type { FreezeControl } from "../freeze";
 import type { InteractionRegistry } from "../interactions";
@@ -79,6 +81,8 @@ export const stubTelegramPager = (): TelegramPager => ({
 export interface LivePagerDeps {
   readonly botToken: string;
   readonly botUsername: string;
+  /** Turns and steps per person per day, shared with the web chat. */
+  readonly budget: ModelBudget;
   readonly freeze: FreezeControl;
   readonly interactions: InteractionRegistry;
   readonly oracleUrl: string;
@@ -226,17 +230,28 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     const messages: UIMessage[] = [...history, incoming].slice(-HISTORY);
     await thread.startTyping();
     deps.workspaces.touch(userId);
-    const turn = await startTurn(
-      {
-        browser: workspace.browser,
-        oracleUrl: deps.oracleUrl,
-        runs: deps.runs,
-        services: deps.services,
-        session: workspace.session,
-        workspaces: deps.workspaces,
-      },
-      { messages, sessionId: workspace.session.id }
-    );
+    let turn: Awaited<ReturnType<typeof startTurn>>;
+    try {
+      turn = await startTurn(
+        {
+          browser: workspace.browser,
+          budget: deps.budget,
+          oracleUrl: deps.oracleUrl,
+          runs: deps.runs,
+          services: deps.services,
+          session: workspace.session,
+          workspaces: deps.workspaces,
+        },
+        { messages, sessionId: workspace.session.id }
+      );
+    } catch (error) {
+      // The day's turns are spent. Said in the thread, before any model call.
+      if (error instanceof ModelBudgetExhaustedError) {
+        await thread.post(error.message);
+        return;
+      }
+      throw error;
+    }
     deps.publishApp(userId, {
       runId: turn.run.id,
       surface: "telegram",

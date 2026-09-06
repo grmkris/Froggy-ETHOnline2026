@@ -13,6 +13,7 @@
 import { useChat } from "@ai-sdk/react";
 import { Button } from "@froggy/ui/components/button";
 import { DefaultChatTransport } from "ai";
+import { Schema } from "effect";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
@@ -38,6 +39,7 @@ import { useMediaQuery } from "../hooks/use-media-query";
 import { usePopOut } from "../hooks/use-pop-out";
 import { useReceipts } from "../hooks/use-receipts";
 import { useWebMcp } from "../hooks/use-webmcp";
+import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { useSessionToken } from "../lib/session-token";
 import { buildStream, lastBrowserTurn } from "../lib/stream-model";
@@ -78,6 +80,24 @@ const Elsewhere = ({
   </div>
 );
 
+const CHAT_ERROR_ID = "chat:error";
+const ErrorBody = Schema.Struct({ error: Schema.String });
+const decodeErrorBody = Schema.decodeUnknownResult(ErrorBody);
+
+/**
+ * The server answers a refused turn with `{ error }`, and the transport hands
+ * that body back as the error's message. Read the sentence out of it when it
+ * is there; the raw message otherwise.
+ */
+const chatErrorText = (message: string): string => {
+  try {
+    const decoded = decodeErrorBody(JSON.parse(message));
+    return decoded._tag === "Success" ? decoded.success.error : message;
+  } catch {
+    return message;
+  }
+};
+
 export const WorkspacePage = (): ReactElement => {
   const painter = useMemo(() => createBrowserPainter(), []);
   useEffect(
@@ -116,6 +136,25 @@ export const WorkspacePage = (): ReactElement => {
   );
   const chat = useChat<FroggyMessage>({ resume: true, transport });
   const busy = chat.status === "streaming" || chat.status === "submitted";
+  // A refused turn — the day's model budget spent, a malformed request — comes
+  // back as the request's error, not as a message. It is shown beside the
+  // socket's notices so a refusal never reads as a turn that silently did
+  // nothing, and dismissing it clears the error the transport recorded.
+  const chatNotices = useMemo(
+    (): readonly Notice[] =>
+      chat.error === undefined
+        ? []
+        : [
+            {
+              // Not ordered against the socket's notices; it is shown first.
+              at: 0,
+              id: CHAT_ERROR_ID,
+              text: chatErrorText(chat.error.message),
+              tone: "error",
+            },
+          ],
+    [chat.error]
+  );
 
   const stop = useCallback((): void => {
     // Both halves. The local `stop()` alone detaches this client and leaves
@@ -253,8 +292,12 @@ export const WorkspacePage = (): ReactElement => {
           />
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-4">
             <NoticeList
-              notices={app.notices}
+              notices={[...chatNotices, ...app.notices]}
               onDismiss={(id) => {
+                if (id === CHAT_ERROR_ID) {
+                  chat.clearError();
+                  return;
+                }
                 app.dispatch({ id, type: "dismiss" });
               }}
             />

@@ -16,6 +16,7 @@ import { WS_PROTOCOL } from "@froggy/protocol";
 import { Context, Effect, Layer } from "effect";
 
 import { authenticate, bearerFromProtocols } from "./auth";
+import { ModelBudget } from "./budget";
 import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
 import { createFreeze } from "./freeze";
@@ -207,6 +208,14 @@ class FroggyServer extends Context.Service<
         workspaces,
       });
 
+      // Turns and steps per person per day; the demo account is exempt so a
+      // judge mid-recording is never told to come back tomorrow.
+      const budget = new ModelBudget({
+        exempt: environment.demoUserId,
+        runsPerDay: environment.modelRunsPerDay,
+        stepsPerDay: environment.modelStepsPerDay,
+      });
+
       const sockets = createSocketHandlers({
         freeze,
         interactions,
@@ -234,6 +243,7 @@ class FroggyServer extends Context.Service<
           ? liveTelegramPager({
               botToken: environment.telegramBotToken,
               botUsername: environment.telegramBotUsername,
+              budget,
               freeze,
               interactions,
               oracleUrl,
@@ -272,6 +282,7 @@ class FroggyServer extends Context.Service<
       }, DIGEST_TICK_MS);
 
       const routerDeps = {
+        budget,
         environment,
         grants,
         oracleUrl,

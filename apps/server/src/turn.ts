@@ -23,6 +23,7 @@ import {
 } from "ai";
 import type { UIMessage } from "ai";
 
+import type { ModelBudget } from "./budget";
 import { detached } from "./detached";
 import { createModel } from "./model";
 import type { ChatRun, ChatRunRegistry } from "./runs";
@@ -65,6 +66,8 @@ is watching the page change.`;
 
 export interface TurnDeps {
   readonly browser: BrowserHandle;
+  /** Turns and steps per person per day. Refuses before any model call. */
+  readonly budget: ModelBudget;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -92,6 +95,10 @@ const userTextOf = (messages: readonly UIMessage[]): string =>
     .join("\n");
 
 export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
+  const { userId } = deps.session;
+  // Before the run is registered: a refused turn must not abort the one
+  // that is already running, and must cost no model call.
+  deps.budget.begin(userId);
   const run = deps.runs.start(input.sessionId);
   const result = streamText({
     abortSignal: run.signal,
@@ -100,7 +107,12 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
     model: createModel(deps.services.environment, {
       oracleUrl: deps.oracleUrl,
     }),
-    stopWhen: stepCountIs(STEP_CAP),
+    onStepEnd: () => {
+      deps.budget.step(userId);
+    },
+    // Judged between steps, so a day's steps run out before the next call
+    // rather than after one that overshot.
+    stopWhen: [stepCountIs(STEP_CAP), () => deps.budget.exhausted(userId)],
     tools: buildTools({
       browser: deps.browser,
       run,

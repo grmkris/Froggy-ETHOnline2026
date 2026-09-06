@@ -180,6 +180,10 @@ export interface Environment {
   readonly maxBrowsers: number;
   /** Which model backs the agent. `modes.model` is derived from it. */
   readonly modelProvider: ModelProvider;
+  /** Turns one person may start per UTC day. The demo account is exempt. */
+  readonly modelRunsPerDay: number;
+  /** Model steps one person may take per UTC day, across their turns. */
+  readonly modelStepsPerDay: number;
   readonly modes: ServiceModes;
   /** An OpenAI-compatible endpoint: DashScope, a local server, anything with `/chat/completions`. */
   readonly openAiCompatibleApiKey: string;
@@ -337,6 +341,16 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "OPENAI_COMPATIBLE_MODEL"
     ).pipe(Config.withDefault(""));
 
+    // The model key is the one credential a stranger can spend without
+    // moving money. Forty turns and four hundred steps a day is an afternoon
+    // of real use and a bounded loss from a shared link.
+    const modelRunsPerDay = yield* Config.number("MODEL_RUNS_PER_DAY").pipe(
+      Config.withDefault(40)
+    );
+    const modelStepsPerDay = yield* Config.number("MODEL_STEPS_PER_DAY").pipe(
+      Config.withDefault(400)
+    );
+
     const anthropicKey = Redacted.value(anthropicApiKey);
     const compatibleKey = Redacted.value(openAiCompatibleApiKey);
     const modelProvider = selectModelProvider({
@@ -408,6 +422,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,
       modelProvider,
+      modelRunsPerDay,
+      modelStepsPerDay,
       modes,
       openAiCompatibleApiKey: compatibleKey,
       openAiCompatibleBaseUrl,

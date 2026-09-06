@@ -18,6 +18,8 @@ import type { ProbeSummary } from "@froggy/payments";
 import { Schema } from "effect";
 
 import { authenticate, bearerFromRequest } from "./auth";
+import { ModelBudgetExhaustedError } from "./budget";
+import type { ModelBudget } from "./budget";
 import { handleChat } from "./chat";
 import type { ChatRequest } from "./chat";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
@@ -74,6 +76,7 @@ const json = (body: ResponseBody, status = 200): Response =>
   Response.json(body, { headers: { "cache-control": "no-store" }, status });
 
 export interface RouterDeps {
+  readonly budget: ModelBudget;
   readonly environment: Environment;
   readonly grants: AgentGrants;
   readonly oracleUrl: string;
@@ -162,24 +165,35 @@ const handleChatPost = async (
     return json({ error: "Malformed chat request." }, 400);
   }
   deps.workspaces.touch(userId);
-  return await handleChat(
-    {
-      browser: workspace.browser,
-      oracleUrl: deps.oracleUrl,
-      runs: deps.runs,
-      services: deps.services,
-      session: workspace.session,
-      workspaces: deps.workspaces,
-    },
-    {
-      // SAFETY: the envelope is decoded above; the elements are the AI SDK's
-      // `UIMessage` union, which `convertToModelMessages` validates on the
-      // very next hop. Restating that union here would be a second copy of a
-      // type the SDK owns and versions.
-      messages: decoded.success.messages as unknown as ChatRequest["messages"],
-      sessionId,
+  try {
+    return await handleChat(
+      {
+        browser: workspace.browser,
+        budget: deps.budget,
+        oracleUrl: deps.oracleUrl,
+        runs: deps.runs,
+        services: deps.services,
+        session: workspace.session,
+        workspaces: deps.workspaces,
+      },
+      {
+        // SAFETY: the envelope is decoded above; the elements are the AI SDK's
+        // `UIMessage` union, which `convertToModelMessages` validates on the
+        // very next hop. Restating that union here would be a second copy of a
+        // type the SDK owns and versions.
+        messages: decoded.success
+          .messages as unknown as ChatRequest["messages"],
+        sessionId,
+      }
+    );
+  } catch (error) {
+    // The day's turns are spent. Said as a status the client can read and a
+    // sentence the person can, before any model call was made.
+    if (error instanceof ModelBudgetExhaustedError) {
+      return json({ error: error.message }, 429);
     }
-  );
+    throw error;
+  }
 };
 
 const UrlBody = Schema.Struct({ url: Schema.String });
