@@ -44,6 +44,7 @@ import { useWebMcp } from "../hooks/use-webmcp";
 import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { scrollToLive } from "../lib/scroll-to-live";
+import { SessionIdsContext } from "../lib/session-ids";
 import { useSessionToken } from "../lib/session-token";
 import {
   buildStream,
@@ -261,161 +262,170 @@ export const WorkspacePage = (): ReactElement => {
   };
   const liveCard = inlineCard();
   const disabledReason = composerLock(frozen, app.connected);
+  const sessionIds = useMemo(
+    () => ({ hcsTopicId: app.hcsTopicId, policyId: app.policyId }),
+    [app.hcsTopicId, app.policyId]
+  );
 
   return (
-    <div className="flex h-dvh flex-col">
-      <Announcer
-        approvals={app.approvals}
-        mandate={app.mandate}
-        receipts={app.receipts}
-      />
-      <TopBar
-        connected={app.connected}
-        drive={drive}
-        mandate={app.mandate}
-        modes={app.modes}
-        onFreeze={(next) => {
-          app.send({ frozen: next, type: "mandate.freeze", v: 1 });
-        }}
-        onOpenDetails={() => {
-          setDetailsOpen(true);
-        }}
-        onShowBrowser={() => {
-          setWanted(true);
-          scrollToLive();
-        }}
-        wallet={app.wallet}
-      />
-      <div className="flex min-h-0 flex-1">
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
-            // Over the stream, not in the column: its arrival moves nothing.
-            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 px-4">
-              <div className="pointer-events-auto">
-                <BrowserStrip
-                  drive={drive}
-                  onJump={scrollToLive}
-                  painter={painter}
-                  url={currentUrl}
-                />
+    <SessionIdsContext.Provider value={sessionIds}>
+      <div className="flex h-dvh flex-col">
+        <Announcer
+          approvals={app.approvals}
+          mandate={app.mandate}
+          receipts={app.receipts}
+        />
+        <TopBar
+          connected={app.connected}
+          drive={drive}
+          mandate={app.mandate}
+          modes={app.modes}
+          onFreeze={(next) => {
+            app.send({ frozen: next, type: "mandate.freeze", v: 1 });
+          }}
+          onOpenDetails={() => {
+            setDetailsOpen(true);
+          }}
+          onShowBrowser={() => {
+            setWanted(true);
+            scrollToLive();
+          }}
+          wallet={app.wallet}
+        />
+        <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
+              // Over the stream, not in the column: its arrival moves nothing.
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-20 px-4">
+                <div className="pointer-events-auto">
+                  <BrowserStrip
+                    drive={drive}
+                    onJump={scrollToLive}
+                    painter={painter}
+                    url={currentUrl}
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
-          <Stream
-            asking={app.approvals.length > 0}
-            busy={busy}
-            empty={
-              <EmptyState
-                disabled={disabledReason !== null}
-                mandate={app.mandate}
-                modes={app.modes}
+            ) : null}
+            <Stream
+              asking={app.approvals.length > 0}
+              busy={busy}
+              empty={
+                <EmptyState
+                  disabled={disabledReason !== null}
+                  mandate={app.mandate}
+                  modes={app.modes}
+                  onSend={(text) => {
+                    void chat.sendMessage({
+                      metadata: { at: Date.now() },
+                      text,
+                    });
+                  }}
+                  wallet={app.wallet}
+                />
+              }
+              items={items}
+              liveAfter={liveAfter}
+              liveCard={liveCard}
+              onRetry={(messageId) => {
+                chat.clearError();
+                void chat.regenerate({ messageId });
+              }}
+              retryId={retryId}
+              thinking={showThinking(chat.messages, chat.status)}
+            />
+            <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <NoticeList
+                notices={[...chatNotices, ...app.notices]}
+                onDismiss={(id) => {
+                  if (id === CHAT_ERROR_ID) {
+                    chat.clearError();
+                    return;
+                  }
+                  app.dispatch({ id, type: "dismiss" });
+                }}
+              />
+              <AnimatePresence>
+                {app.approvals.map((request) => (
+                  <motion.div
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: 8 }}
+                    initial={{ opacity: 0, scale: 0.98, y: 12 }}
+                    key={request.id}
+                    transition={SPRING}
+                  >
+                    <ApprovalTicket
+                      disabled={!app.connected}
+                      onAnswer={(requestId, optionId) => {
+                        app.send({
+                          optionId,
+                          requestId,
+                          type: "approval.resolve",
+                          v: 1,
+                        });
+                      }}
+                      request={request}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              <Composer
+                asking={app.approvals.length > 0}
+                busy={busy}
+                disabledReason={disabledReason}
+                onCommand={(command) => {
+                  if (command.kind === "freeze") {
+                    app.send({ frozen: true, type: "mandate.freeze", v: 1 });
+                  } else if (command.kind === "stop") {
+                    stop();
+                  } else if (command.kind === "status") {
+                    send("What is the state of the wallet and the mandate?");
+                  } else if (command.kind === "topup") {
+                    send(`Top up the pocket with ${command.amountUsd} USDC`);
+                  }
+                }}
                 onSend={(text) => {
                   void chat.sendMessage({ metadata: { at: Date.now() }, text });
                 }}
-                wallet={app.wallet}
+                onStop={stop}
+                suggestions={suggestions}
               />
-            }
-            items={items}
-            liveAfter={liveAfter}
-            liveCard={liveCard}
-            onRetry={(messageId) => {
-              chat.clearError();
-              void chat.regenerate({ messageId });
-            }}
-            retryId={retryId}
-            thinking={showThinking(chat.messages, chat.status)}
-          />
-          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <NoticeList
-              notices={[...chatNotices, ...app.notices]}
-              onDismiss={(id) => {
-                if (id === CHAT_ERROR_ID) {
-                  chat.clearError();
-                  return;
-                }
-                app.dispatch({ id, type: "dismiss" });
-              }}
-            />
-            <AnimatePresence>
-              {app.approvals.map((request) => (
-                <motion.div
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: 8 }}
-                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
-                  key={request.id}
-                  transition={SPRING}
-                >
-                  <ApprovalTicket
-                    disabled={!app.connected}
-                    onAnswer={(requestId, optionId) => {
-                      app.send({
-                        optionId,
-                        requestId,
-                        type: "approval.resolve",
-                        v: 1,
-                      });
-                    }}
-                    request={request}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            <Composer
-              asking={app.approvals.length > 0}
-              busy={busy}
-              disabledReason={disabledReason}
-              onCommand={(command) => {
-                if (command.kind === "freeze") {
-                  app.send({ frozen: true, type: "mandate.freeze", v: 1 });
-                } else if (command.kind === "stop") {
-                  stop();
-                } else if (command.kind === "status") {
-                  send("What is the state of the wallet and the mandate?");
-                } else if (command.kind === "topup") {
-                  send(`Top up the pocket with ${command.amountUsd} USDC`);
-                }
-              }}
-              onSend={(text) => {
-                void chat.sendMessage({ metadata: { at: Date.now() }, text });
-              }}
-              onStop={stop}
-              suggestions={suggestions}
-            />
+            </div>
           </div>
+          {popOut.mode === "split" && showLive ? (
+            <SplitPane
+              onPointerDownHandle={split.handlePointerDown}
+              width={split.width}
+            >
+              {card(true)}
+            </SplitPane>
+          ) : null}
         </div>
-        {popOut.mode === "split" && showLive ? (
-          <SplitPane
-            onPointerDownHandle={split.handlePointerDown}
-            width={split.width}
-          >
-            {card(true)}
-          </SplitPane>
-        ) : null}
+        <DetailsDrawer
+          mandate={app.mandate}
+          modes={app.modes}
+          webMcp={webMcp}
+          onDeleteData={() => {
+            void (async () => {
+              const token = await getToken();
+              await fetch("/api/me", {
+                headers:
+                  token === null ? {} : { authorization: `Bearer ${token}` },
+                method: "DELETE",
+              });
+              globalThis.location.reload();
+            })();
+          }}
+          onOpenChange={setDetailsOpen}
+          onSaveMandate={(mandate) => {
+            app.send({ mandate, type: "mandate.update", v: 1 });
+          }}
+          open={detailsOpen}
+          receipts={app.receipts}
+          sessionId={app.sessionId}
+          wallet={app.wallet}
+        />
       </div>
-      <DetailsDrawer
-        mandate={app.mandate}
-        modes={app.modes}
-        webMcp={webMcp}
-        onDeleteData={() => {
-          void (async () => {
-            const token = await getToken();
-            await fetch("/api/me", {
-              headers:
-                token === null ? {} : { authorization: `Bearer ${token}` },
-              method: "DELETE",
-            });
-            globalThis.location.reload();
-          })();
-        }}
-        onOpenChange={setDetailsOpen}
-        onSaveMandate={(mandate) => {
-          app.send({ mandate, type: "mandate.update", v: 1 });
-        }}
-        open={detailsOpen}
-        receipts={app.receipts}
-        sessionId={app.sessionId}
-        wallet={app.wallet}
-      />
-    </div>
+    </SessionIdsContext.Provider>
   );
 };

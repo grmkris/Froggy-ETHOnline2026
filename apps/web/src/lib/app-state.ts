@@ -64,10 +64,14 @@ export interface AppState {
   readonly connected: boolean;
   /** Oldest first. */
   readonly events: readonly TimelineEvent[];
+  /** Where the audit notes go, when a topic is pinned. */
+  readonly hcsTopicId: string | null;
   readonly lastDecision: PolicyDecision | null;
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
   readonly notices: readonly Notice[];
+  /** The Privy policy the agent's signer is held to. */
+  readonly policyId: string | null;
   /** Newest first. Append-only in spirit: a receipt is a record of the past. */
   readonly receipts: readonly Receipt[];
   readonly sessionId: string | null;
@@ -91,10 +95,12 @@ export const initialAppState: AppState = {
   approvals: [],
   connected: false,
   events: [],
+  hcsTopicId: null,
   lastDecision: null,
   mandate: null,
   modes: null,
   notices: [],
+  policyId: null,
   receipts: [],
   sessionId: null,
   wallet: null,
@@ -259,7 +265,13 @@ const onServer = (
 ): AppState => {
   switch (message.type) {
     case "session.welcome": {
-      return { ...state, modes: message.modes, sessionId: message.sessionId };
+      return {
+        ...state,
+        hcsTopicId: message.hcsTopicId,
+        modes: message.modes,
+        policyId: message.policyId,
+        sessionId: message.sessionId,
+      };
     }
     case "mandate.state": {
       return {

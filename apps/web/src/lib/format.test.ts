@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { compactUsd, explorerUrl } from "./format";
+import { compactUsd, explorerUrl, hcsMessageUrl } from "./format";
 
 describe("explorerUrl", () => {
   it("sends a Hedera id to HashScan with its @ encoded", () => {
@@ -31,5 +31,13 @@ describe("compactUsd", () => {
     expect(compactUsd(1_230_000_000)).toBe("$1.2B");
     expect(compactUsd(412_000)).toBe("$412K");
     expect(compactUsd(950)).toBe("$950");
+  });
+});
+
+describe("hcsMessageUrl", () => {
+  it("points at the note on the topic", () => {
+    expect(hcsMessageUrl("0.0.10381647", 2)).toBe(
+      "https://hashscan.io/testnet/topic/0.0.10381647/message/2"
+    );
   });
 });

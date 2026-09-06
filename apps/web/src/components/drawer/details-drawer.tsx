@@ -39,6 +39,7 @@ import type { ReactElement } from "react";
 
 import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
+import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { DigestSettings } from "./digest-settings";
@@ -93,6 +94,18 @@ const ruleLabel = (rule: Mandate["rules"][number]): string => {
   }
 };
 
+/** The second layer, named: the policy Privy holds the agent's signer to. */
+const SignerPolicy = (): ReactElement | null => {
+  const { policyId } = useSessionIds();
+  return policyId === null ? null : (
+    <p className="text-muted-foreground text-xs">
+      Beneath these rules the signer is held to Privy policy{" "}
+      <span className="text-machine text-foreground/80">{policyId}</span>: a
+      spend the mandate allows can still be refused there, and Privy says why.
+    </p>
+  );
+};
+
 const SIGNER_WORDS: Record<WalletSummary["agentSigner"], string> = {
   absent: "the agent has no signer",
   granted: "the agent may sign under policy",
@@ -107,6 +120,7 @@ const Policy = ({
   readonly onSave: (mandate: Mandate) => void;
 }): ReactElement => (
   <div className="space-y-4">
+    <SignerPolicy />
     <ul className="space-y-1.5">
       {(mandate?.rules ?? []).map((rule) => (
         <li className="flex items-baseline gap-2 text-sm" key={rule.id}>

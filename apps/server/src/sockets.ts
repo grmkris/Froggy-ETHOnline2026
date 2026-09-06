@@ -286,7 +286,12 @@ export const createSocketHandlers = (deps: SocketDeps) => {
       if (ws.data.kind === "app") {
         appSockets.add(ws);
         sendApp(ws, {
+          hcsTopicId:
+            deps.services.environment.hederaHcsTopicId === ""
+              ? null
+              : deps.services.environment.hederaHcsTopicId,
           modes: deps.services.environment.modes,
+          policyId: deps.services.environment.privyAgent?.policyId ?? null,
           sessionId: workspace.session.id,
           type: "session.welcome",
           v: 1,

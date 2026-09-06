@@ -147,7 +147,11 @@ export type WalletSummary = typeof WalletSummary.Type;
 export const AppServerMessage = Schema.Union([
   Schema.Struct({
     ...Envelope,
+    /** The Hedera Consensus Service topic the audit notes are posted to, when one is pinned. */
+    hcsTopicId: Schema.NullOr(Schema.String),
     modes: ServiceModes,
+    /** The Privy policy the agent's signer is held to, when the agent has one. */
+    policyId: Schema.NullOr(Schema.String),
     sessionId: SessionId,
     type: Schema.Literals(["session.welcome"]),
   }),

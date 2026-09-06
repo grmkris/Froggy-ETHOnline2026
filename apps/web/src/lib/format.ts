@@ -61,3 +61,7 @@ const COMPACT_USD = new Intl.NumberFormat("en", {
 
 /** "$96M", "$1.2B", "$412K": a market's size at a glance. */
 export const compactUsd = (usd: number): string => COMPACT_USD.format(usd);
+
+/** The HCS note itself, on HashScan, by topic and sequence number. */
+export const hcsMessageUrl = (topicId: string, sequence: number): string =>
+  `https://hashscan.io/testnet/topic/${encodeURIComponent(topicId)}/message/${sequence}`;

@@ -294,3 +294,25 @@ describe("timeline events for approvals and turns elsewhere", () => {
     ).toHaveLength(1);
   });
 });
+
+describe("the welcome", () => {
+  it("keeps the topic and the policy the tickets link to", () => {
+    const state = server(initialAppState, {
+      hcsTopicId: "0.0.10381647",
+      modes: {
+        database: "stub",
+        graph: "stub",
+        hedera: "stub",
+        model: "stub",
+        privy: "stub",
+        telegram: "stub",
+      },
+      policyId: "rk6qw974uapbesb04u5tq5kb",
+      sessionId: SessionId.generate(),
+      type: "session.welcome",
+      v: 1,
+    });
+    expect(state.hcsTopicId).toBe("0.0.10381647");
+    expect(state.policyId).toBe("rk6qw974uapbesb04u5tq5kb");
+  });
+});

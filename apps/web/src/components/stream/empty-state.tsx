@@ -20,7 +20,9 @@ import {
 } from "@froggy/ui/components/ticket";
 import type { ReactElement } from "react";
 
+import { shortId } from "../../lib/format";
 import { capsLine, mandateLists } from "../../lib/mandate-words";
+import { useSessionIds } from "../../lib/session-ids";
 
 interface EmptyStateProps {
   readonly disabled: boolean;
@@ -63,6 +65,7 @@ const MandateTicket = ({
   const caps = capsLine(mandate);
   const lists = mandateLists(mandate);
   const pocket = wallet?.pocketUsdMicros ?? null;
+  const { policyId } = useSessionIds();
   return (
     <Ticket
       aria-label="The mandate"
@@ -87,6 +90,15 @@ const MandateTicket = ({
           <span className="inline-flex items-baseline gap-1.5">
             <span className="opacity-60">pocket</span>
             <span className="text-foreground/80">{formatUsd(pocket)}</span>
+          </span>
+        )}
+        {policyId === null ? null : (
+          <span
+            className="inline-flex items-baseline gap-1.5"
+            title="The Privy policy the agent's signer is held to. A spend the mandate allows can still be refused there."
+          >
+            <span className="opacity-60">signer policy</span>
+            <span className="text-foreground/80">{shortId(policyId, 12)}</span>
           </span>
         )}
       </TicketStub>

@@ -18,7 +18,13 @@ import {
 } from "@froggy/ui/components/ticket";
 
 import { layerOf } from "../../lib/denial";
-import { clockTime, explorerUrl, shortId } from "../../lib/format";
+import {
+  clockTime,
+  explorerUrl,
+  hcsMessageUrl,
+  shortId,
+} from "../../lib/format";
+import { useSessionIds } from "../../lib/session-ids";
 
 interface ReceiptTicketProps {
   readonly compact?: boolean;
@@ -129,6 +135,32 @@ const Because = ({
   );
 };
 
+/** The HCS note's number, linked to the note when the topic is known. */
+const HcsLine = ({
+  sequence,
+}: {
+  readonly sequence: number;
+}): React.ReactElement => {
+  const { hcsTopicId } = useSessionIds();
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="opacity-60">hcs</span>
+      {hcsTopicId === null ? (
+        <span className="text-foreground/80">#{sequence}</span>
+      ) : (
+        <a
+          className="text-foreground/80 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          href={hcsMessageUrl(hcsTopicId, sequence)}
+          rel="noreferrer"
+          target="_blank"
+        >
+          #{sequence}
+        </a>
+      )}
+    </span>
+  );
+};
+
 /** The machine facts: the rule, the code, the transaction, the evidence. */
 const ReceiptStub = ({
   receipt,
@@ -157,7 +189,7 @@ const ReceiptStub = ({
       />
     )}
     {receipt.settlement?.hcsSequence === undefined ? null : (
-      <StubLine label="hcs" value={`#${receipt.settlement.hcsSequence}`} />
+      <HcsLine sequence={receipt.settlement.hcsSequence} />
     )}
     {receipt.failure === undefined ? null : (
       <StubLine label="not settled" value={receipt.failure} />
