@@ -8,9 +8,12 @@
  */
 
 import { Button } from "@froggy/ui/components/button";
+import { Kbd, KbdGroup } from "@froggy/ui/components/kbd";
 import { Textarea } from "@froggy/ui/components/textarea";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useState } from "react";
+
+import { sendsOnKey } from "../lib/keymap";
 
 const SUGGESTIONS = [
   "What's the cheapest USDC borrow right now?",
@@ -77,7 +80,13 @@ export const Composer = ({
             setDraft(event.target.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (
+              sendsOnKey({
+                isComposing: event.nativeEvent.isComposing,
+                key: event.key,
+                shiftKey: event.shiftKey,
+              })
+            ) {
               event.preventDefault();
               submit(draft);
             }
@@ -107,6 +116,19 @@ export const Composer = ({
           </Button>
         )}
       </form>
+      {/* Hidden on a phone, where there is no Enter to speak of. */}
+      <p className="text-muted-foreground hidden items-center gap-1.5 px-2 text-[11px] sm:flex">
+        <KbdGroup>
+          <Kbd>Enter</Kbd>
+        </KbdGroup>
+        send
+        <span aria-hidden>·</span>
+        <KbdGroup>
+          <Kbd>Shift</Kbd>
+          <Kbd>Enter</Kbd>
+        </KbdGroup>
+        new line
+      </p>
     </div>
   );
 };
