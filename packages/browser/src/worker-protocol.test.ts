@@ -6,9 +6,8 @@
  * message the way Bun's IPC does. No Chrome: the session gets a fake view
  * that answers the handful of CDP commands the package sends. What this
  * proves is the contract — commands cross, replies come back, frames flow
- * only while watched, a freeze reaches the far side, a dead worker reads as
- * a crash — which is everything that would otherwise only be discoverable on
- * the deployed box.
+ * only while watched, a dead worker reads as a crash — which is everything
+ * that would otherwise only be discoverable on the deployed box.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -98,16 +97,6 @@ const deliver = (
       handler(copy);
     }
   });
-};
-
-/** The message a rejected promise carried, or "resolved" when it did not reject. */
-const failure = async (work: Promise<unknown>): Promise<string> => {
-  try {
-    await work;
-    return "resolved";
-  } catch (error) {
-    return error instanceof Error ? error.message : String(error);
-  }
 };
 
 const loopback = (
@@ -282,47 +271,6 @@ describe("RemoteBrowser over the worker protocol", () => {
       },
     });
     expect(late.length).toBe(1);
-  });
-
-  test("a freeze reaches the worker and refuses the agent, not the human", async () => {
-    const pair = loopback();
-    const remote = new RemoteBrowser({ spawn: pair.spawn });
-    await remote.agentNavigate("https://example.com/");
-    await remote.freeze("wallet frozen");
-    await settle();
-    expect(remote.state().frozen).toBe(true);
-    expect(await failure(remote.agentNavigate("https://example.org/"))).toMatch(
-      /frozen/u
-    );
-    // The person can still drive: input is delivered, not refused.
-    await remote.handleClientMessage({
-      button: "left",
-      buttons: 1,
-      clickCount: 1,
-      deltaX: 0,
-      deltaY: 0,
-      kind: "mousePressed",
-      modifiers: 0,
-      type: "input.mouse",
-      v: 1,
-      x: 10,
-      y: 10,
-    });
-    expect(pair.views[0]?.calls).toContain("Input.dispatchMouseEvent");
-    await remote.unfreeze();
-    await settle();
-    expect(remote.state().frozen).toBe(false);
-    await remote.agentNavigate("https://example.org/");
-  });
-
-  test("a freeze before the worker exists is applied when it starts", async () => {
-    const pair = loopback();
-    const remote = new RemoteBrowser({ spawn: pair.spawn });
-    await remote.freeze("frozen early");
-    expect(remote.state().frozen).toBe(true);
-    expect(await failure(remote.agentNavigate("https://example.com/"))).toMatch(
-      /frozen/u
-    );
   });
 
   test("a dead worker reads as a crashed browser, and pending calls fail", async () => {

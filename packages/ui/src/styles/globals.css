@@ -658,8 +658,8 @@
 
 /*
  * Froggy is light, warm and quiet. Paper, ink, one frog-green, and three
- * driving colours that mean the same thing everywhere: amber for the agent,
- * blue for the person, grey for frozen. Money is set in the display face so a
+ * two driving colours that mean the same thing everywhere: amber for the
+ * agent, blue for the person. Money is set in the display face so a
  * figure reads as a figure and not as prose.
  */
 @theme inline {
@@ -691,8 +691,6 @@
   --color-drive-agent-soft: var(--drive-agent-soft);
   --color-drive-human: var(--drive-human);
   --color-drive-human-soft: var(--drive-human-soft);
-  --color-drive-frozen: var(--drive-frozen);
-  --color-drive-frozen-soft: var(--drive-frozen-soft);
   --color-refused: var(--destructive);
   --color-refused-soft: var(--refused-soft);
   --color-paper-deep: var(--paper-deep);
@@ -735,8 +733,6 @@
   --drive-agent-soft: oklch(0.965 0.045 80);
   --drive-human: oklch(0.6 0.16 252);
   --drive-human-soft: oklch(0.955 0.03 250);
-  --drive-frozen: oklch(0.66 0.012 250);
-  --drive-frozen-soft: oklch(0.94 0.006 250);
   --radius: 1rem;
   --shadow-card:
     0 1px 1px oklch(0.24 0.02 150 / 4%), 0 2px 6px oklch(0.24 0.02 150 / 5%),
@@ -853,7 +849,7 @@ button:not(:disabled),
 /*
  * The driving ring: who has the page, said the same way everywhere. Two pixels,
  * amber breathing while the agent drives, blue and still while the person
- * does, dotted grey when the wallet is frozen.
+ * does.
  */
 @keyframes drive-breathe {
   0%,
@@ -876,10 +872,6 @@ button:not(:disabled),
 }
 @utility ring-drive-human {
   box-shadow: 0 0 0 2px var(--drive-human);
-}
-@utility ring-drive-frozen {
-  outline: 2px dotted var(--drive-frozen);
-  outline-offset: 0;
 }
 @utility ring-drive-idle {
   box-shadow: 0 0 0 1px var(--border);

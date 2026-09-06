@@ -15,7 +15,7 @@
  * Commands that expect an answer carry an `id`; the worker echoes it on the
  * reply. `frame.ack` is the one command without one — it is a credit, not a
  * question. The worker keeps at most two frames in flight, mirroring Chrome's
- * own screencast policy, so a freeze never queues behind a backlog of JPEGs.
+ * own screencast policy, so a take never queues behind a backlog of JPEGs.
  */
 
 import { ProtocolVersion } from "@froggy/domain";
@@ -54,12 +54,6 @@ export const WorkerCommand = Schema.Union([
     type: Schema.Literals(["agent.type"]),
   }),
   Schema.Struct({ ...Correlated, type: Schema.Literals(["take"]) }),
-  Schema.Struct({
-    ...Correlated,
-    reason: Schema.String,
-    type: Schema.Literals(["freeze"]),
-  }),
-  Schema.Struct({ ...Correlated, type: Schema.Literals(["unfreeze"]) }),
   /** Whether anyone is looking. No watchers, no screencast, no encoding. */
   Schema.Struct({
     ...Correlated,

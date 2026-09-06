@@ -116,8 +116,8 @@ describe("InteractionRegistry", () => {
       signal: controller.signal,
       userId: BOB,
     });
-    interactions.abortAll(ALICE, "frozen");
-    expect(await a).toEqual({ kind: "aborted", reason: "frozen" });
+    interactions.abortAll(ALICE, "stopped");
+    expect(await a).toEqual({ kind: "aborted", reason: "stopped" });
     expect(interactions.pendingFor(BOB).length).toBe(1);
     expect(interactions.resolve(BOB, "apr_6", "yes")).toBe(true);
     expect(await b).toMatchObject({ kind: "answered" });

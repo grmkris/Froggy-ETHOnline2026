@@ -9,7 +9,7 @@
  * Frames carry a credit. The worker keeps at most two in flight and drops the
  * rest until the host acks — the same policy Chrome applies to its own
  * screencast, and for the same reason: a slow consumer must lose frames, not
- * accumulate them, and a freeze must never queue behind a backlog of JPEGs.
+ * accumulate them, and a take must never queue behind a backlog of JPEGs.
  */
 
 import { decodeWorkerCommand } from "@froggy/protocol";
@@ -113,14 +113,6 @@ export const serveWorker = (options: ServeWorkerOptions): WorkerServer => {
       }
       case "take": {
         await session.takePage();
-        return { kind: "done" };
-      }
-      case "freeze": {
-        await session.freeze(command.reason);
-        return { kind: "done" };
-      }
-      case "unfreeze": {
-        await session.unfreeze();
         return { kind: "done" };
       }
       case "watch": {

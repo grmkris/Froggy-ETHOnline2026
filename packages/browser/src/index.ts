@@ -8,7 +8,6 @@ export {
   CdpTimeoutError,
   looksLikeCrash,
 } from "./errors";
-export { BrowserFrozenError } from "./frozen";
 export type { BrowserHandle } from "./handle";
 export { inputCommand } from "./input";
 export type { FrameSubscriber } from "./screencast";

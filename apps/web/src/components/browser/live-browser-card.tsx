@@ -91,9 +91,6 @@ const PopOutButtons = ({
 );
 
 export const driveModeOf = (state: BrowserState | null): DriveMode => {
-  if (state?.frozen === true) {
-    return "frozen";
-  }
   if (state?.status !== "running") {
     return "idle";
   }

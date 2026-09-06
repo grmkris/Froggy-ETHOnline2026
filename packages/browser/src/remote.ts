@@ -85,7 +85,6 @@ export class RemoteBrowser implements BrowserHandle {
   private detachers: (() => void)[] = [];
   private nextId = 1;
   private latestFrame: Uint8Array | null = null;
-  private frozenReason: string | null = null;
   private closing = false;
   private last: BrowserState;
 
@@ -94,7 +93,6 @@ export class RemoteBrowser implements BrowserHandle {
     this.last = {
       activeTabId: null,
       error: null,
-      frozen: false,
       interaction: "idle",
       queue: null,
       status: "idle",
@@ -174,27 +172,6 @@ export class RemoteBrowser implements BrowserHandle {
   async takePage(): Promise<void> {
     if (this.link !== null) {
       await this.request(this.link, { type: "take" });
-    }
-  }
-
-  /**
-   * Frozen is remembered here as well as sent, so a worker spawned *after* the
-   * freeze starts frozen. The kill switch must not have a gap the width of a
-   * process start.
-   */
-  async freeze(reason: string): Promise<void> {
-    this.frozenReason = reason;
-    this.publish({ ...this.last, frozen: true });
-    if (this.link !== null) {
-      await this.request(this.link, { reason, type: "freeze" });
-    }
-  }
-
-  async unfreeze(): Promise<void> {
-    this.frozenReason = null;
-    this.publish({ ...this.last, frozen: false });
-    if (this.link !== null) {
-      await this.request(this.link, { type: "unfreeze" });
     }
   }
 
@@ -319,11 +296,6 @@ export class RemoteBrowser implements BrowserHandle {
     }
     this.link = link;
     this.closing = false;
-    if (this.frozenReason !== null) {
-      await bestEffort(
-        this.request(link, { reason: this.frozenReason, type: "freeze" })
-      );
-    }
     if (this.subscribers.size > 0) {
       await bestEffort(this.request(link, { type: "watch", watching: true }));
     }

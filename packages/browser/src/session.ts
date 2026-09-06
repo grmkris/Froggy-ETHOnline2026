@@ -18,7 +18,6 @@ import type { WaitReason } from "./arbitration";
 import { bestEffort } from "./best-effort";
 import { chromeArgv, detectChrome } from "./chrome-detect";
 import { BrowserStartError, looksLikeCrash } from "./errors";
-import { BrowserFrozenError } from "./frozen";
 import type { BrowserHandle } from "./handle";
 import { dispatchInput } from "./input";
 import { watchPopupTargets } from "./popups";
@@ -86,8 +85,6 @@ export class BrowserSession implements BrowserHandle {
   private readonly detachPopupWatchers: (() => void)[] = [];
   private status: BrowserState["status"] = "idle";
   private error: string | null = null;
-  /** The kill switch, as the browser sees it. Set from outside, never by a tool. */
-  private frozenReason: string | null = null;
   private chromePath: string | null = null;
   /** De-dupes concurrent `start()`: the second caller awaits the first. */
   private starting: Promise<void> | null = null;
@@ -117,7 +114,6 @@ export class BrowserSession implements BrowserHandle {
     return {
       activeTabId: this.tabs.activeTabId,
       error: this.error,
-      frozen: this.frozenReason !== null,
       interaction: this.arbiter.interaction.mode,
       // Queueing is the registry's business; a session is never in line.
       queue: null,
@@ -167,26 +163,6 @@ export class BrowserSession implements BrowserHandle {
       await bestEffort(tab.cdp.send("Browser.close", {}, { timeoutMs: 3000 }));
     }
     this.close();
-  }
-
-  /**
-   * Freeze: the agent may no longer drive this browser.
-   *
-   * The page stops loading so a navigation in flight does not complete under
-   * a wallet that has just been frozen, and every later agent command is
-   * refused. Human input is untouched. Like `takePage`, callers abort the run
-   * first — the gate here catches whatever was already queued.
-   */
-  async freeze(reason: string): Promise<void> {
-    this.frozenReason = reason;
-    await bestEffort(this.tabs.activeTab?.cdp.send("Page.stopLoading"));
-    this.options.onStateChange?.(this.state());
-  }
-
-  async unfreeze(): Promise<void> {
-    await Promise.resolve();
-    this.frozenReason = null;
-    this.options.onStateChange?.(this.state());
   }
 
   close(): void {
@@ -293,7 +269,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   async agentNavigate(url: string): Promise<WaitReason> {
-    this.assertNotFrozen();
     const { wait } = await this.arbiter.withAgentControl(async () => {
       await this.navigate(url);
     });
@@ -301,7 +276,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   async agentSnapshot(): Promise<{ snapshot: Snapshot; wait: WaitReason }> {
-    this.assertNotFrozen();
     await this.start();
     const { value, wait } = await this.arbiter.withAgentControl(async () => {
       const tab = this.tabs.activeTab;
@@ -314,7 +288,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   async agentClick(ref: string): Promise<{ ok: boolean; note: string }> {
-    this.assertNotFrozen();
     const resolved = this.snapshots.resolve(ref);
     if (resolved === null) {
       // A ref that misses is the correct outcome of a stale snapshot, and the
@@ -331,7 +304,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   async agentType(text: string): Promise<void> {
-    this.assertNotFrozen();
     await this.arbiter.withAgentControl(async () => {
       const tab = this.tabs.activeTab;
       if (tab === null) {
@@ -346,12 +318,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   // -- internals -----------------------------------------------------------
-
-  private assertNotFrozen(): void {
-    if (this.frozenReason !== null) {
-      throw new BrowserFrozenError(this.frozenReason);
-    }
-  }
 
   private async clickNode(
     ref: SnapshotRef

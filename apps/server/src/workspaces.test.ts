@@ -66,7 +66,6 @@ const createFakeBrowser = (options: BrowserSessionOptions): FakeBrowser => {
   const state = (): BrowserState => ({
     activeTabId: null,
     error: null,
-    frozen: false,
     interaction: "idle",
     queue: null,
     status,
@@ -96,7 +95,6 @@ const createFakeBrowser = (options: BrowserSessionOptions): FakeBrowser => {
       status = "idle";
       options.onStateChange?.(state());
     },
-    freeze: settled,
     handleClientMessage: async (message: BrowserClientMessage) => {
       await settled();
       if (message.type === "browser.start") {
@@ -114,7 +112,6 @@ const createFakeBrowser = (options: BrowserSessionOptions): FakeBrowser => {
       // Nothing to release.
     },
     takePage: settled,
-    unfreeze: settled,
   };
 };
 

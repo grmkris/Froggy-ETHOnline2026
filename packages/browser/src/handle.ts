@@ -31,8 +31,6 @@ export interface BrowserHandle {
   readonly agentType: (text: string) => Promise<void>;
   /** Callers abort the agent run first. See `BrowserSession.takePage`. */
   readonly takePage: () => Promise<void>;
-  readonly freeze: (reason: string) => Promise<void>;
-  readonly unfreeze: () => Promise<void>;
   /** Release Chrome. Sync in-process, a round trip for a worker. */
   readonly close: () => void | Promise<void>;
 }
