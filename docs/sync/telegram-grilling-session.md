@@ -102,6 +102,7 @@ R1-Q1 C · R1-Q2 A · R1-Q2b agree · R1-Q3 mainnet (silent on the fallback) · 
 - 20:55 CEST: freeze removal phase 2 (`045ec63`) deployed as `ee35e9a1`. Jonas (2568, 2569): GitHub handle `deinjoni`, back home in thirty minutes. Owner action for Kristjan.
 - 20:57 CEST: per-person Hedera accounts proven on testnet: account `0.0.10396038` opened by the float (`0.0.9700388@1788721040.053929866`) and paying a `froggy brief` task (`0.0.7162784@1788721041.121729048`); pushed as `ba198c2` at 20:59 CEST; `HEDERA_KEK` set on the production service at 21:01 CEST so the live URL opens accounts too. Evidence in `docs/evidence/HEDERA.md`.
 - 21:06 to 21:10 CEST: the Privy `raw_sign` spike. Ethereum and Solana wallets refused ("not supported for this low-level signature endpoint"); a cosmos-type wallet signed, became Hedera account `0.0.10396162` and paid a transfer signed only through Privy; the policy cannot condition raw bytes. Posted to the group at 21:11 CEST with a recommendation to move custody to Privy on Monday. Kristjan to Jonas at 21:08 CEST (2570): "ur already in repo ser".
+- 21:20 CEST: task 2.4 built: Add funds through Privy's fiat onramp in the drawer's Wallet tab, the address with Copy, the service credit named, the Hedera account linked; browser test added. The live onramp waits for the owner's dashboard toggle and sign-in.
 
 ## Open questions and disagreements
 
