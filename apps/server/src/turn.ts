@@ -106,10 +106,21 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   // that is already running, and must cost no model call.
   deps.budget.begin(userId);
   const run = deps.runs.start(input.sessionId);
+  // The same tool set goes to the conversion and to the model: a tool's
+  // `toModelOutput` is applied by the conversion, so the two must agree.
+  const tools = buildTools({
+    browser: deps.browser,
+    run,
+    services: deps.services,
+    session: deps.session,
+    unlocks: deps.unlocks,
+    userText: userTextOf(input.messages),
+    workspaces: deps.workspaces,
+  });
   const result = streamText({
     abortSignal: run.signal,
     instructions: systemPrompt(deps.oracleUrl),
-    messages: await convertToModelMessages([...input.messages]),
+    messages: await convertToModelMessages([...input.messages], { tools }),
     model: createModel(deps.services.environment, {
       oracleUrl: deps.oracleUrl,
     }),
@@ -119,15 +130,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
     // Judged between steps, so a day's steps run out before the next call
     // rather than after one that overshot.
     stopWhen: [stepCountIs(STEP_CAP), () => deps.budget.exhausted(userId)],
-    tools: buildTools({
-      browser: deps.browser,
-      run,
-      services: deps.services,
-      session: deps.session,
-      unlocks: deps.unlocks,
-      userText: userTextOf(input.messages),
-      workspaces: deps.workspaces,
-    }),
+    tools,
   });
   return { run, result };
 };

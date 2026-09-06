@@ -8,6 +8,7 @@
  * crash.
  */
 
+import { GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
 /** Every field any of the agent's tools takes. All optional: input streams in. */
@@ -38,8 +39,8 @@ export type ToolState = typeof ToolState.Type;
 const ToolCallSchema = Schema.Struct({
   errorText: Schema.optional(Schema.String),
   input: Schema.optional(ToolInput),
-  /** Our tools return text. Anything else is not shown, only named. */
-  output: Schema.optional(Schema.String),
+  /** Our tools return text; `graph_query` returns its text with fields. */
+  output: Schema.optional(Schema.Union([Schema.String, GraphQueryOutput])),
   state: ToolState,
   toolCallId: Schema.String,
   type: Schema.String,
@@ -47,14 +48,19 @@ const ToolCallSchema = Schema.Struct({
 
 export interface ToolCall {
   readonly errorText: string | null;
+  /** The Graph answer's fields, when this is a `graph_query` with them. */
+  readonly graph: GraphQueryOutput | null;
   readonly input: ToolInput;
   readonly name: string;
+  /** What the model read: the text, whichever shape carried it. */
   readonly output: string | null;
   readonly state: ToolState;
   readonly toolCallId: string;
 }
 
 const decode = Schema.decodeUnknownResult(ToolCallSchema);
+/** Which half of the output union arrived, asked of the parsed value. */
+const isGraph = Schema.is(GraphQueryOutput);
 
 export const isToolPart = (part: { readonly type: string }): boolean =>
   part.type.startsWith("tool-") || part.type === "dynamic-tool";
@@ -68,11 +74,14 @@ export const toolCallOf = (part: {
     return null;
   }
   const raw = decoded.success;
+  const output = raw.output ?? null;
+  const graph = output !== null && isGraph(output) ? output : null;
   return {
     errorText: raw.errorText ?? null,
+    graph,
     input: raw.input ?? {},
     name: raw.type.replace(/^tool-/u, ""),
-    output: raw.output ?? null,
+    output: output !== null && isGraph(output) ? output.text : output,
     state: raw.state,
     toolCallId: raw.toolCallId,
   };

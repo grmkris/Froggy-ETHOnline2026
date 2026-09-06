@@ -35,6 +35,12 @@ export {
   WorkerReply,
 } from "./worker";
 export {
+  decodeGraphQueryOutput,
+  GraphQueryDeployment,
+  GraphQueryMarket,
+  GraphQueryOutput,
+} from "./tools";
+export {
   tokenFromProtocolHeader,
   WS_PROTOCOL,
   WS_TOKEN_PREFIX,

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { cap, typedByPerson } from "./tools";
+import { describeCheapestBorrow, describeDeployments } from "@froggy/graph";
+import type { GraphSnapshot } from "@froggy/graph";
+import { decodeGraphQueryOutput } from "@froggy/protocol";
+
+import { cap, graphQueryOutput, typedByPerson } from "./tools";
 
 describe("cap", () => {
   it("leaves short output alone", () => {
@@ -48,5 +52,75 @@ describe("typedByPerson", () => {
       )
     ).toBe(false);
     expect(typedByPerson("", "anything")).toBe(false);
+  });
+});
+
+const snapshot: GraphSnapshot = {
+  capturedAt: 1_756_000_000_000,
+  deployments: [
+    {
+      blockNumber: 21_000_000,
+      blockTimestamp: 1_756_000_000,
+      chain: "base",
+      id: "4xyasjQeREe7PxnF6wVdobZvCw5mhoHZq3T7guRpuNPf",
+      label: "Aave V3 USDC",
+      marketCount: 3,
+      note: null,
+      status: "fresh",
+    },
+    {
+      blockNumber: null,
+      blockTimestamp: null,
+      chain: "ethereum",
+      id: "GbKdmBe4XyzAbc",
+      label: "Spark",
+      marketCount: 0,
+      note: "fixture, not queried",
+      status: "unavailable",
+    },
+  ],
+  markets: [
+    {
+      blockNumber: 21_000_000,
+      borrowApr: 4.87,
+      chain: "base",
+      deploymentId: "4xyasjQeREe7PxnF6wVdobZvCw5mhoHZq3T7guRpuNPf",
+      inputTokenSymbol: "USDC",
+      name: "Aave V3 USDC",
+      protocol: "aave-v3",
+      supplyApr: 3.64,
+      totalBorrowUsd: 96_000_000,
+      totalSupplyUsd: 158_000_000,
+    },
+  ],
+  query: "lendingMarkets",
+  source: "fixture",
+  stubbed: true,
+};
+
+describe("graphQueryOutput", () => {
+  it("hands the model the prose it always read", () => {
+    const output = graphQueryOutput(snapshot, "usdc");
+
+    expect(output.text).toBe(
+      `${describeCheapestBorrow(snapshot)}\n\n${describeDeployments(snapshot)}\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]`
+    );
+  });
+
+  it("lays the same answer out in fields the client can decode", () => {
+    const output = graphQueryOutput(snapshot, "usdc");
+
+    expect(output).toMatchObject({
+      fresh: 1,
+      stubbed: true,
+      symbol: "USDC",
+      total: 2,
+    });
+    expect(output.markets[0]?.name).toBe("Aave V3 USDC");
+    expect(output.deployments[1]?.note).toBe("fixture, not queried");
+    // A copy, as the wire would hand it over; the client's decoder must take it.
+    expect(decodeGraphQueryOutput(structuredClone(output))._tag).toBe(
+      "Success"
+    );
   });
 });

@@ -5,6 +5,7 @@ import { summarize } from "./tool-summary";
 
 const call = (name: string, output: string | null): ToolCall => ({
   errorText: null,
+  graph: null,
   input: {},
   name,
   output,
@@ -23,6 +24,38 @@ describe("summarize graph_query", () => {
       headline: "Aave v3 on Base at 3.12% APR",
       outcome: "ok",
       stubbed: true,
+    });
+  });
+
+  it("prefers the fields when the answer carries them", () => {
+    const structured: ToolCall = {
+      ...call("graph_query", "Cheapest USDC borrow: ignored prose"),
+      graph: {
+        deployments: [],
+        fresh: 4,
+        markets: [
+          {
+            blockNumber: 21_000_000,
+            borrowApr: 3.1234,
+            chain: "base",
+            deploymentId: "Qm1",
+            name: "Aave V3 USDC",
+            protocol: "aave-v3",
+            supplyApr: 2.5,
+            totalBorrowUsd: 412_000_000,
+          },
+        ],
+        stubbed: false,
+        symbol: "USDC",
+        text: "Cheapest USDC borrow: ignored prose",
+        total: 4,
+      },
+    };
+    expect(summarize(structured)).toEqual({
+      detail: "4 of 4 indexes fresh",
+      headline: "Aave V3 USDC on base at 3.12% APR",
+      outcome: "ok",
+      stubbed: false,
     });
   });
 

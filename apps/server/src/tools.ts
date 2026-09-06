@@ -32,7 +32,8 @@ import {
   snapshotHash,
   x402Transport,
 } from "@froggy/graph";
-import type { GraphClient } from "@froggy/graph";
+import type { GraphClient, GraphSnapshot } from "@froggy/graph";
+import type { GraphQueryOutput } from "@froggy/protocol";
 import { EvmRpcError, PrivySignerRefusedError } from "@froggy/wallet";
 import { tool } from "ai";
 import { Schema } from "effect";
@@ -74,6 +75,49 @@ export const cap = (text: string, limit = OUTPUT_CAP): string => {
   const cut = straddles ? limit - 1 : limit;
   return `${text.slice(0, cut)}\n… (truncated at ${limit} characters)`;
 };
+
+/** The card's fixture words, and the model's. Kept apart from the prose. */
+const STUB_NOTE =
+  "\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]";
+
+/**
+ * The Graph answer in two registers: the prose the model reads, unchanged
+ * from when it was all there was, and the fields a card can lay out. Built
+ * once, from one snapshot, so the two cannot describe different answers.
+ */
+export const graphQueryOutput = (
+  snapshot: GraphSnapshot,
+  symbol: string
+): GraphQueryOutput => ({
+  deployments: snapshot.deployments.map((deployment) => ({
+    blockNumber: deployment.blockNumber,
+    chain: deployment.chain,
+    id: deployment.id,
+    label: deployment.label,
+    marketCount: deployment.marketCount,
+    note: deployment.note,
+    status: deployment.status,
+  })),
+  fresh: snapshot.deployments.filter(
+    (deployment) => deployment.status === "fresh"
+  ).length,
+  markets: snapshot.markets.slice(0, 4).map((market) => ({
+    blockNumber: market.blockNumber,
+    borrowApr: market.borrowApr,
+    chain: market.chain,
+    deploymentId: market.deploymentId,
+    name: market.name,
+    protocol: market.protocol,
+    supplyApr: market.supplyApr,
+    totalBorrowUsd: market.totalBorrowUsd,
+  })),
+  stubbed: snapshot.stubbed,
+  symbol: symbol.toUpperCase(),
+  text: cap(
+    `${describeCheapestBorrow(snapshot)}\n\n${describeDeployments(snapshot)}${snapshot.stubbed ? STUB_NOTE : ""}`
+  ),
+  total: snapshot.deployments.length,
+});
 
 export interface ToolDeps {
   /** This caller's own Chrome. One per signed-in user, never shared. */
@@ -341,12 +385,7 @@ export const buildTools = (deps: ToolDeps) => {
           source: snapshot.source,
           stubbed: snapshot.stubbed,
         };
-        const stub = snapshot.stubbed
-          ? "\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]"
-          : "";
-        return cap(
-          `${describeCheapestBorrow(snapshot)}\n\n${describeDeployments(snapshot)}${stub}`
-        );
+        return graphQueryOutput(snapshot, symbol);
       },
       inputSchema: std(
         Schema.Struct({
@@ -355,6 +394,8 @@ export const buildTools = (deps: ToolDeps) => {
           }),
         })
       ),
+      // The model reads the prose; the fields ride along for the card.
+      toModelOutput: ({ output }) => ({ type: "text", value: output.text }),
     }),
 
     x402_fetch: tool({

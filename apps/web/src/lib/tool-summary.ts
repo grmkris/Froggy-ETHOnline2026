@@ -11,6 +11,7 @@
  */
 
 import { formatUsd } from "@froggy/domain";
+import type { GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
 import type { ToolCall } from "./tool-call";
@@ -122,6 +123,20 @@ const graphSummary = (text: string): ToolSummary | null => {
   return null;
 };
 
+/** The same summary from the fields, for an answer that carries them. */
+const graphSummaryOf = (graph: GraphQueryOutput): ToolSummary => {
+  const freshness = `${graph.fresh} of ${graph.total} indexes fresh`;
+  const [best] = graph.markets;
+  return best === undefined
+    ? summary("No usable markets", "info", freshness, graph.stubbed)
+    : summary(
+        `${best.name} on ${best.chain} at ${best.borrowApr.toFixed(2)}% APR`,
+        "ok",
+        freshness,
+        graph.stubbed
+      );
+};
+
 /**
  * The unlocked page's link is a one-time token for the shared browser. It is
  * never repeated here, or as an anchor anywhere in this UI.
@@ -214,7 +229,10 @@ export const summarize = (call: ToolCall): ToolSummary | null => {
   }
   switch (call.name) {
     case "graph_query": {
-      return graphSummary(text);
+      // The prose parser stays for messages from before the fields existed.
+      return call.graph === null
+        ? graphSummary(text)
+        : graphSummaryOf(call.graph);
     }
     case "x402_fetch": {
       return fetchSummary(text);

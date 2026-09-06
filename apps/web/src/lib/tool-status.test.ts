@@ -6,6 +6,7 @@ import type { ToolSummary } from "./tool-summary";
 
 const call = (name: string, state: ToolState): ToolCall => ({
   errorText: null,
+  graph: null,
   input: {},
   name,
   output: null,
