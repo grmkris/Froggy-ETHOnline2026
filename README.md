@@ -1,6 +1,6 @@
 # Froggy
 
-> Other agent wallets give a model a key and a cap. Froggy gives it a browser you can see, grab and freeze — and a policy that still holds when you jailbreak the prompt.
+> Other agent wallets give a model a key and a cap. Froggy gives it a browser you can see, grab and stop — and a policy that still holds when you jailbreak the prompt. Your own personal agent can buy a task from it by the task, paid over Hedera x402, without ever holding a key.
 
 A web workspace where a human and an AI share **one Chrome**. The human watches a live screencast and can take the page mid-action. The agent drives that same Chrome over CDP. What it may spend is not a prompt rule: it is a mandate the agent cannot reach, evaluated outside the model, on every payment.
 
@@ -8,7 +8,7 @@ Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  $0.12 of $10.00 today ▮▮▯▯▯   ● agent is driving   ❄ Freeze  │
+│  $0.12 of $10.00 today ▮▮▯▯▯   ● agent is driving   ■ Stop    │
 ├──────────────────────────────────────────────────────────────┤
 │  you: buy the lending snapshot and tell me what it says       │
 │  🐸  asked The Graph · requested a paid resource · checked …  │
@@ -69,7 +69,7 @@ flowchart TB
   pay[["packages/payments<br/>how it paid"]]
   oracle[/"GET /oracle/snapshot<br/>402, Hedera x402"/]
 
-  human -->|clicks, types, freezes| arb
+  human -->|clicks, types, stops| arb
   human -->|asks| loop
   arb --> chrome
   loop -->|browser tools| arb
@@ -106,13 +106,14 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 ## The rules that are code, not prompts
 
-- **The approval channel is not a tool.** No `raise_limit`, no `unfreeze`. An agent that can approve its own spending has no leash.
+- **The approval channel is not a tool.** No `raise_limit`, no `approve`. An agent that can approve its own spending has no leash. An outside agent's token cannot reach it either: a token starts and reads tasks and asks the wallet to sign, and gets 403 on everything else.
 - **Payees have provenance.** An address that appeared only in page content or in the model's own output cannot be paid, however well-formed it is.
 - **Reserve before you pay.** The ledger row is written before the outbound call, with an idempotency key, so a retried tool call cannot pay twice.
 - **Page text is fenced.** It reaches the model prefixed as data, from a string constant that cannot be edited away in a prompt.
-- **Freeze aborts the run first, then takes the page.** The other order gives the next queued tool call the page back 1.5 seconds later.
+- **Stop aborts the run first, then withdraws every open ticket.** "Stop the agent" on a ticket does both. There is no freeze: the controls are Stop, the ticket, the caps and Disconnect.
+- **The sale is written before the work.** A paid proof is settled, hashed and filed; the same proof presented twice is answered from the book, and an answer that fails after the money moved is a failed sale with the settlement on it, never a 500 with a debit. A payment sent and not confirmed is `uncertain` and is not refunded until the mirror node says it did not land.
 - **Privy is the outer leash on the EVM leg.** Every signature the agent asks for goes through Privy's policy engine under a committed default-deny policy; an address the person typed passes the host's checks and is refused by Privy in Privy's words, on the receipt.
-- **The pocket is a share, not a key.** The Hedera leg is paid from one host account; each person spends their share of it, credited once, topped up under the Privy policy, zeroed by a freeze. "Freeze zeroes your allowance" is the honest sentence; "deletes the key" would not be.
+- **The pocket is a share, not a key.** The Hedera leg is paid from one host account; each person spends their share of it, credited once and topped up under the Privy policy. The next iteration opens one Hedera account per person and funds it from the treasury's HBAR float; until then "your allowance" is the honest phrase and "your account" is not.
 
 ## The demo, in order
 
@@ -122,7 +123,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 4. **"Top up the pocket."** The agent asks the person's own Privy wallet to sign a USDC transfer to the treasury on Base Sepolia. Privy's rule (b) allows it: right token, right recipient, at most 2 USDC, at most 5 USDC a day. The pocket grows by what landed.
 5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
 6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
-7. **Freeze.** The run aborts, the browser stops, the parked approvals are denied, the Privy signer is revoked, the pocket is zeroed. From the workspace or from the Telegram button.
+7. **Connect Hermes.** Mint a token in Details → Agents, paste the skill it shows into your personal agent, and run `froggy brief USDC` there: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts.
 
 ## On-chain and live evidence
 
@@ -145,7 +146,7 @@ curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
 
 ## What is real, what is host-side, what is not
 
-**Real.** A Chrome on our server the agent drives and you watch, grab and freeze. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera testnet with HashScan ids and HCS notes, from a service we host and pay. Live Messari lending data from twelve deployments through The Graph.
+**Real.** A Chrome on our server the agent drives and you watch, grab and stop. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera testnet with HashScan ids and HCS notes, from a service we host and pay. Live Messari lending data from twelve deployments through The Graph.
 
 **Host-side, not Privy.** The Hedera leg: the pocket balance, the per-transaction and rolling caps, idempotency, the provenance gate on page-derived addresses, the daily model budget. Privy evaluates policies only on transactions it can decode, and a Hedera transaction is a raw signature to it.
 
@@ -164,7 +165,8 @@ Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2
 ## Surfaces
 
 - **The workspace.** Chat-first; the page is a card in the stream, or a pane beside it, or a window of its own. Receipts are tickets: what and why on the body, rule id, transaction and evidence on the stub. A refusal is a stamp.
-- **Telegram.** Pair with a code from the drawer. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; `/freeze` is the kill switch; a plain message runs the same agent on the same mandate.
+- **Telegram.** Pair with a code from the drawer. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; a plain message runs the same agent on the same mandate.
+- **The task API and the CLI.** `POST /api/tasks` sells a lending brief or a browse behind a 402 priced in HBAR at the mirror-node rate, with a durable task id, idempotency, status, receipts and an event stream. `GET /froggy-cli.js` serves a dependency-free command for Node or Bun that is a real x402 client with your Froggy wallet as its signer; `skills/froggy/SKILL.md` is the text a personal agent installs, and Details → Agents hands you a copy with your token filled in.
 - **The daily digest.** One unattended turn a day at the hour you pick, bounded to a minute, a dozen steps, five cents and one paid request; nobody can be asked, so anything over the threshold is refused.
 - **The directory.** Paste a URL and it is probed, never paid; if the 402 is one this wallet can honour, one click makes it payable, and that click is the only way a stranger's host reaches the allowlist.
 
@@ -180,4 +182,4 @@ Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2
 
 - Each signed-in user's Chrome profile is persistent, so the agent browses as _you_. That is the point and also the risk. Profiles live under `CHROME_PROFILE_DIR` in a directory named by a hash of the Privy identity, and deleting one signs that agent out of everything.
 - `Bun.WebView` launches Chrome headless on its own, so a container needs no display server. Where Chrome cannot start, the pane says so and everything else keeps working.
-- Browser seats live in one server process, so the deployment runs at one replica. The spend ledger, mandates, receipts and the frozen flag are in Postgres when `DATABASE_URL` is set and in memory otherwise, and the wallet pane says which.
+- Browser seats live in one server process, so the deployment runs at one replica. The spend ledger, mandates, receipts, sales, tasks and agent tokens are in Postgres when `DATABASE_URL` is set and in memory otherwise, and the wallet pane says which.
