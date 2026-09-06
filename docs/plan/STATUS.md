@@ -85,6 +85,8 @@ Iteration-2 core per `docs/plan/NEXT_ITERATION.md`, all in stub mode, gate and 2
 - `363faf5` task API (`POST /api/tasks` as an x402 seller, durable ids, `GET /api/tasks/:id` with ticket and receipts, `/events`), agent tokens (`/api/agents`, restricted routes), `POST /api/wallet/pay` signing a header under the mandate for a keyless agent; stub payer salts its proof.
 - `ae7a9a9` the `froggy` CLI served at `/froggy-cli.js`, the skill text with one source and `skills/froggy/SKILL.md` kept equal by a test.
 - Agents tab in the drawer with `e2e/agents.spec.ts`; the brief's best-supply sentence.
+- `e253cfb` five audit gaps: social login only, one price constant, twelve deployments in the tool text, no phantom 503 in GRAPH.md, the signer comment's real cap.
+- Freeze removed from the product (task 1.6, phase 1): header, slash, Telegram, 423, mandate flag, pocket zeroing, signer revocation; migration 0006. The browser worker's frozen gate remains for phase 2.
 
 Smoke-tested end to end on a stub server: mint, curl the CLI, `brief` through Node to a done task, sale public by id, revoke kills the token.
 
