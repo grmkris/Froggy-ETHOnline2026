@@ -223,10 +223,11 @@ describe("a paid brief, from 402 to result", () => {
     // Unpaid, so a 402: no task exists yet for the key.
     expect(first.status).toBe(402);
 
+    const challenge: unknown = await first.json();
     const signed = await handleWalletPay(
       deps,
       new Request("http://localhost:3000/api/wallet/pay", {
-        body: JSON.stringify({ challenge: await first.json() }),
+        body: JSON.stringify({ challenge }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),

@@ -12,7 +12,6 @@ import {
   extractTransactionFromPayload,
   inspectHederaTransaction,
 } from "@x402/hedera";
-import type { ExactHederaPayloadV2 } from "@x402/hedera";
 import { Schema } from "effect";
 
 export interface PaymentDescription {
@@ -24,8 +23,13 @@ export interface PaymentDescription {
 
 const NOTHING: PaymentDescription = { payer: null, transactionId: null };
 
-/** Only the envelope; the SDK reads the transaction inside `payload`. */
-const Envelope = Schema.Struct({ payload: Schema.Unknown });
+/**
+ * The envelope and the one field the SDK reads: the base64 transaction.
+ * Its shape is `ExactHederaPayloadV2`, spelled out here so nothing is asserted.
+ */
+const Envelope = Schema.Struct({
+  payload: Schema.Struct({ transaction: Schema.String }),
+});
 const decodeEnvelope = Schema.decodeUnknownResult(
   Schema.fromJsonString(Envelope)
 );
@@ -42,12 +46,8 @@ export const describePayment = (paymentHeader: string): PaymentDescription => {
     return NOTHING;
   }
   try {
-    // SAFETY: the SDK's own type for the Hedera payload, checked by the SDK
-    // itself on the next line; a payload of any other shape throws there and
-    // is reported as nothing rather than as a wrong answer.
-    const inner = decoded.success.payload as ExactHederaPayloadV2;
     const inspected = inspectHederaTransaction(
-      extractTransactionFromPayload(inner)
+      extractTransactionFromPayload(decoded.success.payload)
     );
     return {
       payer: inspected.transactionIdAccountId,

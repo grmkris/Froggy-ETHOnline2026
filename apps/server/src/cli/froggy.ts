@@ -91,7 +91,9 @@ const optionsFrom = (argv: readonly string[]): Parsed => {
 const api = async (
   options: Options,
   path: string,
-  init: RequestInit & { readonly headers?: Record<string, string> } = {}
+  init: Omit<RequestInit, "headers"> & {
+    readonly headers?: Record<string, string>;
+  } = {}
 ): Promise<Response> =>
   await fetch(`${options.url}${path}`, {
     ...init,
