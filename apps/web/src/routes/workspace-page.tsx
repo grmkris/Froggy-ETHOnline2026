@@ -275,15 +275,18 @@ export const WorkspacePage = (): ReactElement => {
         wallet={app.wallet}
       />
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
-            <div className="px-4 pt-3">
-              <BrowserStrip
-                drive={drive}
-                onJump={scrollToLive}
-                painter={painter}
-                url={currentUrl}
-              />
+            // Over the stream, not in the column: its arrival moves nothing.
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 px-4">
+              <div className="pointer-events-auto">
+                <BrowserStrip
+                  drive={drive}
+                  onJump={scrollToLive}
+                  painter={painter}
+                  url={currentUrl}
+                />
+              </div>
             </div>
           ) : null}
           <Stream
@@ -305,7 +308,7 @@ export const WorkspacePage = (): ReactElement => {
             liveCard={liveCard}
             thinking={showThinking(chat.messages, chat.status)}
           />
-          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-4">
+          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <NoticeList
               notices={[...chatNotices, ...app.notices]}
               onDismiss={(id) => {

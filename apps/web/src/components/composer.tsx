@@ -65,10 +65,10 @@ export const Composer = ({
   return (
     <div className="space-y-2">
       {suggestions.length > 0 && !disabled ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="no-scrollbar scroll-fade-x flex flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible">
           {suggestions.map((suggestion) => (
             <button
-              className="bg-card shadow-card hover:bg-accent rounded-full border px-3 py-1.5 text-left text-xs transition-colors"
+              className="bg-card shadow-card hover:bg-accent shrink-0 rounded-full border px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors"
               key={suggestion}
               onClick={() => {
                 submit(suggestion);

@@ -1,9 +1,11 @@
 /**
  * The page, small, while the live card is scrolled away.
  *
- * During a run the agent keeps changing the page; a strip under the header
- * keeps a thumbnail of it in view so the person never loses sight of what
- * the agent is doing, and one click brings the card back.
+ * During a run the agent keeps changing the page; a strip floating over the
+ * top of the stream keeps a thumbnail of it in view so the person never loses
+ * sight of what the agent is doing, and one click brings the card back. It
+ * floats rather than sits in the column so its coming and going never moves
+ * the words underneath.
  */
 
 import { DrivingDot, DRIVE_LABEL } from "@froggy/ui/components/driving-ring";
@@ -33,7 +35,7 @@ export const BrowserStrip = ({
   }, [painter]);
   return (
     <button
-      className="rise-in bg-card/90 shadow-float sticky top-14 z-20 mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border p-2 pr-4 text-left backdrop-blur-md"
+      className="rise-in bg-card/90 shadow-float mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border p-2 pr-4 text-left backdrop-blur-md"
       onClick={onJump}
       type="button"
     >

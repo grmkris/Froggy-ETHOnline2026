@@ -18,6 +18,7 @@ import { FrogMark } from "@froggy/ui/components/frog-mark";
 import { cn } from "@froggy/ui/lib/utils";
 import { GlobeIcon, SlidersHorizontalIcon } from "lucide-react";
 
+import { useMediaQuery } from "../hooks/use-media-query";
 import { bindingWindowCap } from "../lib/app-state";
 import { shortAddress } from "../lib/format";
 import { useIdentity } from "../lib/privy";
@@ -42,6 +43,74 @@ const stubsOf = (modes: ServiceModes | null): readonly string[] =>
         .filter(([, mode]) => mode === "stub")
         .map(([name]) => name);
 
+/** What is left in the pocket; nothing when this deployment has none. */
+const Pocket = ({
+  pocketUsdMicros,
+}: {
+  readonly pocketUsdMicros: number | null | undefined;
+}): React.ReactElement | null =>
+  pocketUsdMicros === null || pocketUsdMicros === undefined ? null : (
+    <span
+      className="flex items-baseline gap-1 text-xs whitespace-nowrap"
+      title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it; a freeze zeroes it."
+    >
+      <span className="text-muted-foreground">pocket</span>
+      <span className="text-money text-sm leading-none">
+        {formatUsd(pocketUsdMicros)}
+      </span>
+    </span>
+  );
+
+const Driving = ({
+  drive,
+}: {
+  readonly drive: DriveMode;
+}): React.ReactElement => (
+  <span
+    aria-live="polite"
+    className="flex items-center gap-1.5 text-xs whitespace-nowrap"
+  >
+    <DrivingDot mode={drive} />
+    {DRIVE_LABEL[drive]}
+  </span>
+);
+
+/** The small print: reconnecting, a local identity, how much is stubbed. */
+const Flags = ({
+  connected,
+  stubbed,
+  stubs,
+}: {
+  readonly connected: boolean;
+  readonly stubbed: boolean;
+  readonly stubs: readonly string[];
+}): React.ReactElement => (
+  <>
+    {connected ? null : (
+      <Badge className="text-[10px]" variant="secondary">
+        reconnecting…
+      </Badge>
+    )}
+    {stubbed ? (
+      <Badge
+        className="border-drive-agent text-[10px] uppercase"
+        variant="outline"
+      >
+        local identity
+      </Badge>
+    ) : null}
+    {stubs.length > 0 ? (
+      <Badge
+        className="border-drive-agent/60 text-drive-agent shrink-0 text-[10px] whitespace-nowrap"
+        title={`Stubbed: ${stubs.join(", ")}. Nothing here is a real settlement.`}
+        variant="outline"
+      >
+        {stubs.length} stub{stubs.length === 1 ? "" : "s"}
+      </Badge>
+    ) : null}
+  </>
+);
+
 export const TopBar = ({
   connected,
   drive,
@@ -53,6 +122,9 @@ export const TopBar = ({
   wallet,
 }: TopBarProps): React.ReactElement => {
   const identity = useIdentity();
+  // One leash meter in the document at a time: the phone row and the wide
+  // row are alternatives, not a CSS toggle over two copies.
+  const phone = useMediaQuery("(max-width: 767px)");
   const frozen = mandate?.frozen ?? false;
   const stubs = stubsOf(modes);
   return (
@@ -72,63 +144,31 @@ export const TopBar = ({
           </span>
         </div>
 
-        <div className="hidden min-w-0 flex-1 items-center gap-4 overflow-hidden md:flex">
-          <div className="max-w-xs min-w-[11rem] flex-1">
-            <LeashMeter
-              cap={bindingWindowCap(mandate)}
-              frozen={frozen}
-              ledgerNote={wallet?.ledgerNote ?? null}
-              spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
+        {phone ? null : (
+          <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
+            <div className="max-w-xs min-w-[11rem] flex-1">
+              <LeashMeter
+                cap={bindingWindowCap(mandate)}
+                frozen={frozen}
+                ledgerNote={wallet?.ledgerNote ?? null}
+                spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
+              />
+            </div>
+            <span
+              className="text-machine text-muted-foreground hidden whitespace-nowrap lg:inline"
+              title={wallet?.address ?? undefined}
+            >
+              {shortAddress(wallet?.address ?? null)}
+            </span>
+            <Pocket pocketUsdMicros={wallet?.pocketUsdMicros} />
+            <Driving drive={drive} />
+            <Flags
+              connected={connected}
+              stubbed={identity.stubbed}
+              stubs={stubs}
             />
           </div>
-          <span
-            className="text-machine text-muted-foreground hidden whitespace-nowrap lg:inline"
-            title={wallet?.address ?? undefined}
-          >
-            {shortAddress(wallet?.address ?? null)}
-          </span>
-          {wallet?.pocketUsdMicros === null ||
-          wallet?.pocketUsdMicros === undefined ? null : (
-            <span
-              className="flex items-baseline gap-1 text-xs whitespace-nowrap"
-              title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it; a freeze zeroes it."
-            >
-              <span className="text-muted-foreground">pocket</span>
-              <span className="text-money text-sm leading-none">
-                {formatUsd(wallet.pocketUsdMicros)}
-              </span>
-            </span>
-          )}
-          <span
-            aria-live="polite"
-            className="flex items-center gap-1.5 text-xs whitespace-nowrap"
-          >
-            <DrivingDot mode={drive} />
-            {DRIVE_LABEL[drive]}
-          </span>
-          {connected ? null : (
-            <Badge className="text-[10px]" variant="secondary">
-              reconnecting…
-            </Badge>
-          )}
-          {identity.stubbed ? (
-            <Badge
-              className="border-drive-agent text-[10px] uppercase"
-              variant="outline"
-            >
-              local identity
-            </Badge>
-          ) : null}
-          {stubs.length > 0 ? (
-            <Badge
-              className="border-drive-agent/60 text-drive-agent shrink-0 text-[10px] whitespace-nowrap"
-              title={`Stubbed: ${stubs.join(", ")}. Nothing here is a real settlement.`}
-              variant="outline"
-            >
-              {stubs.length} stub{stubs.length === 1 ? "" : "s"}
-            </Badge>
-          ) : null}
-        </div>
+        )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <FreezeButton frozen={frozen} onFreeze={onFreeze} />
@@ -151,6 +191,21 @@ export const TopBar = ({
           </Button>
         </div>
       </div>
+      {/* On a phone the one line does not fit; the leash gets a row of its own. */}
+      {phone ? (
+        <div className="flex items-center gap-3 px-4 pb-2">
+          <div className="min-w-0 flex-1">
+            <LeashMeter
+              cap={bindingWindowCap(mandate)}
+              frozen={frozen}
+              ledgerNote={wallet?.ledgerNote ?? null}
+              spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
+            />
+          </div>
+          <Pocket pocketUsdMicros={wallet?.pocketUsdMicros} />
+          <Driving drive={drive} />
+        </div>
+      ) : null}
     </header>
   );
 };
