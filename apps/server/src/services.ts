@@ -115,6 +115,7 @@ export const createServices = (options: ServiceOptions): Services => {
     environment.modes.hedera === "live"
       ? liveOracleGate({
           facilitatorUrl: environment.hederaFacilitatorUrl,
+          network: environment.hederaNetwork,
           payTo: environment.hederaPayTo,
         })
       : stubOracleGate();
@@ -123,6 +124,7 @@ export const createServices = (options: ServiceOptions): Services => {
     environment.modes.hedera === "live"
       ? liveHederaPayer({
           accountId: environment.hederaAccountId,
+          network: environment.hederaNetwork,
           privateKey: environment.hederaPrivateKey,
         })
       : stubHederaPayer();
@@ -131,6 +133,7 @@ export const createServices = (options: ServiceOptions): Services => {
     environment.modes.hedera === "live"
       ? liveHcsWriter({
           accountId: environment.hederaAccountId,
+          network: environment.hederaNetwork,
           privateKey: environment.hederaPrivateKey,
           topicId: environment.hederaHcsTopicId,
         })

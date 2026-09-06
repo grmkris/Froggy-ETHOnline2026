@@ -10,7 +10,7 @@
 
 import { Schema } from "effect";
 
-import { HEDERA_TESTNET } from "./types";
+import { HEDERA_TESTNET, isHederaNetwork } from "./types";
 import type { PaymentChallenge } from "./types";
 import { challengeFrom } from "./wire";
 
@@ -91,7 +91,7 @@ export const assess = (
       supported: false,
     };
   }
-  if (requirement.network !== HEDERA_TESTNET) {
+  if (!isHederaNetwork(requirement.network)) {
     // An EVM exact payment is an EIP-3009 authorization; nothing else is built.
     const decoded = decodeTransferMethod(requirement.extra ?? {});
     const method =

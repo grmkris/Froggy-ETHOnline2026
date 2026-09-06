@@ -87,6 +87,7 @@ Iteration-2 core per `docs/plan/NEXT_ITERATION.md`, all in stub mode, gate and 2
 - Agents tab in the drawer with `e2e/agents.spec.ts`; the brief's best-supply sentence.
 - `e253cfb` five audit gaps: social login only, one price constant, twelve deployments in the tool text, no phantom 503 in GRAPH.md, the signer comment's real cap.
 - Freeze removed from the product (task 1.6, phase 1): header, slash, Telegram, 423, mandate flag, pocket zeroing, signer revocation; migration 0006. The browser worker's frozen gate remains for phase 2.
+- Task 1.4 (network as configuration): `HEDERA_NETWORK` picks testnet or mainnet, fails closed on anything else, the facilitator host follows it, the payer, the gate, the HCS writer, the probe, the pocket and the directory take it from the environment; `hedera:mainnet` HBAR and USDC are known assets and on the default network rule. AGENTS.md's onchain rule now states the owner's mainnet direction.
 
 Smoke-tested end to end on a stub server: mint, curl the CLI, `brief` through Node to a done task, sale public by id, revoke kills the token.
 

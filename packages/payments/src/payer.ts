@@ -22,7 +22,12 @@ import {
 import type { ClientHederaSigner } from "@x402/hedera";
 
 import { HEDERA_TESTNET, X402_VERSION } from "./types";
-import type { PaymentAttempt, PaymentChallenge, Payer } from "./types";
+import type {
+  HederaNetwork,
+  PaymentAttempt,
+  PaymentChallenge,
+  Payer,
+} from "./types";
 
 /**
  * Pick the requirement we can actually satisfy.
@@ -35,10 +40,11 @@ import type { PaymentAttempt, PaymentChallenge, Payer } from "./types";
 const DEFAULT_TIMEOUT_SECONDS = 120;
 
 const selectRequirements = (
-  challenge: PaymentChallenge
+  challenge: PaymentChallenge,
+  network: HederaNetwork
 ): PaymentRequirements | null => {
   const match = challenge.accepts.find(
-    (entry) => entry.network === HEDERA_TESTNET && entry.scheme === "exact"
+    (entry) => entry.network === network && entry.scheme === "exact"
   );
   if (match === undefined) {
     return null;
@@ -52,7 +58,7 @@ const selectRequirements = (
     asset: match.asset,
     extra: match.extra ?? {},
     maxTimeoutSeconds: match.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
-    network: HEDERA_TESTNET,
+    network,
     payTo: match.payTo,
     scheme: "exact",
   };
@@ -63,28 +69,30 @@ const encodeHeader = (payload: PaymentPayload): string =>
 
 export interface LivePayerOptions {
   readonly accountId: string;
+  /** Which Hedera this account lives on. The 402 must offer the same one. */
+  readonly network: HederaNetwork;
   /** Hedera ECDSA key, `0x`-prefixed. Never reaches the model or the browser. */
   readonly privateKey: string;
 }
 
 export const liveHederaPayer = (options: LivePayerOptions): Payer => {
+  const { network } = options;
   const signer: ClientHederaSigner = createClientHederaSigner(
     options.accountId,
     PrivateKey.fromStringECDSA(options.privateKey),
-    { network: HEDERA_TESTNET }
+    { network }
   );
   const scheme = new ExactHederaScheme(signer);
 
   return {
     accountId: options.accountId,
     mode: "live",
-    network: HEDERA_TESTNET,
+    network,
     pay: async (challenge) => {
-      const requirements = selectRequirements(challenge);
+      const requirements = selectRequirements(challenge, network);
       if (requirements === null) {
         return {
-          error:
-            "The 402 offered no Hedera testnet `exact` requirement we can pay.",
+          error: `The 402 offered no ${network} \`exact\` requirement we can pay.`,
           header: null,
           requirements: null,
           stubbed: false,
@@ -142,7 +150,7 @@ export const stubHederaPayer = (): Payer => ({
   network: HEDERA_TESTNET,
   pay: async (challenge) => {
     await Promise.resolve();
-    const requirements = selectRequirements(challenge);
+    const requirements = selectRequirements(challenge, HEDERA_TESTNET);
     if (requirements === null) {
       return {
         error:

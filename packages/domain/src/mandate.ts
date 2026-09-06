@@ -208,7 +208,12 @@ export const defaultRules = (params: {
   {
     _tag: "network_allowlist",
     id: params.ids(),
-    networks: ["eip155:8453", "eip155:84532", "hedera:testnet"],
+    networks: [
+      "eip155:8453",
+      "eip155:84532",
+      "hedera:mainnet",
+      "hedera:testnet",
+    ],
   },
   {
     _tag: "expiry",

@@ -30,7 +30,7 @@ export const assetFor = (
   if (known !== undefined) {
     return { asset: known, units: requirement.amount };
   }
-  const hedera = network === "hedera:testnet";
+  const hedera = network.startsWith("hedera:");
   return {
     asset: {
       decimals: hedera ? 8 : 6,

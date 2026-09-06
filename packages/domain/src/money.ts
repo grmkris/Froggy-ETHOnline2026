@@ -24,6 +24,7 @@ import { Schema } from "effect";
 export const Network = Schema.Literals([
   "eip155:8453",
   "eip155:84532",
+  "hedera:mainnet",
   "hedera:testnet",
 ]);
 export type Network = typeof Network.Type;
@@ -107,6 +108,20 @@ export const KNOWN_ASSETS = {
     decimals: 6,
     id: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     network: "eip155:84532",
+    symbol: "USDC",
+  },
+  /** Real HBAR. The network the team chose for iteration 2; the facilitator's mainnet host. */
+  "hedera:mainnet:hbar": {
+    decimals: 8,
+    id: "0.0.0",
+    network: "hedera:mainnet",
+    symbol: "HBAR",
+  },
+  /** Circle-issued USDC on Hedera mainnet, as an HTS token. */
+  "hedera:mainnet:usdc": {
+    decimals: 6,
+    id: "0.0.456858",
+    network: "hedera:mainnet",
     symbol: "USDC",
   },
   "hedera:testnet:hbar": {

@@ -20,6 +20,8 @@ import {
 } from "@hiero-ledger/sdk";
 import { Schema } from "effect";
 
+import type { HederaNetwork } from "./types";
+
 /** What goes on the topic. Flat and small: a message is capped at 1024 bytes. */
 export const SettlementNote = Schema.Struct({
   amount: Schema.String,
@@ -51,6 +53,8 @@ export interface HcsWriter {
 
 export interface LiveHcsOptions {
   readonly accountId: string;
+  /** Which Hedera the topic lives on. */
+  readonly network: HederaNetwork;
   /** ECDSA, `0x`-prefixed. The same pocket that pays; a topic needs an operator. */
   readonly privateKey: string;
   /** Empty means: create one at first use and say so in the log. */
@@ -60,7 +64,11 @@ export interface LiveHcsOptions {
 const encodeNote = Schema.encodeSync(Schema.fromJsonString(SettlementNote));
 
 export const liveHcsWriter = (options: LiveHcsOptions): HcsWriter => {
-  const client = Client.forTestnet().setOperator(
+  const client = (
+    options.network === "hedera:mainnet"
+      ? Client.forMainnet()
+      : Client.forTestnet()
+  ).setOperator(
     AccountId.fromString(options.accountId),
     PrivateKey.fromStringECDSA(options.privateKey)
   );

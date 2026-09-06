@@ -176,7 +176,7 @@ class FroggyServer extends Context.Service<
         // The Hedera leg is paid from one host account; each person spends
         // their share of it, credited once and topped up under the policy.
         pocket: {
-          networks: ["hedera:testnet"],
+          networks: [environment.hederaNetwork],
           startingUsdMicros: environment.pocketStartingUsdMicros,
         },
         profileRoot: environment.chromeProfileDirectory,

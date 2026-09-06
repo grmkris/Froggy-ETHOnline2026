@@ -17,7 +17,12 @@ import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { Result, Schema } from "effect";
 
 import { HBAR_ASSET, HEDERA_TESTNET, X402_VERSION } from "./types";
-import type { OracleGate, PaidResource, SettleOutcome } from "./types";
+import type {
+  HederaNetwork,
+  OracleGate,
+  PaidResource,
+  SettleOutcome,
+} from "./types";
 
 const MAX_TIMEOUT_SECONDS = 120;
 
@@ -75,7 +80,8 @@ const decodeSupported = Schema.decodeUnknownResult(Supported);
 const requirementsFor = (
   payTo: string,
   resource: PaidResource,
-  feePayer: string | null
+  feePayer: string | null,
+  network: HederaNetwork
 ): PaymentRequirements => ({
   amount: resource.units,
   asset: HBAR_ASSET,
@@ -84,7 +90,7 @@ const requirementsFor = (
   // cannot be constructed at all.
   extra: feePayer === null ? {} : { feePayer },
   maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
-  network: HEDERA_TESTNET,
+  network,
   payTo,
   scheme: "exact",
 });
@@ -92,9 +98,10 @@ const requirementsFor = (
 const challengeFor = (
   payTo: string,
   resource: PaidResource,
-  feePayer: string | null
+  feePayer: string | null,
+  network: HederaNetwork
 ): PaymentRequired => ({
-  accepts: [requirementsFor(payTo, resource, feePayer)],
+  accepts: [requirementsFor(payTo, resource, feePayer, network)],
   error: "Payment required.",
   resource: {
     description: resource.description,
@@ -137,6 +144,8 @@ const decodeHeader = (paymentHeader: string): PaymentEnvelope | null => {
 };
 
 export interface LiveOracleOptions {
+  /** Which Hedera the service is paid on; the facilitator host must match. */
+  readonly network: HederaNetwork;
   /** Blocky402. Testnet: https://api.testnet.blocky402.com */
   readonly facilitatorUrl: string;
   readonly payTo: string;
@@ -188,7 +197,8 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
   };
 
   return {
-    challenge: (resource) => challengeFor(options.payTo, resource, feePayer),
+    challenge: (resource) =>
+      challengeFor(options.payTo, resource, feePayer, options.network),
     mode: "live",
     payTo: options.payTo,
     refresh: async () => {
@@ -203,7 +213,7 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
         }
         const kind = decoded.success.kinds.find(
           (entry) =>
-            entry.network === HEDERA_TESTNET && entry.scheme === "exact"
+            entry.network === options.network && entry.scheme === "exact"
         );
         feePayer = kind?.extra?.feePayer ?? null;
         return feePayer !== null;
@@ -264,7 +274,8 @@ export const STUB_PAY_TO = "0.0.0";
 const STUB_FEE_PAYER = "0.0.0";
 
 export const stubOracleGate = (): OracleGate => ({
-  challenge: (resource) => challengeFor(STUB_PAY_TO, resource, STUB_FEE_PAYER),
+  challenge: (resource) =>
+    challengeFor(STUB_PAY_TO, resource, STUB_FEE_PAYER, HEDERA_TESTNET),
   mode: "stub",
   payTo: STUB_PAY_TO,
   // Nothing to learn: the stub's fee payer is a constant, and saying it

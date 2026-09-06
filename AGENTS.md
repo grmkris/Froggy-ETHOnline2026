@@ -59,7 +59,7 @@ A stub is **loud**: the wallet pane marks it and every receipt it touches carrie
 
 - Never invent or remember a production address. Resolve it from a verified primary source.
 - Never put a private key in the browser or the repository. Server signers read redacted configuration and are unwrapped only at the call site.
-- Testnets only: Base Sepolia and Hedera testnet. Mainnet, or anything holding real user funds, requires explicit user direction and stronger review.
+- Networks are configuration, never literals: `HEDERA_NETWORK` picks Hedera testnet or mainnet and the facilitator host follows it. The owner directed iteration 2 to mainnet on 6 Sep 2026 (`docs/plan/NEXT_ITERATION.md`); a checkout with no configuration still sells on testnet, and anything that moves real funds gets the stronger review that direction asked for.
 
 ## Change discipline
 

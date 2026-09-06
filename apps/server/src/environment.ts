@@ -20,6 +20,8 @@
 
 import { decodeUserId } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
+import { isHederaNetwork } from "@froggy/payments";
+import type { HederaNetwork } from "@froggy/payments";
 import type { ServiceMode, ServiceModes } from "@froggy/protocol";
 import { Config, Effect, Redacted, Result } from "effect";
 
@@ -165,6 +167,12 @@ export interface Environment {
   /** The agent's pocket: the account a 402 is paid *from*. */
   readonly hederaAccountId: string;
   readonly hederaFacilitatorUrl: string;
+  /**
+   * Which Hedera this deployment pays and sells on. The team chose mainnet
+   * for iteration 2; testnet stays the default so a checkout with no
+   * configuration cannot sell anything for real money by accident.
+   */
+  readonly hederaNetwork: HederaNetwork;
   /** The account our own paid endpoint is paid *to*. */
   readonly hederaPayTo: string;
   /** Where the HBAR/USD rate every cap is computed from comes from. */
@@ -309,9 +317,27 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
       Config.withDefault("")
     );
+    const hederaNetworkRaw = yield* Config.string("HEDERA_NETWORK").pipe(
+      Config.withDefault("hedera:testnet")
+    );
+    if (!isHederaNetwork(hederaNetworkRaw)) {
+      // Fail closed: a typo here would sell on the wrong network.
+      throw new Error(
+        `HEDERA_NETWORK must be hedera:testnet or hedera:mainnet, not ${hederaNetworkRaw}`
+      );
+    }
+    const hederaNetwork: HederaNetwork = hederaNetworkRaw;
+    // The facilitator host follows the network unless told otherwise, so
+    // switching networks is one variable, not two that can disagree.
     const hederaFacilitatorUrl = yield* Config.string(
       "HEDERA_FACILITATOR_URL"
-    ).pipe(Config.withDefault("https://api.testnet.blocky402.com"));
+    ).pipe(
+      Config.withDefault(
+        hederaNetwork === "hedera:mainnet"
+          ? "https://api.blocky402.com"
+          : "https://api.testnet.blocky402.com"
+      )
+    );
     const hederaMirrorNodeUrl = yield* Config.string(
       "HEDERA_MIRROR_NODE_URL"
     ).pipe(Config.withDefault("https://mainnet-public.mirrornode.hedera.com"));
@@ -418,6 +444,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       hederaFacilitatorUrl,
       hederaHcsTopicId,
       hederaMirrorNodeUrl,
+      hederaNetwork,
       hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,

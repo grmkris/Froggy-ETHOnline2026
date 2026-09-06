@@ -30,8 +30,8 @@ export interface DirectoryDeps {
 const payableNetworks = (deps: DirectoryDeps): readonly string[] => {
   const { environment } = deps.services;
   return environment.modes.privy === "live" && environment.privyAgent !== null
-    ? ["hedera:testnet", "eip155:8453", "eip155:84532"]
-    : ["hedera:testnet"];
+    ? [environment.hederaNetwork, "eip155:8453", "eip155:84532"]
+    : [environment.hederaNetwork];
 };
 
 /** A probe is a read: a GET with the same private-network rules as any other. */

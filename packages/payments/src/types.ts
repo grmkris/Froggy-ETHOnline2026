@@ -94,5 +94,10 @@ export interface PaymentAttempt {
 
 export const X402_VERSION = 2;
 export const HEDERA_TESTNET = "hedera:testnet" as const;
+export const HEDERA_MAINNET = "hedera:mainnet" as const;
+/** The two Hedera networks x402 knows. Which one a deployment pays on is configuration. */
+export type HederaNetwork = typeof HEDERA_MAINNET | typeof HEDERA_TESTNET;
+export const isHederaNetwork = (network: string): network is HederaNetwork =>
+  network === HEDERA_TESTNET || network === HEDERA_MAINNET;
 /** x402's identifier for native HBAR. An HTS token id goes here instead. */
 export const HBAR_ASSET = "0.0.0";

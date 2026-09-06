@@ -46,11 +46,14 @@ export type { HbarRate, LiveRateOptions, RateSource } from "./rates";
 export {
   decodePaymentChallenge,
   HBAR_ASSET,
+  HEDERA_MAINNET,
   HEDERA_TESTNET,
+  isHederaNetwork,
   PaymentChallenge,
   X402_VERSION,
 } from "./types";
 export type {
+  HederaNetwork,
   OracleGate,
   PaidResource,
   PaymentAttempt,
