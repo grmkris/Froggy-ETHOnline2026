@@ -169,7 +169,7 @@ export const buildTools = (deps: ToolDeps) => {
    * gateway, judged by the mandate like any other, one receipt each. The
    * Studio key otherwise. Either way the same standardized query.
    */
-  const graphFor = (symbol: string): GraphClient => {
+  const graphFor = (symbol: string, toolCallId: string): GraphClient => {
     const { environment } = services;
     if (!environment.graphPayPerQuery || session.agentWallet === null) {
       return services.graph;
@@ -197,6 +197,7 @@ export const buildTools = (deps: ToolDeps) => {
               method: "POST",
             },
             purpose: `The Graph query, ${symbol.toUpperCase()} lending markets`,
+            toolCallId,
             url,
           }
         );
@@ -322,8 +323,10 @@ export const buildTools = (deps: ToolDeps) => {
     graph_query: tool({
       description:
         "Live lending markets across four pinned Graph deployments — Aave v3 on Ethereum and Base, Compound v3, Spark — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. This is the evidence a spend has to be justified by; query it before you pay for anything derived from it.",
-      execute: async ({ symbol }) => {
-        const snapshot = await graphFor(symbol).lendingMarkets(symbol);
+      execute: async ({ symbol }, { toolCallId }) => {
+        const snapshot = await graphFor(symbol, toolCallId).lendingMarkets(
+          symbol
+        );
         // Held so a payment made right after a query can cite what it was
         // acting on, rather than the receipt saying only that money moved.
         lastEvidence = {
@@ -357,7 +360,7 @@ export const buildTools = (deps: ToolDeps) => {
     x402_fetch: tool({
       description:
         "Fetch a URL that may require payment. If it answers 402 the payment is made under the user's mandate. You do not decide whether it is allowed and you cannot raise the limit. A paid answer comes with a one-time link to the unlocked page; open it with browser_navigate so the person watches the page unlock.",
-      execute: async ({ url }) => {
+      execute: async ({ url }, { toolCallId }) => {
         const outcome = await paidRequest(
           {
             evidence: lastEvidence,
@@ -367,7 +370,7 @@ export const buildTools = (deps: ToolDeps) => {
             services,
             session,
           },
-          { url }
+          { toolCallId, url }
         );
         if (outcome.kind === "refused") {
           return outcome.message;
@@ -409,7 +412,7 @@ export const buildTools = (deps: ToolDeps) => {
     wallet_send: tool({
       description:
         "Send USDC on Base Sepolia to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the caps and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.",
-      execute: async ({ amountUsd, purpose, to }) => {
+      execute: async ({ amountUsd, purpose, to }, { toolCallId }) => {
         const units = String(Math.round(amountUsd * 1_000_000));
         const attempt = session.spend({
           amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
@@ -427,6 +430,7 @@ export const buildTools = (deps: ToolDeps) => {
           interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,
+          toolCallId,
           settle: async () => await transferUsdc(to, units),
         });
 
@@ -460,7 +464,7 @@ export const buildTools = (deps: ToolDeps) => {
     wallet_topup: tool({
       description:
         "Top up the Hedera pocket the paid requests are drawn from: send USDC on Base Sepolia from the person's wallet to the treasury, signed under the wallet's own policy, and the pocket is credited one-to-one. The policy allows at most 2 USDC per top-up and 5 USDC per rolling day; the mandate's caps apply as well.",
-      execute: async ({ amountUsd }) => {
+      execute: async ({ amountUsd }, { toolCallId }) => {
         const treasury = services.environment.treasuryEvmAddress;
         if (treasury === null) {
           return "Top-ups are not configured on this deployment: no treasury address is set. Nothing was sent.";
@@ -478,6 +482,7 @@ export const buildTools = (deps: ToolDeps) => {
           purpose: `Top up the Hedera pocket with ${amountUsd} USDC (USDC to the treasury on Base Sepolia, pocket credited one-to-one)`,
           runId: deps.run.id,
           signal: deps.run.signal,
+          toolCallId,
           settle: async () => {
             const settled = await transferUsdc(treasury, units);
             if (settled.ok) {

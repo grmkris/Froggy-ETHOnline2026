@@ -706,3 +706,30 @@ describe("the pocket", () => {
     ).toEqual(["0.0.1", "0xtreasury"]);
   });
 });
+
+describe("the receipt names the tool call that spent", () => {
+  test("carries the call id through an allow and through a refusal", async () => {
+    const session = sessionWith(memoryLedger());
+
+    const paid = await session.spend(
+      request({ key: "paid", toolCallId: "call-1" })
+    );
+    expect(paid.receipt.toolCallId).toBe("call-1");
+
+    // Over the $2 per-transaction cap: refused, and still filed under the call.
+    const refused = await session.spend(
+      request({ key: "big", toolCallId: "call-2", units: "300000000" })
+    );
+    expect(refused.decision._tag).toBe("deny");
+    expect(refused.receipt.toolCallId).toBe("call-2");
+  });
+
+  test("has none when no tool made the spend", async () => {
+    const paid = await sessionWith(memoryLedger()).spend(
+      request({ key: "job" })
+    );
+
+    // Absent, not present-and-undefined: the receipt is a stored document.
+    expect("toolCallId" in paid.receipt).toBe(false);
+  });
+});

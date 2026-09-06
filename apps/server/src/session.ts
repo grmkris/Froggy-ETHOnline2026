@@ -94,6 +94,8 @@ export interface SpendRequest {
   readonly provenance: SpendIntent["payee"]["provenance"];
   /** The turn this spend belongs to, so a receipt can be traced back to it. */
   readonly runId: RunIdValue;
+  /** The tool call this spend belongs to, when a tool made it. */
+  readonly toolCallId?: string | undefined;
   /**
    * The run's signal. Checked once more immediately before the outbound call:
    * a run stopped between the reservation and the payment must not pay.
@@ -875,6 +877,7 @@ export class WorkspaceSession {
       intent: judged.intent,
       quote: judged.quote,
       runId: request.runId,
+      toolCallId: request.toolCallId,
       settlement:
         outcome.transactionId === null
           ? undefined
@@ -1059,6 +1062,7 @@ export class WorkspaceSession {
         intent,
         quote,
         runId: request.runId,
+        toolCallId: request.toolCallId,
         spendId,
         stubbed: false,
       });
@@ -1078,6 +1082,7 @@ export class WorkspaceSession {
         intent,
         quote,
         runId: request.runId,
+        toolCallId: request.toolCallId,
         spendId: row.id,
         stubbed: false,
       });
@@ -1104,6 +1109,7 @@ export class WorkspaceSession {
         intent,
         quote,
         runId: request.runId,
+        toolCallId: request.toolCallId,
         spendId: row.id,
         stubbed: false,
       });
@@ -1134,6 +1140,7 @@ export class WorkspaceSession {
       intent,
       quote,
       runId: request.runId,
+      toolCallId: request.toolCallId,
       settlement:
         outcome.transactionId === null
           ? undefined
@@ -1160,10 +1167,11 @@ export class WorkspaceSession {
     readonly settlement?: Receipt["settlement"];
     readonly spendId: SpendId;
     readonly stubbed: boolean;
+    readonly toolCallId?: string | undefined;
   }): SpendResult {
     const draft: Draft<
       Receipt,
-      "approval" | "evidence" | "failure" | "settlement"
+      "approval" | "evidence" | "failure" | "settlement" | "toolCallId"
     > = {
       at: input.at,
       decision: input.decision,
@@ -1188,6 +1196,9 @@ export class WorkspaceSession {
     }
     if (input.settlement !== undefined) {
       draft.settlement = input.settlement;
+    }
+    if (input.toolCallId !== undefined) {
+      draft.toolCallId = input.toolCallId;
     }
     const receipt: Receipt = draft;
     this.receipts.push(receipt);

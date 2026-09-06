@@ -82,6 +82,11 @@ export const Receipt = Schema.Struct({
   settlement: Schema.optional(Settlement),
   spendId: SpendId,
   stubbed: Schema.Boolean,
+  /**
+   * The tool call that spent, when a tool did. The chat files the receipt
+   * under that call's card; a receipt from a job or a replay has none.
+   */
+  toolCallId: Schema.optional(Schema.String),
 });
 export type Receipt = typeof Receipt.Type;
 

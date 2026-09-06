@@ -46,6 +46,8 @@ export interface PaidRequestInput {
   readonly init?: RequestInit;
   /** What this pays for, on the receipt. Defaults to the path. */
   readonly purpose?: string;
+  /** The tool call paying, so the receipt is filed under its card. */
+  readonly toolCallId?: string | undefined;
   readonly url: string;
 }
 
@@ -250,6 +252,7 @@ export const paidRequest = async (
     purpose: input.purpose ?? `x402 payment for ${target.pathname}`,
     runId: deps.run.id,
     signal: deps.run.signal,
+    toolCallId: input.toolCallId,
     settle: async () => {
       let attempt: PaymentAttempt;
       try {
