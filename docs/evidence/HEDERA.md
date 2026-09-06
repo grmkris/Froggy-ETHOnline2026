@@ -24,7 +24,8 @@ curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
 | --- | --- | --- | --- |
 | 5 Sep 2026 | 0.05 HBAR, pocket `0.0.9700388` → payee `0.0.10377647`, fee paid by the facilitator | [`1788625330.599677104`](https://hashscan.io/testnet/transaction/1788625330.599677104) | SUCCESS |
 | 5 Sep 2026 | 0.05 HBAR paid by the agent's scripted turn against the local oracle in live mode, with an HCS note on each side | facilitator tx [`0.0.7162784@1788632323.333261031`](https://hashscan.io/testnet/transaction/1788632323.333261031); topic [`0.0.10381647`](https://hashscan.io/testnet/topic/0.0.10381647) messages #1 (sold) and #2 (paid) | SUCCESS |
-| TODO(tx) | the same request from the hosted URL, on camera |  |  |
+| 6 Sep 2026 06:09 UTC | 0.05 HBAR paid to the **hosted** service at `app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC` by our own payer code (`packages/payments/src/payer.ts`) from the build box: 402 with `feePayer 0.0.7162784`, payment built, retried with `X-PAYMENT`, 200 with the twelve-index answer (Euler 2.76% cheapest) and the settlement in `payment-response` | [`0.0.7162784@1788674975.439553201`](https://hashscan.io/testnet/transaction/1788674975.439553201) | SUCCESS |
+| TODO(tx) | the same request started from the chat, on camera, with the unlocked page opening in the shared Chrome |  |  |
 | TODO(tx) | a peer seller's 402, added through the directory, paid by the agent |  |  |
 
 Payer and payee are distinct accounts on purpose: a service paying itself settles fine and demonstrates nothing.

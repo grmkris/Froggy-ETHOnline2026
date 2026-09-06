@@ -111,6 +111,55 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 - **Reserve before you pay.** The ledger row is written before the outbound call, with an idempotency key, so a retried tool call cannot pay twice.
 - **Page text is fenced.** It reaches the model prefixed as data, from a string constant that cannot be edited away in a prompt.
 - **Freeze aborts the run first, then takes the page.** The other order gives the next queued tool call the page back 1.5 seconds later.
+- **Privy is the outer leash on the EVM leg.** Every signature the agent asks for goes through Privy's policy engine under a committed default-deny policy; an address the person typed passes the host's checks and is refused by Privy in Privy's words, on the receipt.
+- **The pocket is a share, not a key.** The Hedera leg is paid from one host account; each person spends their share of it, credited once, topped up under the Privy policy, zeroed by a freeze. "Freeze zeroes your allowance" is the honest sentence; "deletes the key" would not be.
+
+## The demo, in order
+
+1. **Open the workspace.** The mandate is on screen before anything has been spent: caps, allowlists, the pocket, the policy id.
+2. **"What is the cheapest USDC borrow right now?"** One standardized Messari query across twelve lending deployments on four chains, at one block each, through The Graph. The answer names the indexes and blocks it came from.
+3. **"Buy the snapshot."** The agent asks our own x402 endpoint, the host pays 0.05 HBAR on Hedera testnet through the facilitator under the mandate, the HCS note posts, and the agent opens the one-time unlocked page in the shared Chrome. Receipt: rule, transaction, HCS sequence, evidence hash.
+4. **"Top up the pocket."** The agent asks the person's own Privy wallet to sign a USDC transfer to the treasury on Base Sepolia. Privy's rule (b) allows it: right token, right recipient, at most 2 USDC, at most 5 USDC a day. The pocket grows by what landed.
+5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
+6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
+7. **Freeze.** The run aborts, the browser stops, the parked approvals are denied, the Privy signer is revoked, the pocket is zeroed. From the workspace or from the Telegram button.
+
+## On-chain and live evidence
+
+| What | Where | Id |
+| --- | --- | --- |
+| Hedera x402 settlement, pocket `0.0.9700388` to payee `0.0.10377647`, fee paid by the facilitator | HashScan testnet | `1788625330.599677104` |
+| Hedera x402 settlement against the **hosted** service, 6 Sep | HashScan testnet | `0.0.7162784@1788674975.439553201` |
+| HCS topic, one note per settlement on both sides | HashScan testnet | `0.0.10381647` |
+| Privy policy the agent signs under, two allow rules and an expiry | `docs/privy-agent-policy.json` | `rk6qw974uapbesb04u5tq5kb` |
+| Privy rolling 24-hour aggregation on top-ups | Privy | `mpjhq6o0t9gzdvg3x0x4gmb1` |
+| Privy refusals and one allowed signature, verbatim | `docs/evidence/PRIVY.md` | transcript of 5 Sep |
+| The Graph, twelve deployments at one block each | `docs/evidence/GRAPH.md` | blocks of 6 Sep 06:09 UTC |
+| The service card | `GET /.well-known/x402.json` on the live URL | — |
+
+```bash
+curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
+# HTTP/1.1 402 … {"x402Version":2,"accepts":[{"scheme":"exact","network":"hedera:testnet",…}]}
+curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
+```
+
+## What is real, what is host-side, what is not
+
+**Real.** A Chrome on our server the agent drives and you watch, grab and freeze. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera testnet with HashScan ids and HCS notes, from a service we host and pay. Live Messari lending data from twelve deployments through The Graph.
+
+**Host-side, not Privy.** The Hedera leg: the pocket balance, the per-transaction and rolling caps, idempotency, the provenance gate on page-derived addresses, the daily model budget. Privy evaluates policies only on transactions it can decode, and a Hedera transaction is a raw signature to it.
+
+**Testnet, or not yet run live.** All Hedera value is testnet HBAR. The top-up sends Base Sepolia USDC to a treasury we control and credits the pocket at par; nothing is bridged. The typed-data x402 payment to The Graph's gateway is built and unverified until the demo wallet holds USDC on Base. The login-time grant of the agent signer is unverified against a real login; the refusal transcript comes from a wallet created with the same grant shape.
+
+**Known gaps.** Privy's daily aggregation is app-wide and updates after signing, so two simultaneous top-ups can both pass; the host serializes each person's spends. A facilitator error after settlement is recorded as failed without consulting the mirror node. The pocket is a per-user balance, not a per-user account.
+
+## Not in scope
+
+Mainnet value for anyone but the team's demo wallet. Guest access without sign-in. Swaps, onramps, bridges, the injected `window.ethereum` provider, the WebMCP consumer. A per-user Hedera account. Anything that changes spending authority as a tool.
+
+## Team
+
+Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2026; `docs/evidence/AI-USE.md` says how.
 
 ## Surfaces
 

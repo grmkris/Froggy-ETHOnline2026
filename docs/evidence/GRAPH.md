@@ -15,7 +15,8 @@ Served through a Subgraph Studio key (`GRAPH_API_KEY`), never from a fixture whe
 | When | Deployments | Result |
 | --- | --- | --- |
 | 5 Sep 2026 | Spark, Aave v3 Ethereum, Compound v3 (Messari standardized) | three protocols at one block; cheapest USDC borrow Spark 4.268%, Aave 4.269%, Compound 5.023%. Aave v3 Base reported unavailable: nobody indexes it on the network. |
-| 5 Sep 2026 | registry widened to twelve deployments, on evidence (`785d85e`) | TODO(blocks): four fresh blocks from the hosted URL, pasted here |
+| 5 Sep 2026 | registry widened to twelve deployments, on evidence (`785d85e`) | twelve deployments across Ethereum, Arbitrum, Polygon and BSC |
+| 6 Sep 2026 06:09 UTC | all twelve, one parallel round trip (298 ms) through the Studio key | **12/12 fresh.** Ethereum at block 25916416: Aave v3 `JCNWRypm…`, Aave v2 `C2zniPn4…`, Compound v3 `AwoxEZbi…` (25916415), Compound v2 `4TbqVA8p…`, Spark `GbKdmBe4…`, Euler `95nyAWFF…`. Arbitrum at 502250038: Aave v3 `4xyasjQe…`, Compound v3 `5MjRndNW…` (502250030). Polygon at 93313294: Aave v3 `6yuf1C49…`, Aave v2 `GrZQJ7sW…`, Compound v3 `5wfoWBpf…`. BSC at 120250759: Aave v3 `43jbGkvS…`. Cheapest USDC borrow: Euler on Ethereum 2.76% ($43M borrowed), then Compound v3 Arbitrum 2.92%, Aave Polygon 2.99%, Aave Arbitrum 3.69%. The same answer, paid for through the hosted 402 a minute later, is in `HEDERA.md`. |
 
 ## Pay per query (built, awaiting funds)
 
