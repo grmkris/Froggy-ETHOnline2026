@@ -76,6 +76,18 @@ Two sessions share this tree tonight. Each claims a task here before touching co
 - **Session A** (the planning session, `session_011fhisYdtVt2vh8DtW4MkPU`): done above: 2.4 remainder, 2.9 top-up with the pocket balance, 2.10 remainder, 1.6 budget, 2.6 unlock and card, evidence and README. **Sun 6 Sep: the chat surface upgrade, Parts A, B, S1, S2 and Phase 2 all landed; only Part D (after the Thu freeze) remains** (plan file `use-ask-user-qeustion-shimmying-cray.md` on the box): `apps/web/src/components/stream/**`, `apps/web/src/lib/{tool-*,keymap,stream-model,suggestions,denial,turn-model,slash}*`, `apps/web/src/components/{composer,announcer,top-bar}.tsx`, new `packages/ui` registry components (message-scroller, message, bubble, marker, collapsible), `apps/server/src/model.ts` final text, and the two additive server changes S1 (`toolCallId` on receipts: `receipt.ts`, `session.ts`, `paid-request.ts`, `tools.ts`) and S2 (structured `graph_query` output: `tools.ts`, `turn.ts`, `jobs.ts`). Please stay out of those paths.
 - **Session B** (the building session that landed everything above): unclaimed at 21:00; P6.2 WebMCP consumer and 6.3 injected provider are the only stretch items left, after the owner blockers above are cleared.
 
+## Landed by Session F (the facilitator session), Sun 6 Sep evening
+
+Iteration-2 core per `docs/plan/NEXT_ITERATION.md`, all in stub mode, gate and 25 browser tests green:
+
+- `b819e32` sales, tasks and agent-token records: domain schemas, tables, migration 0005, store sections in memory and Postgres; ledger status `uncertain`.
+- `4a9d213` seller durability: the sale is written before the work, a replayed proof is answered from the book, a paid failure is a 502 with the settlement, `GET /oracle/sales/:id`; buyer refunds only when nothing was sent or the mirror node says the transaction failed, otherwise `uncertain`.
+- `363faf5` task API (`POST /api/tasks` as an x402 seller, durable ids, `GET /api/tasks/:id` with ticket and receipts, `/events`), agent tokens (`/api/agents`, restricted routes), `POST /api/wallet/pay` signing a header under the mandate for a keyless agent; stub payer salts its proof.
+- `ae7a9a9` the `froggy` CLI served at `/froggy-cli.js`, the skill text with one source and `skills/froggy/SKILL.md` kept equal by a test.
+- Agents tab in the drawer with `e2e/agents.spec.ts`; the brief's best-supply sentence.
+
+Smoke-tested end to end on a stub server: mint, curl the CLI, `brief` through Node to a done task, sale public by id, revoke kills the token.
+
 ## Lanes (Sun 6 Sep, 18:50 CEST) — iteration 2
 
 - **Session F** (the facilitator session running the Telegram grilling; Fable 5.1): claims the iteration-2 core per `docs/plan/NEXT_ITERATION.md` tasks 1.1 to 1.7: seller durability (`apps/server/src/oracle-route.ts`, `packages/payments/src/oracle.ts`), the task API and lifecycle (`apps/server/src/tasks.ts` new, `router.ts`, `packages/domain/src/id.ts`, `packages/protocol/src/**`), agent tokens (`apps/server/src/auth.ts`, `router.ts`, settings drawer in `apps/web/src/components/details/**`), the settle and refund fix in `apps/server/src/session.ts` and `paid-request.ts`, freeze removal across `apps/server/src/freeze.ts`, `sockets.ts`, `telegram/**`, `apps/web/src/**`, and the CLI plus skill (`apps/cli/**` new, `skills/froggy/**` new). Database changes go in new migrations only. Commits by pathspec; please stay out of those paths until this block is updated.
