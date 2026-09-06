@@ -25,9 +25,10 @@ describe("storyOf", () => {
     expect(story.tone).toBe("plain");
   });
 
-  it("counts the four tools that can end in a payment as money", () => {
+  it("counts the tools that can end in a payment as money", () => {
     expect([...MONEY_TOOLS].toSorted()).toEqual([
       "graph_query",
+      "service_run",
       "wallet_send",
       "wallet_topup",
       "x402_fetch",

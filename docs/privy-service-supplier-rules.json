@@ -1,0 +1,200 @@
+[
+  {
+    "name": "you-search-x402-base",
+    "method": "eth_signTypedData_v4",
+    "action": "ALLOW",
+    "conditions": [
+      {
+        "field_source": "ethereum_typed_data_domain",
+        "field": "chainId",
+        "operator": "eq",
+        "value": "8453"
+      },
+      {
+        "field_source": "ethereum_typed_data_domain",
+        "field": "verifyingContract",
+        "operator": "eq",
+        "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      },
+      {
+        "field_source": "ethereum_typed_data_message",
+        "field": "to",
+        "operator": "in",
+        "value": ["0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f"],
+        "typed_data": {
+          "primary_type": "TransferWithAuthorization",
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "field_source": "ethereum_typed_data_message",
+        "field": "value",
+        "operator": "lte",
+        "value": "10000",
+        "typed_data": {
+          "primary_type": "TransferWithAuthorization",
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "field_source": "system",
+        "field": "current_unix_timestamp",
+        "operator": "lt",
+        "value": "1790726400"
+      }
+    ]
+  },
+  {
+    "name": "blockrun-services-x402-base",
+    "method": "eth_signTypedData_v4",
+    "action": "ALLOW",
+    "conditions": [
+      {
+        "field_source": "ethereum_typed_data_domain",
+        "field": "chainId",
+        "operator": "eq",
+        "value": "8453"
+      },
+      {
+        "field_source": "ethereum_typed_data_domain",
+        "field": "verifyingContract",
+        "operator": "eq",
+        "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      },
+      {
+        "field_source": "ethereum_typed_data_message",
+        "field": "to",
+        "operator": "in",
+        "value": ["0xe9030014F5DAe217d0A152f02A043567b16c1aBf"],
+        "typed_data": {
+          "primary_type": "TransferWithAuthorization",
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "field_source": "ethereum_typed_data_message",
+        "field": "value",
+        "operator": "lte",
+        "value": "100000",
+        "typed_data": {
+          "primary_type": "TransferWithAuthorization",
+          "types": {
+            "TransferWithAuthorization": [
+              {
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "name": "validAfter",
+                "type": "uint256"
+              },
+              {
+                "name": "validBefore",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "bytes32"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "field_source": "system",
+        "field": "current_unix_timestamp",
+        "operator": "lt",
+        "value": "1790726400"
+      }
+    ]
+  }
+]

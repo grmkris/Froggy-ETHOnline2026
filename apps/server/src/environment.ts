@@ -161,6 +161,9 @@ export const selectModelProvider = (input: {
 };
 
 export interface Environment {
+  readonly xApiBearer: Redacted.Redacted;
+  readonly supplierPayees: Readonly<Record<string, string>>;
+
   readonly anthropicApiKey: string;
   /** Trusted browser origins for WebSocket upgrades. See `ws-router.ts`. */
   readonly allowedOrigins: readonly string[];
@@ -479,6 +482,25 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "TELEGRAM_BOT_USERNAME"
     ).pipe(Config.withDefault(""));
 
+    const xApiBearer = yield* secret("X_API_BEARER_TOKEN", "");
+    const supplierPayeesRaw = yield* Config.string(
+      "SERVICE_SUPPLIER_PAYEES"
+    ).pipe(Config.withDefault(""));
+    const supplierPayees: Record<string, string> = {};
+    for (const entry of supplierPayeesRaw.split(",").filter(Boolean)) {
+      const [host, payee] = entry.trim().split("=");
+      if (
+        (host !== "blockrun.ai" && host !== "api.you.com") ||
+        payee === undefined ||
+        payee === "" ||
+        !/^0x[0-9a-fA-F]{40}$/u.test(payee)
+      ) {
+        throw new Error(
+          "SERVICE_SUPPLIER_PAYEES must contain supported host=EVM-address pairs."
+        );
+      }
+      supplierPayees[host] = payee;
+    }
     const modes: ServiceModes = {
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
       // The key alone. The deployments are pinned in `packages/graph`'s
@@ -509,6 +531,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     };
 
     return {
+      xApiBearer,
+      supplierPayees,
       allowedOrigins: allowedOrigins(appOrigin, extraOrigins),
       anthropicApiKey: anthropicKey,
       appOrigin,

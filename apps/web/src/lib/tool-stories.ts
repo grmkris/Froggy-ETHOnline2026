@@ -40,6 +40,23 @@ const amount = (input: ToolInput): string =>
   input.amountUsd === undefined ? "some USDC" : `${input.amountUsd} USDC`;
 
 const STORIES = {
+  services_list: {
+    icon: SearchIcon,
+    sentence: () => "Checked available services",
+    tone: "plain",
+  },
+  service_run: {
+    icon: ReceiptTextIcon,
+    doing: () => "Starting your service task",
+    sentence: (input) =>
+      `Requested ${input.service?.replaceAll("_", " ") ?? "a service"}`,
+    tone: "money",
+  },
+  service_status: {
+    icon: ReceiptTextIcon,
+    sentence: () => "Checked your service result",
+    tone: "plain",
+  },
   browser_click: {
     doing: (input) => `Clicking ${input.ref ?? "an element"}`,
     icon: MousePointerClickIcon,
@@ -102,6 +119,7 @@ const STORIES = {
 /** The tools whose run can end in a payment, and so can wait on the person. */
 export const MONEY_TOOLS: ReadonlySet<string> = new Set([
   "graph_query",
+  "service_run",
   "wallet_send",
   "wallet_topup",
   "x402_fetch",

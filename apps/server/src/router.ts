@@ -34,6 +34,7 @@ import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import type { InteractionRegistry } from "./interactions";
+import { handleMcp } from "./mcp";
 import {
   handleOracleRequest,
   handleSaleLookup,
@@ -41,6 +42,7 @@ import {
   SALES_PATH,
 } from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
+import { handleServices } from "./service-routes";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { GENERIC_SKILL, skillText } from "./skill";
@@ -352,6 +354,17 @@ const handleTasks = async (
     unlocks: deps.unlocks,
     workspaces: deps.workspaces,
   };
+  if (pathname === "/api/services" || pathname.startsWith("/api/services/")) {
+    return await handleServices(
+      deps.services,
+      workspace.session,
+      caller,
+      request
+    );
+  }
+  if (pathname === "/api/mcp") {
+    return await handleMcp(deps.services, workspace.session, caller, request);
+  }
   const { userId } = caller;
   if (pathname === TASKS_PATH && request.method === "POST") {
     return await handleTaskPost(taskDeps, request, workspace, caller);

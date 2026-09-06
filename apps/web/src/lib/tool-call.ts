@@ -8,13 +8,19 @@
  * crash.
  */
 
-import { GraphQueryOutput } from "@froggy/protocol";
+import {
+  GraphQueryOutput,
+  ServiceCatalog,
+  ServiceTicket,
+} from "@froggy/protocol";
 import { Schema } from "effect";
 
 /** Every field any of the agent's tools takes. All optional: input streams in. */
 const ToolInput = Schema.Struct({
   amountUsd: Schema.optional(Schema.Finite),
   purpose: Schema.optional(Schema.String),
+  service: Schema.optional(Schema.String),
+  prompt: Schema.optional(Schema.String),
   ref: Schema.optional(Schema.String),
   symbol: Schema.optional(Schema.String),
   text: Schema.optional(Schema.String),
@@ -40,7 +46,15 @@ const ToolCallSchema = Schema.Struct({
   errorText: Schema.optional(Schema.String),
   input: Schema.optional(ToolInput),
   /** Our tools return text; `graph_query` returns its text with fields. */
-  output: Schema.optional(Schema.Union([Schema.String, GraphQueryOutput])),
+  output: Schema.optional(
+    Schema.Union([
+      Schema.String,
+      GraphQueryOutput,
+      ServiceTicket,
+      ServiceCatalog,
+      Schema.Struct({ v: Schema.Literals([1]), error: Schema.String }),
+    ])
+  ),
   state: ToolState,
   toolCallId: Schema.String,
   type: Schema.String,
@@ -61,6 +75,22 @@ export interface ToolCall {
 const decode = Schema.decodeUnknownResult(ToolCallSchema);
 /** Which half of the output union arrived, asked of the parsed value. */
 const isGraph = Schema.is(GraphQueryOutput);
+const isText = Schema.is(Schema.String);
+
+const outputText = (
+  output: (typeof ToolCallSchema.Type)["output"]
+): string | null => {
+  if (output === undefined) {
+    return null;
+  }
+  if (isText(output)) {
+    return output;
+  }
+  if (isGraph(output)) {
+    return output.text;
+  }
+  return JSON.stringify(output);
+};
 
 export const isToolPart = (part: { readonly type: string }): boolean =>
   part.type.startsWith("tool-") || part.type === "dynamic-tool";
@@ -81,7 +111,7 @@ export const toolCallOf = (part: {
     graph,
     input: raw.input ?? {},
     name: raw.type.replace(/^tool-/u, ""),
-    output: output !== null && isGraph(output) ? output.text : output,
+    output: outputText(raw.output),
     state: raw.state,
     toolCallId: raw.toolCallId,
   };

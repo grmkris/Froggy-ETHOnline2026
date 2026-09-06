@@ -34,6 +34,7 @@ import { NoticeList } from "../components/cards/notice-list";
 import { Composer } from "../components/composer";
 import { DetailsDrawer } from "../components/drawer/details-drawer";
 import type { DetailsTab } from "../components/drawer/details-drawer";
+import { ServiceBrowser } from "../components/service-browser";
 import { StopFeedback, useStopRun } from "../components/stop-feedback";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
@@ -290,6 +291,7 @@ export const WorkspacePage = (): ReactElement => {
           }}
           wallet={app.wallet}
         />
+        <ServiceBrowser />
         <div className="flex min-h-0 flex-1">
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             {popOut.mode === "inline" && showLive && !liveVisible && busy ? (

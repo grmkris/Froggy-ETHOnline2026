@@ -264,6 +264,70 @@ describe("a paid brief, from 402 to result", () => {
     expect(taskOf(await again.json()).task.id).toBe(created.id);
   });
 
+  it("claims concurrent paid retries before settling and rejects changed input", async () => {
+    const caller = { agentTokenId: null, userId: ALICE };
+    const body = {
+      idempotencyKey: "concurrent-legacy-task",
+      kind: "brief",
+      symbol: "USDC",
+    };
+    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
+    const challenge: unknown = await quoted.json();
+    const signed = await handleWalletPay(
+      deps,
+      new Request("http://localhost:3000/api/wallet/pay", {
+        method: "POST",
+        body: JSON.stringify({ challenge }),
+      }),
+      workspace(),
+      caller
+    );
+    const { header } = paidOf(await signed.json());
+    let settlements = 0;
+    const guarded = {
+      ...deps,
+      services: {
+        ...services,
+        oracle: {
+          ...services.oracle,
+          settle: async (
+            payment: string,
+            requirement: Parameters<Services["oracle"]["settle"]>[1]
+          ) => {
+            settlements += 1;
+            await Bun.sleep(10);
+            return await services.oracle.settle(payment, requirement);
+          },
+        },
+      },
+    };
+    const replies = await Promise.all([
+      handleTaskPost(
+        guarded,
+        post(body, { "x-payment": header }),
+        workspace(),
+        caller
+      ),
+      handleTaskPost(
+        guarded,
+        post(body, { "x-payment": header }),
+        workspace(),
+        caller
+      ),
+    ]);
+    const tasks = await Promise.all(
+      replies.map(async (response) => taskOf(await response.json()).task)
+    );
+    expect(new Set(tasks.map((task) => task.id)).size).toBe(1);
+    expect(settlements).toBe(1);
+    const conflict = await handleTaskPost(
+      deps,
+      post({ ...body, symbol: "ETH" }),
+      workspace(),
+      caller
+    );
+    expect(conflict.status).toBe(409);
+  });
   it("refuses a malformed task and an unknown id", async () => {
     const caller = { agentTokenId: null, userId: ALICE };
     const bad = await handleTaskPost(

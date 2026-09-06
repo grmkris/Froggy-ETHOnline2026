@@ -1,0 +1,120 @@
+[
+  {
+    "name": "web_search",
+    "url": "https://api.you.com/v1/search?query=public%20libraries&count=5",
+    "at": "2026-09-06T22:29:09.237Z",
+    "status": 402,
+    "request": null,
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amount": "5000",
+        "payTo": "0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f",
+        "maxTimeoutSeconds": 600,
+        "extra": {
+          "name": "USD Coin",
+          "version": "2"
+        }
+      },
+      {
+        "scheme": "exact",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amount": "5000",
+        "payTo": "GBQ2FrH49gvKXu1zg7tguoLwaofn5S4NnuMs5JSYQ5GX",
+        "maxTimeoutSeconds": 600,
+        "extra": {
+          "feePayer": "GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb"
+        }
+      }
+    ],
+    "paid": false
+  },
+  {
+    "name": "image",
+    "url": "https://blockrun.ai/api/v1/images/generations",
+    "at": "2026-09-06T22:29:07.702Z",
+    "status": 402,
+    "request": {
+      "model": "google/nano-banana",
+      "prompt": "A red apple",
+      "size": "1024x1024",
+      "n": 1
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "53501",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+        "maxTimeoutSeconds": 600,
+        "extra": {
+          "name": "USD Coin",
+          "version": "2"
+        }
+      }
+    ],
+    "paid": false
+  },
+  {
+    "name": "inference",
+    "url": "https://blockrun.ai/api/v1/chat/completions",
+    "at": "2026-09-06T22:29:07.834Z",
+    "status": 402,
+    "request": {
+      "model": "openai/gpt-4o-mini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say hello"
+        }
+      ],
+      "max_tokens": 512
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "2000",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "name": "USD Coin",
+          "version": "2"
+        }
+      }
+    ],
+    "paid": false
+  },
+  {
+    "name": "speech",
+    "url": "https://blockrun.ai/api/v1/audio/speech",
+    "at": "2026-09-06T22:29:07.841Z",
+    "status": 402,
+    "request": {
+      "model": "elevenlabs/flash-v2.5",
+      "input": "Hello from Froggy.",
+      "voice": "sarah",
+      "response_format": "mp3"
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "2000",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "name": "USD Coin",
+          "version": "2"
+        }
+      }
+    ],
+    "paid": false
+  }
+]

@@ -83,6 +83,13 @@ export const looksLikeAgentSecret = (bearer: string): boolean =>
  * mandate, the directory, the digest, Telegram, deleting the account.
  */
 export const agentMayCall = (pathname: string, method: string): boolean =>
-  pathname.startsWith("/api/tasks") ||
+  (pathname.startsWith("/api/tasks") &&
+    (method === "GET" || method === "POST")) ||
+  ((pathname === "/api/services" ||
+    pathname.startsWith("/api/services/tasks")) &&
+    method === "GET") ||
+  (pathname === "/api/services/run" && method === "POST") ||
+  (pathname === "/api/mcp" &&
+    (method === "POST" || method === "GET" || method === "DELETE")) ||
   (pathname === "/api/wallet" && method === "GET") ||
   (pathname === "/api/wallet/pay" && method === "POST");

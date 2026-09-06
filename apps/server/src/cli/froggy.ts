@@ -13,6 +13,7 @@
  * wallet's words and the command exits non-zero.
  */
 
+import { createInterface } from "node:readline";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { Schema } from "effect";
@@ -38,6 +39,7 @@ const decodeRefusal = Schema.decodeUnknownResult(Refusal);
 
 interface Options {
   readonly json: boolean;
+  readonly requestKey: string;
   readonly token: string;
   readonly url: string;
   readonly wait: boolean;
@@ -59,9 +61,14 @@ const usage = `froggy — let Froggy do a paid task for you
   froggy ask "<instruction>"     a browse on the person's own Chrome, under their mandate
   froggy status <task id>        where a task is, its result and its receipts
   froggy tasks                   recent tasks
+  froggy services                service catalog and prices
+  froggy service <name> "<text>"   buy a service (returns a ticket)
+  froggy service-status <id>      read a service result
+  froggy mcp                     MCP stdio bridge for agent clients
 
 Environment: FROGGY_URL (the Froggy server), FROGGY_TOKEN (the agent token the
-person minted in Froggy's settings). Flags: --json, --no-wait.
+person minted in Froggy's settings). Flags: --json, --no-wait,
+--idempotency-key=<stable-request-id> (reuse for the same request).
 
 A task is paid in HBAR from the person's Froggy wallet before it runs; the
 receipt and the sale id come back with the task. If the wallet refuses, the
@@ -81,6 +88,10 @@ const optionsFrom = (argv: readonly string[]): Parsed => {
     args,
     options: {
       json: flags.has("--json"),
+      requestKey:
+        [...flags]
+          .find((flag) => flag.startsWith("--idempotency-key="))
+          ?.slice("--idempotency-key=".length) ?? crypto.randomUUID(),
       token,
       url: url.replace(/\/+$/u, ""),
       wait: !flags.has("--no-wait"),
@@ -119,7 +130,7 @@ const submit = async (
   options: Options,
   body: Record<string, string>
 ): Promise<Task> => {
-  const idempotencyKey = crypto.randomUUID();
+  const idempotencyKey = options.requestKey;
   const first = await api(options, "/api/tasks", {
     body: JSON.stringify({ ...body, idempotencyKey }),
     method: "POST",
@@ -209,6 +220,84 @@ const follow = async (
   return await follow(options, await status(options, task.id), started, line);
 };
 
+const serviceCommand = async (
+  options: Options,
+  command: string,
+  rest: readonly string[]
+): Promise<boolean> => {
+  switch (command) {
+    case "mcp": {
+      const lines = createInterface({
+        input: process.stdin,
+        crlfDelay: Infinity,
+      });
+      for await (const line of lines) {
+        if (line.length > 16_000) {
+          console.error("MCP input too large");
+          continue;
+        }
+        const response = await api(options, "/api/mcp", {
+          method: "POST",
+          headers: {
+            accept: "application/json, text/event-stream",
+            "mcp-protocol-version": "2025-11-25",
+          },
+          body: line,
+        });
+        if (response.status === 202) {
+          continue;
+        }
+        if (!response.ok) {
+          console.error(`Froggy MCP returned ${response.status}`);
+          process.exitCode = 1;
+          break;
+        }
+        console.log(await response.text());
+      }
+      return true;
+    }
+    case "services": {
+      const response = await api(options, "/api/services");
+      console.log(await response.text());
+      if (!response.ok) {
+        process.exitCode = 1;
+      }
+      return true;
+    }
+    case "service": {
+      const [service, ...words] = rest;
+      const response = await api(options, "/api/services/run", {
+        method: "POST",
+        body: JSON.stringify({
+          v: 1,
+          service,
+          prompt: words.join(" "),
+          idempotencyKey: options.requestKey,
+        }),
+      });
+      console.log(await response.text());
+      if (!response.ok) {
+        process.exitCode = 1;
+      }
+      return true;
+    }
+    case "service-status": {
+      const response = await api(
+        options,
+        `/api/services/tasks/${encodeURIComponent(rest[0] ?? "")}`
+      );
+      console.log(await response.text());
+      if (!response.ok) {
+        process.exitCode = 1;
+      }
+      return true;
+    }
+    default: {
+      return false;
+    }
+  }
+};
+
 const main = async (): Promise<void> => {
   const { args, options } = optionsFrom(process.argv.slice(2));
   const [command, ...rest] = args;
@@ -220,6 +309,9 @@ const main = async (): Promise<void> => {
     return fail(
       "Set FROGGY_URL and FROGGY_TOKEN first; the person gets both from Froggy's settings."
     );
+  }
+  if (await serviceCommand(options, command, rest)) {
+    return;
   }
   let task: Task;
   switch (command) {

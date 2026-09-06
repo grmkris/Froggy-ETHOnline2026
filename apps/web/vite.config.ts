@@ -14,6 +14,7 @@ export default defineConfig({
     // the page works unchanged from a phone on the same network.
     proxy: {
       "/api": { changeOrigin: true, target: API_TARGET },
+      "/froggy-cli.js": { changeOrigin: true, target: API_TARGET },
       "/health": { changeOrigin: true, target: API_TARGET },
       "/oracle": { changeOrigin: true, target: API_TARGET },
       "/ws": { target: API_TARGET, ws: true },

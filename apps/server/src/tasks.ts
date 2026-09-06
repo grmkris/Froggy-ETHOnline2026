@@ -38,6 +38,7 @@ import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
 import type { ChatRunRegistry } from "./runs";
+import { serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendRequest } from "./session";
@@ -47,7 +48,10 @@ import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
 /** Dollars, fixed per kind. Charged in HBAR at the mirror-node rate. */
-export const TASK_PRICE_USD_MICROS: Record<TaskKind, UsdMicros> = {
+export const TASK_PRICE_USD_MICROS: Record<
+  Exclude<TaskKind, "service">,
+  UsdMicros
+> = {
   brief: usdMicros(50_000),
   browse: usdMicros(500_000),
 };
@@ -152,7 +156,11 @@ const tinybarsFor = (
   );
 };
 
-const challengeFor = (deps: TaskDeps, kind: TaskKind, now: number) => {
+const challengeFor = (
+  deps: TaskDeps,
+  kind: Exclude<TaskKind, "service">,
+  now: number
+) => {
   const units = tinybarsFor(deps.services, TASK_PRICE_USD_MICROS[kind], now);
   if (units === null) {
     return null;
@@ -196,7 +204,7 @@ const taskView = (
     kind: task.kind,
     priceUsdMicros: task.priceUsdMicros,
     receipts,
-    result: task.result,
+    result: task.kind === "service" ? serviceTicket(task) : task.result,
     runId: task.runId,
     saleId: task.saleId,
     status: awaiting ? "awaiting_approval" : task.status,
@@ -329,6 +337,45 @@ const inputOf = (body: TaskBody): Task["input"] =>
     ? { symbol: body.symbol }
     : { instruction: body.instruction };
 
+const replayTask = (
+  task: Task,
+  body: TaskBody,
+  deps: TaskDeps,
+  workspace: Workspace
+): Response => {
+  if (
+    task.kind !== body.kind ||
+    JSON.stringify(task.input) !== JSON.stringify(inputOf(body))
+  ) {
+    return json(
+      { error: "Idempotency key belongs to different task input." },
+      409
+    );
+  }
+  return json({ task: taskView(task, deps, workspace) });
+};
+
+const claimTask = async (
+  deps: TaskDeps,
+  workspace: Workspace,
+  task: Task,
+  body: TaskBody
+): Promise<Response | null> => {
+  try {
+    await deps.services.store.tasks.create(workspace.session.userId, task);
+    return null;
+  } catch (error) {
+    const winner = await deps.services.store.tasks.byIdempotencyKey(
+      workspace.session.userId,
+      task.idempotencyKey ?? task.id
+    );
+    if (winner !== null) {
+      return replayTask(winner, body, deps, workspace);
+    }
+    throw error;
+  }
+};
+
 export const handleTaskPost = async (
   deps: TaskDeps,
   request: Request,
@@ -354,7 +401,7 @@ export const handleTaskPost = async (
   if (key !== null) {
     const earlier = await store.tasks.byIdempotencyKey(userId, key);
     if (earlier !== null) {
-      return json({ task: taskView(earlier, deps, workspace) });
+      return replayTask(earlier, body, deps, workspace);
     }
   }
 
@@ -378,7 +425,7 @@ export const handleTaskPost = async (
   if (seen !== null) {
     const bought = await store.tasks.bySaleId(userId, seen.id);
     if (bought !== null) {
-      return json({ task: taskView(bought, deps, workspace) });
+      return replayTask(bought, body, deps, workspace);
     }
     return json({ error: "That payment already bought something else." }, 409);
   }
@@ -387,8 +434,43 @@ export const handleTaskPost = async (
   if (requirements === undefined) {
     return json({ error: "No payment requirements." }, 500);
   }
-  const settled = await deps.services.oracle.settle(payment, requirements);
+  const task: Task = {
+    agentTokenId: caller.agentTokenId,
+    createdAt: now(),
+    error: null,
+    id: TaskId.generate(),
+    idempotencyKey: key ?? `proof:${hash}`,
+    input: inputOf(body),
+    kind: body.kind,
+    priceUsdMicros: TASK_PRICE_USD_MICROS[body.kind],
+    result: null,
+    runId: null,
+    saleId: null,
+    status: "quoted",
+    updatedAt: now(),
+  };
+  const existing = await claimTask(deps, workspace, task, body);
+  if (existing !== null) {
+    return existing;
+  }
+
+  let settled: Awaited<ReturnType<Services["oracle"]["settle"]>>;
+  try {
+    settled = await deps.services.oracle.settle(payment, requirements);
+  } catch (error) {
+    await store.tasks.update(userId, task.id, {
+      status: "uncertain",
+      error: "Payment outcome is unknown; do not purchase again.",
+      updatedAt: now(),
+    });
+    throw error;
+  }
   if (!settled.ok) {
+    await store.tasks.update(userId, task.id, {
+      status: "uncertain",
+      error: settled.error ?? "Payment was not confirmed.",
+      updatedAt: now(),
+    });
     return json({ error: settled.error ?? "Payment was not settled." }, 402);
   }
 
@@ -409,25 +491,20 @@ export const handleTaskPost = async (
     stubbed: settled.stubbed,
     transactionId: settled.transactionId,
   });
-  const task: Task = {
-    agentTokenId: caller.agentTokenId,
-    createdAt: now(),
-    error: null,
-    id: TaskId.generate(),
-    idempotencyKey: key,
-    input: inputOf(body),
-    kind: body.kind,
-    priceUsdMicros: TASK_PRICE_USD_MICROS[body.kind],
-    result: null,
-    runId: null,
+  const paidTask: Task = {
+    ...task,
     saleId: recorded.sale.id,
     status: "paid",
     updatedAt: now(),
   };
-  await store.tasks.create(userId, task);
+  await store.tasks.update(userId, task.id, {
+    saleId: recorded.sale.id,
+    status: "paid",
+    updatedAt: now(),
+  });
   deps.workspaces.touch(userId);
-  execute(deps, workspace, task);
-  return json({ task: taskView(task, deps, workspace) }, 202);
+  execute(deps, workspace, paidTask);
+  return json({ task: taskView(paidTask, deps, workspace) }, 202);
 };
 
 export const handleTaskGet = async (
@@ -500,6 +577,25 @@ const offerFor = (
  * and only the header leaves. Money moves when the seller settles it; the
  * receipt therefore carries no settlement, and the sale does.
  */
+const trustedTaskOffer = (
+  deps: TaskDeps,
+  requirement: PaymentChallenge["accepts"][number]
+): boolean => {
+  const [trusted] = deps.services.oracle.challenge({
+    description: "Froggy task",
+    units: requirement.amount,
+    url: deps.tasksUrl,
+  }).accepts;
+  return (
+    trusted !== undefined &&
+    requirement.payTo === deps.services.oracle.payTo &&
+    requirement.asset === "0.0.0" &&
+    JSON.stringify(requirement.extra ?? {}) ===
+      JSON.stringify(trusted.extra ?? {}) &&
+    requirement.maxTimeoutSeconds === trusted.maxTimeoutSeconds
+  );
+};
+
 export const handleWalletPay = async (
   deps: TaskDeps,
   request: Request,
@@ -520,6 +616,9 @@ export const handleWalletPay = async (
       { error: "This wallet cannot pay any of the networks that 402 offers." },
       422
     );
+  }
+  if (!trustedTaskOffer(deps, requirement)) {
+    return json({ error: "Payment parameters do not match this server." }, 422);
   }
   const amount = assetFor(requirement);
   if (amount === null) {

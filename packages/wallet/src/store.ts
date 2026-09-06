@@ -316,6 +316,16 @@ export const memoryStore = (): Store => {
       },
       create: async (userId, task) => {
         await Promise.resolve();
+        if (
+          task.idempotencyKey !== null &&
+          [...tasks.values()].some(
+            (entry) =>
+              entry.userId === userId &&
+              entry.idempotencyKey === task.idempotencyKey
+          )
+        ) {
+          throw new Error("Task idempotency key already exists.");
+        }
         tasks.set(task.id, { ...task, userId });
       },
       list: async (userId, limit) => {

@@ -13,7 +13,7 @@ import { AgentTokenId, RunId, SaleId, TaskId } from "./id";
 import { UsdMicros } from "./money";
 
 /** `brief` is a paid data answer with no browser; `browse` drives the shared Chrome. */
-export const TaskKind = Schema.Literals(["brief", "browse"]);
+export const TaskKind = Schema.Literals(["brief", "browse", "service"]);
 export type TaskKind = typeof TaskKind.Type;
 
 /**

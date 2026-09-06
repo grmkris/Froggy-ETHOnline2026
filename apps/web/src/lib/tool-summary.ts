@@ -11,7 +11,9 @@
  */
 
 import { formatUsd } from "@froggy/domain";
+import { ServiceCatalog, ServiceTicket } from "@froggy/protocol";
 import type { GraphQueryOutput } from "@froggy/protocol";
+import { Schema } from "effect";
 
 import type { ToolCall } from "./tool-call";
 import { walletStatusOf } from "./wallet-status";
@@ -208,6 +210,43 @@ const clickSummary = (text: string): ToolSummary =>
     text.includes("not in the current snapshot") ? "refused" : "info"
   );
 
+const serviceSummary = (text: string): ToolSummary | null => {
+  try {
+    const raw: unknown = JSON.parse(text);
+    const ticket = Schema.decodeUnknownResult(ServiceTicket)(raw);
+    if (ticket._tag === "Success") {
+      const task = ticket.success;
+      const headline = `${task.service.replaceAll("_", " ")} · ${task.status}`;
+      if (task.status === "failed" || task.status === "uncertain") {
+        return summary(headline, "refused", task.error, task.stubbed);
+      }
+      return summary(
+        headline,
+        task.status === "done" ? "ok" : "info",
+        task.text.slice(0, 500) || "Results and files are in Services.",
+        task.stubbed
+      );
+    }
+    const catalog = Schema.decodeUnknownResult(ServiceCatalog)(raw);
+    if (catalog._tag === "Success") {
+      return summary(
+        `${catalog.success.services.length} services listed`,
+        "info",
+        "Prices and availability are in Services.",
+        catalog.success.services.some((card) => card.status === "demo")
+      );
+    }
+    const refusal = Schema.decodeUnknownResult(
+      Schema.Struct({ v: Schema.Literals([1]), error: Schema.String })
+    )(raw);
+    return refusal._tag === "Success"
+      ? summary("Service request refused", "refused", refusal.success.error)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 /** Null when the call has no output yet, or said something no parser reads. */
 export const summarize = (call: ToolCall): ToolSummary | null => {
   const text = call.output;
@@ -215,6 +254,11 @@ export const summarize = (call: ToolCall): ToolSummary | null => {
     return null;
   }
   switch (call.name) {
+    case "services_list":
+    case "service_run":
+    case "service_status": {
+      return serviceSummary(text);
+    }
     case "graph_query": {
       // The prose parser stays for messages from before the fields existed.
       return call.graph === null
