@@ -167,8 +167,8 @@ Kristjan's direction: mainnet everywhere, and everything in place so he can test
 
 | Phase | What | Needs from the owner |
 | --- | --- | --- |
-| A | Mainnet keys and the treasury (done 21:40 CEST); the allowance model (`POCKET_STARTING_USD=0`, account opens at first top-up, `STARTING_CREDIT_DIDS` for the team); the Blocky402 mainnet gate script; the flip runbook | HBAR to the two aliases; $5 USDC to the treasury |
-| B | The wallet home above the chat with live balances (Base RPC, mirror node), address and account with Copy, Add funds, Top up credit, Connect an agent, recent receipts | nothing |
+| A | **Done 22:05 CEST.** Mainnet keys and the treasury (21:40); the allowance model (`POCKET_STARTING_USD=0`, the account opens at the first top-up, `STARTING_CREDIT_DIDS` and `TEAM_STARTING_USD` for the team); Base as configuration (`EVM_NETWORK`, `EVM_RPC_URL`, boot refuses an RPC on the other chain); the Privy policy's mainnet top-up rule with its own aggregation; the Blocky402 gate script | HBAR to the two aliases; $5 USDC to the treasury |
+| B | **Done 22:15 CEST.** The wallet home above the chat: a dollar total, USDC on Base with the address, the person's Hedera account with its HBAR priced at the mirror rate, the service credit, Copy on every name, Add funds, Top up credit, Connect an agent, the last three receipts; balances read from the Base RPC and the mirror node with a 15 s cache; explorer links follow the network | nothing |
 | C | Telegram: the bot's token and username to Railway, webhook registered, pairing, digest and approval cards verified; `/health` telegram live | the bot in BotFather, token in `~/.config/secrets.env` |
 | D | Flip production to mainnet once one Blocky402 settlement passes; HCS topic on mainnet; evidence | the HBAR from phase A |
 | E | 2.2 Graph brief evidence; 2.3 the treasury pays The Graph by x402 on Base, API key fallback | the USDC from phase A |
