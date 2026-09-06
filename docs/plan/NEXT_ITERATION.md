@@ -110,7 +110,7 @@ Owner "run" is the nightly agent run under Kristjan (R1-Q11). Owner "Kristjan" i
 | --- | --- | --- | --- | --- | --- |
 | 0.1 | Mainnet Hedera: create an ECDSA payer account for the treasury float and a separate service payee account; buy about 500 HBAR; fund | Kristjan | — | Two account ids on HashScan mainnet with balances; keys on Railway and the box | 1 h, low |
 | 0.2 | Blocky402 mainnet gate: one real settlement of the smallest amount from the treasury account to the service account through `api.blocky402.com` | run, after 0.1 | 0.1 | HashScan mainnet transaction SUCCESS with the facilitator as fee payer; or a documented refusal | 1 h, **high** |
-| 0.3 | Privy dashboard: enable card onramps, token swaps and gas sponsorship; create a policy-owner authorization key | Kristjan | — | Each toggle visible; policy update with the owner key succeeds | 30 min, low |
+| 0.3 | **Done 7 Sep 00:40 CEST** (toggles enabled, app in production mode, origins set). Privy dashboard: enable card onramps, token swaps and gas sponsorship; create a policy-owner authorization key | Kristjan | — | Each toggle visible; policy update with the owner key succeeds | 30 min, low |
 | 0.4 | Real onramp: €10 by Apple Pay into the demo wallet on Base mainnet | Kristjan | 0.3 | USDC balance on Basescan; screenshot of the flow; note whether Apple Pay appeared for the EU card | 20 min, medium |
 | 0.5 | Card facts: the spender address and token of the card approval from Lineascan or revoke.cash; the merchant site and item | Kristjan | — | Two values in `.env` and the plan; no secrets | 15 min, low |
 | 0.6 | Froggy's own Telegram bot from BotFather; token, secret and username on Railway; webhook set | Kristjan | — | `/health` shows telegram live; pairing works | 20 min, low |
