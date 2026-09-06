@@ -35,7 +35,7 @@ export const BrowserStrip = ({
   }, [painter]);
   return (
     <button
-      className="rise-in bg-card/90 shadow-float mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border p-2 pr-4 text-left backdrop-blur-md"
+      className="bg-card/90 shadow-float mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border p-2 pr-4 text-left backdrop-blur-md"
       onClick={onJump}
       type="button"
     >

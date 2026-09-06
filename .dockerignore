@@ -7,6 +7,9 @@
 .github
 .agents
 .claude
+.codex
+.grok
+plans
 .vscode
 node_modules
 **/node_modules

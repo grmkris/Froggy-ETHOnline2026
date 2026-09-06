@@ -1,12 +1,5 @@
-/**
- * The header strip: the wallet, the leash, who is driving, the kill switch.
- *
- * Everything a nervous person glances at lives on one line so it is never
- * scrolled away.
- * a second click.
- */
+/** Wallet navigation, spending status and who owns browser input. */
 
-import { formatUsd } from "@froggy/domain";
 import type { Mandate } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
@@ -14,12 +7,9 @@ import { Button } from "@froggy/ui/components/button";
 import { DRIVE_LABEL, DrivingDot } from "@froggy/ui/components/driving-ring";
 import type { DriveMode } from "@froggy/ui/components/driving-ring";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
-import { cn } from "@froggy/ui/lib/utils";
-import { GlobeIcon, SlidersHorizontalIcon } from "lucide-react";
+import { GlobeIcon, SlidersHorizontalIcon, WalletIcon } from "lucide-react";
 
-import { useMediaQuery } from "../hooks/use-media-query";
 import { bindingWindowCap } from "../lib/app-state";
-import { shortAddress } from "../lib/format";
 import { useIdentity } from "../lib/privy";
 import { LeashMeter } from "./leash-meter";
 
@@ -29,6 +19,7 @@ interface TopBarProps {
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
   readonly onOpenDetails: () => void;
+  readonly onOpenWallet: () => void;
   readonly onShowBrowser: () => void;
   readonly wallet: WalletSummary | null;
 }
@@ -39,24 +30,6 @@ const stubsOf = (modes: ServiceModes | null): readonly string[] =>
     : Object.entries(modes)
         .filter(([, mode]) => mode === "stub")
         .map(([name]) => name);
-
-/** What is left in the pocket; nothing when this deployment has none. */
-const Pocket = ({
-  pocketUsdMicros,
-}: {
-  readonly pocketUsdMicros: number | null | undefined;
-}): React.ReactElement | null =>
-  pocketUsdMicros === null || pocketUsdMicros === undefined ? null : (
-    <span
-      className="flex items-baseline gap-1 text-xs whitespace-nowrap"
-      title="Your service credit: what Froggy may spend on Hedera for you. A top-up adds to it."
-    >
-      <span className="text-muted-foreground">credit</span>
-      <span className="text-money text-sm leading-none">
-        {formatUsd(pocketUsdMicros)}
-      </span>
-    </span>
-  );
 
 const Driving = ({
   drive,
@@ -114,89 +87,74 @@ export const TopBar = ({
   mandate,
   modes,
   onOpenDetails,
+  onOpenWallet,
   onShowBrowser,
   wallet,
 }: TopBarProps): React.ReactElement => {
   const identity = useIdentity();
-  // One leash meter in the document at a time: the phone row and the wide
-  // row are alternatives, not a CSS toggle over two copies.
-  const phone = useMediaQuery("(max-width: 767px)");
-  const stubs = stubsOf(modes);
   return (
-    <header
-      className={cn(
-        "bg-background/80 sticky top-0 z-30 border-b backdrop-blur-md transition-colors"
-      )}
-    >
-      <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="bg-primary shadow-card grid size-8 place-items-center rounded-xl">
-            <FrogMark className="size-6" />
-          </span>
-          <span className="font-display hidden text-base font-semibold sm:inline">
-            Froggy
-          </span>
-        </div>
-
-        {phone ? null : (
-          <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
-            <div className="max-w-xs min-w-[11rem] flex-1">
-              <LeashMeter
-                cap={bindingWindowCap(mandate)}
-                ledgerNote={wallet?.ledgerNote ?? null}
-                spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
-              />
-            </div>
-            <span
-              className="text-machine text-muted-foreground hidden whitespace-nowrap lg:inline"
-              title={wallet?.address ?? undefined}
-            >
-              {shortAddress(wallet?.address ?? null)}
+    <header className="bg-background sticky top-0 z-30 border-b">
+      <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-2 sm:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="bg-brand-soft grid size-9 place-items-center rounded-xl">
+              <FrogMark className="size-7" />
             </span>
-            <Pocket pocketUsdMicros={wallet?.pocketUsdMicros} />
-            <Driving drive={drive} />
-            <Flags
-              connected={connected}
-              stubbed={identity.stubbed}
-              stubs={stubs}
-            />
+            <span className="font-display font-semibold">Froggy</span>
           </div>
-        )}
-
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <Button
-            aria-label="Show the browser"
-            onClick={onShowBrowser}
-            size="icon-sm"
-            title="Show the browser"
-            variant="ghost"
-          >
-            <GlobeIcon />
-          </Button>
-          <Button
-            aria-label="Details"
-            onClick={onOpenDetails}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <SlidersHorizontalIcon />
-          </Button>
+          <div className="hidden sm:block">
+            <Driving drive={drive} />
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label="Open wallet"
+              className="min-h-11 min-w-11"
+              onClick={onOpenWallet}
+              variant="ghost"
+            >
+              <WalletIcon />
+              <span className="hidden sm:inline">Wallet</span>
+            </Button>
+            <Button
+              aria-label="Show the browser"
+              className="size-11"
+              onClick={onShowBrowser}
+              size="icon"
+              variant="ghost"
+            >
+              <GlobeIcon />
+            </Button>
+            <Button
+              aria-label="Details"
+              className="size-11"
+              onClick={onOpenDetails}
+              size="icon"
+              variant="ghost"
+            >
+              <SlidersHorizontalIcon />
+            </Button>
+          </div>
         </div>
-      </div>
-      {/* On a phone the one line does not fit; the leash gets a row of its own. */}
-      {phone ? (
-        <div className="flex items-center gap-3 px-4 pb-2">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="w-full min-w-0 sm:w-auto sm:max-w-xs sm:flex-1">
             <LeashMeter
               cap={bindingWindowCap(mandate)}
               ledgerNote={wallet?.ledgerNote ?? null}
               spentUsdMicros={wallet?.windowSpentUsdMicros ?? null}
             />
           </div>
-          <Pocket pocketUsdMicros={wallet?.pocketUsdMicros} />
-          <Driving drive={drive} />
+          <div className="sm:hidden">
+            <Driving drive={drive} />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <Flags
+              connected={connected}
+              stubbed={identity.stubbed}
+              stubs={stubsOf(modes)}
+            />
+          </div>
         </div>
-      ) : null}
+      </div>
     </header>
   );
 };

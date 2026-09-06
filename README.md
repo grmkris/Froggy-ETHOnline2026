@@ -1,8 +1,10 @@
 # Froggy
 
-> Other agent wallets give a model a key and a cap. Froggy gives it a browser you can see, grab and stop — and a policy that still holds when you jailbreak the prompt. Your own personal agent can buy a task from it by the task, paid over Hedera x402, without ever holding a key.
+> A wallet for your agents. Fund tasks, set spending limits, watch the work, and keep receipts.
 
-A web workspace where a human and an AI share **one Chrome**. The human watches a live screencast and can take the page mid-action. The agent drives that same Chrome over CDP. What it may spend is not a prompt rule: it is a mandate the agent cannot reach, evaluated outside the model, on every payment.
+Connect your own agent or use Froggy here. Start with a wallet overview that separates wallet funds from task credit, then follow a task through its result and receipt. An outside agent can request paid tasks over Hedera x402 without holding a wallet private key.
+
+Inside a task, a human and an AI share **one Chrome**. The human watches a live screencast and can take the page mid-action. The agent drives that same Chrome over CDP. Spending rules are evaluated outside the model on every payment. Privy holds the wallet keys; the host enforces the mandate, including limits that Privy's raw Hedera signing cannot express.
 
 Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph** (why it spent), **Hedera x402** (how it paid).
 
@@ -21,7 +23,9 @@ Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph**
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers reach your phone through Telegram, where the daily digest lands too.
+During a task, the conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers reach your phone through Telegram, where the daily digest lands too.
+
+The current visual implementation and its verification limits are recorded in [the UI plan pack](plans/README.md). Funding currently requests a top-up through the task flow; durable confirmation and partial-allocation recovery remain backend work.
 
 ## Run it
 
@@ -93,7 +97,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 |  |  |
 | --- | --- |
-| `apps/web` | The workspace: header strip, the stream with tickets, the live page card and its pop-outs, the details drawer. Frames never touch React state. |
+| `apps/web` | Wallet home, funding and agent setup; the conversation with receipts and a shared browser; wallet/settings drawer. Frames never touch React state. |
 | `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one browser worker process per user. |
 | `packages/domain` | Money, mandates, decisions, receipts — as Effect Schema. |
 | `packages/protocol` | Both wire protocols and the screencast frame envelope. |

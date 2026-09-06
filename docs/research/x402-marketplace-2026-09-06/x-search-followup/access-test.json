@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-06",
+  "goal": "Verify actual X access, then collect public posts on x402, paid agent tools, and agent wallets.",
+  "tests": [
+    {
+      "mechanism": "search_tool query for X/Twitter MCP tools",
+      "command": "search_tool(query='X search twitter posts tweets x.com')",
+      "success": false,
+      "error": "No X MCP server in the connected catalog. Matches were workspace tooling search/browser tools and Railway docs search only.",
+      "returned_posts": 0
+    },
+    {
+      "mechanism": "Grok built-in web_search (not a dedicated x_keyword_search tool; this session's tool list has web_search, not a native X API tool)",
+      "command": "web_search queries including site:x.com and x402 payment/MCP/wallet strings",
+      "success": true,
+      "error": null,
+      "returned_posts": 10,
+      "note": "Returned indexed X post URLs, handles, timestamps, and truncated text. This is search-index of x.com, not X API and not full threads. Do not treat as native X."
+    },
+    {
+      "mechanism": "xurl CLI help and auth status",
+      "command": "which xurl; xurl --help; xurl search --help; xurl read --help; xurl auth status",
+      "success": true,
+      "error": null,
+      "returned_posts": 0,
+      "note": "xurl on PATH at /home/kristjan/.bun/bin/xurl. OAuth2 session present on the default app. Account identifiers, client ids, and tokens omitted by design. Did not run xurl token, read ~/.xurl, or inspect secrets."
+    },
+    {
+      "mechanism": "xurl search (X API recent search) and xurl read",
+      "command": [
+        "xurl search 'x402 (failed OR refund OR \"double charge\" OR \"charged twice\" OR \"paid twice\" OR \"lost usdc\" OR \"double spend\")' -n 10",
+        "xurl search 'x402 (MCP OR \"agent wallet\" OR agentwallet) (setup OR onboarding OR \"private key\" OR fund OR wallet)' -n 10",
+        "xurl search 'x402 (Claude OR Cursor OR Cline OR Codex OR \"coding agent\" OR \"my agent\") (pay OR paid OR buy OR wallet OR search OR image OR inference)' -n 10",
+        "xurl search 'x402 (scam OR distrust OR \"don\\'t trust\" OR anonymous OR \"not ready\" OR \"double spend\" OR wash OR fake OR \"leaderboard\")' -n 10",
+        "xurl search 'conversation_id:2096658413795066313' -n 10",
+        "xurl read 2096658413795066313"
+      ],
+      "success": true,
+      "error": null,
+      "returned_posts": 41,
+      "per_request_counts": [10, 9, 10, 10, 10, 1],
+      "unique_post_ids": 41,
+      "note": "Six X API read/search requests, under the cap of 6 requests and 60 posts. All six exited 0. Recent search results were all dated 2026-09-06. Long posts often truncated at ~280 characters. conversation_id search did not include the root; root fetched separately via xurl read."
+    }
+  ],
+  "xurl_requests_used": 6,
+  "xurl_request_cap": 6,
+  "xurl_unique_posts": 41,
+  "xurl_post_cap": 60,
+  "stopped_reason": "Request budget exhausted after five searches and one read. No access or credit errors.",
+  "not_used": [
+    "xurl token",
+    "xurl post/reply/dm/chat/bookmark",
+    "reading ~/.xurl or env secrets",
+    "subagents",
+    "installing tools"
+  ]
+}

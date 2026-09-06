@@ -1,0 +1,617 @@
+{
+  "created_at": "2026-09-06T19:55:49.063854+00:00",
+  "repository_revision_reviewed": "d9cf26e",
+  "lanes": [
+    {
+      "lane": "services",
+      "model_requested": "grok-4.6",
+      "reasoning_effort_requested": "high",
+      "source_records": 20,
+      "unique_source_urls": 20,
+      "x_source_records": 1,
+      "tool_calls_by_name": {
+        "write": 3,
+        "read_file": 1,
+        "Web search:": 18,
+        "todo_write": 2,
+        "search_tool": 2,
+        "web_fetch": 33
+      },
+      "native_x_calls": 0,
+      "completed": true,
+      "session_id": "01a07837-9dbc-7641-9f54-8d4e9f998d75",
+      "recovered_after_stall": true,
+      "web_fetch_results": [
+        {
+          "url": "https://docs.cdp.coinbase.com/x402/buyer/discover-services",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "bbb32010228f748b9a67bc61b72054ebfbc4a756780722986f56698ebf790d97"
+        },
+        {
+          "url": "https://exa.ai/docs/reference/x402-guide",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "23dfb2cc940937f4e7e821d037efa62e72a43264bbd024ad1ca73d0fe808ba1f"
+        },
+        {
+          "url": "https://blockrun.ai/marketplace",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "853fd8fee88636fbb439b965346151ad9b3d8731c4bb1ca0c31bb40c3a417c36"
+        },
+        {
+          "url": "https://massive.com/blog/x402-payments-for-ai-agents",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "475026583e8f067aadbfaff5655a1667b5c02c93134aad9e077c4604be055c58"
+        },
+        {
+          "url": "https://coinmarketcap.com/api/documentation/ai-agent-hub/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "a97deb2add40ee9eeda35cac910dc22afd42de194b77a700d15e332df23dbab9"
+        },
+        {
+          "url": "https://arkm.com/llms/guides/x402-pay-per-request-for-agents.md",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "810ab91447e8b489f4cde44d09f69ecaf4dbd9465b75217b476c4a11a37be119"
+        },
+        {
+          "url": "https://hedera.com/blog/x402-bounty-on-hedera-winners-announced/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b61f865670b885d143cad7e0e5dc4cf5815722e232ce6ef0be33b198649c1840"
+        },
+        {
+          "url": "https://you.com/docs/administration/machine-payments/x402.md",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d28bde18a67ef9b8554ecfdc83e891ca4ed30f852c3589d5f43d89fb3248e752"
+        },
+        {
+          "url": "https://docs.x402.org/faq",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "bd0e91764248524790646704746402d1a18f8423b2cc3a9d4ac3463698fd2013"
+        },
+        {
+          "url": "https://docs.stripe.com/payments/machine/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "ceab526d252ed0fa2e4542c58976716c9cf8f05897c9b8328219df62df223b32"
+        },
+        {
+          "url": "https://www.coinbase.com/developer-platform/discover/case-studies/firecrawl",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "afc02190f9415f358d68068cea6f173d6b2045b5b0c97475bd1e8807acff2edd"
+        },
+        {
+          "url": "https://x.com/davewardonline/status/2048049242787213330",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "df08e8f00a328c1ca1804c100572a9fee3e0cefbdf7983d1ac3d65f88c2c57a5"
+        },
+        {
+          "url": "https://blocky402.com/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "ddefd2b2fe8688c764f1dd4fb779c5a1f7e41cc2fdb2fa0afd99c5aa43781849"
+        },
+        {
+          "url": "https://twit.sh/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "60460aeb6517660016c6bdf62a95e7f40a874f09304dd74c777e4102b94e905b"
+        },
+        {
+          "url": "https://docs.hedera.com/solutions/ai/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "9ad50a9b1ed9960d37a7f010dcb7378aa7ce4a8a4a232ae6f2b1a1a03a2c5caa"
+        },
+        {
+          "url": "https://docs.firecrawl.dev/x402/search",
+          "status": 404,
+          "x_page": false,
+          "content_sha256": "9ba1ef044689437f03f4fd737d068a5548ffbe46869729978a3ca32a00d0a1fc"
+        },
+        {
+          "url": "https://x402image.org/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d2c504bd5aed479f52a6671aad30724c1da409cb9add724267d66d722b415ef3"
+        },
+        {
+          "url": "https://pinout.club/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "2036b8fec67a3ed0c0f5ba28cdd99ff9b07f978143efd2ed97a98fa65ac80479"
+        },
+        {
+          "url": "https://x402video.com/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "36bc01d5880a6f61741f39a0e997bbbafd700327e6bb2154bc8e9f8e00094105"
+        },
+        {
+          "url": "https://massive.com/docs/ai-tools/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "f8894c22791b58cf84db12dfe54c9f0aed96d9cb344a445d218c43af30674155"
+        },
+        {
+          "url": "https://github.com/Haustorium12/gold-402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "835e8f4c7588b0aa2959ccb65b4ae88f90cc2dc7c51ac59ab3e197f0858cf46f"
+        },
+        {
+          "url": "https://www.alchemy.com/docs/alchemy-for-agents.md",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "0fc5dd932e46448f2287b2e45f3f303cd872247baa7589a433aa07b25ca7669c"
+        },
+        {
+          "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "69c54588f010dbecd4ad5b928b0f07a5cafdfc4e23d11f676dc1ab0e22da06be"
+        },
+        {
+          "url": "https://x.com/hedera/status/2094443518810808512",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "a49f344be2364ac7ff36f40cd34ff71e5afee613789d82c708efe8ca890ee39d"
+        },
+        {
+          "url": "https://x.com/WillPapper/status/2072437304661352746",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "aa469ffc9de742dc1bc9f278f2496e8b82a90767dd1d5478549fac209d3a11f4"
+        },
+        {
+          "url": "https://www.x402scan.com/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "26e3716af91afa8aab39d59b81a0825592d24a15d830c2aabab4fd4389942b0b"
+        },
+        {
+          "url": "https://messari.io/report/x402-how-messari-is-opening-its-data-layer-to-autonomous-agents",
+          "status": 429,
+          "x_page": false,
+          "content_sha256": "fd9d8d94824d30098b644f90302c3ecd69339027e23f157b334c3b9c3471b217"
+        },
+        {
+          "url": "https://ausca.com/.well-known/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "29d1b1c145d109d01941ca5c25c3c05e10223daac0eed6c4ab7c9cbde4596b75"
+        },
+        {
+          "url": "https://blockrun.ai/.well-known/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "782c39dd31b814c0a7b0c9fba8785b96409c17f47bcc38f84a61cdfe7cb6ea4f"
+        },
+        {
+          "url": "https://x.com/arkham/status/1950000000000000000",
+          "status": 404,
+          "x_page": true,
+          "content_sha256": "ea7919077077f46fadf213a114ad123759c7f270b86ac8efe045ed98f0b04bb4"
+        },
+        {
+          "url": "https://info.arkm.com/announcements/x402-on-arkham",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "fc24c57f7529e354599f5159bb36bc0f87510457ff2aaa8095a5b769f18219c8"
+        },
+        {
+          "url": "https://x402.org/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "61e7aa534c018ae0bcee914d51d2f4b4e672756aa2284e394b5d6bec9733ca89"
+        },
+        {
+          "url": "https://docs.hedera.com/solutions/ai/x402/exact-scheme",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b864470b7d45f8c2799435f70ca87d4f5739d8af5896074f1e82107d118d589f"
+        }
+      ],
+      "report_sha256": "d36df99c489e286e014dd29ec30504db8e3d4970834137fbfa84c4db66e67864"
+    },
+    {
+      "lane": "demand",
+      "model_requested": "grok-4.6",
+      "reasoning_effort_requested": "high",
+      "source_records": 32,
+      "unique_source_urls": 32,
+      "x_source_records": 12,
+      "tool_calls_by_name": {
+        "todo_write": 4,
+        "list_dir": 1,
+        "search_tool": 4,
+        "read_file": 2,
+        "Web search:": 19,
+        "web_fetch": 25,
+        "search_replace": 4,
+        "run_terminal_command": 1
+      },
+      "native_x_calls": 0,
+      "completed": true,
+      "session_id": "01a07836-b485-7151-b2be-e54fc351d7b6",
+      "recovered_after_stall": false,
+      "web_fetch_results": [
+        {
+          "url": "https://www.reddit.com/r/mcp/comments/1so6twx/negative_result_88_cycles_building_an_mcpx402/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "eb0050f72303bcdbbdc071e2a3bf810c903be8d05cdf09f7c3106f2b6f9878bf"
+        },
+        {
+          "url": "https://www.coindesk.com/markets/2026/03/11/coinbase-backed-ai-payments-protocol-wants-to-fix-micropayment-but-demand-is-just-not-there-yet",
+          "status": 429,
+          "x_page": false,
+          "content_sha256": "fd9d8d94824d30098b644f90302c3ecd69339027e23f157b334c3b9c3471b217"
+        },
+        {
+          "url": "https://www.reddit.com/r/mcp/comments/1rq0nx3/x402_is_the_right_idea_for_agent_payments_heres/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "eb0050f72303bcdbbdc071e2a3bf810c903be8d05cdf09f7c3106f2b6f9878bf"
+        },
+        {
+          "url": "https://github.com/coinbase/payments-mcp/issues/22",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "bfc165f5e4c1addcda97bae8e2e69786944e24c60d28dc5248b98cea68aea8d2"
+        },
+        {
+          "url": "https://github.com/x402-foundation/x402/pull/1875",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d7ae1ab2e36d6cb4315510375b4dc0d75adc9dc5a3c2b4d66f17b74346cd3d51"
+        },
+        {
+          "url": "https://arxiv.org/html/2605.11781v1",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "87402dfbe9777ff1b7f81f0505301ceddf5a6f010493c94428ca6f7bffd5a86a"
+        },
+        {
+          "url": "https://github.com/aibtcdev/aibtc-mcp-server/issues/397",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "1c9df132edb4d27f361d28047c2130e18339b92c0bf7860e3ebb779dc73ac89d"
+        },
+        {
+          "url": null,
+          "status": null,
+          "x_page": false,
+          "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "url": "https://docs.cdp.coinbase.com/agentic-wallet/mcp/faq",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "0518f566760bb4cc7cb1f967714236c65a58dc668835de94a3a449986c1e101f"
+        },
+        {
+          "url": "https://forum.cursor.com/t/cli-mcp-tool-limits/165642",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d7ffdbde72bd584d0844557cf126b9af662b1ddadcf443ca38f58f5489a597a7"
+        },
+        {
+          "url": "https://dev.to/nathanielc85523/how-agent-commerce-actually-works-x402-skillmd-and-the-001-transaction-17g6",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "f51a3bd2b6070b86fc612704a0ebe9507dcad317ad8f5f0762f9f436a154bef3"
+        },
+        {
+          "url": "https://docs.cdp.coinbase.com/x402/support/troubleshooting",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b7e5d44b7a5e2317868d5633b5995185a0981453a93edc2765654209b1fd4c5e"
+        },
+        {
+          "url": "https://docs.browser-use.com/cloud/guides/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d7b549632d0d53d7a280f142b323b8a18965d29366083ee191bde5a89c1bb2a0"
+        },
+        {
+          "url": "https://getunblocked.com/blog/mcp-tool-overload/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b2e0bf0a0cf113bcb10569d2e75f75425ecaa2387c6843dcdc9be9f04a5bfa96"
+        },
+        {
+          "url": "https://chain-analyzer.com/en/news/mcp-x402-autonomous",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "0ddfa4724e96c3b538f422698ad24c4c57e9de69edf772375f9bc80231ec823c"
+        },
+        {
+          "url": "https://ai.plainenglish.io/we-gave-an-ai-agent-a-wallet-here-are-the-six-things-that-broke-before-it-could-spend-safely-f59c5495a074",
+          "status": 403,
+          "x_page": false,
+          "content_sha256": "301dc171e5fa8c5fdeb69592a92a5c378f5f758f68d2338200235d60eb04b9ad"
+        },
+        {
+          "url": "https://www.fireblocks.com/blog/agentic-payment-protocols-compared",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "7d296d7374d2e59f71055dc9bb14db533dbfe4230c7ced5624d3e2097c190c58"
+        },
+        {
+          "url": "https://arxiv.org/html/2607.12575",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "ce8404436a3670dcc320df63569a8df1829a31e5efcb22c152982d7ecabd04f9"
+        },
+        {
+          "url": "https://github.com/coinbase/payments-mcp/issues",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "a788997cedc32889d30580ea76c73ef9ef81a4ac2fafddabf0d58ee4b7fa78fa"
+        },
+        {
+          "url": "https://github.com/x402-foundation/x402/issues/1860",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "9e16de83b2d587a2a64f3c6d41dca48b753f1a217b89a506cda56b36b4e39c12"
+        },
+        {
+          "url": "https://forum.cursor.com/t/tools-limited-to-40-total/67976",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "74f8b13e5fc0a70499e9c13189f09f706fe9f7cadd275c39e5ce01b3f60aa06d"
+        },
+        {
+          "url": "https://github.com/coinbase/payments-mcp/issues/25",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "78f8e324cb8510aa6b1c7fecf9a6bba211bf0abf25c3286912f93c92b9511047"
+        },
+        {
+          "url": "https://github.com/coinbase/payments-mcp/issues/34",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "6522da7849cc435166fe3a08822fac9020526637aca65456a78d198b26d11709"
+        },
+        {
+          "url": "https://github.com/coinbase/payments-mcp/issues/23",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "a4f029ba93b6a23ecfa4823910754cc0632eda25a11531c305fe1aaf4460b05b"
+        },
+        {
+          "url": "https://blog.cloudflare.com/x402/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "2513453bbecdec5ae9c24677d129d29f02c9ce9c60b0ebebc39dccd638f92622"
+        }
+      ],
+      "report_sha256": "57f93459131a8c101b7060a8b5aec5d689f3df68aea512131fb82544b9a2a3d0"
+    },
+    {
+      "lane": "ideas",
+      "model_requested": "grok-4.6",
+      "reasoning_effort_requested": "high",
+      "source_records": 30,
+      "unique_source_urls": 30,
+      "x_source_records": 3,
+      "tool_calls_by_name": {
+        "todo_write": 4,
+        "list_dir": 1,
+        "search_tool": 4,
+        "read_file": 2,
+        "Web search:": 12,
+        "web_fetch": 30,
+        "search_replace": 2,
+        "run_terminal_command": 1
+      },
+      "native_x_calls": 0,
+      "completed": true,
+      "session_id": "01a07836-b17a-7661-8e56-92c2825f8329",
+      "recovered_after_stall": false,
+      "web_fetch_results": [
+        {
+          "url": "https://ethglobal.com/events/ethonline2026/prizes/hedera",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "26f47ceb8c7366918e8c88d1ce6d0c2b5a0f43a63e5d75231448074e4b6a610c"
+        },
+        {
+          "url": "https://ethglobal.com/events/ethonline2026/prizes",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "a19bf44592f8fb208b53575cb6d52f80f19918416a7fdbcbe150b0a6ee5b5d49"
+        },
+        {
+          "url": "https://browser-use.com/posts/pay-with-link",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "24112c798efe6f7ea0e280f242927d9beda27ebbeab4f9c5543845c48651a1b5"
+        },
+        {
+          "url": "https://docs.browser-use.com/cloud/guides/x402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d7b549632d0d53d7a280f142b323b8a18965d29366083ee191bde5a89c1bb2a0"
+        },
+        {
+          "url": "https://ethglobal.com/events/ethonline2026/prizes/privy",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "a316d2cf8554dca3a656b2452f85083e68792115b8a05edb96e216af8d67d6e3"
+        },
+        {
+          "url": "https://ethglobal.com/events/ethonline2026/prizes/the-graph",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "7309de3e7b2255d019d915403460c9d75d87303f5e27d89a7319ac10fb3f2605"
+        },
+        {
+          "url": "https://docs.cdp.coinbase.com/x402/buyer/discover-services",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "bbb32010228f748b9a67bc61b72054ebfbc4a756780722986f56698ebf790d97"
+        },
+        {
+          "url": "https://blockrun.ai/docs",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "557c76cc604304be60d4887793849c193bdd373b34ad6fe4fec3e86ee10800e4"
+        },
+        {
+          "url": "https://blockrun.ai/marketplace",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "853fd8fee88636fbb439b965346151ad9b3d8731c4bb1ca0c31bb40c3a417c36"
+        },
+        {
+          "url": "https://agentcash.dev/blog/introducing-agent-cash",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "564957748680d21f0a61a90556ebbc5954d37ffd41325af8f756ec953ac528b6"
+        },
+        {
+          "url": "https://cp0x.com/blog/wheres-the-money-in-x402-an-analysis-of-coinbases-bazaar-catalog",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "3f4b4a180c063664e7a875a5ee9a0e3aaa3cb864e017b7c0bab76b8537972d5b"
+        },
+        {
+          "url": "https://docs.cdp.coinbase.com/x402/seller/get-discovered",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "15f41153290e3a4f982dc3413ae309c28733948ff460728e34c85075426a80a4"
+        },
+        {
+          "url": "https://hedera.com/blog/x402-bounty-on-hedera-winners-announced/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b61f865670b885d143cad7e0e5dc4cf5815722e232ce6ef0be33b198649c1840"
+        },
+        {
+          "url": "https://hedera.com/blog/hedera-and-the-x402-payment-standard/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "f720de5c9cf78c6b4afbc9aa04cfc004bec512ee2480c4c91577f46238c6859b"
+        },
+        {
+          "url": "https://www.npmjs.com/package/agentcash",
+          "status": 403,
+          "x_page": false,
+          "content_sha256": "301dc171e5fa8c5fdeb69592a92a5c378f5f758f68d2338200235d60eb04b9ad"
+        },
+        {
+          "url": "https://docs.x402.org/schemes/overview",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "403d3530583aee1bfb105e19d6c39e1ca7f9890cba55c312a93d85f4d0bfde3f"
+        },
+        {
+          "url": "https://ethglobal.com/events/ethonline2026",
+          "status": 500,
+          "x_page": false,
+          "content_sha256": "9bf6b9b083ac4b2c5cde004a0d4e64d65c290ffc84042528c80a5c1e070254db"
+        },
+        {
+          "url": "https://github.com/Haustorium12/gold-402",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "835e8f4c7588b0aa2959ccb65b4ae88f90cc2dc7c51ac59ab3e197f0858cf46f"
+        },
+        {
+          "url": "https://blockrun.ai/docs/x402/endpoints",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d46123244bdf3059a705b9bbefe116c443325e7e4b23eccd08f7b33b0ac88b4f"
+        },
+        {
+          "url": "https://thegraph.com/docs/en/subgraphs/billing/x402-payments/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "c8f0f1640f1b18305623405d4549d6177b8e7c7fdf95ecc32fdee8f277e1dc77"
+        },
+        {
+          "url": "https://docs.privy.io/controls/policies/overview.md",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "9b464da4963838c3fd4982109e272579c8d8e27e98a15f34fbda25b791318cf9"
+        },
+        {
+          "url": "https://browser-use.com/posts/x402-launch",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d992de4b2504ccda7416e2598532cdb3086c8a9d78840c2d80a614ec91db5364"
+        },
+        {
+          "url": "https://x.com/CoinbaseDev/status/2085463734684959116",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "46667717ce6b4ce9de2e26f9c67a289d439ec8e54117acf7add7d301d440ed9e"
+        },
+        {
+          "url": "https://ethglobal.com/events/ethonline2026/prizes/bazantic",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "3462454ba1f7b5c2dfed103cc5c1febe2f7f1ee5b2bc372c25d88edbcb835fb6"
+        },
+        {
+          "url": "https://thegraph.com/docs/en/subgraphs/tooling/x402-payments/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "794af0c3d0ea2bf4b3bf9f13b4e549b0c50bc4d2bf684d55aab7641ac343242f"
+        },
+        {
+          "url": "https://x.com/bc1beat/status/2066564588691472889",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "9e657b9361539a5a55cbc1011e453bfc6db9b14fac137248302e5b09f2a3b83d"
+        },
+        {
+          "url": "https://x.com/browser_use/status/2085458556388524481",
+          "status": 200,
+          "x_page": true,
+          "content_sha256": "a3b063a7de6cfb519f24b787fc440ae6ffb09b793b675fe4e549abeca9aacaef"
+        },
+        {
+          "url": "https://forum.thegraph.com/t/whats-actually-blocking-x402-adoption-on-the-graph-awareness-discovery-and-one-round-trip-payments/7009",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "b05607122e0107e4a39ca7fe93199c21389b54c0bab4bd1ffc9b9814baff101e"
+        },
+        {
+          "url": "https://thegraph.com/docs/en/subgraphs/tooling/x402-payments/",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "794af0c3d0ea2bf4b3bf9f13b4e549b0c50bc4d2bf684d55aab7641ac343242f"
+        },
+        {
+          "url": "https://docs.browser-use.com/cloud/guides/x402-agent-wallets",
+          "status": 200,
+          "x_page": false,
+          "content_sha256": "d14f26fba41cee3c8ee8e848967d6e6fba29207c7c9c7e394579d5fdda2ab816"
+        }
+      ],
+      "report_sha256": "8eafc99886bd33b6ccf248602feb447fb387ea256666d6cee7cfdf541f737228"
+    }
+  ],
+  "source_records_including_duplicates": 93,
+  "unique_source_urls": 81,
+  "coordinator_source_records": 11,
+  "native_x_calls_total": 0,
+  "paid_provider_calls": 0,
+  "limitations": [
+    "X coverage is partial web/index access, not native thread research.",
+    "Narrative counts in raw reports may disagree with JSON; use these computed counts.",
+    "Source publication dates and numeric claims are not all independently verified."
+  ]
+}

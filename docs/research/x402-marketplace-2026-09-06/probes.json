@@ -1,0 +1,171 @@
+{
+  "checked_on": "2026-09-06",
+  "method": "Unauthenticated requests only. No credentials, payment signatures or paid executions. Generic public inputs.",
+  "results": [
+    {
+      "name": "Exa search",
+      "url": "https://api.exa.ai/search",
+      "status": 402,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "amount": "7000",
+          "payTo": "0x6d6E695b09861467c7d462f5AAF31cF3540B9192",
+          "maxTimeoutSeconds": 60,
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "extra": {
+            "name": "USD Coin",
+            "version": "2",
+            "breakdown": {
+              "search": 0.006999999999999999
+            },
+            "totalUsd": 0.006999999999999999,
+            "acceptId": "legacy"
+          }
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "amount": "7000",
+          "payTo": "12Ec2cJmfR1C9uwejzxcuMhUgEC7wDrLgm1wBvvR5w9E",
+          "maxTimeoutSeconds": 60,
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "extra": {
+            "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM",
+            "name": "USD Coin",
+            "version": "2",
+            "breakdown": {
+              "search": 0.006999999999999999
+            },
+            "totalUsd": 0.006999999999999999,
+            "acceptId": "solana-usdc-mainnet"
+          }
+        }
+      ],
+      "x402Version": 2
+    },
+    {
+      "name": "CoinGecko prices",
+      "url": "https://api.coingecko.com/api/v3/x402/simple/price?ids=ethereum&vs_currencies=usd",
+      "status": 404,
+      "body": "{'status': {'timestamp': '2026-09-06T14:53:46.257Z', 'error_code': 404, 'error_message': 'Not found'}}"
+    },
+    {
+      "name": "BlockRun discovery",
+      "url": "https://blockrun.ai/.well-known/x402",
+      "status": 200,
+      "body": "{'version': 1, 'resources': ['POST /api/v1/chat/completions', 'POST /api/v1/messages', 'POST /api/v1/responses', 'POST /api/v1/search', 'POST /api/v1/images/generations', 'POST /api/v1/images/image2image', 'POST /api/v1/videos/generations', 'POST /api/v1/audio/generations', 'POST /api/v1/phone/lookup', 'POST /api/v1/phone/lookup/fraud', 'POST /api/v1/phone/numbers/buy', 'POST /api/v1/phone/numbers/renew', 'POST /api/v1/phone/numbers/list', 'POST /api/v1/phone/numbers/release', 'POST /api/v1/voice/call', 'GET /api/v1/voice/call/{call_id}', 'POST /api/v1/audio/speech', 'POST /api/v1/audio/sound-effects', 'GET /api/v1/audio/voices', 'POST /api/v1/realface/init', 'POST /api/v1/realface/enroll', 'GET /api/v1/realface/status', 'POST /api/v1/portrait/enroll', 'POST /api/v1/polymarket/fund', 'POST /api/v1/onramp/token', 'GET /api/v1/models', 'GET /api/v1/images/models', 'GET /api/v1/audio/models', 'GET /api/v1/video/models', 'POST /api/v1/rpc/ethereum', 'POST /api/v1/rpc/base', 'POST /api/v1/rpc/arbitrum', 'POST /api/v1/rpc/arbitrum-nova', 'POST /api/v1/rpc/optimism', 'POST /api/v1/rpc/polygon', 'POST /api/v1/rpc/bsc', 'POST /api/v1/rpc/avalanche', 'POST /api/v1/rpc/fantom', 'POST /api/v1/rpc/cronos', 'POST /api/v1/rpc/celo', 'POST /api/v1/rpc/gnosis', 'POST /api/v1/rpc/zksync', 'POST /api/v1/rpc/berachain', 'POST /api/v1/rpc/unichain', 'POST /api/v1/rpc/monad', 'POST /api/v1/rpc/chiliz', 'POST /api/v1/rpc/moonbeam', 'POST /api/v1/rpc/aurora', 'POST /api/v1/rpc/flare', 'POST /api/v1/rpc/oasis', 'POST /api/v1/rpc/kaia', 'POST /api/v1/rpc/sonic', 'POST /api/v1/rpc/xdc', 'POST /api/v1/rpc/abstract', 'POST /api/v1/rpc/hyperevm', 'POST /api/v1/rpc/plume', 'POST /api/v1/rpc/ronin', 'POST /api/v1/rpc/rootstock', 'POST /api/v1/rpc/solana', 'POST /api/v1/rpc/bitcoin', 'POST /api/v1/rpc/litecoin', 'POST /api/v1/rpc/dogecoin', 'POST /api/v1/rpc/bitcoin-cash', 'POST /api/v1/rpc/near', 'POST /api/v1/rpc/sui', 'POST /api/v1/rpc/ripple', 'POST /api/v1/rpc/polkadot', 'POST /api/v1/rpc/kusama', 'POST /api/v1/rpc/zcash', 'POST /api/v1/modal/sandbox/create', 'POST /api/v1/modal/sandbox/exec', 'POST /api/v1/modal/sandbox/status', 'POST /api/v1/modal/sandbox/terminate', 'GET /api/v1/pm/poly"
+    },
+    {
+      "name": "BlockRun image generation",
+      "url": "https://blockrun.ai/api/v1/images/generations",
+      "status": 402,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "amount": "53501",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+          "maxTimeoutSeconds": 600,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        }
+      ],
+      "x402Version": 2
+    },
+    {
+      "name": "BlockRun inference",
+      "url": "https://blockrun.ai/api/v1/chat/completions",
+      "status": 402,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "amount": "2000",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        }
+      ],
+      "x402Version": 2
+    },
+    {
+      "name": "BlockRun speech",
+      "url": "https://blockrun.ai/api/v1/audio/speech",
+      "status": 402,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "amount": "2000",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0xe9030014F5DAe217d0A152f02A043567b16c1aBf",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        }
+      ],
+      "x402Version": 2
+    },
+    {
+      "name": "CoinGecko prices (documented host)",
+      "url": "https://pro-api.coingecko.com/api/v3/x402/simple/price?ids=ethereum&vs_currencies=usd",
+      "status": 402,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "amount": "10000",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x110cdBba7FE6434Ec4CE3464CC523942ad6Fb784",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "amount": "10000",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "8XhngTRitTcUJMiaDJ6azw8GRSiFPpwhnmV3HYQLHUpL",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+          }
+        }
+      ],
+      "x402Version": 2
+    },
+    {
+      "name": "Froggy Graph oracle",
+      "url": "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC",
+      "status": 402,
+      "accepts": [
+        {
+          "amount": "5000000",
+          "asset": "0.0.0",
+          "extra": {
+            "feePayer": "0.0.7162784"
+          },
+          "maxTimeoutSeconds": 120,
+          "network": "hedera:testnet",
+          "payTo": "0.0.10377647",
+          "scheme": "exact"
+        }
+      ],
+      "x402Version": 2
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 # apps/web
 
-Three panes: chat, the shared page, the wallet. They are one screen because the claim being demonstrated — that you can watch the agent spend and stop it — only reads as true if the refusal appears while the page it was refusing to pay for is still visible.
+First use starts at the wallet: balances, funding and agent setup. Once a task starts, the conversation contains the live shared page and its receipts; approvals sit above the composer. Wallet and settings remain available in a drawer without remounting the conversation. Keep first-use scrolling separate from chat auto-follow.
+
+Stop asks the server to cancel a run. An acknowledged request is not proof that an already-submitted payment was reversed; keep unconfirmed cancellation visible with a retry action.
 
 Screencast frames never touch React state; the painter owns the canvas directly. The canvas uses a ring and never a border, because `getBoundingClientRect()` includes borders and would offset every click by their width.
 

@@ -50,13 +50,16 @@ test("answers the same route once a token is presented", async ({
 });
 
 for (const socket of ["/ws/app", "/ws/browser"]) {
-  test(`refuses the ${socket} upgrade without a token`, async ({ request }) => {
+  test(`refuses the ${socket} upgrade without a token`, async ({
+    request,
+    baseURL,
+  }) => {
     // A real WebSocket client is not needed: the upgrade is an HTTP request,
     // and the server has to refuse it before any framing happens.
     const response = await request.fetch(socket, {
       headers: {
         connection: "Upgrade",
-        origin: "http://127.0.0.1:3100",
+        origin: baseURL ?? "",
         "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
         "sec-websocket-version": "13",
         upgrade: "websocket",

@@ -35,22 +35,39 @@ import {
   TabsList,
   TabsTrigger,
 } from "@froggy/ui/components/tabs";
-import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { hederaAccountUrl, shortAddress } from "../../lib/format";
+import { shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
-import type { FundOutcome, Identity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { WalletHome } from "../wallet/wallet-home";
 import { AgentSettings } from "./agent-settings";
 import { DigestSettings } from "./digest-settings";
 import { DirectoryPanel } from "./directory-panel";
 import { MandateEditor } from "./mandate-editor";
 import { TelegramSettings } from "./telegram-settings";
 
+const TITLES = {
+  policy: "Settings",
+  history: "Activity",
+  directory: "Directory",
+  agents: "Your agents",
+  about: "Your wallet",
+};
+
+export type DetailsTab =
+  | "policy"
+  | "history"
+  | "directory"
+  | "agents"
+  | "about";
+
 interface DetailsDrawerProps {
+  readonly tab: DetailsTab;
+  readonly onTabChange: (tab: DetailsTab) => void;
+  readonly onFunding: () => void;
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
   readonly webMcp: WebMcpStatus;
@@ -106,128 +123,6 @@ const SignerPolicy = (): ReactElement | null => {
       <span className="text-machine text-foreground/80">{policyId}</span>: a
       spend the mandate allows can still be refused there, and Privy says why.
     </p>
-  );
-};
-
-/** The money address, with a copy button once there is one. */
-const WalletAddress = ({
-  wallet,
-}: {
-  readonly wallet: WalletSummary | null;
-}): ReactElement => {
-  const [copied, setCopied] = useState(false);
-  const address = wallet?.address ?? null;
-  if (address === null) {
-    return <>—</>;
-  }
-  return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <span className="break-all">{address}</span>
-      <Button
-        onClick={() => {
-          void (async () => {
-            await navigator.clipboard.writeText(address);
-            setCopied(true);
-          })();
-        }}
-        size="xs"
-        variant="outline"
-      >
-        {copied ? "Copied" : "Copy"}
-      </Button>
-    </span>
-  );
-};
-
-const outcomeWords = (outcome: FundOutcome | "opening"): string => {
-  if (outcome === "opening") {
-    return "Privy is opening the onramp…";
-  }
-  switch (outcome.kind) {
-    case "confirmed": {
-      return "Confirmed: the funds are on their way to your wallet.";
-    }
-    case "submitted": {
-      return "Submitted: the funds arrive in a few minutes.";
-    }
-    case "refused": {
-      return `Privy could not open the onramp: ${outcome.reason}`;
-    }
-    default: {
-      return "";
-    }
-  }
-};
-
-/**
- * Adding money: Privy's fiat onramp toward USDC on Base, from the drawer.
- *
- * One button and one sentence. Without a Privy sign-in there is nothing to
- * fund and the sentence says so; a refusal is Privy's own reason, verbatim.
- */
-const AddFunds = ({
-  identity,
-  wallet,
-}: {
-  readonly identity: Identity;
-  readonly wallet: WalletSummary | null;
-}): ReactElement => {
-  const [outcome, setOutcome] = useState<FundOutcome | "opening" | null>(null);
-  const { addFunds } = identity;
-  const address = wallet?.address ?? null;
-  if (addFunds === null || address === null) {
-    return (
-      <p className="text-muted-foreground text-xs">
-        {identity.stubbed
-          ? "Adding funds needs a Privy sign-in; this build runs a local identity."
-          : "Adding funds needs a wallet; sign in first."}
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-2">
-      <Button
-        disabled={outcome === "opening"}
-        onClick={() => {
-          setOutcome("opening");
-          void (async () => {
-            setOutcome(await addFunds({ address }));
-          })();
-        }}
-        size="sm"
-      >
-        Add funds
-      </Button>
-      <p className="text-muted-foreground text-xs">
-        {outcome === null
-          ? "Card or Apple Pay through Privy, landing as USDC on Base. The service credit above is what Froggy spends on Hedera for you."
-          : outcomeWords(outcome)}
-      </p>
-    </div>
-  );
-};
-
-/** The person's own Hedera account, linked, or where it will come from. */
-const HederaAccount = ({
-  wallet,
-}: {
-  readonly wallet: WalletSummary | null;
-}): ReactElement => {
-  const accountId = wallet?.hederaAccountId ?? null;
-  return accountId === null ? (
-    <>opened at the first Hedera payment</>
-  ) : (
-    <a
-      className="underline decoration-dotted underline-offset-2 hover:decoration-solid"
-      href={hederaAccountUrl(
-        accountId,
-        wallet?.balances.hederaNetwork ?? "hedera:testnet"
-      )}
-      rel="noreferrer"
-      target="_blank"
-    >
-      {accountId}
-    </a>
   );
 };
 
@@ -318,41 +213,30 @@ const About = ({
   const identity = useIdentity();
   return (
     <div className="space-y-4 text-sm">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-        <dt className="text-muted-foreground">Wallet</dt>
-        <dd className="text-machine">
-          <WalletAddress wallet={wallet} />
-        </dd>
-        <dt className="text-muted-foreground">Signer</dt>
-        <dd className="text-machine">
-          {shortAddress(wallet?.signerAddress ?? null)}
-        </dd>
-        <dt className="text-muted-foreground">Agent</dt>
-        <dd>{wallet === null ? "—" : SIGNER_WORDS[wallet.agentSigner]}</dd>
-        <dt className="text-muted-foreground">Service credit</dt>
-        <dd className="text-money">
-          {wallet?.pocketUsdMicros === null ||
-          wallet?.pocketUsdMicros === undefined
-            ? "—"
-            : formatUsd(wallet.pocketUsdMicros)}
-        </dd>
-        <dt className="text-muted-foreground">Hedera account</dt>
-        <dd className="text-machine">
-          <HederaAccount wallet={wallet} />
-        </dd>
-        <dt className="text-muted-foreground">Session</dt>
-        <dd className="text-machine">{sessionId ?? "—"}</dd>
-        <dt className="text-muted-foreground">WebMCP</dt>
-        <dd>
-          {webMcp.kind === "registered"
-            ? `${webMcp.tools} tools offered to this browser's agent`
-            : "unavailable in this browser (needs Web Model Context)"}
-        </dd>
-      </dl>
+      <details className="rounded-xl border p-3">
+        <summary className="min-h-11 cursor-pointer text-sm font-medium">
+          Connection details
+        </summary>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 break-words">
+          <dt className="text-muted-foreground">Signer</dt>
+          <dd className="text-machine">
+            {shortAddress(wallet?.signerAddress ?? null)}
+          </dd>
+          <dt className="text-muted-foreground">Agent</dt>
+          <dd>{wallet === null ? "—" : SIGNER_WORDS[wallet.agentSigner]}</dd>
+          <dt className="text-muted-foreground">Session</dt>
+          <dd className="text-machine">{sessionId ?? "—"}</dd>
+          <dt className="text-muted-foreground">WebMCP</dt>
+          <dd>
+            {webMcp.kind === "registered"
+              ? `${webMcp.tools} tools offered to this browser's agent`
+              : "unavailable in this browser (needs Web Model Context)"}
+          </dd>
+        </dl>
+      </details>
       {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
         <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
       )}
-      <AddFunds identity={identity} wallet={wallet} />
       <div className="flex flex-wrap gap-1">
         {Object.entries(modes ?? {}).map(([name, mode]) => (
           <Badge
@@ -389,6 +273,9 @@ const About = ({
 };
 
 export const DetailsDrawer = ({
+  tab,
+  onTabChange,
+  onFunding,
   mandate,
   modes,
   webMcp,
@@ -401,15 +288,34 @@ export const DetailsDrawer = ({
   wallet,
 }: DetailsDrawerProps): ReactElement => (
   <Sheet onOpenChange={onOpenChange} open={open}>
-    <SheetContent className="w-full overflow-y-auto sm:max-w-md" side="right">
-      <SheetHeader>
-        <SheetTitle className="font-display">Details</SheetTitle>
+    <SheetContent
+      className="w-full overflow-y-auto sm:max-w-md"
+      keepMounted
+      side="right"
+    >
+      <SheetHeader className="pr-14">
+        <SheetTitle className="font-display">{TITLES[tab]}</SheetTitle>
         <SheetDescription>
           What the agent may do, what it has done, and where the money is.
         </SheetDescription>
       </SheetHeader>
-      <Tabs className="px-4 pb-6" defaultValue="policy">
-        <TabsList className="w-full">
+      <Tabs
+        className="px-4 pb-6"
+        value={tab}
+        onValueChange={(rawValue) => {
+          const value: unknown = rawValue;
+          if (
+            value === "policy" ||
+            value === "history" ||
+            value === "directory" ||
+            value === "agents" ||
+            value === "about"
+          ) {
+            onTabChange(value);
+          }
+        }}
+      >
+        <TabsList className="min-h-11 w-full [&_button]:min-h-10 [&_button]:text-xs">
           <TabsTrigger value="policy">Policy</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="directory">Directory</TabsTrigger>
@@ -433,10 +339,22 @@ export const DetailsDrawer = ({
         <TabsContent className="pt-4" value="directory">
           <DirectoryPanel receipts={receipts} />
         </TabsContent>
-        <TabsContent className="pt-4" value="agents">
-          <AgentSettings />
+        <TabsContent className="pt-4" keepMounted value="agents">
+          <AgentSettings active={open && tab === "agents"} />
         </TabsContent>
-        <TabsContent className="pt-4" value="about">
+        <TabsContent className="flex flex-col gap-6 pt-4" value="about">
+          <WalletHome
+            mandate={mandate}
+            onConnectAgent={() => {
+              onTabChange("agents");
+            }}
+            onFunding={onFunding}
+            onOpenLimits={() => {
+              onTabChange("policy");
+            }}
+            receipts={receipts}
+            wallet={wallet}
+          />
           <About
             modes={modes}
             onDeleteData={onDeleteData}

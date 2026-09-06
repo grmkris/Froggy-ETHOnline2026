@@ -1,0 +1,122 @@
+[
+  {
+    "id": "cryptotony-x402-call",
+    "url": "https://x.com/cryptotony5150/status/2096658413795066313",
+    "author": "cryptotony5150",
+    "published_at": "2026-09-06T17:54:54.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl read (X API single-post)",
+    "claim": "Independent user asked @bankrbot to make a paid x402 GET to a Bankr endpoint.",
+    "limitations": "Root of a live attempt. Replies inspected via a separate conversation_id search (10 posts, not guaranteed complete)."
+  },
+  {
+    "id": "bankrbot-signed-then-402",
+    "url": "https://x.com/bankrbot/status/2096659236680004084",
+    "author": "bankrbot",
+    "published_at": "2026-09-06T17:58:10.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Bot swapped BNKR to USDC, said payment was signed and sent, then reported 402 payment verification failed.",
+    "limitations": "Product bot, not an independent user. On-chain swap linked; whether USDC left the wallet after the failed verify was not independently checked."
+  },
+  {
+    "id": "cryptotony-try-again",
+    "url": "https://x.com/cryptotony5150/status/2096660850539192369",
+    "author": "cryptotony5150",
+    "published_at": "2026-09-06T18:04:35.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search conversation_id:2096658413795066313",
+    "claim": "User retried the same paid x402 call after verification failure.",
+    "limitations": "Reply in the inspected thread. Does not prove a second on-chain debit."
+  },
+  {
+    "id": "bankrbot-still-verify-failed",
+    "url": "https://x.com/bankrbot/status/2096663513842499900",
+    "author": "bankrbot",
+    "published_at": "2026-09-06T18:15:10.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search and conversation_id)",
+    "claim": "Retry still failed: 402, 0.00402 USDC on Base, error Payment verification failed.",
+    "limitations": "Bot output. Thread also confirmed token+USDC balances; later replies after this post were not fully enumerated."
+  },
+  {
+    "id": "casaisdev-refunds-table",
+    "url": "https://x.com/casaisdev/status/2096662559839678629",
+    "author": "casaisdev",
+    "published_at": "2026-09-06T18:11:23.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "x402 now documents deposits, withdrawals, and refunds in a Coinbase facilitator pricing table that few read.",
+    "limitations": "Text truncated at ~280 characters. reply_count=1 not fetched (budget)."
+  },
+  {
+    "id": "cortexcloud-settle-vs-estimate",
+    "url": "https://x.com/cortexcloud1/status/2096629998031339700",
+    "author": "cortexcloud1",
+    "published_at": "2026-09-06T16:01:59.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Most settlement failures are settle-without-estimate; settlement is irreversible and has no refund code.",
+    "limitations": "Vendor/infra voice, not a documented personal charge. reply_count=1 not fetched."
+  },
+  {
+    "id": "kalapowered-card-recourse",
+    "url": "https://x.com/kalapowered/status/2096643592362017116",
+    "author": "kalapowered",
+    "published_at": "2026-09-06T16:56:00.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Kala keeps card reversal in-loop; agents should use cards when a purchase needs recourse, stablecoins when it does not.",
+    "limitations": "Vendor reply to @PayAINetwork. Parent post and any further replies not fetched. Text truncated."
+  },
+  {
+    "id": "gegelz-wallet-privacy",
+    "url": "https://x.com/gegelz/status/2096596287923585068",
+    "author": "gegelz",
+    "published_at": "2026-09-06T13:48:02.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Public-wallet x402 metering exposes every LLM call; a private agent-wallet MCP is wanted for the same payments.",
+    "limitations": "Reply, not an onboarding walkthrough. Parent @brutal_devvin not fetched. Independent vs promoter unclear."
+  },
+  {
+    "id": "solenrich-mcp-claude-cursor",
+    "url": "https://x.com/SolEnrichHQ/status/2096675520993730602",
+    "author": "SolEnrichHQ",
+    "published_at": "2026-09-06T19:02:53.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Vendor offers pay-per-call USDC via x402 or card, no API key, with MCP tools for Claude and Cursor.",
+    "limitations": "Promoter. Does not show a third-party purchase. One reply not inspected."
+  },
+  {
+    "id": "sumit-trust-record",
+    "url": "https://x.com/SumitSisodiya28/status/2096512918401823227",
+    "author": "SumitSisodiya28",
+    "published_at": "2026-09-06T08:16:45.000Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "xurl search (X API recent search)",
+    "claim": "Agent economy needs hire, check, pay, and a record a stranger can trust; chat was built, the market was not.",
+    "limitations": "Commentary plus an X Article. Five replies and the article body were not fetched. Not an actual purchase."
+  },
+  {
+    "id": "quackai-buyer-caps",
+    "url": "https://x.com/QuackAI_AI/status/2090018903292629024",
+    "author": "QuackAI_AI",
+    "published_at": "2026-08-19T10:11:00Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "web_search X index (not X API; not a full thread)",
+    "claim": "Buyer-side x402 is the hard part; an unconstrained paying agent can overpay, double-pay, or pay the wrong endpoint.",
+    "limitations": "Vendor launch post from indexed snippet. Replies not inspected. Outside xurl recent-search window."
+  },
+  {
+    "id": "x402rorg-quotes-jnptzl-refund",
+    "url": "https://x.com/x402rorg/status/2041448118777192714",
+    "author": "x402rorg",
+    "published_at": "2026-04-07T09:28:54Z",
+    "accessed_at": "2026-09-06",
+    "access_method": "web_search X index (quoted nested post text; originals not fetched via xurl)",
+    "claim": "Refund-protocol vendor says auto-refund on x402 failure; quoted user said an agent lost 3.20 USDC when Veo generation failed.",
+    "limitations": "Indexed host post plus quoted text for https://x.com/jnptzl/status/2031440117525565523. Neither original fetched via X API. Quoted user's refund outcome unknown. Vendor promoting a product."
+  }
+]

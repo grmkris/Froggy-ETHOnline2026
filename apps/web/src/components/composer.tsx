@@ -204,6 +204,7 @@ export const Composer = ({
         {busy ? (
           <Button
             aria-label="Stop the run"
+            className="size-11"
             onClick={onStop}
             size="icon"
             type="button"
@@ -214,6 +215,7 @@ export const Composer = ({
         ) : (
           <Button
             aria-label="Send"
+            className="size-11"
             disabled={disabled || draft.trim() === ""}
             size="icon"
             type="submit"

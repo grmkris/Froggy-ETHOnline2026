@@ -48,7 +48,7 @@ export const LeashMeter = ({
       className="flex min-w-0 flex-col gap-1"
       title={ledgerNote ?? undefined}
     >
-      <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
         <span className="text-money text-base leading-none">
           {spentUsdMicros === null ? "—" : formatUsd(spent)}
         </span>

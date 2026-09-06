@@ -24,6 +24,7 @@ import {
   hcsMessageUrl,
   shortId,
 } from "../../lib/format";
+import { receiptHeadline } from "../../lib/receipt-status";
 import { useSessionIds } from "../../lib/session-ids";
 
 interface ReceiptTicketProps {
@@ -44,22 +45,6 @@ const APPROVAL_WORDS: Record<
   deny_stop: "you stopped the agent",
   timeout: "nobody answered",
   unavailable: "nobody to ask",
-};
-
-const headline = (receipt: Receipt): string => {
-  const { decision } = receipt;
-  if (decision._tag === "deny") {
-    return decision.message;
-  }
-  if (decision._tag === "ask") {
-    return decision.question;
-  }
-  if (receipt.settlement !== undefined) {
-    return `Paid ${receipt.intent.payee.label}`;
-  }
-  return receipt.failure === undefined
-    ? `Allowed, not settled — ${receipt.intent.payee.label}`
-    : `Allowed, but not paid: ${receipt.failure}`;
 };
 
 const StubLine = ({
@@ -222,8 +207,7 @@ export const ReceiptTicket = ({
       : receipt.decision.ruleId;
   return (
     <Ticket
-      aria-label={`${refused ? "Refused" : "Receipt"}: ${headline(receipt)}`}
-      className="rise-in"
+      aria-label={`${refused ? "Refused" : "Receipt"}: ${receiptHeadline(receipt)}`}
       tone={refused ? "refused" : "default"}
     >
       <TicketBody className={compact ? "px-3 pt-2.5 pb-2" : undefined}>
@@ -240,7 +224,7 @@ export const ReceiptTicket = ({
                 {receipt.intent.payee.label}
               </span>
             </div>
-            <p className="mt-1.5 text-sm">{headline(receipt)}</p>
+            <p className="mt-1.5 text-sm">{receiptHeadline(receipt)}</p>
             {compact ? null : (
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {receipt.intent.purpose}

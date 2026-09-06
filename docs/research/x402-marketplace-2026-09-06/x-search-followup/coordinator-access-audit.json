@@ -1,0 +1,123 @@
+{
+  "checked_at": "2026-09-06T20:26:37.510894+00:00",
+  "mechanism": "Grok Build invoked xurl public read/search commands against X API",
+  "responses": [
+    {
+      "file": "01-failures.txt",
+      "post_records": 10,
+      "post_ids": [
+        "2096663513842499900",
+        "2096663110627234082",
+        "2096662559839678629",
+        "2096661037902893277",
+        "2096659236680004084",
+        "2096658537825067111",
+        "2096643592362017116",
+        "2096636042056962548",
+        "2096629998031339700",
+        "2096608734151594120"
+      ],
+      "included_post_ids": [],
+      "user_records": 6,
+      "errors": null,
+      "sha256": "673d3490d2a2f8e629cce05a9236a1fe5abc95beaf0cdc2c7de64c5b1b313839"
+    },
+    {
+      "file": "02-onboarding.txt",
+      "post_records": 9,
+      "post_ids": [
+        "2096687275715281081",
+        "2096686891546341864",
+        "2096661641110978562",
+        "2096624199859101872",
+        "2096624062013345886",
+        "2096623956501418113",
+        "2096621660354773295",
+        "2096612463257022971",
+        "2096596287923585068"
+      ],
+      "included_post_ids": [],
+      "user_records": 7,
+      "errors": null,
+      "sha256": "715f0765c78ded64c6cd5618852eb6cbd096b6ecde5f36be9e02846ad942827c"
+    },
+    {
+      "file": "03-agents-buy.txt",
+      "post_records": 10,
+      "post_ids": [
+        "2096675520993730602",
+        "2096661641110978562",
+        "2096638507263344682",
+        "2096621660354773295",
+        "2096608734151594120",
+        "2096584388288852295",
+        "2096486579124765159",
+        "2096485357088813136",
+        "2096450536031621279",
+        "2096445591958306921"
+      ],
+      "included_post_ids": [],
+      "user_records": 9,
+      "errors": null,
+      "sha256": "16904f3cf2cf88fc244bb943f57e33ed95425caa60858da57e82fe5234a55536"
+    },
+    {
+      "file": "04-dissent.txt",
+      "post_records": 10,
+      "post_ids": [
+        "2096687275715281081",
+        "2096663904793354547",
+        "2096649812208685400",
+        "2096618265149669493",
+        "2096608734151594120",
+        "2096583149308277081",
+        "2096553727037407299",
+        "2096550741737435492",
+        "2096545982276042957",
+        "2096512918401823227"
+      ],
+      "included_post_ids": [],
+      "user_records": 7,
+      "errors": null,
+      "sha256": "f1b950041e533e1976713144f7bfaa55b4941e5670d730519f36dcd6edd5632b"
+    },
+    {
+      "file": "05-thread-bankr.txt",
+      "post_records": 10,
+      "post_ids": [
+        "2096672544300413280",
+        "2096663513842499900",
+        "2096663311047672215",
+        "2096663110627234082",
+        "2096662936408228110",
+        "2096661037902893277",
+        "2096660850539192369",
+        "2096659236680004084",
+        "2096658987894878518",
+        "2096658832650830038"
+      ],
+      "included_post_ids": [],
+      "user_records": 4,
+      "errors": null,
+      "sha256": "00e85a5049116aac0ce36e487e213a965f345d672e9f09852fdda039c099029b"
+    },
+    {
+      "file": "06-read-root.txt",
+      "post_records": 1,
+      "post_ids": [
+        "2096658413795066313"
+      ],
+      "included_post_ids": [],
+      "user_records": 1,
+      "errors": null,
+      "sha256": "25eb098cb73872e72f6143d28914837e055954ca9914f1f79cfd149747bc6bea"
+    }
+  ],
+  "post_records": 50,
+  "unique_primary_post_ids": 41,
+  "unique_post_ids_including_expansions": 41,
+  "native_grok_x_tool_confirmed": false,
+  "x_api_reads_verified": true,
+  "x402_payments_made": 0,
+  "api_billing": "Read requests used existing X API access; actual credit deductions were not checked."
+}

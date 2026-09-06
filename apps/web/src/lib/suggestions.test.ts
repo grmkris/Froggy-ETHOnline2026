@@ -35,7 +35,7 @@ describe("suggestionsFor", () => {
     );
   });
 
-  it("never uses the empty screen's own words", () => {
+  it("limits the next actions to three suggestions", () => {
     const every = suggestionsFor({
       ...quiet,
       hasGraph: true,
@@ -44,7 +44,6 @@ describe("suggestionsFor", () => {
       pocketUsdMicros: 0,
     });
     expect(every.length).toBeLessThanOrEqual(3);
-    expect(every.join(" ")).not.toContain("Buy the lending snapshot");
   });
 });
 

@@ -657,7 +657,7 @@
 @source "../../../../apps/web/node_modules/streamdown/dist/*.js";
 
 /*
- * Froggy is light, warm and quiet. Paper, ink, one frog-green, and three
+ * Froggy is light, warm and quiet. Paper, ink, one frog-green, and
  * two driving colours that mean the same thing everywhere: amber for the
  * agent, blue for the person. Money is set in the display face so a
  * figure reads as a figure and not as prose.
@@ -707,6 +707,11 @@
 }
 :root {
   color-scheme: light;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-feedback: 125ms;
+  --motion-panel: 200ms;
+  --motion-sheet: 250ms;
   --background: oklch(0.982 0.006 95);
   --paper-deep: oklch(0.955 0.01 95);
   --foreground: oklch(0.24 0.02 150);
@@ -714,8 +719,8 @@
   --card-foreground: oklch(0.24 0.02 150);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.24 0.02 150);
-  --primary: oklch(0.83 0.19 132);
-  --primary-foreground: oklch(0.22 0.05 145);
+  --primary: oklch(0.48 0.13 148);
+  --primary-foreground: oklch(1 0 0);
   --brand: oklch(0.48 0.13 148);
   --brand-soft: oklch(0.94 0.05 135);
   --secondary: oklch(0.955 0.012 100);
@@ -753,34 +758,12 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(
-      60rem 40rem at 8% -10%,
-      oklch(0.9 0.09 135 / 55%),
-      transparent 60%
-    ),
-    radial-gradient(
-      40rem 30rem at 100% 0%,
-      oklch(0.95 0.05 80 / 60%),
-      transparent 55%
-    ),
-    var(--background);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-}
-/* A whisper of grain so the paper is paper and not a flat fill. */
-body::before {
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  content: "";
 }
 #root {
   position: relative;
@@ -891,21 +874,17 @@ button:not(:disabled),
     animation: rise-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
-/* A refusal that just happened lands like a stamp: large, then settling. */
+/* Fresh refusal feedback leaves the static stamp and payment facts still. */
 @keyframes stamp-in {
   from {
     opacity: 0;
-    transform: rotate(-6deg) scale(1.8);
   }
   to {
     opacity: 0.85;
-    transform: rotate(-6deg) scale(1);
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .stamp-in {
-    animation: stamp-in 360ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
-  }
+.stamp-in {
+  animation: stamp-in var(--motion-panel) var(--ease-out) both;
 }
 /* A stamp across a refused ticket. Rotated ink, never a red box. */
 @utility stamp-refused {

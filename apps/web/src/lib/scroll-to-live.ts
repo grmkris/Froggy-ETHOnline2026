@@ -8,5 +8,5 @@
 export const scrollToLive = (): void => {
   document
     .querySelector('[data-slot="driving-ring"]')
-    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    ?.scrollIntoView({ behavior: "instant", block: "center" });
 };

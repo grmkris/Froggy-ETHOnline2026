@@ -67,12 +67,7 @@ export const ApprovalTicket = ({
   }, [request.expiresAt]);
 
   return (
-    <Ticket
-      aria-label={request.title}
-      className="rise-in"
-      ref={ticketRef}
-      tone="asking"
-    >
+    <Ticket aria-label={request.title} ref={ticketRef} tone="asking">
       <TicketBody>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

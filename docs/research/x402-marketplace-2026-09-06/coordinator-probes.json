@@ -1,0 +1,323 @@
+[
+  {
+    "name": "you-search",
+    "checked_at": "2026-09-06T19:40:14.850382+00:00",
+    "url": "https://api.you.com/v1/search?query=public%20library%20opening%20hours&count=3",
+    "method": "GET",
+    "body": null,
+    "status": 402,
+    "challenge": {
+      "x402Version": 2,
+      "error": "Payment required",
+      "resource": {
+        "url": "https://api.you.com/v1/search",
+        "description": "You.com Search API: real-time web search returning ranked results grouped by section (results.web, results.news), each with url, title and description; web results also carry snippets. Use when an agent needs fresh, citable web data (news, markets, company facts) to ground a decision. Query params: query (required), count 1-100 (default 10), livecrawl (web|news|all; fetches live page contents, charged per result), country, freshness. Paid per call in USDC.",
+        "mimeType": "application/json"
+      },
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "amount": "5000",
+          "payTo": "0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f",
+          "maxTimeoutSeconds": 600,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "amount": "5000",
+          "payTo": "GBQ2FrH49gvKXu1zg7tguoLwaofn5S4NnuMs5JSYQ5GX",
+          "maxTimeoutSeconds": 600,
+          "extra": {
+            "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+          }
+        }
+      ],
+      "extensions": {
+        "bazaar": {
+          "info": {
+            "input": {
+              "type": "http",
+              "queryParams": {
+                "query": "NVDA earnings guidance Q2 2026",
+                "count": 10
+              },
+              "method": "GET"
+            },
+            "output": {
+              "type": "json",
+              "example": {
+                "results": {
+                  "web": [
+                    {
+                      "url": "https://example.com/nvda-guidance",
+                      "title": "NVIDIA raises Q2 revenue guidance",
+                      "description": "NVIDIA lifted its outlook on data-center demand.",
+                      "page_age": "2026-08-01T14:02:00",
+                      "thumbnail_url": "https://example.com/thumb/nvda-guidance.jpg",
+                      "favicon_url": "https://example.com/favicon.ico",
+                      "snippets": [
+                        "NVIDIA expects revenue of ... driven by data-center GPU demand."
+                      ]
+                    }
+                  ],
+                  "news": [
+                    {
+                      "url": "https://example.com/nvda-earnings-call",
+                      "title": "NVIDIA earnings call: guidance above consensus",
+                      "description": "Management guided next quarter above consensus.",
+                      "thumbnail_url": "https://example.com/thumb/nvda-call.jpg",
+                      "page_age": "2026-08-01T14:02:00"
+                    }
+                  ]
+                },
+                "metadata": {
+                  "query": "NVDA earnings guidance Q2 2026",
+                  "search_uuid": "0a1d1f6e-6a1a-4a6e-9a9a-5f4f2b7d3c11",
+                  "latency": 0.42
+                }
+              }
+            }
+          },
+          "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "http"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "DELETE"
+                    ]
+                  },
+                  "queryParams": {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "maxLength": 40000,
+                        "description": "The web search query."
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 10,
+                        "description": "Number of results to return, capped at 100. Also sets the number of pages charged for when livecrawl is enabled."
+                      },
+                      "livecrawl": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "news",
+                          "all"
+                        ],
+                        "description": "Fetch live page contents for the results instead of serving index snippets alone. Priced per result on top of the base call price, so the quoted amount scales with count. Omit for the base price."
+                      },
+                      "country": {
+                        "type": "string",
+                        "description": "ISO 3166-1 alpha-2 country code for geographic focus."
+                      },
+                      "freshness": {
+                        "type": "string",
+                        "description": "Recency filter: day | week | month | year, or a date range 'YYYY-MM-DDtoYYYY-MM-DD'."
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "method"
+                ],
+                "additionalProperties": false
+              },
+              "output": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "example": {
+                    "type": "object",
+                    "properties": {
+                      "results": {
+                        "type": "object",
+                        "description": "Page results keyed by section: 'web' and 'news'. A section is omitted when it returned no results, so do not assume any key is present; an all-empty response is '{}'.",
+                        "properties": {
+                          "web": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "Result URL."
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "snippets": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "Index snippets matching the query. Emitted on 'web' results; 'news' results carry 'description' instead and have no snippets."
+                                },
+                                "page_age": {
+                                  "type": "string",
+                                  "description": "Publication timestamp, when the source exposes one. Naive ISO-8601 ('2026-08-01T14:02:00') \u2014 no timezone offset and no trailing 'Z'."
+                                },
+                                "favicon_url": {
+                                  "type": "string"
+                                },
+                                "thumbnail_url": {
+                                  "type": "string"
+                                },
+                                "original_thumbnail_url": {
+                                  "type": "string"
+                                },
+                                "source_name": {
+                                  "type": "string"
+                                },
+                                "contents": {
+                                  "type": "object",
+                                  "description": "Scraped page contents, keyed by requested format (default 'html'). Present only when livecrawl was requested and the fetch succeeded."
+                                }
+                              },
+                              "required": [
+                                "url"
+                              ]
+                            }
+                          },
+                          "news": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "Result URL."
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "snippets": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "Index snippets matching the query. Emitted on 'web' results; 'news' results carry 'description' instead and have no snippets."
+                                },
+                                "page_age": {
+                                  "type": "string",
+                                  "description": "Publication timestamp, when the source exposes one. Naive ISO-8601 ('2026-08-01T14:02:00') \u2014 no timezone offset and no trailing 'Z'."
+                                },
+                                "favicon_url": {
+                                  "type": "string"
+                                },
+                                "thumbnail_url": {
+                                  "type": "string"
+                                },
+                                "original_thumbnail_url": {
+                                  "type": "string"
+                                },
+                                "source_name": {
+                                  "type": "string"
+                                },
+                                "contents": {
+                                  "type": "object",
+                                  "description": "Scraped page contents, keyed by requested format (default 'html'). Present only when livecrawl was requested and the fetch succeeded."
+                                }
+                              },
+                              "required": [
+                                "url"
+                              ]
+                            }
+                          }
+                        },
+                        "additionalProperties": {
+                          "type": "array"
+                        }
+                      },
+                      "metadata": {
+                        "type": "object",
+                        "properties": {
+                          "query": {
+                            "type": "string",
+                            "description": "The query as searched."
+                          },
+                          "search_uuid": {
+                            "type": "string",
+                            "description": "Request identifier, useful when reporting issues."
+                          },
+                          "latency": {
+                            "type": "number",
+                            "description": "Server-side latency in seconds."
+                          }
+                        },
+                        "required": [
+                          "query",
+                          "search_uuid",
+                          "latency"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "results",
+                      "metadata"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        }
+      }
+    },
+    "response_excerpt": null,
+    "paid": false
+  },
+  {
+    "name": "firecrawl-search",
+    "checked_at": "2026-09-06T19:40:15.224522+00:00",
+    "url": "https://api.firecrawl.dev/v1/x402/search",
+    "method": "POST",
+    "body": {
+      "query": "public library opening hours",
+      "limit": 3
+    },
+    "status": 404,
+    "challenge": null,
+    "response_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /v1/x402/search</pre>\n</body>\n</html>\n",
+    "paid": false
+  }
+]

@@ -11,10 +11,11 @@
  */
 
 import { useChat } from "@ai-sdk/react";
+import type { BrowserState } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { DefaultChatTransport } from "ai";
 import { Schema } from "effect";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -32,9 +33,12 @@ import { ApprovalTicket } from "../components/cards/approval-ticket";
 import { NoticeList } from "../components/cards/notice-list";
 import { Composer } from "../components/composer";
 import { DetailsDrawer } from "../components/drawer/details-drawer";
+import type { DetailsTab } from "../components/drawer/details-drawer";
+import { StopFeedback, useStopRun } from "../components/stop-feedback";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
 import { TopBar } from "../components/top-bar";
+import { FundingPanel } from "../components/wallet/funding-panel";
 import { WalletHome } from "../components/wallet/wallet-home";
 import { useAppSocket } from "../hooks/use-app-socket";
 import { useBrowserSocket } from "../hooks/use-browser-socket";
@@ -56,7 +60,10 @@ import {
 import type { FroggyMessage } from "../lib/stream-model";
 import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 
-const SPRING = { damping: 38, stiffness: 420, type: "spring" } as const;
+const hasLivePage = (
+  state: BrowserState | null,
+  lastTurn: string | null
+): boolean => state !== null && (state.status !== "idle" || lastTurn !== null);
 
 const composerLock = (connected: boolean): string | null =>
   connected ? null : "Connecting…";
@@ -67,7 +74,7 @@ const Elsewhere = ({
 }: {
   readonly onDock: () => void;
 }): ReactElement => (
-  <div className="rise-in bg-card/60 flex items-center gap-3 rounded-2xl border border-dashed p-4 text-sm">
+  <div className="bg-card/60 flex items-center gap-3 rounded-2xl border border-dashed p-4 text-sm">
     <span className="flex-1">The page is open in another window.</span>
     <Button onClick={onDock} size="sm" variant="outline">
       Bring it back
@@ -111,6 +118,16 @@ export const WorkspacePage = (): ReactElement => {
   const { getToken } = useSessionToken();
   useReceipts(app.sessionId, app.dispatch);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState<DetailsTab>("policy");
+  const [fundingOpen, setFundingOpen] = useState(false);
+  const openDetails = (tab: DetailsTab): void => {
+    setDetailsTab(tab);
+    setDetailsOpen(true);
+  };
+  const openFunding = (): void => {
+    setDetailsOpen(false);
+    setFundingOpen(true);
+  };
   const [liveVisible, setLiveVisible] = useState(true);
   // Asked for from the header, before any turn has opened a page.
   const [wanted, setWanted] = useState(false);
@@ -130,6 +147,12 @@ export const WorkspacePage = (): ReactElement => {
     [getToken]
   );
   const chat = useChat<FroggyMessage>({ resume: true, transport });
+  const {
+    blocked: stopBlocked,
+    clear: clearStop,
+    state: stopState,
+    stop,
+  } = useStopRun(chat.stop);
   const busy = chat.status === "streaming" || chat.status === "submitted";
   // A refused turn — the day's model budget spent, a malformed request — comes
   // back as the request's error, not as a message. It is shown beside the
@@ -153,27 +176,11 @@ export const WorkspacePage = (): ReactElement => {
 
   const send = useCallback(
     (text: string): void => {
+      clearStop();
       void chat.sendMessage({ metadata: { at: Date.now() }, text });
     },
-    [chat]
+    [chat, clearStop]
   );
-
-  const stop = useCallback((): void => {
-    // Both halves. The local `stop()` alone detaches this client and leaves
-    // the server-owned run happily continuing to spend.
-    void (async () => {
-      try {
-        const token = await getToken();
-        await fetch("/api/chat/stop", {
-          headers: token === null ? {} : { authorization: `Bearer ${token}` },
-          method: "POST",
-        });
-      } catch {
-        console.warn("Could not stop the run; it may still be going.");
-      }
-    })();
-    void chat.stop();
-  }, [chat, getToken]);
 
   const drive = driveModeOf(browser.state);
   // The wallet as tools for this browser's own agent, through the same leash.
@@ -202,10 +209,7 @@ export const WorkspacePage = (): ReactElement => {
   // error stands; clearing it is part of asking.
   const retryId = retryIdOf(chat.messages, chat.status);
   const showLive =
-    wanted ||
-    popOut.mode === "window" ||
-    (browser.state !== null &&
-      (browser.state.status !== "idle" || liveAfter !== null));
+    wanted || popOut.mode === "window" || hasLivePage(browser.state, liveAfter);
   const currentUrl =
     browser.state?.tabs.find((tab) => tab.id === browser.state?.activeTabId)
       ?.url ?? null;
@@ -240,23 +244,22 @@ export const WorkspacePage = (): ReactElement => {
     }
     return (
       <motion.div
-        animate={{ opacity: 1, y: 0 }}
-        initial={{ opacity: 0, y: 12 }}
-        layout
         onViewportEnter={() => {
           setLiveVisible(true);
         }}
         onViewportLeave={() => {
           setLiveVisible(false);
         }}
-        transition={SPRING}
       >
         {card(false)}
       </motion.div>
     );
   };
   const liveCard = inlineCard();
-  const disabledReason = composerLock(app.connected);
+  const disabledReason = stopBlocked
+    ? "Waiting for the stop request. Check its status below."
+    : composerLock(app.connected);
+  const firstUse = items.length === 0 && !busy && !showLive;
   const sessionIds = useMemo(
     () => ({ hcsTopicId: app.hcsTopicId, policyId: app.policyId }),
     [app.hcsTopicId, app.policyId]
@@ -276,7 +279,10 @@ export const WorkspacePage = (): ReactElement => {
           mandate={app.mandate}
           modes={app.modes}
           onOpenDetails={() => {
-            setDetailsOpen(true);
+            openDetails("policy");
+          }}
+          onOpenWallet={() => {
+            openDetails("about");
           }}
           onShowBrowser={() => {
             setWanted(true);
@@ -299,45 +305,46 @@ export const WorkspacePage = (): ReactElement => {
                 </div>
               </div>
             ) : null}
-            <Stream
-              asking={app.approvals.length > 0}
-              busy={busy}
-              header={
-                <WalletHome
-                  onConnectAgent={() => {
-                    setDetailsOpen(true);
-                  }}
-                  onTopUp={(amountUsd) => {
-                    send(`Top up the pocket with ${amountUsd} USDC`);
-                  }}
-                  receipts={app.receipts}
-                  wallet={app.wallet}
-                />
-              }
-              empty={
-                <EmptyState
-                  disabled={disabledReason !== null}
-                  mandate={app.mandate}
-                  modes={app.modes}
-                  onSend={(text) => {
-                    void chat.sendMessage({
-                      metadata: { at: Date.now() },
-                      text,
-                    });
-                  }}
-                  wallet={app.wallet}
-                />
-              }
-              items={items}
-              liveAfter={liveAfter}
-              liveCard={liveCard}
-              onRetry={(messageId) => {
-                chat.clearError();
-                void chat.regenerate({ messageId });
-              }}
-              retryId={retryId}
-              thinking={showThinking(chat.messages, chat.status)}
-            />
+            {firstUse ? (
+              <div
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                data-slot="wallet-home-scroll"
+              >
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6">
+                  <WalletHome
+                    mandate={app.mandate}
+                    onConnectAgent={() => {
+                      openDetails("agents");
+                    }}
+                    onFunding={openFunding}
+                    onOpenLimits={() => {
+                      openDetails("policy");
+                    }}
+                    receipts={app.receipts}
+                    wallet={app.wallet}
+                  />
+                  <EmptyState
+                    disabled={disabledReason !== null}
+                    modes={app.modes}
+                    onSend={send}
+                  />
+                </div>
+              </div>
+            ) : (
+              <Stream
+                asking={app.approvals.length > 0}
+                busy={busy}
+                items={items}
+                liveAfter={liveAfter}
+                liveCard={liveCard}
+                onRetry={(messageId) => {
+                  chat.clearError();
+                  void chat.regenerate({ messageId });
+                }}
+                retryId={retryId}
+                thinking={showThinking(chat.messages, chat.status)}
+              />
+            )}
             <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <NoticeList
                 notices={[...chatNotices, ...app.notices]}
@@ -349,30 +356,32 @@ export const WorkspacePage = (): ReactElement => {
                   app.dispatch({ id, type: "dismiss" });
                 }}
               />
-              <AnimatePresence>
-                {app.approvals.map((request) => (
-                  <motion.div
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.98, y: 8 }}
-                    initial={{ opacity: 0, scale: 0.98, y: 12 }}
-                    key={request.id}
-                    transition={SPRING}
-                  >
-                    <ApprovalTicket
-                      disabled={!app.connected}
-                      onAnswer={(requestId, optionId) => {
-                        app.send({
-                          optionId,
-                          requestId,
-                          type: "approval.resolve",
-                          v: 1,
-                        });
-                      }}
-                      request={request}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+              {app.approvals.map((request) => (
+                <motion.div
+                  animate={{ opacity: 1 }}
+                  initial={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                  key={request.id}
+                >
+                  <ApprovalTicket
+                    disabled={!app.connected}
+                    onAnswer={(requestId, optionId) => {
+                      app.send({
+                        optionId,
+                        requestId,
+                        type: "approval.resolve",
+                        v: 1,
+                      });
+                    }}
+                    request={request}
+                  />
+                </motion.div>
+              ))}
+              <StopFeedback
+                state={stopState}
+                onRetry={stop}
+                onDismiss={clearStop}
+              />
               <Composer
                 asking={app.approvals.length > 0}
                 busy={busy}
@@ -386,9 +395,7 @@ export const WorkspacePage = (): ReactElement => {
                     send(`Top up the pocket with ${command.amountUsd} USDC`);
                   }
                 }}
-                onSend={(text) => {
-                  void chat.sendMessage({ metadata: { at: Date.now() }, text });
-                }}
+                onSend={send}
                 onStop={stop}
                 suggestions={suggestions}
               />
@@ -403,7 +410,21 @@ export const WorkspacePage = (): ReactElement => {
             </SplitPane>
           ) : null}
         </div>
+        <FundingPanel
+          busy={busy || stopBlocked}
+          connected={app.connected}
+          mandate={app.mandate}
+          onOpenChange={setFundingOpen}
+          onTopUp={(amountUsd) => {
+            send(`Top up the pocket with ${amountUsd} USDC`);
+          }}
+          open={fundingOpen}
+          wallet={app.wallet}
+        />
         <DetailsDrawer
+          tab={detailsTab}
+          onTabChange={setDetailsTab}
+          onFunding={openFunding}
           mandate={app.mandate}
           modes={app.modes}
           webMcp={webMcp}

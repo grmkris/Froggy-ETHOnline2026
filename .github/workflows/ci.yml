@@ -42,7 +42,7 @@ jobs:
         run: bun run build
 
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx --bun playwright install --with-deps chromium
 
       - name: Run browser smoke tests
         run: bun run e2e

@@ -24,7 +24,7 @@ import {
   MessageScrollerViewport,
 } from "@froggy/ui/components/message-scroller";
 import { ArrowDownIcon } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 
 import type { StreamItem } from "../../lib/stream-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
@@ -35,9 +35,6 @@ interface StreamProps {
   /** An approval card is open somewhere on the page. */
   readonly asking: boolean;
   readonly busy: boolean;
-  readonly empty: ReactNode;
-  /** Rendered first, above the conversation and the empty screen alike: the wallet. */
-  readonly header?: ReactNode;
   readonly items: readonly StreamItem[];
   /** The message the live page card sits under; null puts it at the top. */
   readonly liveAfter: string | null;
@@ -92,8 +89,6 @@ const ThinkingMarker = (): ReactElement => (
 export const Stream = ({
   asking,
   busy,
-  empty,
-  header,
   items,
   liveAfter,
   liveCard,
@@ -119,19 +114,9 @@ export const Stream = ({
             className="mx-auto w-full max-w-3xl gap-5"
             role="log"
           >
-            {header === undefined ? null : (
-              <MessageScrollerItem messageId="wallet">
-                {header}
-              </MessageScrollerItem>
-            )}
             {liveAtTop ? (
               <MessageScrollerItem messageId="live">
                 {liveCard}
-              </MessageScrollerItem>
-            ) : null}
-            {items.length === 0 && !liveAtTop ? (
-              <MessageScrollerItem messageId="empty">
-                {empty}
               </MessageScrollerItem>
             ) : null}
             {items.map((item) => {

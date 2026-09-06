@@ -28,3 +28,9 @@ test-results/
 # profile must never be committed — it carries Cookies, History and Login Data.
 .froggy/
 **/.froggy/
+
+# Machine-managed workspace hooks and per-tool skill links.
+# Shared repository skills live in .agents/skills.
+.claude/
+.codex/
+.grok/

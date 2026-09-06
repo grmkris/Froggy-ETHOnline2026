@@ -20,7 +20,10 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
   });
 
   await page.goto("/");
-  await page.getByText("What's the cheapest USDC borrow right now?").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("What's the cheapest USDC borrow right now?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
 
   const log = page.getByRole("log");
   // Tool cards read as sentences, not as function names.
@@ -88,7 +91,10 @@ test("a tool card sums up its answer and opens to the raw exchange", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByText("What's the cheapest USDC borrow right now?").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("What's the cheapest USDC borrow right now?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
 
   const card = page.getByRole("button", {
     name: /Asked The Graph about USDC/u,

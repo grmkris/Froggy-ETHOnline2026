@@ -2,6 +2,12 @@
 
 Updated Sun 6 Sep 2026, 20:45 CEST. The plan is `NEXT_ITERATION.md` beside this file (iteration 2, confirmed by the owner on 6 Sep; `PLAN.md` is the superseded iteration-1 plan); `DECISIONS.md` lists what was decided and what is still open; this file records what has landed in the tree and where it deviates.
 
+## Wallet UI release candidate
+
+The owner-approved direction is a calm wallet with a playful frog accent. Wallet-first navigation, separate wallet funds/task credit, direct agent setup, recoverable setup errors, retained one-time skill text, a shared funding panel, restrained motion and truthful Stop feedback are implemented locally. [Implementation record](../../plans/IMPLEMENTATION.md) and [screenshots](../evidence/ui-wallet/desktop.png).
+
+The owner authorized deployment. The full repository gate, all 384 unit tests, all 35 stub browser tests and both builds pass. Imported skill metadata and Markdown formatting are fixed; no gate was weakened. Railway custody variables are preserved in IaC. Production still defaults to Hedera testnet and Base Sepolia; the planned mainnet cutover depends on funded accounts and verified settlement. GitHub CI and Railway record the release outcome. Durable funding confirmation and partial-allocation recovery remain open; the repository is still private.
+
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
 | Plan item | State | What landed | Still open |

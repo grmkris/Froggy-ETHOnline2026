@@ -134,7 +134,7 @@ export const ToolCard = ({
         <span className="text-machine shrink-0 opacity-60">{status.label}</span>
         <ChevronDownIcon
           aria-hidden
-          className="size-3.5 shrink-0 opacity-50 transition-transform"
+          className="size-3.5 shrink-0 opacity-50"
           data-slot="chevron"
         />
       </CollapsibleTrigger>

@@ -84,7 +84,7 @@ export const Reasoning = ({ live, text }: ReasoningProps): ReactElement => {
         </MarkerContent>
         <ChevronDownIcon
           aria-hidden
-          className="size-3.5 shrink-0 opacity-50 transition-transform"
+          className="size-3.5 shrink-0 opacity-50"
           data-slot="chevron"
         />
       </Marker>
