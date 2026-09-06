@@ -43,6 +43,11 @@ One host account (`0.0.9700388`) pays every Hedera 402; each person spends their
 
 This is deliberately not one Hedera account per person. The wording everywhere is therefore "freeze zeroes your allowance", never "deletes the key": the key stays with the host, and what the person loses on a freeze is their share.
 
+## The service card and the unlocked page
+
+- `GET /.well-known/x402.json` describes what this server sells before anyone pays: the resource, `hedera:testnet`, the `exact` scheme, the price in tinybars, the payee account, the facilitator, and the HCS topic the settlements are noted on. Built from the same challenge the 402 carries, so the card and the 402 cannot disagree.
+- When the agent pays a 402, the answer comes back with a one-time link and the agent opens it in the shared Chrome, so the person watches the page unlock. The page shows the seller, the price, the transaction with its HashScan link, the HCS note and the answer. It works once and expires in ten minutes: the browser that opens it holds no token, so the link is the whole credential and is treated like one. The receipt in the workspace is the durable record.
+
 ## Not yet
 
-- The payment state machine with mirror-node reconciliation on a facilitator timeout (plan item 2.6, second half), the one-time unlock token and the `/.well-known/x402.json` service card.
+- The payment state machine with mirror-node reconciliation on a facilitator timeout (plan item 2.6, second half). Today a facilitator error after `/settle` was sent is recorded as a failed payment and the pocket is refunded; the mirror node is not consulted to check whether the HBAR moved anyway.
