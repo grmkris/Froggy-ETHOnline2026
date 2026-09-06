@@ -152,6 +152,13 @@ export const WorkspacePage = (): ReactElement => {
     [chat.error]
   );
 
+  const send = useCallback(
+    (text: string): void => {
+      void chat.sendMessage({ metadata: { at: Date.now() }, text });
+    },
+    [chat]
+  );
+
   const stop = useCallback((): void => {
     // Both halves. The local `stop()` alone detaches this client and leaves
     // the server-owned run happily continuing to spend.
@@ -353,6 +360,17 @@ export const WorkspacePage = (): ReactElement => {
               asking={app.approvals.length > 0}
               busy={busy}
               disabledReason={disabledReason}
+              onCommand={(command) => {
+                if (command.kind === "freeze") {
+                  app.send({ frozen: true, type: "mandate.freeze", v: 1 });
+                } else if (command.kind === "stop") {
+                  stop();
+                } else if (command.kind === "status") {
+                  send("What is the state of the wallet and the mandate?");
+                } else if (command.kind === "topup") {
+                  send(`Top up the pocket with ${command.amountUsd} USDC`);
+                }
+              }}
               onSend={(text) => {
                 void chat.sendMessage({ metadata: { at: Date.now() }, text });
               }}

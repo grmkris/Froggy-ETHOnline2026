@@ -4,22 +4,26 @@
  * Enter sends, Shift+Enter breaks a line. While a turn is running the button
  * becomes Stop, and stopping is two things: the local detach and the server
  * abort, because the run belongs to the server and would otherwise keep
- * spending with nobody watching.
+ * spending with nobody watching. Enter while a turn runs queues one message
+ * for the moment the turn ends; a slash opens the four commands.
  */
 
 import { Button } from "@froggy/ui/components/button";
 import { Kbd, KbdGroup } from "@froggy/ui/components/kbd";
 import { Textarea } from "@froggy/ui/components/textarea";
-import { ArrowUpIcon, SquareIcon } from "lucide-react";
-import { useState } from "react";
+import { ArrowUpIcon, SquareIcon, XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { sendsOnKey } from "../lib/keymap";
+import { parseSlash, slashMatches } from "../lib/slash";
+import type { SlashCommand } from "../lib/slash";
 
 interface ComposerProps {
   /** An approval card is open above: the turn is waiting on the person. */
   readonly asking: boolean;
   readonly busy: boolean;
   readonly disabledReason: string | null;
+  readonly onCommand: (command: SlashCommand) => void;
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
   /** Things worth asking next, as chips. Empty when there is nothing to say. */
@@ -39,27 +43,71 @@ const placeholderFor = (
     return "Waiting for your answer above";
   }
   return busy
-    ? "Froggy is working… Stop to interrupt"
-    : "Ask Froggy to do something…";
+    ? "Froggy is working… Enter queues your next message"
+    : "Ask Froggy to do something, or type / for commands…";
 };
 
 export const Composer = ({
   asking,
   busy,
   disabledReason,
+  onCommand,
   onSend,
   onStop,
   suggestions,
 }: ComposerProps): React.ReactElement => {
   const [draft, setDraft] = useState("");
+  /** One message held for the moment the running turn ends. */
+  const [queued, setQueued] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const disabled = disabledReason !== null;
+  const commands = slashMatches(draft);
+
+  // The queued message goes when the turn ends; if the composer has been
+  // locked meanwhile — a freeze, a lost socket — it goes back to the draft
+  // rather than into a wallet that is no longer taking requests.
+  useEffect(() => {
+    const timer =
+      busy || queued === null
+        ? null
+        : setTimeout(() => {
+            setQueued(null);
+            if (disabled) {
+              setDraft(queued);
+            } else {
+              onSend(queued);
+            }
+          }, 0);
+    return () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+    };
+  }, [busy, disabled, onSend, queued]);
 
   const submit = (text: string): void => {
-    if (text.trim() === "" || busy || disabled) {
+    const trimmed = text.trim();
+    if (trimmed === "" || disabled) {
       return;
     }
-    onSend(text.trim());
+    const command = parseSlash(trimmed);
+    if (command !== null) {
+      if (command.kind === "unknown") {
+        setHint(`/${command.name}: ${command.reason}`);
+        return;
+      }
+      onCommand(command);
+      setDraft("");
+      setHint(null);
+      return;
+    }
+    if (busy) {
+      setQueued(trimmed);
+    } else {
+      onSend(trimmed);
+    }
     setDraft("");
+    setHint(null);
   };
 
   return (
@@ -80,6 +128,48 @@ export const Composer = ({
           ))}
         </div>
       ) : null}
+      {queued === null ? null : (
+        <div className="bg-brand-soft/60 flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs">
+          <span className="text-muted-foreground shrink-0">Next</span>
+          <span className="min-w-0 flex-1 truncate">{queued}</span>
+          <Button
+            aria-label="Cancel the queued message"
+            onClick={() => {
+              setDraft(queued);
+              setQueued(null);
+            }}
+            size="icon-xs"
+            variant="ghost"
+          >
+            <XIcon />
+          </Button>
+        </div>
+      )}
+      {commands.length > 0 && !disabled ? (
+        <ul className="bg-card shadow-card divide-y rounded-xl border text-sm">
+          {commands.map((entry) => (
+            <li key={entry.name}>
+              <button
+                className="hover:bg-accent flex w-full items-baseline gap-3 px-3 py-2 text-left transition-colors"
+                onClick={() => {
+                  setDraft(
+                    entry.name === "topup" ? "/topup " : `/${entry.name}`
+                  );
+                }}
+                type="button"
+              >
+                <span className="font-mono text-xs">{entry.usage}</span>
+                <span className="text-muted-foreground text-xs">
+                  {entry.hint}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {hint === null ? null : (
+        <p className="text-refused px-2 text-xs">{hint}</p>
+      )}
       <form
         className="bg-card shadow-card focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl border p-2 focus-within:ring-3"
         onSubmit={(event) => {
@@ -93,6 +183,7 @@ export const Composer = ({
           disabled={disabled}
           onChange={(event) => {
             setDraft(event.target.value);
+            setHint(null);
           }}
           onKeyDown={(event) => {
             if (
@@ -143,6 +234,11 @@ export const Composer = ({
           <Kbd>Enter</Kbd>
         </KbdGroup>
         new line
+        <span aria-hidden>·</span>
+        <KbdGroup>
+          <Kbd>/</Kbd>
+        </KbdGroup>
+        commands
       </p>
     </div>
   );
