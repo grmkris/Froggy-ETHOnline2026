@@ -96,7 +96,8 @@ export const Stream = ({
   return (
     <MessageScrollerProvider
       autoScroll
-      defaultScrollPosition="end"
+      // The empty screen reads from its top; a conversation from its end.
+      defaultScrollPosition={items.length === 0 ? "start" : "end"}
       scrollEdgeThreshold={EDGE_PX}
       scrollPreviousItemPeek={PEEK_PX}
     >

@@ -58,7 +58,7 @@ const Blocks = ({
           return (
             <Marker
               aria-hidden
-              className="min-h-2"
+              className="min-h-2 gap-0 before:mr-0 after:ml-0"
               key={key}
               variant="separator"
             />

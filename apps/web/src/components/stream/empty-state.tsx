@@ -106,7 +106,7 @@ export const EmptyState = ({
       ? DEMO
       : [...DEMO, TOP_UP];
   return (
-    <div className="mx-auto max-w-xl space-y-6 py-8">
+    <div className="mx-auto max-w-xl space-y-6 py-4 sm:py-8">
       <div className="text-center">
         <p className="font-display text-xl font-semibold">
           Froggy spends only what this mandate allows.
@@ -135,7 +135,7 @@ export const EmptyState = ({
               <span className="text-machine bg-muted grid size-6 shrink-0 place-items-center rounded-full">
                 {index + 1}
               </span>
-              <span>{text}</span>
+              <span className="min-w-0 wrap-anywhere">{text}</span>
             </button>
           </li>
         ))}
