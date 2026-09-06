@@ -1,10 +1,19 @@
 /**
  * One message, with the receipts it produced filed beneath it.
+ *
+ * The person's words sit in a bubble on the right. The agent's answer is not
+ * a bubble: it is the frog's mark and then the parts as they came — text,
+ * what it thought, what it did — then the page it opened, then the receipts.
  */
 
 import type { Receipt } from "@froggy/domain";
+import { Bubble, BubbleContent } from "@froggy/ui/components/bubble";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
-import { cn } from "@froggy/ui/lib/utils";
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+} from "@froggy/ui/components/message";
 import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
@@ -60,34 +69,42 @@ const Parts = ({
   </>
 );
 
+/** What the person wrote, joined: their message is one bubble, not parts. */
+const textOf = (message: FroggyMessage): string =>
+  message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("");
+
 export const Turn = ({
   after = null,
   message,
   receipts,
 }: TurnProps): ReactElement => {
-  const mine = message.role === "user";
+  if (message.role === "user") {
+    return (
+      <Message align="end" className="text-[15px] leading-relaxed">
+        <MessageContent>
+          <Bubble align="end" className="max-w-[85%]" variant="tinted">
+            <BubbleContent className="shadow-card rounded-2xl rounded-tr-md px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
+              {textOf(message)}
+            </BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
+    );
+  }
   return (
-    <div className={cn("flex gap-3", mine && "justify-end")}>
-      {mine ? null : (
-        <span className="bg-primary shadow-card mt-1 grid size-7 shrink-0 place-items-center rounded-full">
-          <FrogMark className="size-5" />
-        </span>
-      )}
-      <div className={cn("min-w-0 space-y-2", mine ? "max-w-[85%]" : "flex-1")}>
-        <div
-          className={cn(
-            "space-y-2 text-[15px] leading-relaxed",
-            mine &&
-              "bg-brand-soft shadow-card rounded-2xl rounded-tr-md px-4 py-2.5"
-          )}
-        >
-          <Parts message={message} />
-        </div>
+    <Message align="start" className="text-[15px] leading-relaxed">
+      <MessageAvatar className="bg-primary shadow-card mt-1 size-7 min-w-7 self-start">
+        <FrogMark className="size-5" />
+      </MessageAvatar>
+      <MessageContent className="gap-2">
+        <Parts message={message} />
         {after}
         {receipts.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />
         ))}
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   );
 };
