@@ -33,7 +33,7 @@ export type CspMode = "enforce" | "report";
 export const contentSecurityPolicy = (): string => DIRECTIVES.join("; ");
 
 /** Everything a page response gets, keyed the way `Headers.set` wants it. */
-export const securityHeaders = (mode: CspMode) => ({
+const securityHeaders = (mode: CspMode) => ({
   [mode === "report"
     ? "content-security-policy-report-only"
     : "content-security-policy"]: contentSecurityPolicy(),
