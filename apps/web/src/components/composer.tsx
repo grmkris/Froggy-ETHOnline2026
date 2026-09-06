@@ -16,6 +16,8 @@ import { useState } from "react";
 import { sendsOnKey } from "../lib/keymap";
 
 interface ComposerProps {
+  /** An approval card is open above: the turn is waiting on the person. */
+  readonly asking: boolean;
   readonly busy: boolean;
   readonly disabledReason: string | null;
   readonly onSend: (text: string) => void;
@@ -24,7 +26,25 @@ interface ComposerProps {
   readonly suggestions: readonly string[];
 }
 
+/** What the empty box says, by what the turn is doing. */
+const placeholderFor = (
+  disabledReason: string | null,
+  asking: boolean,
+  busy: boolean
+): string => {
+  if (disabledReason !== null) {
+    return disabledReason;
+  }
+  if (asking) {
+    return "Waiting for your answer above";
+  }
+  return busy
+    ? "Froggy is working… Stop to interrupt"
+    : "Ask Froggy to do something…";
+};
+
 export const Composer = ({
+  asking,
   busy,
   disabledReason,
   onSend,
@@ -86,7 +106,7 @@ export const Composer = ({
               submit(draft);
             }
           }}
-          placeholder={disabledReason ?? "Ask Froggy to do something…"}
+          placeholder={placeholderFor(disabledReason, asking, busy)}
           rows={1}
           value={draft}
         />

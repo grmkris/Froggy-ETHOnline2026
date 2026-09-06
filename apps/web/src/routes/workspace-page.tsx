@@ -50,6 +50,7 @@ import {
   showThinking,
 } from "../lib/stream-model";
 import type { FroggyMessage } from "../lib/stream-model";
+import { suggestionsFor } from "../lib/suggestions";
 
 const SPRING = { damping: 38, stiffness: 420, type: "spring" } as const;
 
@@ -179,9 +180,23 @@ export const WorkspacePage = (): ReactElement => {
     wallet: app.wallet,
   });
   const items = useMemo(
-    () => buildStream(chat.messages, app.receipts),
-    [app.receipts, chat.messages]
+    () => buildStream(chat.messages, app.receipts, app.events),
+    [app.events, app.receipts, chat.messages]
   );
+  const suggestions = suggestionsFor({
+    busy,
+    frozen,
+    hasGraph: chat.messages.some((message) =>
+      message.parts.some((part) => part.type === "tool-graph_query")
+    ),
+    hasPaid: app.receipts.some(
+      (receipt) =>
+        receipt.settlement !== undefined && receipt.intent.host !== undefined
+    ),
+    lastRefused: app.receipts[0]?.decision._tag === "deny",
+    pocketUsdMicros: app.wallet?.pocketUsdMicros ?? null,
+    started: chat.messages.length > 0,
+  });
   const liveAfter = lastBrowserTurn(chat.messages);
   const showLive =
     wanted ||
@@ -326,13 +341,14 @@ export const WorkspacePage = (): ReactElement => {
               ))}
             </AnimatePresence>
             <Composer
+              asking={app.approvals.length > 0}
               busy={busy}
               disabledReason={disabledReason}
               onSend={(text) => {
                 void chat.sendMessage({ metadata: { at: Date.now() }, text });
               }}
               onStop={stop}
-              suggestions={[]}
+              suggestions={suggestions}
             />
           </div>
         </div>
