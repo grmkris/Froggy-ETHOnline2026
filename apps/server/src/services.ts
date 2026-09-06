@@ -128,6 +128,12 @@ export interface Services {
   readonly shutdown: () => Promise<void>;
   /** Mandates, receipts, sales, tasks and tokens; same live/stub split as the ledger. */
   readonly store: Store;
+  /**
+   * Froggy's own money on Base: the treasury wallet signing under its policy,
+   * for what Froggy buys upstream (The Graph). Null without a treasury wallet
+   * or an agent key.
+   */
+  readonly treasuryPayer: Payer | null;
 }
 
 export interface ServiceOptions {
@@ -262,6 +268,17 @@ export const createServices = (options: ServiceOptions): Services => {
       }),
   };
 
+  const treasuryPayer = (): Payer | null => {
+    const wallet = environment.treasuryWallet;
+    if (wallet === null) {
+      return null;
+    }
+    const signer = privy.signerFor(wallet);
+    return signer === null
+      ? null
+      : evmPayer({ network: environment.evmNetwork, signer });
+  };
+
   return {
     accounts,
     balances,
@@ -316,5 +333,6 @@ export const createServices = (options: ServiceOptions): Services => {
       await sql?.end({ timeout: 5 });
     },
     store,
+    treasuryPayer: treasuryPayer(),
   };
 };

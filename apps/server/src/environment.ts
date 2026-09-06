@@ -49,6 +49,7 @@ const PLACEHOLDER = {
   telegramBotToken: "REPLACE_ME_TELEGRAM_BOT_TOKEN",
   telegramWebhookSecret: "",
   treasuryEvmAddress: "0xREPLACE_ME_TREASURY",
+  treasuryWalletId: "REPLACE_ME_TREASURY_WALLET_ID",
 } as const;
 
 /** The RPC named outright, else the older variable, else the public node for the network. */
@@ -266,6 +267,15 @@ export interface Environment {
    * names the same address, so a transfer anywhere else is refused by Privy.
    */
   readonly treasuryEvmAddress: string | null;
+  /**
+   * The treasury as a Privy wallet the agent key may sign for, when it is
+   * one: the address above plus its wallet id. Null when either is unset
+   * or no agent key exists, and then Froggy pays nothing upstream itself.
+   */
+  readonly treasuryWallet: {
+    readonly address: string;
+    readonly id: string;
+  } | null;
 }
 
 export const loadEnvironment = Effect.fn("loadEnvironment")(
@@ -409,6 +419,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const treasuryEvmAddress = yield* Config.string(
       "TREASURY_EVM_ADDRESS"
     ).pipe(Config.withDefault(PLACEHOLDER.treasuryEvmAddress));
+    const treasuryWalletId = yield* Config.string("TREASURY_WALLET_ID").pipe(
+      Config.withDefault(PLACEHOLDER.treasuryWalletId)
+    );
 
     const anthropicApiKey = yield* secret(
       "ANTHROPIC_API_KEY",
@@ -559,6 +572,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       )
         ? null
         : treasuryEvmAddress,
+      treasuryWallet:
+        isPlaceholder(treasuryEvmAddress, PLACEHOLDER.treasuryEvmAddress) ||
+        isPlaceholder(treasuryWalletId, PLACEHOLDER.treasuryWalletId)
+          ? null
+          : { address: treasuryEvmAddress, id: treasuryWalletId },
     } satisfies Environment;
   }
 );

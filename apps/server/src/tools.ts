@@ -46,6 +46,7 @@ import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
+import { treasuryFetch } from "./treasury";
 import { unlockPath } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
@@ -218,8 +219,32 @@ export const buildTools = (deps: ToolDeps) => {
    * Studio key otherwise. Either way the same standardized query.
    */
   const graphFor = (symbol: string, toolCallId: string): GraphClient => {
-    const { environment } = services;
-    if (!environment.graphPayPerQuery || session.agentWallet === null) {
+    const { environment, treasuryPayer } = services;
+    if (!environment.graphPayPerQuery) {
+      return services.graph;
+    }
+    if (treasuryPayer !== null) {
+      // Froggy's own money: the treasury pays the gateway under its policy,
+      // and the person pays Froggy. No mandate on this leg; the HCS note
+      // is the record.
+      return liveGraphClient({
+        apiKey: "",
+        gatewayUrl: environment.graphGatewayUrl,
+        transport: x402Transport(
+          async (url, body) =>
+            await treasuryFetch(
+              { hcs: services.hcs, outbound, payer: treasuryPayer },
+              url,
+              {
+                body,
+                headers: { "content-type": "application/json" },
+                method: "POST",
+              }
+            )
+        ),
+      });
+    }
+    if (session.agentWallet === null) {
       return services.graph;
     }
     const minute = Math.floor(Date.now() / 60_000);
