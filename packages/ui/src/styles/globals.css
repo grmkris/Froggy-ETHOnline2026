@@ -650,6 +650,11 @@
 @custom-variant dark (&:is(.dark *));
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
+/* Streamdown renders the agent's markdown in apps/web with Tailwind classes of
+   its own, and node_modules is never scanned unless named. The path is from
+   this file; Bun's isolated install puts the package under the app that
+   declares it. ADR 0008 records the choice. */
+@source "../../../../apps/web/node_modules/streamdown/dist/*.js";
 
 /*
  * Froggy is light, warm and quiet. Paper, ink, one frog-green, and three
@@ -691,6 +696,9 @@
   --color-refused: var(--destructive);
   --color-refused-soft: var(--refused-soft);
   --color-paper-deep: var(--paper-deep);
+  /* Streamdown frames code blocks and tables in shadcn's sidebar colour. We
+     have no sidebar; the deeper paper is the same quiet step back. */
+  --color-sidebar: var(--paper-deep);
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);

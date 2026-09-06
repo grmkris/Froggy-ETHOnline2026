@@ -55,6 +55,18 @@ const script = (
   { args: "{}", tool: "wallet_status" },
 ];
 
+/**
+ * What the scripted model says when the script is spent, as markdown, in the
+ * pieces a live model would stream it in. The chat renders markdown while it
+ * arrives, so a keyless run must hand it a heading, a table and a code span
+ * mid-flight — that is how the renderer is exercised without a key.
+ */
+const CLOSING: readonly string[] = [
+  "**That is as far as the scripted model goes.** It ran the demo's three steps without deciding anything:\n\n",
+  "| Step | Tool | What it proves |\n| --- | --- | --- |\n| 1 | `graph_query` | The Graph answered, and the answer was checked across indexes |\n| 2 | `x402_fetch` | A 402 was met, the mandate judged it, a receipt was filed |\n",
+  "| 3 | `wallet_status` | The ledger and the pocket read back |\n\nSet `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and `OPENAI_COMPATIBLE_MODEL` (or `ANTHROPIC_API_KEY`) for a model that can actually reason about this.",
+];
+
 const scriptedModel = (oracleUrl: string): LanguageModel =>
   new MockLanguageModelV3({
     doStream: async ({ prompt }) => {
@@ -74,14 +86,11 @@ const scriptedModel = (oracleUrl: string): LanguageModel =>
 
       const parts: LanguageModelV3StreamPart[] =
         step === undefined
-          ? [
-              {
-                delta:
-                  "That is as far as the scripted model goes. Set OPENAI_COMPATIBLE_API_KEY, OPENAI_COMPATIBLE_BASE_URL and OPENAI_COMPATIBLE_MODEL (or ANTHROPIC_API_KEY) for a model that can actually reason about this.",
-                id: "text-1",
-                type: "text-delta",
-              },
-            ]
+          ? CLOSING.map((delta) => ({
+              delta,
+              id: "text-1",
+              type: "text-delta" as const,
+            }))
           : [
               {
                 input: step.args,

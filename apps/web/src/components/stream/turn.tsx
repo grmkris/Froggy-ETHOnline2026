@@ -19,6 +19,7 @@ import type { ReactElement } from "react";
 import type { FroggyMessage } from "../../lib/stream-model";
 import { isToolPart, toolCallOf } from "../../lib/tool-call";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { MarkdownText } from "./markdown-text";
 import { ToolCard } from "./tool-card";
 
 interface TurnProps {
@@ -44,9 +45,11 @@ const Parts = ({
       const key = `${message.id}-${index}`;
       if (part.type === "text") {
         return (
-          <p className="whitespace-pre-wrap" key={key}>
-            {part.text}
-          </p>
+          <MarkdownText
+            key={key}
+            live={part.state === "streaming"}
+            text={part.text}
+          />
         );
       }
       if (part.type === "reasoning") {
