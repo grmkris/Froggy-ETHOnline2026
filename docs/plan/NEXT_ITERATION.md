@@ -1,6 +1,6 @@
 # Froggy iteration 2: the plan
 
-> **Status: PROPOSED, pending explicit confirmation by Jonas and Hemang in the hackathons group.** Kristjan authorised implementation of the uncontested tasks at 18:45 CEST on Sun 6 Sep 2026 (seller durability, task API, agent tokens, freeze removal, CLI and skill), with networks kept as configuration and testnet defaults until the mainnet accounts and keys exist. Live session record: `docs/sync/telegram-grilling-session.md`.
+> **Status: PROPOSED, pending explicit confirmation in the hackathons group; Jonas has voted (one split, S2 on the mainnet fallback, still open), Hemang has not.** Built and smoke-tested in stub mode by 22:15 CEST on Sun 6 Sep: tasks 1.1, 1.2, 1.3 and 1.7 (commits `b819e32`, `4a9d213`, `363faf5`, `ae7a9a9`). Kristjan authorised implementation of the uncontested tasks at 18:45 CEST on Sun 6 Sep 2026 (seller durability, task API, agent tokens, freeze removal, CLI and skill), with networks kept as configuration and testnet defaults until the mainnet accounts and keys exist. Live session record: `docs/sync/telegram-grilling-session.md`.
 
 Status: **PROPOSED, awaiting explicit team confirmation in the hackathons group.** Drafted Sun 6 Sep 2026 by the facilitator (Claude, Fable 5.1) from the grilling session recorded in `docs/sync/telegram-grilling-session.md`. Every decision below names who took it. Where a decision is one vote, it says so. Nothing here is implementation-ready until the blockers in the last section are cleared; unsupported provider access is a blocker, not a task assumed to work.
 
