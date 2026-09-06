@@ -534,8 +534,7 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
     url: deps.oracleUrl,
   }).accepts;
   return {
-    description:
-      "A live cross-protocol lending snapshot from The Graph, sold per query over x402 on Hedera testnet and settled through a facilitator. Every settlement leaves a public note on a Hedera Consensus Service topic.",
+    description: `A live cross-protocol lending snapshot from The Graph, sold per query over x402 on ${environment.hederaNetwork === "hedera:mainnet" ? "Hedera mainnet" : "Hedera testnet"} and settled through a facilitator. Every settlement leaves a public note on a Hedera Consensus Service topic.`,
     facilitator: environment.hederaFacilitatorUrl,
     hcsTopic:
       environment.hederaHcsTopicId === "" ? null : environment.hederaHcsTopicId,
