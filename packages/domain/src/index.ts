@@ -17,9 +17,13 @@ export {
 } from "./approval";
 export { DigestSchedule, NO_DIGEST } from "./digest";
 export { DirectoryEntry } from "./directory";
+export { AGENT_TOKEN_PREFIX, AgentToken } from "./agent-token";
+export { Sale, SaleStatus } from "./sale";
+export { Task, TaskKind, TaskStatus } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
+  AgentTokenId,
   ApprovalId,
   DirectoryId,
   MandateId,
@@ -27,9 +31,11 @@ export {
   ReceiptId,
   RuleId,
   RunId,
+  SaleId,
   SessionId,
   SpendId,
   TabId,
+  TaskId,
 } from "./id";
 export type { IdSchema, TypeId } from "./id";
 export {

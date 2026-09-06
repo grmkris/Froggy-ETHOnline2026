@@ -159,3 +159,18 @@ export type ApprovalId = typeof ApprovalId.Type;
 /** A paid endpoint a person has added to their directory. */
 export const DirectoryId = makeIdSchema("dir", "DirectoryId");
 export type DirectoryId = typeof DirectoryId.Type;
+
+/**
+ * One sale on the seller side: a payment proof accepted, then work owed.
+ * Written before the work so a buyer who paid can always find what they bought.
+ */
+export const SaleId = makeIdSchema("sal", "SaleId");
+export type SaleId = typeof SaleId.Type;
+
+/** One delegated task: quoted, paid, run, and retrievable afterwards by this id. */
+export const TaskId = makeIdSchema("tsk", "TaskId");
+export type TaskId = typeof TaskId.Type;
+
+/** A token an outside agent presents. Identifies the person's workspace, never a person. */
+export const AgentTokenId = makeIdSchema("agt", "AgentTokenId");
+export type AgentTokenId = typeof AgentTokenId.Type;

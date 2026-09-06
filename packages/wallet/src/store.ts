@@ -11,16 +11,81 @@
  * behind one interface. Nothing above this line knows which it holds.
  */
 
-import { Mandate, NO_DIGEST, Receipt } from "@froggy/domain";
+import { Mandate, NO_DIGEST, Receipt, Sale, Task } from "@froggy/domain";
 import type {
+  AgentToken,
+  AgentTokenId,
   DigestSchedule,
   DirectoryEntry,
+  SaleId,
+  TaskId,
   TelegramPairing,
   UserId,
 } from "@froggy/domain";
 import { Result, Schema } from "effect";
 
+/** A token row with the one field the domain record leaves out. */
+interface AgentTokenRow extends AgentToken {
+  /** SHA-256 of the secret, hex. Never the secret. */
+  readonly secretHash: string;
+}
+
+/** What a task update may change. Everything else is fixed at creation. */
+type TaskPatch = Partial<
+  Pick<Task, "error" | "result" | "runId" | "saleId" | "status">
+> & { readonly updatedAt: number };
+
+/** What a sale update may change once the proof is on file. */
+type SalePatch = Partial<
+  Pick<Sale, "deliveredAt" | "error" | "result" | "status">
+>;
+
 export interface Store {
+  /**
+   * Tokens handed to outside agents. `lookup` answers only for tokens not yet
+   * revoked, so revocation takes effect on the next request without a cache
+   * to flush.
+   */
+  readonly agents: {
+    readonly create: (userId: UserId, token: AgentTokenRow) => Promise<void>;
+    /** Every token, revoked ones included, newest first. */
+    readonly list: (userId: UserId) => Promise<readonly AgentToken[]>;
+    readonly lookup: (secretHash: string) => Promise<{
+      readonly token: AgentToken;
+      readonly userId: UserId;
+    } | null>;
+    readonly revoke: (userId: UserId, id: AgentTokenId) => Promise<void>;
+    readonly touch: (id: AgentTokenId, at: number) => Promise<void>;
+  };
+  /**
+   * The seller's book. Not per person: the buyer is whichever account paid.
+   * `record` is insert-or-return on the payment hash, so two arrivals of one
+   * proof yield one sale and only the first caller is told it `created` it.
+   */
+  readonly sales: {
+    readonly byId: (id: SaleId) => Promise<Sale | null>;
+    readonly byPaymentHash: (paymentHash: string) => Promise<Sale | null>;
+    readonly record: (
+      sale: Sale
+    ) => Promise<{ readonly created: boolean; readonly sale: Sale }>;
+    readonly update: (id: SaleId, patch: SalePatch) => Promise<void>;
+  };
+  /** Delegated tasks, per person. A key seen before returns the earlier task. */
+  readonly tasks: {
+    readonly byId: (userId: UserId, id: TaskId) => Promise<Task | null>;
+    readonly byIdempotencyKey: (
+      userId: UserId,
+      key: string
+    ) => Promise<Task | null>;
+    readonly create: (userId: UserId, task: Task) => Promise<void>;
+    /** Newest first. */
+    readonly list: (userId: UserId, limit: number) => Promise<readonly Task[]>;
+    readonly update: (
+      userId: UserId,
+      id: TaskId,
+      patch: TaskPatch
+    ) => Promise<void>;
+  };
   readonly directory: {
     /** Replaces an entry for the same URL. */
     readonly add: (userId: UserId, entry: DirectoryEntry) => Promise<void>;
@@ -87,6 +152,17 @@ export interface Store {
 
 export const decodeMandate = Schema.decodeUnknownResult(Mandate);
 const decodeReceipt = Schema.decodeUnknownResult(Receipt);
+export const decodeSale = Schema.decodeUnknownResult(Sale);
+export const decodeTask = Schema.decodeUnknownResult(Task);
+
+/** The domain record, without the hash a caller must never see. */
+const publicToken = (row: AgentTokenRow): AgentToken => ({
+  createdAt: row.createdAt,
+  id: row.id,
+  label: row.label,
+  lastUsedAt: row.lastUsedAt,
+  revokedAt: row.revokedAt,
+});
 
 /**
  * Parse a stored document, or drop it.
@@ -114,10 +190,115 @@ export const memoryStore = (): Store => {
   const pairings = new Map<UserId, TelegramPairing>();
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
+  const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
+  const sales = new Map<SaleId, Sale>();
+  const tasks = new Map<TaskId, Task & { userId: UserId }>();
   const unpair = (userId: UserId): void => {
     pairings.delete(userId);
   };
   return {
+    agents: {
+      create: async (userId, token) => {
+        await Promise.resolve();
+        tokens.set(token.id, { ...token, userId });
+      },
+      list: async (userId) => {
+        await Promise.resolve();
+        return [...tokens.values()]
+          .filter((row) => row.userId === userId)
+          .toSorted((a, b) => b.createdAt - a.createdAt)
+          .map(publicToken);
+      },
+      lookup: async (secretHash) => {
+        await Promise.resolve();
+        for (const row of tokens.values()) {
+          if (row.secretHash === secretHash && row.revokedAt === null) {
+            return { token: publicToken(row), userId: row.userId };
+          }
+        }
+        return null;
+      },
+      revoke: async (userId, id) => {
+        await Promise.resolve();
+        const row = tokens.get(id);
+        if (row !== undefined && row.userId === userId) {
+          tokens.set(id, { ...row, revokedAt: Date.now() });
+        }
+      },
+      touch: async (id, at) => {
+        await Promise.resolve();
+        const row = tokens.get(id);
+        if (row !== undefined) {
+          tokens.set(id, { ...row, lastUsedAt: at });
+        }
+      },
+    },
+    sales: {
+      byId: async (id) => {
+        await Promise.resolve();
+        return sales.get(id) ?? null;
+      },
+      byPaymentHash: async (paymentHash) => {
+        await Promise.resolve();
+        for (const sale of sales.values()) {
+          if (sale.paymentHash === paymentHash) {
+            return sale;
+          }
+        }
+        return null;
+      },
+      record: async (sale) => {
+        await Promise.resolve();
+        for (const existing of sales.values()) {
+          if (existing.paymentHash === sale.paymentHash) {
+            return { created: false, sale: existing };
+          }
+        }
+        sales.set(sale.id, sale);
+        return { created: true, sale };
+      },
+      update: async (id, patch) => {
+        await Promise.resolve();
+        const sale = sales.get(id);
+        if (sale !== undefined) {
+          sales.set(id, { ...sale, ...patch });
+        }
+      },
+    },
+    tasks: {
+      byId: async (userId, id) => {
+        await Promise.resolve();
+        const task = tasks.get(id);
+        return task !== undefined && task.userId === userId ? task : null;
+      },
+      byIdempotencyKey: async (userId, key) => {
+        await Promise.resolve();
+        for (const task of tasks.values()) {
+          if (task.userId === userId && task.idempotencyKey === key) {
+            return task;
+          }
+        }
+        return null;
+      },
+      create: async (userId, task) => {
+        await Promise.resolve();
+        tasks.set(task.id, { ...task, userId });
+      },
+      list: async (userId, limit) => {
+        await Promise.resolve();
+        return [...tasks.values()]
+          .filter((task) => task.userId === userId)
+          .toSorted((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit);
+      },
+      update: async (userId, id, patch) => {
+        await Promise.resolve();
+        const task = tasks.get(id);
+        if (task !== undefined && task.userId === userId) {
+          tasks.set(id, { ...task, ...patch });
+        }
+      },
+    },
     directory: {
       add: async (userId, entry) => {
         await Promise.resolve();
@@ -187,6 +368,16 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await Promise.resolve();
+      for (const [id, row] of tokens) {
+        if (row.userId === userId) {
+          tokens.delete(id);
+        }
+      }
+      for (const [id, task] of tasks) {
+        if (task.userId === userId) {
+          tasks.delete(id);
+        }
+      }
       entries.delete(userId);
       unpair(userId);
       digests.delete(userId);

@@ -9,21 +9,90 @@
  */
 
 import {
+  agentTokens,
   directory,
   mandates,
   receipts,
+  sales,
+  tasks,
   telegramPairings,
   users,
 } from "@froggy/database";
 import { DirectoryId, decodeUserId, NO_DIGEST } from "@froggy/domain";
-import type { DigestSchedule, DirectoryEntry, UserId } from "@froggy/domain";
+import type {
+  AgentToken,
+  DigestSchedule,
+  DirectoryEntry,
+  Sale,
+  Task,
+  UserId,
+} from "@froggy/domain";
 import { and, asc, desc, eq, isNotNull, sql as raw } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { Result } from "effect";
 import type { Sql } from "postgres";
 
-import { decodeMandate, readReceipts } from "./store";
+import { decodeMandate, decodeSale, decodeTask, readReceipts } from "./store";
 import type { Store } from "./store";
+
+const millis = (value: Date | null): number | null =>
+  value === null ? null : value.getTime();
+
+type SaleRow = typeof sales.$inferSelect;
+type TaskRow = typeof tasks.$inferSelect;
+type TokenRow = typeof agentTokens.$inferSelect;
+
+/**
+ * A row back into the domain, decoded rather than asserted. A row this
+ * version cannot read is reported as absent, which is the same policy the
+ * receipts take: the data stays, only this reader declines it.
+ */
+const saleOf = (row: SaleRow): Sale | null => {
+  const decoded = decodeSale({
+    amount: row.amount,
+    asset: row.asset,
+    at: row.createdAt.getTime(),
+    deliveredAt: millis(row.deliveredAt),
+    error: row.error,
+    id: row.id,
+    network: row.network,
+    payer: row.payer,
+    paymentHash: row.paymentHash,
+    resource: row.resource,
+    result: row.result,
+    status: row.status,
+    stubbed: row.stubbed,
+    transactionId: row.transactionId,
+  });
+  return Result.isSuccess(decoded) ? decoded.success : null;
+};
+
+const taskOf = (row: TaskRow): Task | null => {
+  const decoded = decodeTask({
+    agentTokenId: row.agentTokenId,
+    createdAt: row.createdAt.getTime(),
+    error: row.error,
+    id: row.id,
+    idempotencyKey: row.idempotencyKey,
+    input: row.input,
+    kind: row.kind,
+    priceUsdMicros: row.priceUsdMicros,
+    result: row.result,
+    runId: row.runId,
+    saleId: row.saleId,
+    status: row.status,
+    updatedAt: row.updatedAt.getTime(),
+  });
+  return Result.isSuccess(decoded) ? decoded.success : null;
+};
+
+const tokenOf = (row: TokenRow): AgentToken => ({
+  createdAt: row.createdAt.getTime(),
+  id: row.id,
+  label: row.label,
+  lastUsedAt: millis(row.lastUsedAt),
+  revokedAt: millis(row.revokedAt),
+});
 
 export const postgresStore = (sql: Sql): Store => {
   const database = drizzle(sql);
@@ -31,6 +100,215 @@ export const postgresStore = (sql: Sql): Store => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
   return {
+    agents: {
+      create: async (userId, token) => {
+        await ensureUser(userId);
+        await database.insert(agentTokens).values({
+          createdAt: new Date(token.createdAt),
+          id: token.id,
+          label: token.label,
+          lastUsedAt: null,
+          revokedAt: null,
+          secretHash: token.secretHash,
+          userId,
+        });
+      },
+      list: async (userId) => {
+        const rows = await database
+          .select()
+          .from(agentTokens)
+          .where(eq(agentTokens.userId, userId))
+          .orderBy(desc(agentTokens.createdAt));
+        return rows.map(tokenOf);
+      },
+      lookup: async (secretHash) => {
+        const rows = await database
+          .select()
+          .from(agentTokens)
+          .where(eq(agentTokens.secretHash, secretHash))
+          .limit(1);
+        const [row] = rows;
+        if (row === undefined || row.revokedAt !== null) {
+          return null;
+        }
+        const owner = decodeUserId(row.userId);
+        return Result.isSuccess(owner)
+          ? { token: tokenOf(row), userId: owner.success }
+          : null;
+      },
+      revoke: async (userId, id) => {
+        await database
+          .update(agentTokens)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(agentTokens.id, id), eq(agentTokens.userId, userId)));
+      },
+      touch: async (id, at) => {
+        await database
+          .update(agentTokens)
+          .set({ lastUsedAt: new Date(at) })
+          .where(eq(agentTokens.id, id));
+      },
+    },
+    sales: {
+      byId: async (id) => {
+        const rows = await database
+          .select()
+          .from(sales)
+          .where(eq(sales.id, id))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : saleOf(row);
+      },
+      byPaymentHash: async (paymentHash) => {
+        const rows = await database
+          .select()
+          .from(sales)
+          .where(eq(sales.paymentHash, paymentHash))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : saleOf(row);
+      },
+      record: async (sale) => {
+        // Insert-or-return on the hash, across processes: the unique index
+        // decides who recorded the sale, the way the spends index decides who
+        // may pay.
+        const inserted = await database
+          .insert(sales)
+          .values({
+            amount: sale.amount,
+            asset: sale.asset,
+            createdAt: new Date(sale.at),
+            deliveredAt:
+              sale.deliveredAt === null ? null : new Date(sale.deliveredAt),
+            error: sale.error,
+            id: sale.id,
+            network: sale.network,
+            payer: sale.payer,
+            paymentHash: sale.paymentHash,
+            resource: sale.resource,
+            result: sale.result,
+            status: sale.status,
+            stubbed: sale.stubbed,
+            transactionId: sale.transactionId,
+          })
+          .onConflictDoNothing({ target: sales.paymentHash })
+          .returning();
+        if (inserted.length > 0) {
+          return { created: true, sale };
+        }
+        const rows = await database
+          .select()
+          .from(sales)
+          .where(eq(sales.paymentHash, sale.paymentHash))
+          .limit(1);
+        const [row] = rows;
+        const existing = row === undefined ? null : saleOf(row);
+        if (existing === null) {
+          throw new Error(
+            `Sale ${sale.paymentHash} neither inserted nor found.`
+          );
+        }
+        return { created: false, sale: existing };
+      },
+      update: async (id, patch) => {
+        // Built field by field: an absent patch key means "leave it", and a
+        // spread of `undefined` would write a null over a value we meant to keep.
+        const set: Partial<typeof sales.$inferInsert> = {};
+        if (patch.deliveredAt !== undefined) {
+          set.deliveredAt =
+            patch.deliveredAt === null ? null : new Date(patch.deliveredAt);
+        }
+        if (patch.error !== undefined) {
+          set.error = patch.error;
+        }
+        if (patch.result !== undefined) {
+          set.result = patch.result;
+        }
+        if (patch.status !== undefined) {
+          set.status = patch.status;
+        }
+        await database.update(sales).set(set).where(eq(sales.id, id));
+      },
+    },
+    tasks: {
+      byId: async (userId, id) => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(and(eq(tasks.id, id), eq(tasks.userId, userId)))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : taskOf(row);
+      },
+      byIdempotencyKey: async (userId, key) => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(and(eq(tasks.userId, userId), eq(tasks.idempotencyKey, key)))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : taskOf(row);
+      },
+      create: async (userId, task) => {
+        await ensureUser(userId);
+        await database.insert(tasks).values({
+          agentTokenId: task.agentTokenId,
+          createdAt: new Date(task.createdAt),
+          error: task.error,
+          id: task.id,
+          idempotencyKey: task.idempotencyKey,
+          input: task.input,
+          kind: task.kind,
+          priceUsdMicros: task.priceUsdMicros,
+          result: task.result,
+          runId: task.runId,
+          saleId: task.saleId,
+          status: task.status,
+          updatedAt: new Date(task.updatedAt),
+          userId,
+        });
+      },
+      list: async (userId, limit) => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(eq(tasks.userId, userId))
+          .orderBy(desc(tasks.createdAt))
+          .limit(limit);
+        const list: Task[] = [];
+        for (const row of rows) {
+          const task = taskOf(row);
+          if (task !== null) {
+            list.push(task);
+          }
+        }
+        return list;
+      },
+      update: async (userId, id, patch) => {
+        const set: Partial<typeof tasks.$inferInsert> = {
+          updatedAt: new Date(patch.updatedAt),
+        };
+        if (patch.error !== undefined) {
+          set.error = patch.error;
+        }
+        if (patch.result !== undefined) {
+          set.result = patch.result;
+        }
+        if (patch.runId !== undefined) {
+          set.runId = patch.runId;
+        }
+        if (patch.saleId !== undefined) {
+          set.saleId = patch.saleId;
+        }
+        if (patch.status !== undefined) {
+          set.status = patch.status;
+        }
+        await database
+          .update(tasks)
+          .set(set)
+          .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+      },
+    },
     directory: {
       add: async (userId, entry) => {
         await ensureUser(userId);
@@ -193,6 +471,8 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await database.delete(tasks).where(eq(tasks.userId, userId));
+      await database.delete(agentTokens).where(eq(agentTokens.userId, userId));
       await database.delete(directory).where(eq(directory.userId, userId));
       await database
         .delete(telegramPairings)

@@ -99,6 +99,11 @@ export type Receipt = typeof Receipt.Type;
  * never sent anything — the wallet froze or the run was stopped between the
  * reservation and the call — and consuming allowance for it would be a cap
  * on decisions rather than on money.
+ *
+ * `uncertain` is the third fact: the payment was sent and neither the seller
+ * nor the network has said whether it landed. It counts against the cap like
+ * a failure and, unlike one, is never refunded until a mirror node says the
+ * money did not move.
  */
 export const SpendStatus = Schema.Literals([
   "reserved",
@@ -106,6 +111,7 @@ export const SpendStatus = Schema.Literals([
   "failed",
   "refused",
   "abandoned",
+  "uncertain",
 ]);
 export type SpendStatus = typeof SpendStatus.Type;
 

@@ -20,7 +20,16 @@
  * processes rather than within one.
  */
 
-import { DirectoryId, ReceiptId, SessionId, SpendId } from "@froggy/domain";
+import {
+  AgentTokenId,
+  DirectoryId,
+  ReceiptId,
+  RunId,
+  SaleId,
+  SessionId,
+  SpendId,
+  TaskId,
+} from "@froggy/domain";
 import {
   bigint,
   boolean,
@@ -187,4 +196,104 @@ export const directory = pgTable(
       .references(() => users.did),
   },
   (table) => [uniqueIndex("directory_user_url").on(table.userId, table.url)]
+);
+
+/**
+ * What the seller side sold. Not keyed on a person: the buyer is whichever
+ * account paid, named as the payment payload named it.
+ *
+ * `payment_hash` is unique so the same proof presented twice finds the sale
+ * it already bought before the facilitator is asked to settle it again. The
+ * row is written before the work, which is the whole point of the table.
+ */
+export const sales = pgTable(
+  "sales",
+  {
+    amount: text("amount").notNull(),
+    asset: text("asset").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    error: text("error"),
+    id: typeIdPrimaryKey(SaleId),
+    network: text("network").notNull(),
+    payer: text("payer"),
+    paymentHash: text("payment_hash").notNull(),
+    resource: text("resource").notNull(),
+    result: jsonb("result"),
+    /** `settled | delivered | failed`. */
+    status: text("status").notNull(),
+    stubbed: boolean("stubbed").notNull(),
+    transactionId: text("transaction_id"),
+  },
+  (table) => [
+    uniqueIndex("sales_payment_hash").on(table.paymentHash),
+    index("sales_transaction").on(table.transactionId),
+  ]
+);
+
+/**
+ * Delegated tasks. The unique index on `(user_id, idempotency_key)` is the
+ * same promise the spends table makes: a repeated request is the same task,
+ * not a second bill. Nulls are distinct in Postgres, so tasks without a key
+ * do not collide.
+ */
+export const tasks = pgTable(
+  "tasks",
+  {
+    agentTokenId: typeIdColumn(AgentTokenId, "agent_token_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    error: text("error"),
+    id: typeIdPrimaryKey(TaskId),
+    idempotencyKey: text("idempotency_key"),
+    input: jsonb("input").notNull(),
+    kind: text("kind").notNull(),
+    priceUsdMicros: bigint("price_usd_micros", { mode: "number" }).notNull(),
+    result: jsonb("result"),
+    runId: typeIdColumn(RunId, "run_id"),
+    saleId: typeIdColumn(SaleId, "sale_id"),
+    status: text("status").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+  },
+  (table) => [
+    uniqueIndex("tasks_user_idempotency").on(
+      table.userId,
+      table.idempotencyKey
+    ),
+    index("tasks_user_created").on(table.userId, table.createdAt),
+  ]
+);
+
+/**
+ * Tokens handed to outside agents. Only the hash of the secret is stored, so
+ * the table cannot be used to impersonate an agent; a revoked token keeps
+ * its row and its timestamp.
+ */
+export const agentTokens = pgTable(
+  "agent_tokens",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    id: typeIdPrimaryKey(AgentTokenId),
+    label: text("label").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    secretHash: text("secret_hash").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+  },
+  (table) => [
+    uniqueIndex("agent_tokens_secret").on(table.secretHash),
+    index("agent_tokens_user").on(table.userId),
+  ]
 );

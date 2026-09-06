@@ -36,6 +36,13 @@
       "when": 1788636022976,
       "tag": "0004_sloppy_kinsey_walden",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788709561561,
+      "tag": "0005_chief_rafael_vega",
+      "breakpoints": true
     }
   ]
 }

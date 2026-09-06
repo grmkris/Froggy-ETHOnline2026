@@ -4,10 +4,13 @@ import type { Sql } from "postgres";
 
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
 export {
+  agentTokens,
   directory,
   mandates,
   receipts,
+  sales,
   spends,
+  tasks,
   telegramPairings,
   users,
 } from "./schema";
