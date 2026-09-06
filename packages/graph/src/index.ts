@@ -1,4 +1,5 @@
 export {
+  describeBestSupply,
   describeCheapestBorrow,
   describeDeployments,
   liveGraphClient,

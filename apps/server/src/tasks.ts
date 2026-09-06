@@ -22,6 +22,7 @@ import type {
   UserId,
   UsdMicros,
 } from "@froggy/domain";
+import { describeBestSupply, describeCheapestBorrow } from "@froggy/graph";
 import {
   decodePaymentChallenge,
   describePayment,
@@ -217,8 +218,11 @@ const runBrief = async (
   });
   const snapshot = await deps.services.graph.lendingMarkets(symbol);
   const fresh = snapshot.deployments.filter((d) => d.status === "fresh").length;
+  // Two sentences a person can act on, then the rows they came from.
   const result = {
+    bestSupply: describeBestSupply(snapshot),
     capturedAt: snapshot.capturedAt,
+    cheapestBorrow: describeCheapestBorrow(snapshot),
     deployments: snapshot.deployments,
     fresh,
     markets: snapshot.markets.slice(0, 12),

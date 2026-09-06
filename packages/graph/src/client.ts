@@ -497,6 +497,32 @@ const money = (usd: number): string => {
   return `$${usd.toFixed(0)}`;
 };
 
+/**
+ * The other side of the same markets: where the token earns most.
+ *
+ * Same twelve indexes, same blocks, sorted the other way. Said as its own
+ * sentence rather than folded into the borrow one, because a person asking
+ * "where does my USDC earn most" should not have to read past the borrow
+ * answer to find out.
+ */
+export const describeBestSupply = (snapshot: GraphSnapshot): string => {
+  const ranked = [...snapshot.markets]
+    .filter((m) => m.totalSupplyUsd > 0)
+    .toSorted((a, b) => b.supplyApr - a.supplyApr);
+  const [best] = ranked;
+  if (best === undefined) {
+    return "No usable supply markets.";
+  }
+  const rest = ranked
+    .slice(1, 4)
+    .map(
+      (m) =>
+        `${m.name} on ${m.chain} ${m.supplyApr.toFixed(2)}% (${money(m.totalSupplyUsd)})`
+    )
+    .join(", ");
+  return `Best ${best.inputTokenSymbol} supply: ${best.name} on ${best.chain} at ${best.supplyApr.toFixed(2)}% APR (${money(best.totalSupplyUsd)} supplied, ${best.deploymentId.slice(0, 8)}… block ${best.blockNumber}).${rest === "" ? "" : ` Next: ${rest}.`}`;
+};
+
 export const describeCheapestBorrow = (snapshot: GraphSnapshot): string => {
   const [best] = snapshot.markets;
   const provenance = describeDeployments(snapshot);

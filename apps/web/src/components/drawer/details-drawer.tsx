@@ -42,6 +42,7 @@ import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { AgentSettings } from "./agent-settings";
 import { DigestSettings } from "./digest-settings";
 import { DirectoryPanel } from "./directory-panel";
 import { MandateEditor } from "./mandate-editor";
@@ -286,6 +287,7 @@ export const DetailsDrawer = ({
           <TabsTrigger value="policy">Policy</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="directory">Directory</TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="about">Wallet</TabsTrigger>
         </TabsList>
         <TabsContent className="pt-4" value="policy">
@@ -304,6 +306,9 @@ export const DetailsDrawer = ({
         </TabsContent>
         <TabsContent className="pt-4" value="directory">
           <DirectoryPanel receipts={receipts} />
+        </TabsContent>
+        <TabsContent className="pt-4" value="agents">
+          <AgentSettings />
         </TabsContent>
         <TabsContent className="pt-4" value="about">
           <About

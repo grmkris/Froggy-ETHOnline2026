@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  describeBestSupply,
   describeCheapestBorrow,
   liveGraphClient,
   snapshotHash,
@@ -122,5 +123,23 @@ describe("the live client's transport", () => {
       "fresh",
       "fresh",
     ]);
+  });
+});
+
+describe("describeBestSupply", () => {
+  it("leads with the highest supply rate, and never with a market nobody supplies", async () => {
+    const snapshot = await stubGraphClient().lendingMarkets("USDC");
+    const answer = describeBestSupply(snapshot);
+    const [top] = [...snapshot.markets]
+      .filter((m) => m.totalSupplyUsd > 0)
+      .toSorted((a, b) => b.supplyApr - a.supplyApr);
+    expect(top).toBeDefined();
+    expect(answer).toContain(`Best USDC supply: ${top?.name ?? ""}`);
+    expect(answer).toContain(`${top?.supplyApr.toFixed(2) ?? ""}% APR`);
+  });
+
+  it("says so plainly when nothing matched", async () => {
+    const snapshot = await stubGraphClient().lendingMarkets("WBTC");
+    expect(describeBestSupply(snapshot)).toBe("No usable supply markets.");
   });
 });
