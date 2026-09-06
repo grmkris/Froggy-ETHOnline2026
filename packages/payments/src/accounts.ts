@@ -19,8 +19,11 @@ import {
   Client,
   Hbar,
   PrivateKey,
+  PublicKey,
   TransferTransaction,
 } from "@hiero-ledger/sdk";
+import { mirrorNodeUrlForNetwork } from "@x402/hedera";
+import { Schema } from "effect";
 
 import type { HederaNetwork } from "./types";
 
@@ -42,6 +45,15 @@ interface OpenedAccount {
 export interface HederaHost {
   readonly accountId: string;
   readonly close: () => void;
+  /**
+   * Moves `tinybars` from the host to an EVM alias nobody has used yet,
+   * which is how Hedera creates an account for a key held elsewhere: the
+   * account exists after this, owned by whoever holds that key.
+   */
+  readonly fundAlias: (
+    evmAddress: string,
+    tinybars: number
+  ) => Promise<{ readonly transactionId: string }>;
   readonly network: HederaNetwork;
   /** Creates an account under a fresh key, funded with `tinybars` from the host. */
   readonly open: (tinybars: number) => Promise<OpenedAccount>;
@@ -77,6 +89,18 @@ export const hederaHost = (options: HederaHostOptions): HederaHost => {
     accountId: options.accountId,
     close: () => {
       client.close();
+    },
+    fundAlias: async (evmAddress, tinybars) => {
+      const amount = Hbar.fromTinybars(tinybars);
+      const submitted = await new TransferTransaction()
+        .addHbarTransfer(
+          AccountId.fromString(options.accountId),
+          amount.negated()
+        )
+        .addHbarTransfer(AccountId.fromEvmAddress(0, 0, evmAddress), amount)
+        .execute(client);
+      await submitted.getReceipt(client);
+      return { transactionId: submitted.transactionId.toString() };
     },
     network: options.network,
     open: async (tinybars) => {
@@ -114,4 +138,34 @@ export const hederaHost = (options: HederaHostOptions): HederaHost => {
       return { transactionId: submitted.transactionId.toString() };
     },
   };
+};
+
+/** The EVM alias a compressed secp256k1 public key names, `0x`-prefixed. */
+export const evmAliasOf = (publicKeyHex: string): string =>
+  `0x${PublicKey.fromStringECDSA(publicKeyHex).toEvmAddress()}`;
+
+const AliasAccount = Schema.Struct({ account: Schema.String });
+const decodeAliasAccount = Schema.decodeUnknownResult(AliasAccount);
+
+/**
+ * The account id behind an EVM alias, from the mirror node, or null while the
+ * mirror has not caught up (a few seconds after the creating transfer).
+ */
+export const resolveAlias = async (input: {
+  readonly evmAddress: string;
+  readonly network: HederaNetwork;
+}): Promise<string | null> => {
+  try {
+    const response = await fetch(
+      `${mirrorNodeUrlForNetwork(input.network)}/api/v1/accounts/${input.evmAddress}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const decoded = decodeAliasAccount(await response.json());
+    return decoded._tag === "Success" ? decoded.success.account : null;
+  } catch {
+    return null;
+  }
 };

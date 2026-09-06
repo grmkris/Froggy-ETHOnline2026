@@ -24,6 +24,8 @@ import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
 import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
 import { privyAgentSigner } from "./evm-signer";
 import type { AgentEvmSigner } from "./evm-signer";
+import { privyHederaKeys } from "./privy-hedera-keys";
+import type { HederaKeys } from "./privy-hedera-keys";
 
 /**
  * The two addresses, kept distinct on purpose.
@@ -55,6 +57,11 @@ export interface PrivyServer {
    * no-op at Privy, so this is safe to call on every sign-in.
    */
   readonly grantAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
+  /**
+   * People's Hedera keys held by Privy, or null when no agent key or no
+   * policy for them is configured; then Froggy seals the keys itself.
+   */
+  readonly hederaKeys: HederaKeys | null;
   readonly mode: "live" | "stub";
   /** Remove the signer. This is what freezing does, and it is a revocation. */
   readonly revokeAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
@@ -107,6 +114,8 @@ export interface LivePrivyOptions {
   readonly agent: AgentKey | null;
   readonly appId: string;
   readonly appSecret: string;
+  /** The cosmos-type policy people's Hedera keys are created under, or null. */
+  readonly hederaPolicyId?: string | null;
 }
 
 const NO_AGENT_KEY: AgentGrant = {
@@ -148,6 +157,16 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
         did: request.did,
       });
     },
+
+    hederaKeys:
+      options.agent === null ||
+      options.hederaPolicyId === null ||
+      options.hederaPolicyId === undefined
+        ? null
+        : privyHederaKeys(client, {
+            agent: options.agent,
+            policyId: options.hederaPolicyId,
+          }),
 
     mode: "live",
 
@@ -220,6 +239,7 @@ export const stubPrivyServer = (): PrivyServer => ({
     };
   },
   mode: "stub",
+  hederaKeys: null,
   signerFor: () => null,
   revokeAgent: async () => {
     await Promise.resolve();

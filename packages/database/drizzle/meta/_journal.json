@@ -50,6 +50,13 @@
       "when": 1788712608363,
       "tag": "0006_real_namorita",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788725566164,
+      "tag": "0007_ancient_ben_urich",
+      "breakpoints": true
     }
   ]
 }

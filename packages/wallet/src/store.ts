@@ -39,11 +39,22 @@ type SalePatch = Partial<
   Pick<Sale, "deliveredAt" | "error" | "result" | "status">
 >;
 
+/**
+ * Who holds the account's ECDSA key: Froggy, sealed at rest, or Privy, as a
+ * cosmos-type wallet whose key signs through `raw_sign`.
+ */
+export type HederaCustody =
+  | {
+      readonly kind: "privy";
+      readonly publicKey: string;
+      readonly walletId: string;
+    }
+  | { readonly keyCiphertext: string; readonly kind: "sealed" };
+
 export interface HederaAccountRecord {
   /** `0.0.x`. */
   readonly accountId: string;
-  /** The account's ECDSA key, sealed by the keystore. Never the key itself. */
-  readonly keyCiphertext: string;
+  readonly custody: HederaCustody;
 }
 
 export interface Store {

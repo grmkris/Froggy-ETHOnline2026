@@ -13,6 +13,7 @@
   "dependencies": {
     "@froggy/database": "workspace:*",
     "@froggy/domain": "workspace:*",
+    "@noble/hashes": "1.7.0",
     "@privy-io/node": "0.34.0",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"

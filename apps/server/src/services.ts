@@ -190,6 +190,7 @@ export const createServices = (options: ServiceOptions): Services => {
           agent: environment.privyAgent,
           appId: environment.privyAppId,
           appSecret: environment.privyAppSecret,
+          hederaPolicyId: environment.privyHederaPolicyId,
         })
       : stubPrivyServer();
 
@@ -220,6 +221,7 @@ export const createServices = (options: ServiceOptions): Services => {
       ? null
       : createHederaAccounts({
           host,
+          keys: privy.hederaKeys,
           keystore: aesGcmKeystore(environment.hederaKek),
           rates,
           store,

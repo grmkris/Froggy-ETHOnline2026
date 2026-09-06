@@ -103,7 +103,15 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "Privy, the policy engine, and the spend ledger. The leash. Never imports the browser.",
     mayImport: ["@froggy/database", "@froggy/domain"],
-    mayUse: ["effect", "@privy-io/node", "drizzle-orm", "postgres"],
+    // `@noble/hashes`: keccak256 over Hedera transaction bytes before Privy
+    // signs the hash (ADR 0009). Only the hash; no curve arithmetic here.
+    mayUse: [
+      "effect",
+      "@privy-io/node",
+      "drizzle-orm",
+      "postgres",
+      "@noble/hashes",
+    ],
   },
   {
     dir: "packages/payments",

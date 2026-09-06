@@ -15,15 +15,38 @@
  */
 
 import type { UserId } from "@froggy/domain";
-import { HederaAccountError, liveHederaPayer } from "@froggy/payments";
+import {
+  evmAliasOf,
+  HederaAccountError,
+  liveHederaPayer,
+  resolveAlias,
+  signerHederaPayer,
+} from "@froggy/payments";
 import type { HederaHost, Payer, RateSource } from "@froggy/payments";
-import type { HederaAccountRecord, Keystore, Store } from "@froggy/wallet";
+import type {
+  HederaAccountRecord,
+  HederaKeys,
+  Keystore,
+  Store,
+} from "@froggy/wallet";
 
 interface HederaAccountsOptions {
   readonly host: HederaHost;
+  /**
+   * Privy holding the keys, when configured: the account is opened for a
+   * key Privy created in the person's name. Null means Froggy generates and
+   * seals the key itself.
+   */
+  readonly keys: HederaKeys | null;
   readonly keystore: Keystore;
   readonly now?: () => number;
   readonly rates: RateSource;
+  /** The mirror node's answer for an alias; injected in tests. */
+  readonly resolve?: (evmAddress: string) => Promise<string | null>;
+  /** How long to wait for the mirror node to show an alias account. */
+  readonly resolveAttempts?: number;
+  /** Between attempts; shortened in tests. */
+  readonly resolveWaitMs?: number;
   readonly store: Store;
 }
 
@@ -62,6 +85,10 @@ export const createHederaAccounts = (
   options: HederaAccountsOptions
 ): HederaAccounts => {
   const now = options.now ?? ((): number => Date.now());
+  const resolve =
+    options.resolve ??
+    (async (evmAddress: string): Promise<string | null> =>
+      await resolveAlias({ evmAddress, network: options.host.network }));
   const opening = new Map<UserId, Promise<HederaAccountRecord>>();
 
   const tinybarsFor = (usdMicros: number): number => {
@@ -75,23 +102,113 @@ export const createHederaAccounts = (
   };
 
   let lastOpening: Funded | null = null;
+
+  /** Froggy's own key, sealed at rest: the account is created for it outright. */
+  const openSealed = async (
+    tinybars: number
+  ): Promise<{ record: HederaAccountRecord; transactionId: string }> => {
+    const created = await options.host.open(tinybars);
+    return {
+      record: {
+        accountId: created.accountId,
+        custody: {
+          keyCiphertext: await options.keystore.seal(created.privateKey),
+          kind: "sealed",
+        },
+      },
+      transactionId: created.transactionId,
+    };
+  };
+
+  /**
+   * Privy's key: the account comes into being when the float pays its EVM
+   * alias, and the mirror node says which id Hedera gave it a few seconds later.
+   */
+  const openWithPrivy = async (
+    keys: HederaKeys,
+    userId: UserId,
+    tinybars: number
+  ): Promise<{ record: HederaAccountRecord; transactionId: string }> => {
+    const key = await keys.create(userId);
+    const evmAddress = evmAliasOf(key.publicKey);
+    const { transactionId } = await options.host.fundAlias(
+      evmAddress,
+      tinybars
+    );
+    const attempts = options.resolveAttempts ?? 15;
+    let accountId: string | null = null;
+    for (
+      let attempt = 0;
+      attempt < attempts && accountId === null;
+      attempt += 1
+    ) {
+      // The mirror node lags consensus by a few seconds; nothing else can
+      // answer, so waiting in sequence is the whole point.
+      // eslint-disable-next-line no-await-in-loop
+      accountId = await resolve(evmAddress);
+      if (accountId === null) {
+        // eslint-disable-next-line no-await-in-loop
+        await Bun.sleep(options.resolveWaitMs ?? 2000);
+      }
+    }
+    if (accountId === null) {
+      throw new HederaAccountError(
+        `The float paid the new account's alias ${evmAddress} (${transactionId}) but the mirror node has not shown the account yet. Try again in a moment.`
+      );
+    }
+    return {
+      record: {
+        accountId,
+        custody: {
+          kind: "privy",
+          publicKey: key.publicKey,
+          walletId: key.walletId,
+        },
+      },
+      transactionId,
+    };
+  };
+
   const open = async (
     userId: UserId,
     usdMicros: number
   ): Promise<HederaAccountRecord> => {
     const tinybars = tinybarsFor(usdMicros) + FEE_MARGIN_TINYBARS;
-    const created = await options.host.open(tinybars);
-    const record: HederaAccountRecord = {
-      accountId: created.accountId,
-      keyCiphertext: await options.keystore.seal(created.privateKey),
-    };
-    await options.store.hedera.save(userId, record);
+    const opened =
+      options.keys === null
+        ? await openSealed(tinybars)
+        : await openWithPrivy(options.keys, userId, tinybars);
+    await options.store.hedera.save(userId, opened.record);
     lastOpening = {
       opened: true,
       tinybars,
-      transactionId: created.transactionId,
+      transactionId: opened.transactionId,
     };
-    return record;
+    return opened.record;
+  };
+
+  /** The payer for whichever custody the record names. */
+  const payerOf = async (record: HederaAccountRecord): Promise<Payer> => {
+    const { custody } = record;
+    if (custody.kind === "sealed") {
+      return liveHederaPayer({
+        accountId: record.accountId,
+        network: options.host.network,
+        privateKey: await options.keystore.open(custody.keyCiphertext),
+      });
+    }
+    const { keys } = options;
+    if (keys === null) {
+      throw new HederaAccountError(
+        "This account's key is held by Privy, but this deployment has no Privy Hedera keys configured."
+      );
+    }
+    return signerHederaPayer({
+      accountId: record.accountId,
+      network: options.host.network,
+      publicKey: custody.publicKey,
+      signBytes: async (bytes) => await keys.signBytes(custody.walletId, bytes),
+    });
   };
 
   const ensure = async (
@@ -149,11 +266,7 @@ export const createHederaAccounts = (
         );
       }
       const record = existing ?? (await ensure(userId, openingUsdMicros));
-      return liveHederaPayer({
-        accountId: record.accountId,
-        network: options.host.network,
-        privateKey: await options.keystore.open(record.keyCiphertext),
-      });
+      return await payerOf(record);
     },
   };
 };

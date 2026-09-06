@@ -49,8 +49,16 @@ export const describePayment = (paymentHeader: string): PaymentDescription => {
     const inspected = inspectHederaTransaction(
       extractTransactionFromPayload(decoded.success.payload)
     );
+    // The transaction id names whoever pays the network fee, which on a
+    // facilitated payment is the facilitator; the payer is the account whose
+    // HBAR (or token) leaves. That is who a receipt and a sale should name.
+    const debit =
+      inspected.hbarTransfers.find((entry) => BigInt(entry.amount) < 0n) ??
+      Object.values(inspected.tokenTransfers)
+        .flat()
+        .find((entry) => BigInt(entry.amount) < 0n);
     return {
-      payer: inspected.transactionIdAccountId,
+      payer: debit?.accountId ?? inspected.transactionIdAccountId,
       transactionId: inspected.transactionId,
     };
   } catch {

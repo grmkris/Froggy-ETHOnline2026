@@ -1,7 +1,12 @@
 export { liveOracleGate, STUB_PAY_TO, stubOracleGate } from "./oracle";
 export type { LiveOracleOptions } from "./oracle";
-export { liveHederaPayer, STUB_ACCOUNT_ID, stubHederaPayer } from "./payer";
-export type { LivePayerOptions } from "./payer";
+export {
+  liveHederaPayer,
+  signerHederaPayer,
+  STUB_ACCOUNT_ID,
+  stubHederaPayer,
+} from "./payer";
+export type { LivePayerOptions, SignerPayerOptions } from "./payer";
 export {
   EVM_CHAIN_IDS,
   EVM_NETWORK_LABELS,
@@ -17,7 +22,12 @@ export type {
   TypedDataField,
   TypedDataValue,
 } from "./evm";
-export { HederaAccountError, hederaHost } from "./accounts";
+export {
+  evmAliasOf,
+  HederaAccountError,
+  hederaHost,
+  resolveAlias,
+} from "./accounts";
 export type { HederaHost } from "./accounts";
 export { liveHcsWriter, SettlementNote, stubHcsWriter } from "./hcs";
 export type { HcsNote, HcsWriter, LiveHcsOptions } from "./hcs";

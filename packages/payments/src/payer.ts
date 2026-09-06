@@ -13,13 +13,21 @@
  * works the day a testnet account exists, and swapping it costs one factory.
  */
 
+import { PublicKey } from "@hiero-ledger/sdk";
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import {
+  AccountId,
   createClientHederaSigner,
+  createHederaClient,
   ExactHederaScheme,
+  Hbar,
   PrivateKey,
+  TokenId,
+  TransactionId,
+  TransferTransaction,
 } from "@x402/hedera";
 import type { ClientHederaSigner } from "@x402/hedera";
+import { Schema } from "effect";
 
 import { HEDERA_TESTNET, X402_VERSION } from "./types";
 import type {
@@ -64,6 +72,10 @@ const selectRequirements = (
   };
 };
 
+/** The one field of `extra` the Hedera scheme needs: who pays the network fee. */
+const FeePayer = Schema.Struct({ feePayer: Schema.String });
+const decodeFeePayer = Schema.decodeUnknownResult(FeePayer);
+
 const encodeHeader = (payload: PaymentPayload): string =>
   Buffer.from(JSON.stringify(payload), "utf-8").toString("base64");
 
@@ -75,17 +87,14 @@ export interface LivePayerOptions {
   readonly privateKey: string;
 }
 
-export const liveHederaPayer = (options: LivePayerOptions): Payer => {
-  const { network } = options;
-  const signer: ClientHederaSigner = createClientHederaSigner(
-    options.accountId,
-    PrivateKey.fromStringECDSA(options.privateKey),
-    { network }
-  );
+const payerFromSigner = (
+  signer: ClientHederaSigner,
+  network: HederaNetwork
+): Payer => {
   const scheme = new ExactHederaScheme(signer);
 
   return {
-    accountId: options.accountId,
+    accountId: signer.accountId,
     mode: "live",
     network,
     pay: async (challenge) => {
@@ -131,6 +140,82 @@ export const liveHederaPayer = (options: LivePayerOptions): Payer => {
       }
     },
   };
+};
+
+export const liveHederaPayer = (options: LivePayerOptions): Payer =>
+  payerFromSigner(
+    createClientHederaSigner(
+      options.accountId,
+      PrivateKey.fromStringECDSA(options.privateKey),
+      { network: options.network }
+    ),
+    options.network
+  );
+
+export interface SignerPayerOptions {
+  readonly accountId: string;
+  readonly network: HederaNetwork;
+  /** The account's ECDSA public key, compressed hex, as Privy states it. */
+  readonly publicKey: string;
+  /**
+   * Signs the transaction body bytes with the account's key and returns the
+   * 64-byte compact signature. Whoever holds the key hashes with keccak256.
+   */
+  readonly signBytes: (bytes: Uint8Array) => Promise<Uint8Array>;
+}
+
+/**
+ * A payer whose key lives elsewhere: Privy's `raw_sign`, a hardware key,
+ * anything that can sign body bytes on request. The transfer is built the
+ * way `@x402/hedera`'s own client signer builds it (the fee payer's
+ * transaction id, so the facilitator pays the fee), then signed through the
+ * callback instead of a private key.
+ */
+export const signerHederaPayer = (options: SignerPayerOptions): Payer => {
+  const account = AccountId.fromString(options.accountId);
+  const publicKey = PublicKey.fromStringECDSA(options.publicKey);
+  const signer: ClientHederaSigner = {
+    accountId: account.toString(),
+    createPartiallySignedTransferTransaction: async (requirements) => {
+      const extra = decodeFeePayer(requirements.extra);
+      if (extra._tag === "Failure") {
+        throw new Error("feePayer is required in paymentRequirements.extra");
+      }
+      const { feePayer } = extra.success;
+      const amount = BigInt(requirements.amount);
+      if (amount <= 0n) {
+        throw new Error("amount must be greater than zero");
+      }
+      const payTo = AccountId.fromString(requirements.payTo);
+      const transaction = new TransferTransaction();
+      if (requirements.asset === "0.0.0") {
+        transaction.addHbarTransfer(
+          account,
+          Hbar.fromTinybars((-amount).toString())
+        );
+        transaction.addHbarTransfer(
+          payTo,
+          Hbar.fromTinybars(amount.toString())
+        );
+      } else {
+        const token = TokenId.fromString(requirements.asset);
+        transaction.addTokenTransfer(token, account, Number(-amount));
+        transaction.addTokenTransfer(token, payTo, Number(amount));
+      }
+      transaction.setTransactionId(
+        TransactionId.generate(AccountId.fromString(feePayer))
+      );
+      const client = createHederaClient(options.network);
+      try {
+        transaction.freezeWith(client);
+        await transaction.signWith(publicKey, options.signBytes);
+        return Buffer.from(transaction.toBytes()).toString("base64");
+      } finally {
+        client.close();
+      }
+    },
+  };
+  return payerFromSigner(signer, options.network);
 };
 
 /** The placeholder payer account while no Hedera key exists. */

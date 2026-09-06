@@ -63,13 +63,13 @@ describe("memoryStore", () => {
     expect(await store.hedera.load(ALICE)).toBeNull();
     await store.hedera.save(ALICE, {
       accountId: "0.0.4242",
-      keyCiphertext: "v1.nonce.body",
+      custody: { keyCiphertext: "v1.nonce.body", kind: "sealed" },
     });
     await store.forget(ALICE);
     // The account holds money, so it outlives the preferences.
     expect(await store.hedera.load(ALICE)).toEqual({
       accountId: "0.0.4242",
-      keyCiphertext: "v1.nonce.body",
+      custody: { keyCiphertext: "v1.nonce.body", kind: "sealed" },
     });
   });
 

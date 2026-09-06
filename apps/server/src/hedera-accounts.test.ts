@@ -33,6 +33,7 @@ const rates = (usdMicrosPerHbar: number | null): RateSource => ({
 });
 
 interface FakeHost extends HederaHost {
+  readonly funded: { readonly evmAddress: string; readonly tinybars: number }[];
   readonly opened: number[];
   readonly transfers: {
     readonly accountId: string;
@@ -42,6 +43,7 @@ interface FakeHost extends HederaHost {
 
 const fakeHost = (): FakeHost => {
   const opened: number[] = [];
+  const funded: { evmAddress: string; tinybars: number }[] = [];
   const transfers: { accountId: string; tinybars: number }[] = [];
   let next = 100;
   return {
@@ -49,6 +51,12 @@ const fakeHost = (): FakeHost => {
     close: () => {
       // Nothing to release.
     },
+    fundAlias: async (evmAddress, tinybars) => {
+      await Promise.resolve();
+      funded.push({ evmAddress, tinybars });
+      return { transactionId: `0.0.1@3.${funded.length}` };
+    },
+    funded,
     network: "hedera:testnet",
     open: async (tinybars) => {
       await Promise.resolve();
@@ -76,6 +84,7 @@ describe("createHederaAccounts", () => {
     const store = memoryStore();
     const accounts = createHederaAccounts({
       host,
+      keys: null,
       keystore: aesGcmKeystore(KEK),
       rates: rates(80_000),
       store,
@@ -92,8 +101,10 @@ describe("createHederaAccounts", () => {
     const saved = await store.hedera.load(ALICE);
     expect(saved?.accountId).toBe("0.0.101");
     // Sealed, not the key.
-    expect(saved?.keyCiphertext.startsWith("v1.")).toBe(true);
-    expect(saved?.keyCiphertext).not.toContain("abab");
+    const sealed =
+      saved?.custody.kind === "sealed" ? saved.custody.keyCiphertext : "";
+    expect(sealed.startsWith("v1.")).toBe(true);
+    expect(sealed).not.toContain("abab");
     expect(await accounts.lookup(ALICE)).toBe("0.0.101");
     // A later payer comes from the store, not from another opening.
     const again = await accounts.payerFor(ALICE, 0);
@@ -105,6 +116,7 @@ describe("createHederaAccounts", () => {
     const host = fakeHost();
     const accounts = createHederaAccounts({
       host,
+      keys: null,
       keystore: aesGcmKeystore(KEK),
       rates: rates(80_000),
       store: memoryStore(),
@@ -130,6 +142,7 @@ describe("createHederaAccounts", () => {
     const host = fakeHost();
     const accounts = createHederaAccounts({
       host,
+      keys: null,
       keystore: aesGcmKeystore(KEK),
       rates: rates(80_000),
       store: memoryStore(),
@@ -144,6 +157,7 @@ describe("createHederaAccounts", () => {
     const host = fakeHost();
     const accounts = createHederaAccounts({
       host,
+      keys: null,
       keystore: aesGcmKeystore(KEK),
       rates: rates(null),
       store: memoryStore(),
@@ -152,5 +166,79 @@ describe("createHederaAccounts", () => {
       HederaAccountError
     );
     expect(host.opened).toEqual([]);
+  });
+});
+
+describe("createHederaAccounts with Privy holding the keys", () => {
+  // The cosmos wallet from spike 1.8: its alias is 0x451718d7197e664d8370d139fcb87abaeb303531.
+  const PUBLIC_KEY =
+    "0215fa722a20730257c669c8c3e8fd4ea0ea62b82dc6309a41cccf00a42a6a5f20";
+
+  it("creates the key in the person's name, funds its alias and remembers who holds it", async () => {
+    const host = fakeHost();
+    const store = memoryStore();
+    const created: string[] = [];
+    const accounts = createHederaAccounts({
+      host,
+      keys: {
+        create: async (ownerDid) => {
+          await Promise.resolve();
+          created.push(ownerDid);
+          return { publicKey: PUBLIC_KEY, walletId: "wallet-1" };
+        },
+        signBytes: async () => await Promise.resolve(new Uint8Array(64)),
+      },
+      keystore: aesGcmKeystore(KEK),
+      rates: rates(80_000),
+      resolve: async (evmAddress) =>
+        await Promise.resolve(
+          evmAddress === "0x451718d7197e664d8370d139fcb87abaeb303531"
+            ? "0.0.10396162"
+            : null
+        ),
+      resolveWaitMs: 1,
+      store,
+    });
+    const payer = await accounts.payerFor(ALICE, 500_000);
+    expect(created).toEqual([ALICE]);
+    expect(payer.accountId).toBe("0.0.10396162");
+    expect(host.funded).toEqual([
+      {
+        evmAddress: "0x451718d7197e664d8370d139fcb87abaeb303531",
+        tinybars: 625_000_000 + 10_000_000,
+      },
+    ]);
+    // Nothing was generated or sealed on Froggy's side.
+    expect(host.opened).toEqual([]);
+    expect(await store.hedera.load(ALICE)).toEqual({
+      accountId: "0.0.10396162",
+      custody: { kind: "privy", publicKey: PUBLIC_KEY, walletId: "wallet-1" },
+    });
+  });
+
+  it("gives up with the alias and the transfer when the mirror never shows the account", async () => {
+    const host = fakeHost();
+    const accounts = createHederaAccounts({
+      host,
+      keys: {
+        create: async () =>
+          await Promise.resolve({
+            publicKey: PUBLIC_KEY,
+            walletId: "wallet-1",
+          }),
+        signBytes: async () => await Promise.resolve(new Uint8Array(64)),
+      },
+      keystore: aesGcmKeystore(KEK),
+      rates: rates(80_000),
+      resolve: async () => await Promise.resolve(null),
+      resolveAttempts: 2,
+      resolveWaitMs: 1,
+      store: memoryStore(),
+    });
+    const failure = await failureOf(accounts.payerFor(ALICE, 500_000));
+    expect(failure).toBeInstanceOf(HederaAccountError);
+    expect(failure?.message).toContain(
+      "0x451718d7197e664d8370d139fcb87abaeb303531"
+    );
   });
 });

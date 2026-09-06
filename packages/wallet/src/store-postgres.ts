@@ -506,19 +506,33 @@ export const postgresStore = (sql: Sql): Store => {
           .select({
             accountId: users.hederaAccountId,
             keyCiphertext: users.hederaKeyCiphertext,
+            publicKey: users.hederaPublicKey,
+            walletId: users.hederaPrivyWalletId,
           })
           .from(users)
           .where(eq(users.did, userId))
           .limit(1);
         const [row] = rows;
-        if (
-          row === undefined ||
-          row.accountId === null ||
-          row.keyCiphertext === null
-        ) {
+        if (row === undefined || row.accountId === null) {
           return null;
         }
-        return { accountId: row.accountId, keyCiphertext: row.keyCiphertext };
+        if (row.walletId !== null && row.publicKey !== null) {
+          return {
+            accountId: row.accountId,
+            custody: {
+              kind: "privy",
+              publicKey: row.publicKey,
+              walletId: row.walletId,
+            },
+          };
+        }
+        if (row.keyCiphertext !== null) {
+          return {
+            accountId: row.accountId,
+            custody: { keyCiphertext: row.keyCiphertext, kind: "sealed" },
+          };
+        }
+        return null;
       },
       save: async (userId, record) => {
         await ensureUser(userId);
@@ -526,7 +540,14 @@ export const postgresStore = (sql: Sql): Store => {
           .update(users)
           .set({
             hederaAccountId: record.accountId,
-            hederaKeyCiphertext: record.keyCiphertext,
+            hederaKeyCiphertext:
+              record.custody.kind === "sealed"
+                ? record.custody.keyCiphertext
+                : null,
+            hederaPrivyWalletId:
+              record.custody.kind === "privy" ? record.custody.walletId : null,
+            hederaPublicKey:
+              record.custody.kind === "privy" ? record.custody.publicKey : null,
           })
           .where(eq(users.did, userId));
       },

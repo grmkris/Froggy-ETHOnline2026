@@ -73,6 +73,14 @@ export const users = pgTable("users", {
    */
   hederaKeyCiphertext: text("hedera_key_ciphertext"),
   /**
+   * When Privy holds the account's key instead: the cosmos-type wallet whose
+   * secp256k1 key is the account's ECDSA key, and that key's compressed
+   * public form, so a transaction can be signed through `raw_sign` and
+   * verified without asking Privy. Either this pair or the ciphertext above.
+   */
+  hederaPrivyWalletId: text("hedera_privy_wallet_id"),
+  hederaPublicKey: text("hedera_public_key"),
+  /**
    * The Hedera pocket, as a balance in USD millionths.
    *
    * One host account pays every Hedera 402; this is the share of it each

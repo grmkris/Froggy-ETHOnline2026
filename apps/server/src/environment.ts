@@ -42,6 +42,7 @@ const PLACEHOLDER = {
   hederaKek: "REPLACE_ME_HEDERA_KEK",
   hederaPrivateKey: "0xREPLACE_ME",
   privyAgentPolicyId: "REPLACE_ME_PRIVY_POLICY_ID",
+  privyHederaPolicyId: "REPLACE_ME_PRIVY_HEDERA_POLICY_ID",
   privyAppId: "REPLACE_ME_PRIVY_APP_ID",
   privyAppSecret: "REPLACE_ME_PRIVY_APP_SECRET",
   privyAuthorizationKeyId: "REPLACE_ME_PRIVY_KEY_QUORUM_ID",
@@ -253,6 +254,12 @@ export interface Environment {
   } | null;
   readonly privyAppId: string;
   readonly privyAppSecret: string;
+  /**
+   * The policy for people's Hedera keys held by Privy as cosmos-type wallets
+   * (one `ALLOW *` rule: raw bytes take no conditions). Null means Froggy
+   * seals the keys itself under `HEDERA_KEK` instead.
+   */
+  readonly privyHederaPolicyId: string | null;
   /** Seats held back for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
   /** The bot's @username, for the pairing deep link. Empty until set. */
@@ -419,6 +426,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const treasuryEvmAddress = yield* Config.string(
       "TREASURY_EVM_ADDRESS"
     ).pipe(Config.withDefault(PLACEHOLDER.treasuryEvmAddress));
+    const privyHederaPolicyId = yield* Config.string(
+      "PRIVY_HEDERA_POLICY_ID"
+    ).pipe(Config.withDefault(PLACEHOLDER.privyHederaPolicyId));
     const treasuryWalletId = yield* Config.string("TREASURY_WALLET_ID").pipe(
       Config.withDefault(PLACEHOLDER.treasuryWalletId)
     );
@@ -561,6 +571,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
           : null,
       privyAppId,
       privyAppSecret: Redacted.value(privyAppSecret),
+      privyHederaPolicyId: isPlaceholder(
+        privyHederaPolicyId,
+        PLACEHOLDER.privyHederaPolicyId
+      )
+        ? null
+        : privyHederaPolicyId,
       reservedBrowsers,
       staticDirectory,
       telegramBotToken: Redacted.value(telegramBotToken),
