@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { explorerUrl } from "./format";
+import { compactUsd, explorerUrl } from "./format";
 
 describe("explorerUrl", () => {
   it("sends a Hedera id to HashScan with its @ encoded", () => {
@@ -22,5 +22,14 @@ describe("explorerUrl", () => {
 
   it("would rather show no explorer than a wrong one", () => {
     expect(explorerUrl("eip155:1", "0xabc")).toBeNull();
+  });
+});
+
+describe("compactUsd", () => {
+  it("sizes a market at a glance", () => {
+    expect(compactUsd(96_000_000)).toBe("$96M");
+    expect(compactUsd(1_230_000_000)).toBe("$1.2B");
+    expect(compactUsd(412_000)).toBe("$412K");
+    expect(compactUsd(950)).toBe("$950");
   });
 });

@@ -39,8 +39,11 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
   await expect(
     log.locator('[data-streamdown="strong"]', { hasText: "scripted model" })
   ).toBeVisible({ timeout: 20_000 });
-  await expect(log.getByRole("table")).toBeVisible();
-  await expect(log.getByRole("cell", { name: "wallet_status" })).toBeVisible();
+  const markdownTable = log.locator('[data-streamdown="table"]');
+  await expect(markdownTable).toBeVisible();
+  await expect(
+    markdownTable.getByRole("cell", { name: "wallet_status" })
+  ).toBeVisible();
 
   // Then the turn settles and the log says so.
   await expect(

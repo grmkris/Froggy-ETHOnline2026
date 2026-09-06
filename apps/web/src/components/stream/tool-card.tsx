@@ -21,10 +21,11 @@ import type { ReactElement } from "react";
 import type { ToolCall } from "../../lib/tool-call";
 import { toolStatus } from "../../lib/tool-status";
 import type { ToolPhase } from "../../lib/tool-status";
-import { storyOf } from "../../lib/tool-stories";
+import { storyLine, storyOf } from "../../lib/tool-stories";
 import type { Tone } from "../../lib/tool-stories";
 import { summarize } from "../../lib/tool-summary";
 import type { Outcome } from "../../lib/tool-summary";
+import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
 
 const TONE: Record<Tone, string> = {
@@ -82,7 +83,7 @@ export const ToolCard = ({
         <span
           className={cn("min-w-0 flex-1 truncate", status.live && "shimmer")}
         >
-          {story.sentence(call.input)}
+          {storyLine(story, call.input, status.live)}
         </span>
         <span className="text-machine shrink-0 opacity-60">{status.label}</span>
         <ChevronDownIcon
@@ -92,7 +93,10 @@ export const ToolCard = ({
         />
       </CollapsibleTrigger>
       {receipt === null ? null : <MoneyBody call={call} receipt={receipt} />}
-      {summary === null || receipt !== null ? null : (
+      {call.graph === null || receipt !== null ? null : (
+        <GraphSummary graph={call.graph} />
+      )}
+      {summary === null || receipt !== null || call.graph !== null ? null : (
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pb-2.5 pl-9">
           <span className={cn("font-medium", OUTCOME_TEXT[summary.outcome])}>
             {summary.headline}
