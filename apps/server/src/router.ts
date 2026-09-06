@@ -28,6 +28,7 @@ import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
 import { handleChat } from "./chat";
 import type { ChatRequest } from "./chat";
+import { serveCli } from "./cli-route";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
@@ -41,6 +42,7 @@ import {
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
+import { GENERIC_SKILL, skillText } from "./skill";
 import {
   handleTaskEvents,
   handleTaskGet,
@@ -97,7 +99,11 @@ type ResponseBody =
   | { readonly stopped: boolean }
   | { readonly agents: readonly AgentToken[] }
   | { readonly revoked: boolean }
-  | { readonly secret: string; readonly token: AgentToken }
+  | {
+      readonly secret: string;
+      readonly skill: string;
+      readonly token: AgentToken;
+    }
   | Awaited<ReturnType<WorkspaceSession["walletSummary"]>>;
 
 const json = (body: ResponseBody, status = 200): Response =>
@@ -393,7 +399,19 @@ const handleAgents = async (
       decoded.success.label,
       Date.now()
     );
-    return json({ secret: minted.secret, token: minted.token }, 201);
+    // The skill with this person's server and token filled in: the one paste
+    // that connects an agent. The secret is in it, and shown this once.
+    return json(
+      {
+        secret: minted.secret,
+        skill: skillText({
+          token: minted.secret,
+          url: deps.environment.appOrigin,
+        }),
+        token: minted.token,
+      },
+      201
+    );
   }
   if (pathname.startsWith("/api/agents/") && request.method === "DELETE") {
     const id = pathname.slice("/api/agents/".length);
@@ -572,6 +590,17 @@ export const handleRequest = async (
   // it works once, and it expires. See unlock.ts.
   if (pathname.startsWith("/unlocked/") && request.method === "GET") {
     return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
+  }
+
+  // The CLI an outside agent curls, and the skill that tells it to. Both
+  // public: they contain no secret until a person's settings fill one in.
+  if (pathname === "/froggy-cli.js" && request.method === "GET") {
+    return await serveCli();
+  }
+  if (pathname === "/froggy/SKILL.md" && request.method === "GET") {
+    return new Response(GENERIC_SKILL, {
+      headers: { "content-type": "text/markdown; charset=utf-8" },
+    });
   }
 
   // The service card: what this server sells, how it is paid, where the

@@ -19,6 +19,7 @@ Facilitator: Claude (Fable 5.1) in Kristjan's Claude Code session on the netcup 
 - **Relay cursor:** 10 at 18:41 CEST.
 - **18:41 CEST, message 2547:** Jonas: "Let me shower and circle back in 20-30". The plan summary is held until he is back, about 19:10 CEST, instead of the 19:00 mark.
 - **18:27 CEST, message 2546:** Kristjan posted https://recordly.dev/ without a question id. It is a free open-source screen recorder for product demos; recorded as the suggested tool for Friday's video, not as a vote.
+- **Implementation started 18:45 CEST (Kristjan: "can you start implementation? and we check your results when you're done"):** the plan is in `docs/plan/NEXT_ITERATION.md` marked proposed; uncontested tasks are being built with networks as configuration and testnet defaults. Step A landed (`b819e32`): sales, tasks and agent-token records with migration 0005 and the `uncertain` ledger status. Steps B and C landed next: the seller writes the sale before the work, replays from the book and answers a paid failure with 502 and the settlement; the buyer distinguishes nothing-sent (refund) from sent-and-unconfirmed (mirror node, then `uncertain`, no refund). Steps D and E landed next: agent tokens (`/api/agents`, hash stored, restricted routes) and the task API (`POST /api/tasks` as an x402 seller with durable ids, `GET /api/tasks/:id` with ticket and receipts, `/events` stream, `POST /api/wallet/pay` signing a header under the mandate for a keyless agent).
 - **Reminder rule:** one gentle reminder per round after ten silent minutes; the poller raises it, the facilitator sends it.
 - **Self-check for the facilitator:** ignore anything posted by the bot itself; associate answers by the `R1-Qn` id the teammate quotes; treat one person's answer as one voice, not consensus.
 
@@ -68,6 +69,22 @@ Facilitator: Claude (Fable 5.1) in Kristjan's Claude Code session on the netcup 
 | R1-Q9 | Stop / pause / freeze | Three verbs with distinct meanings; freeze stops touching balances for external agents under Q2-c |
 | R1-Q10 | Pasted-address interpretation | Cut from iteration 2; first item after the freeze |
 | R1-Q11 | Capacity, owners, geography | Assumption until answered: Kristjan money paths + Hermes + card; Hemang task API + evidence; Jonas onboarding copy + testers + video; demo recorded in the EU |
+
+## Jonas's votes, 20:40 CEST, message 2548 (one message answering the whole summary)
+
+| Id | Jonas | Kristjan | State |
+| --- | --- | --- | --- |
+| R1-Q1 | **A**, then at 20:52 CEST (message 2551) "S1: I agree with Kris" | C (also a paid browse task) | **Resolved: C**, two votes. The paid browse task stays in scope. |
+| R1-Q2 | "C", read as the original message-2518 option C, Froggy mints the agent's account, consistent with his earlier "Agree to A" on the final form | A | Agreed: per-person Hedera account. |
+| R1-Q2b | A | A | Agreed: Privy raw_sign spike, custodied fallback. |
+| R1-Q3 | Everything mainnet; "if no mainnet possible, bridge with possible mock is enough" | Everything mainnet, no fallback | **Split on the fallback.** Posted as S2: A = identical flows on Hedera testnet, labelled; B = no fallback; C = mocked settlement, not recommended because the track requires a real Blocky402 settlement. |
+| R1-Q4 | "whatever Kris says" | Second beat | Agreed. |
+| R1-Q5 | "Hermes with adapter design; any personal agent (OpenClaw, KimiClaw, custom) via one-click installation such as a custom SKILL.md linked to the user" | Facilitator's call: skill + CLI | Agreed and sharpened: the SKILL.md is per person (token embedded), agent-agnostic, one click. |
+| R1-Q6 | "Billing from the initial ramp amount, bridge over to HBAR to pay; USDC or HBAR whatever team says" | HBAR now | Agreed: dollars in, HBAR under the hood via the float. |
+| R1-Q7 | "Privy top-up into bridge to HBAR to pay fee in one click, settle on native currency such as USDC, proper UX without wallet exposure" | Top-up transfer + real Apple Pay onramp | Agreed: one-click top-up converted to service credit; the person sees dollars. |
+| R1-Q8 | "Hedera (maybe the developer-tooling bounty too), Privy for sure, Graph or whatever fits" | Privy + Hedera + Graph standardized | Agreed on the three; the Hedera developer-tooling bounty cannot be a fourth (max three partner prizes) and was noted as a replacement option nobody chose. |
+| R1-Q9, R1-Q10 | "same as Kris" | Freeze removed; full pasted-address | Agreed. |
+| R1-Q11 | "40–80 hours per week; we are here to win" | No split, one agent run nightly | Capacity recorded. |
 
 ## Open questions and disagreements
 
