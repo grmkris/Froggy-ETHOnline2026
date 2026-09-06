@@ -76,7 +76,7 @@ const MarkdownTextBase = ({ live, text }: MarkdownTextProps): ReactElement => {
   return (
     <Streamdown
       animated={live && !reduced}
-      className="[&_h1]:font-display [&_h2]:font-display [&_h3]:font-display min-w-0 [&_code]:font-mono"
+      className="[&_h1]:font-display [&_h2]:font-display [&_h3]:font-display min-w-0 [&_code]:font-mono max-sm:[&_td]:whitespace-nowrap"
       components={{ a: SafeLink }}
       controls={CONTROLS}
       disallowedElements={NO_IMAGES}
