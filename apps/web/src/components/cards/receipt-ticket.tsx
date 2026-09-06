@@ -97,6 +97,38 @@ const TransactionLine = ({
   );
 };
 
+/**
+ * What the agent was acting on when it spent: which Graph indexes answered,
+ * at which block, and the digest of the answer. "Because" is the word,
+ * since this is the justification the receipt exists to carry.
+ */
+const Because = ({
+  evidence,
+}: {
+  readonly evidence: NonNullable<Receipt["evidence"]>;
+}): React.ReactElement => {
+  const fresh = evidence.deployments.filter(
+    (deployment) => deployment.status === "fresh"
+  ).length;
+  return (
+    <details className="mt-1.5 text-xs">
+      <summary className="text-muted-foreground cursor-pointer select-none">
+        Because {fresh} of {evidence.deployments.length} Graph indexes answered
+        at a current block{evidence.stubbed ? " (a recorded fixture)" : ""}
+      </summary>
+      <ul className="text-machine text-muted-foreground mt-1 space-y-0.5">
+        {evidence.deployments.map((deployment) => (
+          <li key={deployment.id}>
+            {deployment.label} · block {deployment.blockNumber ?? "—"} ·{" "}
+            {deployment.status}
+          </li>
+        ))}
+        <li>snapshot {shortId(evidence.snapshotHash, 16)}</li>
+      </ul>
+    </details>
+  );
+};
+
 /** The machine facts: the rule, the code, the transaction, the evidence. */
 const ReceiptStub = ({
   receipt,
@@ -182,6 +214,9 @@ export const ReceiptTicket = ({
                 <span className="font-medium">{layer.who}</span>{" "}
                 <span className="text-muted-foreground">{layer.why}</span>
               </p>
+            )}
+            {compact || receipt.evidence === undefined ? null : (
+              <Because evidence={receipt.evidence} />
             )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
