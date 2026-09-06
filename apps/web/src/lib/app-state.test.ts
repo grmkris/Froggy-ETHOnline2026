@@ -153,6 +153,7 @@ const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
   agentNote: null,
   agentSigner: "absent",
   balanceLabel: "—",
+  hederaAccountId: null,
   ledgerNote: null,
   pocketUsdMicros,
   signerAddress: null,

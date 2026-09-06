@@ -79,6 +79,7 @@ const decodeDigest = Schema.decodeUnknownResult(DigestSchedule);
 type ResponseBody =
   | { readonly error: string }
   | {
+      readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
       readonly runtime: string;
       readonly status: string;
@@ -568,6 +569,8 @@ export const handleRequest = async (
 
   if (pathname === "/health") {
     return json({
+      /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
+      hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
       runtime: "bun",
       status: "ok",

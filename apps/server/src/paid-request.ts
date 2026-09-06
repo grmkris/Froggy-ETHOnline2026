@@ -141,30 +141,72 @@ const explain = (
   return null;
 };
 
-const payerFor = (
+type Requirement = PaymentChallenge["accepts"][number];
+
+/**
+ * The first offer this wallet can pay: the Hedera leg, paid by the person's
+ * own account or the host pocket, or an EVM leg paid by the person's Privy
+ * wallet with the agent as its signer. The Hedera payer is resolved by the
+ * caller, because opening an account is a network call.
+ */
+const offerFor = (
   deps: PaidRequestDeps,
   challenge: PaymentChallenge
-): {
-  readonly payer: Services["payer"];
-  readonly requirement: PaymentChallenge["accepts"][number];
-} | null => {
-  // The first offer this wallet has a payer for: the Hedera pocket, or the
-  // person's own Privy wallet with the agent as its signer.
-  const payers = [
-    deps.services.payer,
-    ...deps.services.evmPayersFor(deps.session.agentWallet),
-  ];
+):
+  | { readonly kind: "hedera"; readonly requirement: Requirement }
+  | {
+      readonly kind: "evm";
+      readonly payer: Services["payer"];
+      readonly requirement: Requirement;
+    }
+  | null => {
+  const evm = deps.services.evmPayersFor(deps.session.agentWallet);
   for (const requirement of challenge.accepts) {
-    const payer = payers.find(
-      (candidate) =>
-        candidate.network === requirement.network &&
-        requirement.scheme === "exact"
+    if (requirement.scheme !== "exact") {
+      continue;
+    }
+    if (requirement.network === deps.services.payer.network) {
+      return { kind: "hedera", requirement };
+    }
+    const payer = evm.find(
+      (candidate) => candidate.network === requirement.network
     );
     if (payer !== undefined) {
-      return { payer, requirement };
+      return { kind: "evm", payer, requirement };
     }
   }
   return null;
+};
+
+/**
+ * The payer for the offer: the EVM one it already names, or the person's
+ * Hedera payer, which may mean opening their account and may fail with a
+ * reason that belongs on the refusal.
+ */
+const payerOf = async (
+  deps: PaidRequestDeps,
+  offer: NonNullable<ReturnType<typeof offerFor>>
+): Promise<
+  | { readonly ok: true; readonly payer: Services["payer"] }
+  | { readonly ok: false; readonly message: string }
+> => {
+  if (offer.kind === "evm") {
+    return { ok: true, payer: offer.payer };
+  }
+  try {
+    return {
+      ok: true,
+      payer: await deps.services.hederaPayerFor({
+        openingUsdMicros: deps.session.pocket ?? 0,
+        userId: deps.session.userId,
+      }),
+    };
+  } catch (error) {
+    return {
+      message: `Could not open your Hedera account: ${error instanceof Error ? error.message : String(error)}. Nothing was paid.`,
+      ok: false,
+    };
+  }
 };
 
 const describeOffers = (
@@ -225,11 +267,16 @@ export const paidRequest = async (
       "That server asked for payment but its 402 did not carry usable requirements."
     );
   }
-  const offer = payerFor(deps, challenge);
+  const offer = offerFor(deps, challenge);
   if (offer === null) {
     return refused(describeOffers(deps, challenge));
   }
-  const { payer, requirement } = offer;
+  const { requirement } = offer;
+  const resolved = await payerOf(deps, offer);
+  if (!resolved.ok) {
+    return refused(resolved.message);
+  }
+  const { payer } = resolved;
   const amount = assetFor(requirement);
   if (amount === null) {
     return refused(

@@ -37,7 +37,7 @@ import {
 } from "@froggy/ui/components/tabs";
 import type { ReactElement } from "react";
 
-import { shortAddress } from "../../lib/format";
+import { hederaAccountUrl, shortAddress } from "../../lib/format";
 import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
@@ -104,6 +104,27 @@ const SignerPolicy = (): ReactElement | null => {
       <span className="text-machine text-foreground/80">{policyId}</span>: a
       spend the mandate allows can still be refused there, and Privy says why.
     </p>
+  );
+};
+
+/** The person's own Hedera account, linked, or where it will come from. */
+const HederaAccount = ({
+  wallet,
+}: {
+  readonly wallet: WalletSummary | null;
+}): ReactElement => {
+  const accountId = wallet?.hederaAccountId ?? null;
+  return accountId === null ? (
+    <>opened at the first Hedera payment</>
+  ) : (
+    <a
+      className="underline decoration-dotted underline-offset-2 hover:decoration-solid"
+      href={hederaAccountUrl(accountId)}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {accountId}
+    </a>
   );
 };
 
@@ -209,6 +230,10 @@ const About = ({
           wallet?.pocketUsdMicros === undefined
             ? "—"
             : formatUsd(wallet.pocketUsdMicros)}
+        </dd>
+        <dt className="text-muted-foreground">Hedera account</dt>
+        <dd className="text-machine">
+          <HederaAccount wallet={wallet} />
         </dd>
         <dt className="text-muted-foreground">Session</dt>
         <dd className="text-machine">{sessionId ?? "—"}</dd>

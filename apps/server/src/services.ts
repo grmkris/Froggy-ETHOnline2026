@@ -15,6 +15,7 @@
  */
 
 import { KNOWN_ASSETS } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
 import type {
@@ -25,6 +26,7 @@ import type {
 } from "@froggy/payments";
 import {
   evmPayer,
+  hederaHost,
   liveHbarRates,
   liveHcsWriter,
   liveHederaPayer,
@@ -41,6 +43,7 @@ import type {
   Store,
 } from "@froggy/wallet";
 import {
+  aesGcmKeystore,
   evmRpc,
   livePrivyServer,
   memoryLedger,
@@ -53,6 +56,8 @@ import {
 import postgres from "postgres";
 
 import type { Environment } from "./environment";
+import { createHederaAccounts } from "./hedera-accounts";
+import type { HederaAccounts } from "./hedera-accounts";
 
 /** A USDC transfer on Base Sepolia from one person's wallet, signed under the policy. */
 interface EvmTransfers {
@@ -64,6 +69,12 @@ interface EvmTransfers {
 }
 
 export interface Services {
+  /**
+   * Hedera accounts of people's own, opened at first need from the host's
+   * float; null when this deployment pays every Hedera leg from the host
+   * pocket (no key-encryption key, or no live Hedera).
+   */
+  readonly accounts: HederaAccounts | null;
   readonly environment: Environment;
   /**
    * Payers for the EVM legs, for one user's wallet, or none when the agent
@@ -82,6 +93,16 @@ export interface Services {
     wallet: { readonly address: string; readonly id: string } | null
   ) => EvmTransfers | null;
   readonly graph: GraphClient;
+  /**
+   * Who pays the Hedera leg for this person: their own account, opened with
+   * `openingUsdMicros` of HBAR when they have none, or the host pocket when
+   * this deployment has no accounts. Throws with the reason when an account
+   * cannot be opened; nothing falls back to the host under a person's name.
+   */
+  readonly hederaPayerFor: (input: {
+    readonly openingUsdMicros: number;
+    readonly userId: UserId;
+  }) => Promise<Payer>;
   /** One public note per settlement, on a Hedera topic. A stub posts nothing. */
   readonly hcs: HcsWriter;
   readonly ledger: SpendLedger;
@@ -165,8 +186,28 @@ export const createServices = (options: ServiceOptions): Services => {
 
   const rpc = evmRpc({ url: environment.evmRpcUrl });
   const usdc = KNOWN_ASSETS["eip155:84532:usdc"];
+  const store = sql === null ? memoryStore() : postgresStore(sql);
+
+  const host =
+    environment.hederaAccounts && environment.hederaKek !== null
+      ? hederaHost({
+          accountId: environment.hederaAccountId,
+          network: environment.hederaNetwork,
+          privateKey: environment.hederaPrivateKey,
+        })
+      : null;
+  const accounts =
+    host === null || environment.hederaKek === null
+      ? null
+      : createHederaAccounts({
+          host,
+          keystore: aesGcmKeystore(environment.hederaKek),
+          rates,
+          store,
+        });
 
   return {
+    accounts,
     environment,
     evmPayersFor: (wallet) => {
       if (wallet === null) {
@@ -203,14 +244,19 @@ export const createServices = (options: ServiceOptions): Services => {
     },
     graph,
     hcs,
+    hederaPayerFor: async ({ openingUsdMicros, userId }) =>
+      accounts === null
+        ? payer
+        : await accounts.payerFor(userId, openingUsdMicros),
     ledger: sql === null ? memoryLedger() : postgresLedger(sql),
     oracle,
     payer,
     privy,
     rates,
     shutdown: async () => {
+      host?.close();
       await sql?.end({ timeout: 5 });
     },
-    store: sql === null ? memoryStore() : postgresStore(sql),
+    store,
   };
 };

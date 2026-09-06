@@ -58,6 +58,21 @@ describe("memoryStore", () => {
     expect(await store.pocket.load(ALICE)).toBeNull();
   });
 
+  it("keeps a person's Hedera account, through forget", async () => {
+    const store = memoryStore();
+    expect(await store.hedera.load(ALICE)).toBeNull();
+    await store.hedera.save(ALICE, {
+      accountId: "0.0.4242",
+      keyCiphertext: "v1.nonce.body",
+    });
+    await store.forget(ALICE);
+    // The account holds money, so it outlives the preferences.
+    expect(await store.hedera.load(ALICE)).toEqual({
+      accountId: "0.0.4242",
+      keyCiphertext: "v1.nonce.body",
+    });
+  });
+
   it("keeps a pocket that never goes negative, and knows never from zero", async () => {
     const store = memoryStore();
     expect(await store.pocket.load(ALICE)).toBeNull();

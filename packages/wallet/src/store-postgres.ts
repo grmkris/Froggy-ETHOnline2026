@@ -489,7 +489,8 @@ export const postgresStore = (sql: Sql): Store => {
       await database.delete(mandates).where(eq(mandates.userId, userId));
       // The row itself stays: the ledger's spends reference it, and a spend
       // is a money record that outlives the person's preferences. The pocket
-      // goes back to null, so a returning person is credited once more.
+      // goes back to null, so a returning person is credited once more. The
+      // Hedera account stays too: it holds their money.
       await database
         .update(users)
         .set({
@@ -498,6 +499,37 @@ export const postgresStore = (sql: Sql): Store => {
           pocketUsdMicros: null,
         })
         .where(eq(users.did, userId));
+    },
+    hedera: {
+      load: async (userId) => {
+        const rows = await database
+          .select({
+            accountId: users.hederaAccountId,
+            keyCiphertext: users.hederaKeyCiphertext,
+          })
+          .from(users)
+          .where(eq(users.did, userId))
+          .limit(1);
+        const [row] = rows;
+        if (
+          row === undefined ||
+          row.accountId === null ||
+          row.keyCiphertext === null
+        ) {
+          return null;
+        }
+        return { accountId: row.accountId, keyCiphertext: row.keyCiphertext };
+      },
+      save: async (userId, record) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({
+            hederaAccountId: record.accountId,
+            hederaKeyCiphertext: record.keyCiphertext,
+          })
+          .where(eq(users.did, userId));
+      },
     },
     pocket: {
       adjust: async (userId, deltaUsdMicros) => {

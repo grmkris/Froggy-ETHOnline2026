@@ -479,24 +479,16 @@ export const handleTaskEvents = async (
   });
 };
 
+/** The Hedera `exact` offer, the one leg a keyless agent can have signed here. */
 const offerFor = (
   deps: TaskDeps,
   challenge: PaymentChallenge
-): {
-  readonly payer: Services["payer"];
-  readonly requirement: PaymentChallenge["accepts"][number];
-} | null => {
-  const { payer } = deps.services;
-  for (const requirement of challenge.accepts) {
-    if (
-      requirement.network === payer.network &&
+): PaymentChallenge["accepts"][number] | null =>
+  challenge.accepts.find(
+    (requirement) =>
+      requirement.network === deps.services.payer.network &&
       requirement.scheme === "exact"
-    ) {
-      return { payer, requirement };
-    }
-  }
-  return null;
-};
+  ) ?? null;
 
 /**
  * `POST /api/wallet/pay`: sign a payment for a 402 the caller holds, under
@@ -522,19 +514,32 @@ export const handleWalletPay = async (
   if (challenge._tag === "Failure") {
     return json({ error: "That is not an x402 challenge." }, 400);
   }
-  const offer = offerFor(deps, challenge.success);
-  if (offer === null) {
+  const requirement = offerFor(deps, challenge.success);
+  if (requirement === null) {
     return json(
       { error: "This wallet cannot pay any of the networks that 402 offers." },
       422
     );
   }
-  const { payer, requirement } = offer;
   const amount = assetFor(requirement);
   if (amount === null) {
     return json({ error: `Unknown network ${requirement.network}.` }, 422);
   }
   const { session } = workspace;
+  let payer: Services["payer"];
+  try {
+    payer = await deps.services.hederaPayerFor({
+      openingUsdMicros: session.pocket ?? 0,
+      userId: caller.userId,
+    });
+  } catch (error) {
+    return json(
+      {
+        error: `Could not open your Hedera account: ${error instanceof Error ? error.message : String(error)}. Nothing was signed.`,
+      },
+      502
+    );
+  }
   let header: string | null = null;
   const spend: SpendRequest = {
     amount,

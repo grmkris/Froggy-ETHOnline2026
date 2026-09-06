@@ -11,6 +11,8 @@ export type {
   TypedDataField,
   TypedDataValue,
 } from "./evm";
+export { HederaAccountError, hederaHost } from "./accounts";
+export type { HederaHost } from "./accounts";
 export { liveHcsWriter, SettlementNote, stubHcsWriter } from "./hcs";
 export type { HcsNote, HcsWriter, LiveHcsOptions } from "./hcs";
 export { assess, probe402 } from "./probe";

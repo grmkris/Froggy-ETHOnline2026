@@ -12,14 +12,12 @@
  */
 
 import {
-  AccountId,
-  Client,
-  PrivateKey,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
 } from "@hiero-ledger/sdk";
 import { Schema } from "effect";
 
+import { hederaClient } from "./accounts";
 import type { HederaNetwork } from "./types";
 
 /** What goes on the topic. Flat and small: a message is capped at 1024 bytes. */
@@ -64,14 +62,7 @@ export interface LiveHcsOptions {
 const encodeNote = Schema.encodeSync(Schema.fromJsonString(SettlementNote));
 
 export const liveHcsWriter = (options: LiveHcsOptions): HcsWriter => {
-  const client = (
-    options.network === "hedera:mainnet"
-      ? Client.forMainnet()
-      : Client.forTestnet()
-  ).setOperator(
-    AccountId.fromString(options.accountId),
-    PrivateKey.fromStringECDSA(options.privateKey)
-  );
+  const client = hederaClient(options);
   let topic: string | null = options.topicId === "" ? null : options.topicId;
   let creating: Promise<string | null> | null = null;
 

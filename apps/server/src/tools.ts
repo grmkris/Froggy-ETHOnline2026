@@ -262,6 +262,26 @@ export const buildTools = (deps: ToolDeps) => {
    * the refuser's words, never a reason to retry. Called only from inside
    * `session.spend`, after the mandate allowed and the ledger reserved.
    */
+  /**
+   * The ledger credit, mirrored into the person's own Hedera account from
+   * the float. A sentence for the tool's answer; never a throw, because the
+   * top-up itself has already happened.
+   */
+  const mirrorOnChain = async (usdMicros: number): Promise<string> => {
+    const { accounts } = services;
+    if (accounts === null) {
+      return "";
+    }
+    try {
+      const moved = await accounts.fund(session.userId, usdMicros);
+      return moved === null
+        ? ""
+        : ` ${(moved.tinybars / 100_000_000).toFixed(4)} HBAR moved into your Hedera account (transaction ${moved.transactionId}).`;
+    } catch (error) {
+      return ` The HBAR did not reach your Hedera account: ${error instanceof Error ? error.message : String(error)}. Tell the person; the credit stands.`;
+    }
+  };
+
   const transferUsdc = async (to: string, units: string) => {
     const transfers = services.evmTransfersFor(session.agentWallet);
     if (transfers === null) {
@@ -511,6 +531,10 @@ export const buildTools = (deps: ToolDeps) => {
           return "Top-ups are not configured on this deployment: no treasury address is set. Nothing was sent.";
         }
         const units = String(Math.round(amountUsd * 1_000_000));
+        // What became of the HBAR after the ledger was credited: nothing to
+        // say on a host-pocket deployment or before the person has an
+        // account, a transaction id when it moved, the reason when it did not.
+        let hbarNote = "";
         const attempt = session.spend({
           amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
           idempotencyKey: `topup:${amountUsd}:${deps.run.id}`,
@@ -530,6 +554,7 @@ export const buildTools = (deps: ToolDeps) => {
               // USDC has six decimals, so its units are USD millionths: the
               // credit is the amount, at par, with the rate on the receipt.
               await session.creditPocket(Number(units));
+              hbarNote = await mirrorOnChain(Number(units));
             }
             return settled;
           },
@@ -543,7 +568,7 @@ export const buildTools = (deps: ToolDeps) => {
           return `Allowed by the mandate, but the top-up did not go through: ${result.receipt.failure}. Stop here.`;
         }
         const transaction = result?.receipt.settlement?.transactionId;
-        return `Topped up: ${amountUsd} USDC to the treasury on Base Sepolia${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.`;
+        return `Topped up: ${amountUsd} USDC to the treasury on Base Sepolia${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.${hbarNote}`;
       },
       inputSchema: std(
         Schema.Struct({
@@ -564,6 +589,7 @@ export const buildTools = (deps: ToolDeps) => {
           JSON.stringify(
             {
               address: summary.address,
+              hederaAccountId: summary.hederaAccountId,
               pocketUsdMicros: summary.pocketUsdMicros,
               rules: mandate.rules,
               windowSpentUsdMicros: summary.windowSpentUsdMicros,

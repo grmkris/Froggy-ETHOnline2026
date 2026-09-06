@@ -39,6 +39,13 @@ type SalePatch = Partial<
   Pick<Sale, "deliveredAt" | "error" | "result" | "status">
 >;
 
+export interface HederaAccountRecord {
+  /** `0.0.x`. */
+  readonly accountId: string;
+  /** The account's ECDSA key, sealed by the keystore. Never the key itself. */
+  readonly keyCiphertext: string;
+}
+
 export interface Store {
   /**
    * Tokens handed to outside agents. `lookup` answers only for tokens not yet
@@ -109,6 +116,18 @@ export interface Store {
    * allowed survives.
    */
   readonly forget: (userId: UserId) => Promise<void>;
+  /**
+   * The person's own Hedera account: its id and the sealed key that signs for
+   * it. Kept on `forget`: it is money, like the ledger's spends, and a
+   * returning person finds their balance where they left it.
+   */
+  readonly hedera: {
+    readonly load: (userId: UserId) => Promise<HederaAccountRecord | null>;
+    readonly save: (
+      userId: UserId,
+      record: HederaAccountRecord
+    ) => Promise<void>;
+  };
   readonly mandates: {
     readonly load: (userId: UserId) => Promise<Mandate | null>;
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
@@ -184,6 +203,7 @@ export const memoryStore = (): Store => {
   const pairings = new Map<UserId, TelegramPairing>();
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
+  const hederaAccounts = new Map<UserId, HederaAccountRecord>();
   const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
   const sales = new Map<SaleId, Sale>();
   const tasks = new Map<TaskId, Task & { userId: UserId }>();
@@ -387,6 +407,16 @@ export const memoryStore = (): Store => {
       mandates.delete(userId);
       pockets.delete(userId);
       receipts.delete(userId);
+    },
+    hedera: {
+      load: async (userId) => {
+        await Promise.resolve();
+        return hederaAccounts.get(userId) ?? null;
+      },
+      save: async (userId, record) => {
+        await Promise.resolve();
+        hederaAccounts.set(userId, record);
+      },
     },
     mandates: {
       load: async (userId) => {

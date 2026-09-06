@@ -39,6 +39,7 @@ const PLACEHOLDER = {
   databaseUrl: "",
   graphApiKey: "REPLACE_ME_GRAPH_STUDIO_KEY",
   hederaAccountId: "0.0.0",
+  hederaKek: "REPLACE_ME_HEDERA_KEK",
   hederaPrivateKey: "0xREPLACE_ME",
   privyAgentPolicyId: "REPLACE_ME_PRIVY_POLICY_ID",
   privyAppId: "REPLACE_ME_PRIVY_APP_ID",
@@ -178,6 +179,14 @@ export interface Environment {
   /** Where the HBAR/USD rate every cap is computed from comes from. */
   /** The HCS topic settlements are noted on. Empty: created at first use. */
   readonly hederaHcsTopicId: string;
+  /**
+   * Base64, 32 bytes: the key that seals each person's Hedera key at rest.
+   * Null when unset, and then nobody gets an account of their own: every
+   * Hedera payment is made from the host pocket, as before.
+   */
+  readonly hederaKek: string | null;
+  /** Live Hedera and a KEK: people get accounts of their own, opened at first need. */
+  readonly hederaAccounts: boolean;
   readonly hederaMirrorNodeUrl: string;
   readonly hederaPrivateKey: string;
   /** Kill a browser nobody is watching or driving after this long. */
@@ -311,6 +320,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     // service paying itself is a demo of nothing, and the settlement is only
     // visible on a mirror node if the HBAR actually moves between two
     // accounts. Two accounts is the shape worth showing.
+    const hederaKek = yield* secret("HEDERA_KEK", PLACEHOLDER.hederaKek);
     const hederaHcsTopicId = yield* Config.string("HEDERA_HCS_TOPIC_ID").pipe(
       Config.withDefault("")
     );
@@ -441,8 +451,14 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       graphGatewayUrl,
       graphPayPerQuery,
       hederaAccountId,
+      hederaAccounts:
+        modes.hedera === "live" &&
+        !isPlaceholder(Redacted.value(hederaKek), PLACEHOLDER.hederaKek),
       hederaFacilitatorUrl,
       hederaHcsTopicId,
+      hederaKek: isPlaceholder(Redacted.value(hederaKek), PLACEHOLDER.hederaKek)
+        ? null
+        : Redacted.value(hederaKek),
       hederaMirrorNodeUrl,
       hederaNetwork,
       hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,

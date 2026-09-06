@@ -57,25 +57,28 @@ export const users = pgTable("users", {
    */
   digestHour: integer("digest_hour"),
   digestTimezone: text("digest_timezone"),
-  /** `0.0.x`. The Hedera pocket the agent pays small amounts from. */
+  /**
+   * `0.0.x`. The person's own Hedera account, opened by the host at their
+   * first Hedera payment and funded from the host's float. What a receipt
+   * and a seller's book name as the payer.
+   */
   hederaAccountId: text("hedera_account_id"),
   /**
-   * The pocket's private key, encrypted at rest.
+   * That account's private key, sealed under the server's key-encryption key.
    *
-   * Privy cannot hold this: its policy engine has no method for a raw
+   * Privy does not hold this key: its policy engine has no method for a raw
    * secp256k1 signature, so a Hedera transaction it signed would be signed
-   * without any policy evaluated. The caps on this key are therefore ours to
-   * enforce, and `docs/` must say so rather than implying Privy is the leash on
-   * both chains.
+   * without any policy evaluated. The caps on this key are ours to enforce,
+   * and `docs/` says so rather than implying Privy is the leash on both chains.
    */
   hederaKeyCiphertext: text("hedera_key_ciphertext"),
   /**
    * The Hedera pocket, as a balance in USD millionths.
    *
    * One host account pays every Hedera 402; this is the share of it each
-   * person may spend. A top-up under the Privy policy credits it, a spend
-   * draws it down inside the same lock as the reservation, a freeze zeroes
-   * it. Null means never initialised: the first session credits the
+   * person may spend. A top-up under the Privy policy credits it and a spend
+   * draws it down inside the same lock as the reservation. Null means never
+   * initialised: the first session credits the
    * starting allowance once, and null is how "once" is known.
    */
   pocketUsdMicros: bigint("pocket_usd_micros", { mode: "number" }),

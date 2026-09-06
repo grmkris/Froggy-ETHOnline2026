@@ -702,11 +702,16 @@ export class WorkspaceSession {
     const since = this.now() - widestWindowMs(this.mandate);
     let spent = 0;
     let ledgerNote: string | null = null;
+    let hederaAccountId: string | null = null;
     try {
-      const rows = await this.deps.ledger.since(this.userId, since);
+      const [rows, account] = await Promise.all([
+        this.deps.ledger.since(this.userId, since),
+        this.deps.store.hedera.load(this.userId),
+      ]);
       for (const row of rows) {
         spent += row.usdMicros;
       }
+      hederaAccountId = account?.accountId ?? null;
     } catch (error) {
       ledgerNote = `Spend history unavailable: ${
         error instanceof Error ? error.message : "unknown error"
@@ -723,6 +728,7 @@ export class WorkspaceSession {
       agentSigner: this.agentSigner,
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",
+      hederaAccountId,
       ledgerNote,
       pocketUsdMicros: this.pocket,
       signerAddress: this.addresses.signer,

@@ -44,6 +44,10 @@ export const WalletStatusCard = ({
         status.pocketUsdMicros === undefined ? null : (
           <Row label="pocket" value={formatUsd(status.pocketUsdMicros)} />
         )}
+        {status.hederaAccountId === null ||
+        status.hederaAccountId === undefined ? null : (
+          <Row label="hedera account" value={status.hederaAccountId} />
+        )}
         <Row
           label="rules"
           value={`${rules.length}${rules.length === 0 ? "" : `: ${rules.map((rule) => rule._tag.replaceAll("_", " ")).join(", ")}`}`}

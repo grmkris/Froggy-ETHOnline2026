@@ -116,6 +116,12 @@ export const WalletSummary = Schema.Struct({
   agentSigner: AgentSignerState,
   balanceLabel: Schema.String,
   /**
+   * The person's own Hedera account, `0.0.x`, once the host has opened one:
+   * null before their first Hedera payment, and on a deployment that pays
+   * from the host pocket.
+   */
+  hederaAccountId: Schema.NullOr(Schema.String),
+  /**
    * Set when the spend history could not be read.
    *
    * `windowSpentUsdMicros` is then a floor, not a total, and saying so matters:

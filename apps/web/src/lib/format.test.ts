@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { compactUsd, explorerUrl, hcsMessageUrl } from "./format";
+import {
+  compactUsd,
+  explorerUrl,
+  hcsMessageUrl,
+  hederaAccountUrl,
+} from "./format";
 
 describe("explorerUrl", () => {
   it("sends a Hedera id to HashScan with its @ encoded", () => {
@@ -38,6 +43,14 @@ describe("hcsMessageUrl", () => {
   it("points at the note on the topic", () => {
     expect(hcsMessageUrl("0.0.10381647", 2)).toBe(
       "https://hashscan.io/testnet/topic/0.0.10381647/message/2"
+    );
+  });
+});
+
+describe("hederaAccountUrl", () => {
+  it("sends an account to HashScan", () => {
+    expect(hederaAccountUrl("0.0.9700388")).toBe(
+      "https://hashscan.io/testnet/account/0.0.9700388"
     );
   });
 });
