@@ -614,7 +614,7 @@ describe("the pocket", () => {
     expect(second.pocket).toBe(750_000);
   });
 
-  test("draws the pocket down when a payment settles, and gives it back when one fails", async () => {
+  test("draws the pocket down when a payment settles, and gives it back when nothing was sent", async () => {
     const store = memoryStore();
     const session = pocketSession(store, 2_000_000);
     await session.hydrate();
@@ -623,21 +623,67 @@ describe("the pocket", () => {
     await session.spend(request({ key: "paid" }));
     expect(session.pocket).toBe(1_000_000);
 
-    await session.spend(
+    // The signer refused: the header never left, so the draw comes back and
+    // the row is abandoned rather than failed.
+    const refused = await session.spend(
       request({
-        key: "failed",
+        key: "refused-by-signer",
         settle: async () => {
           await Promise.resolve();
           return {
             error: "the facilitator said no",
             network: "hedera:testnet",
             ok: false,
+            sent: false,
             stubbed: false,
             transactionId: null,
           };
         },
       })
     );
+    expect(refused.receipt.failure).toBe("the facilitator said no");
+    expect(session.pocket).toBe(1_000_000);
+    expect(await store.pocket.load(ALICE)).toBe(1_000_000);
+  });
+
+  test("keeps the draw when a sent payment is not confirmed either way, and gives it back only when the network says it failed", async () => {
+    const store = memoryStore();
+    const session = pocketSession(store, 3_000_000);
+    await session.hydrate();
+
+    const failedAfterSend = (
+      verdict: "failed" | "success" | "unknown",
+      key: string
+    ) =>
+      request({
+        key,
+        reconcile: async () => await Promise.resolve(verdict),
+        settle: async () => {
+          await Promise.resolve();
+          return {
+            error: "the seller answered 502",
+            network: "hedera:testnet",
+            ok: false,
+            sent: true,
+            stubbed: false,
+            transactionId: "0.0.1@42",
+          };
+        },
+      });
+
+    // Nobody knows: the dollar stays reserved and the receipt says so.
+    const unknown = await session.spend(failedAfterSend("unknown", "unknown"));
+    expect(session.pocket).toBe(2_000_000);
+    expect(unknown.receipt.failure).toContain("not yet known");
+
+    // The mirror node says it landed: paid, and the receipt keeps the seller's error.
+    const landed = await session.spend(failedAfterSend("success", "landed"));
+    expect(session.pocket).toBe(1_000_000);
+    expect(landed.receipt.failure).toBe("paid, but the seller answered 502");
+    expect(landed.receipt.settlement?.transactionId).toBe("0.0.1@42");
+
+    // The mirror node says it did not: the draw comes back.
+    await session.spend(failedAfterSend("failed", "bounced"));
     expect(session.pocket).toBe(1_000_000);
     expect(await store.pocket.load(ALICE)).toBe(1_000_000);
   });

@@ -28,6 +28,14 @@ export type {
   ProbeSummary,
 } from "./probe";
 export { decodeSettlementHeader, encodeSettlementHeader } from "./settlement";
+export { describePayment } from "./inspect";
+export type { PaymentDescription } from "./inspect";
+export {
+  lookupHederaTransaction,
+  mirrorTransactionId,
+  reconcileHederaPayment,
+} from "./mirror";
+export type { MirrorFetch, MirrorLookup, MirrorVerdict } from "./mirror";
 export type { SettlementHeader } from "./settlement";
 export {
   liveHbarRates,

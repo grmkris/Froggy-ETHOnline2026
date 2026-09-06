@@ -26,7 +26,11 @@ import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
-import { handleOracleRequest } from "./oracle-route";
+import {
+  handleOracleRequest,
+  handleSaleLookup,
+  SALES_PATH,
+} from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
@@ -442,8 +446,18 @@ export const handleRequest = async (
         graph: deps.services.graph,
         hcs: deps.services.hcs,
         publicUrl: deps.oracleUrl,
+        store: deps.services.store,
       },
       request
+    );
+  }
+
+  // What a sale bought, for the buyer that holds its id. No token: the id
+  // is unguessable and names nothing about who paid.
+  if (pathname.startsWith(SALES_PATH) && request.method === "GET") {
+    return await handleSaleLookup(
+      { store: deps.services.store },
+      pathname.slice(SALES_PATH.length)
     );
   }
 

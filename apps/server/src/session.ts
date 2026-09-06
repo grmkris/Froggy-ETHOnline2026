@@ -31,6 +31,7 @@ import {
   priceInUsdMicros,
 } from "@froggy/domain";
 import type {
+  SpendStatus,
   Amount,
   ApprovalKind,
   ApprovalRecord,
@@ -109,9 +110,20 @@ export interface SpendRequest {
     readonly hcsSequence?: number;
     readonly network: string;
     readonly ok: boolean;
+    /**
+     * True once the payment left this process: the header was handed to a
+     * seller or a facilitator. A failure before that never moved money and is
+     * refunded; a failure after it is only refunded when the network says so.
+     */
+    readonly sent?: boolean;
     readonly stubbed: boolean;
     readonly transactionId: string | null;
   }>;
+  /**
+   * Ask the network what became of a payment that was sent and not confirmed.
+   * Absent for legs with no mirror to ask, which stay `uncertain`.
+   */
+  readonly reconcile?: () => Promise<"failed" | "success" | "unknown">;
 }
 
 /** What a settlement reports back. Named because three paths now handle it. */
@@ -135,6 +147,20 @@ const settlementOf = (
   hcsSequence === undefined
     ? { network, transactionId }
     : { hcsSequence, network, transactionId };
+
+/** The network's word on a sent payment, or `unknown` when there is no one to ask. */
+const verdictOf = async (
+  request: SpendRequest
+): Promise<"failed" | "success" | "unknown"> => {
+  if (request.reconcile === undefined) {
+    return "unknown";
+  }
+  try {
+    return await request.reconcile();
+  } catch {
+    return "unknown";
+  }
+};
 
 /** No money moved. The shape a failed or abandoned settlement reports. */
 const unpaid = (request: SpendRequest): Settled => ({
@@ -1119,14 +1145,41 @@ export class WorkspaceSession {
     try {
       outcome = await request.settle();
     } catch (error) {
+      // A throw is a failure before anything was sent: the settle closures
+      // catch their own transport errors and report `sent` themselves.
       outcome = {
         ...unpaid(request),
         error: error instanceof Error ? error.message : "settlement threw",
       };
     }
     publish(outcome);
-    await this.deps.ledger.settle(row.id, outcome.ok ? "settled" : "failed");
+
+    // Three facts a failure can be, and only one of them gives money back:
+    // nothing sent (refund), the network says it did not go through
+    // (refund), or nobody knows (keep the reservation, say so on the receipt).
+    let status: SpendStatus = "settled";
+    let failure = outcome.ok ? undefined : (outcome.error ?? "not settled");
+    let refund = false;
     if (!outcome.ok) {
+      if (outcome.sent === true) {
+        const verdict = await verdictOf(request);
+        if (verdict === "success") {
+          status = "settled";
+          failure = `paid, but ${failure}`;
+        } else if (verdict === "failed") {
+          status = "failed";
+          refund = true;
+        } else {
+          status = "uncertain";
+          failure = `${failure}; whether the payment landed is not yet known`;
+        }
+      } else {
+        status = "abandoned";
+        refund = true;
+      }
+    }
+    await this.deps.ledger.settle(row.id, status);
+    if (refund) {
       await this.refund(judged);
     }
 
@@ -1136,7 +1189,7 @@ export class WorkspaceSession {
       at,
       decision,
       evidence: request.evidence,
-      failure: outcome.ok ? undefined : (outcome.error ?? "not settled"),
+      failure,
       intent,
       quote,
       runId: request.runId,

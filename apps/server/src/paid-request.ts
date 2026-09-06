@@ -15,7 +15,9 @@ import { publicHttpUrl } from "@froggy/domain";
 import {
   challengeFrom,
   decodeSettlementHeader,
+  describePayment,
   paymentHeaders,
+  reconcileHederaPayment,
   settlementHeaderFrom,
   SignerRefusedError,
 } from "@froggy/payments";
@@ -237,6 +239,11 @@ export const paidRequest = async (
 
   let paidBody: string | null = null;
   let paidStatus = 0;
+  // What the reconciler needs when the seller goes quiet after the header
+  // left: the id the seller reported, or failing that the id inside our own
+  // signed payload, which Hedera assigns before anything is sent.
+  let sentHeader: string | null = null;
+  let reportedTransactionId: string | null = null;
   const request: SpendRequest = {
     amount,
     host: target.host,
@@ -253,6 +260,24 @@ export const paidRequest = async (
     runId: deps.run.id,
     signal: deps.run.signal,
     toolCallId: input.toolCallId,
+    reconcile: async () => {
+      // Only Hedera has a mirror to ask, and only a real payment is on it.
+      if (!requirement.network.startsWith("hedera:") || payer.mode !== "live") {
+        return "unknown";
+      }
+      const transactionId =
+        reportedTransactionId ??
+        (sentHeader === null
+          ? null
+          : describePayment(sentHeader).transactionId);
+      if (transactionId === null) {
+        return "unknown";
+      }
+      return await reconcileHederaPayment({
+        network: requirement.network,
+        transactionId,
+      });
+    },
     settle: async () => {
       let attempt: PaymentAttempt;
       try {
@@ -268,6 +293,7 @@ export const paidRequest = async (
             error: error.message,
             network: requirement.network,
             ok: false,
+            sent: false,
             stubbed: false,
             transactionId: null,
           };
@@ -279,15 +305,31 @@ export const paidRequest = async (
           error: attempt.error ?? "no payment could be built",
           network: requirement.network,
           ok: false,
+          sent: false,
           stubbed: attempt.stubbed,
           transactionId: null,
         };
       }
-      const paid = await safeFetch(
-        input.url,
-        withPayment(input.init, attempt.header),
-        deps.outbound
-      );
+      // From here the header has left the process, so every failure is one
+      // that may have moved money and is reported as sent.
+      sentHeader = attempt.header;
+      let paid: Response;
+      try {
+        paid = await safeFetch(
+          input.url,
+          withPayment(input.init, attempt.header),
+          deps.outbound
+        );
+      } catch (error) {
+        return {
+          error: `the seller could not be reached: ${error instanceof Error ? error.message : "unknown error"}`,
+          network: requirement.network,
+          ok: false,
+          sent: true,
+          stubbed: attempt.stubbed,
+          transactionId: null,
+        };
+      }
       paidStatus = paid.status;
       paidBody = await readCapped(paid);
       // The settlement comes back as x402's base64 envelope; an older
@@ -296,9 +338,11 @@ export const paidRequest = async (
       const settlement = decodeSettlementHeader(
         settlementHeaderFrom(paid.headers)
       );
+      reportedTransactionId = settlement?.transactionId ?? null;
       const outcome = {
         network: settlement?.network ?? requirement.network,
         ok: paid.ok,
+        sent: true,
         stubbed: attempt.stubbed,
         transactionId: settlement?.transactionId ?? null,
       };
