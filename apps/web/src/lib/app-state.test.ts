@@ -9,8 +9,8 @@ import {
   SpendId,
   usdMicros,
 } from "@froggy/domain";
-import type { Receipt } from "@froggy/domain";
-import type { ApprovalRequest } from "@froggy/protocol";
+import type { Mandate, Receipt } from "@froggy/domain";
+import type { ApprovalRequest, WalletSummary } from "@froggy/protocol";
 
 import { bindingWindowCap, initialAppState, reduceApp } from "./app-state";
 import type { AppEvent, AppState } from "./app-state";
@@ -145,5 +145,80 @@ describe("bindingWindowCap", () => {
     });
     expect(cap).toEqual({ maxUsdMicros: 10_000_000, windowMs: 86_400_000 });
     expect(bindingWindowCap(null)).toBeNull();
+  });
+});
+
+const mandateOf = (frozen: boolean): Mandate => ({
+  createdAt: 1,
+  frozen,
+  id: MandateId.generate(),
+  rules: [],
+  sessionId: SessionId.generate(),
+});
+
+const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
+  address: null,
+  agentNote: null,
+  agentSigner: "absent",
+  balanceLabel: "—",
+  ledgerNote: null,
+  pocketUsdMicros,
+  signerAddress: null,
+  windowSpentUsdMicros: 0,
+});
+
+describe("timeline events", () => {
+  it("files a freeze and an unfreeze, but not the first mandate or a resend", () => {
+    let state = server(
+      initialAppState,
+      { mandate: mandateOf(false), type: "mandate.state", v: 1 },
+      10
+    );
+    expect(state.events).toEqual([]);
+    state = server(
+      state,
+      { mandate: mandateOf(true), type: "mandate.state", v: 1 },
+      20
+    );
+    expect(state.events.map((event) => event.kind)).toEqual(["frozen"]);
+    // A reconnect resends the same state; that is not a second freeze.
+    state = server(
+      state,
+      { mandate: mandateOf(true), type: "mandate.state", v: 1 },
+      25
+    );
+    expect(state.events).toHaveLength(1);
+    state = server(
+      state,
+      { mandate: mandateOf(false), type: "mandate.state", v: 1 },
+      30
+    );
+    expect(state.events.map((event) => event.kind)).toEqual([
+      "frozen",
+      "unfrozen",
+    ]);
+    expect(state.events.at(-1)?.at).toBe(30);
+  });
+
+  it("files a top-up when the pocket grows, and nothing when it shrinks", () => {
+    let state = server(
+      initialAppState,
+      { type: "wallet.state", v: 1, wallet: walletOf(100_000) },
+      1
+    );
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletOf(1_100_000) },
+      2
+    );
+    expect(state.events).toMatchObject([
+      { kind: "topup", text: "The pocket was topped up by $1.00, to $1.10." },
+    ]);
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletOf(1_000_000) },
+      3
+    );
+    expect(state.events).toHaveLength(1);
   });
 });

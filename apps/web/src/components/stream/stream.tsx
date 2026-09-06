@@ -28,6 +28,7 @@ import type { ReactElement, ReactNode } from "react";
 
 import type { StreamItem } from "../../lib/stream-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { MarkerRow } from "./marker-row";
 import { Turn } from "./turn";
 
 interface StreamProps {
@@ -118,12 +119,25 @@ export const Stream = ({
                 {empty}
               </MessageScrollerItem>
             ) : null}
-            {items.map((item) =>
-              item.kind === "earlier" ? (
-                <MessageScrollerItem key="earlier" messageId="earlier">
-                  <Earlier receipts={item.receipts} />
-                </MessageScrollerItem>
-              ) : (
+            {items.map((item) => {
+              if (item.kind === "earlier") {
+                return (
+                  <MessageScrollerItem key="earlier" messageId="earlier">
+                    <Earlier receipts={item.receipts} />
+                  </MessageScrollerItem>
+                );
+              }
+              if (item.kind === "marker") {
+                return (
+                  <MessageScrollerItem
+                    key={item.event.id}
+                    messageId={item.event.id}
+                  >
+                    <MarkerRow event={item.event} />
+                  </MessageScrollerItem>
+                );
+              }
+              return (
                 <MessageScrollerItem
                   key={item.message.id}
                   messageId={item.message.id}
@@ -137,8 +151,8 @@ export const Stream = ({
                     receipts={item.receipts}
                   />
                 </MessageScrollerItem>
-              )
-            )}
+              );
+            })}
             {thinking ? (
               <MessageScrollerItem messageId="thinking">
                 <ThinkingMarker />

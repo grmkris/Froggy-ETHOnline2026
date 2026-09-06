@@ -12,6 +12,8 @@
 import type { Receipt } from "@froggy/domain";
 import type { ChatStatus, UIMessage } from "ai";
 
+import type { TimelineEvent } from "./app-state";
+
 /** What the server stamps on a message. Both fields are absent on a client draft. */
 interface TurnMetadata {
   readonly at?: number;
@@ -24,6 +26,10 @@ export type StreamItem =
   | {
       readonly kind: "earlier";
       readonly receipts: readonly Receipt[];
+    }
+  | {
+      readonly event: TimelineEvent;
+      readonly kind: "marker";
     }
   | {
       readonly kind: "turn";
@@ -48,9 +54,48 @@ export const lastBrowserTurn = (
   return null;
 };
 
+/**
+ * Events between the turns, at the moment they happened.
+ *
+ * An event goes after the last message that started at or before it; one
+ * from before the first message goes first. A message with no clock — a
+ * draft still being sent — sits with the message before it.
+ */
+const interleave = (
+  turns: readonly StreamItem[],
+  messages: readonly FroggyMessage[],
+  events: readonly TimelineEvent[]
+): readonly StreamItem[] => {
+  const sorted = events.toSorted((a, b) => a.at - b.at);
+  const placed: StreamItem[] = [];
+  let cursor = 0;
+  const flushBefore = (limit: number | null): void => {
+    for (;;) {
+      const next = sorted[cursor];
+      if (next === undefined || (limit !== null && next.at >= limit)) {
+        return;
+      }
+      placed.push({ event: next, kind: "marker" });
+      cursor += 1;
+    }
+  };
+  const clocks = messages.map((message) => message.metadata?.at ?? null);
+  flushBefore(clocks.find((clock) => clock !== null) ?? null);
+  for (const [index, turn] of turns.entries()) {
+    placed.push(turn);
+    const nextClock = clocks.slice(index + 1).find((clock) => clock !== null);
+    if (nextClock !== undefined) {
+      flushBefore(nextClock);
+    }
+  }
+  flushBefore(null);
+  return placed;
+};
+
 export const buildStream = (
   messages: readonly FroggyMessage[],
-  receipts: readonly Receipt[]
+  receipts: readonly Receipt[],
+  events: readonly TimelineEvent[] = []
 ): readonly StreamItem[] => {
   const byRun = new Map<string, Receipt[]>();
   for (const receipt of receipts.toSorted((a, b) => a.at - b.at)) {
@@ -67,9 +112,10 @@ export const buildStream = (
     return { kind: "turn", message, receipts: attached };
   });
   const earlier = [...byRun.values()].flat().toSorted((a, b) => a.at - b.at);
+  const placed = interleave(turns, messages, events);
   return earlier.length === 0
-    ? turns
-    : [{ kind: "earlier", receipts: earlier }, ...turns];
+    ? placed
+    : [{ kind: "earlier", receipts: earlier }, ...placed];
 };
 
 /**

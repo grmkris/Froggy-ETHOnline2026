@@ -9,8 +9,9 @@ import {
 } from "@froggy/domain";
 import type { Receipt, RunId as RunIdType } from "@froggy/domain";
 
+import type { TimelineEvent } from "./app-state";
 import { buildStream, lastBrowserTurn, showThinking } from "./stream-model";
-import type { FroggyMessage } from "./stream-model";
+import type { FroggyMessage, StreamItem } from "./stream-model";
 
 const receipt = (runId: RunIdType, at: number): Receipt => ({
   at,
@@ -49,6 +50,38 @@ const turn = (
   role: "assistant",
 });
 
+/** The receipts filed on an item; a marker files none. */
+const receiptsAt = (
+  stream: readonly StreamItem[],
+  index: number
+): readonly number[] => {
+  const item = stream[index];
+  return item === undefined || item.kind === "marker"
+    ? []
+    : item.receipts.map((entry) => entry.at);
+};
+
+const event = (at: number): TimelineEvent => ({
+  at,
+  id: `e${at}`,
+  kind: "frozen",
+  text: "frozen",
+});
+
+const clocked = (id: string, at: number): FroggyMessage => ({
+  id,
+  metadata: { at },
+  parts: [{ text: "hi", type: "text" }],
+  role: "assistant",
+});
+
+const label = (item: StreamItem): string => {
+  if (item.kind === "marker") {
+    return `e${item.event.at}`;
+  }
+  return item.kind === "turn" ? item.message.id : "earlier";
+};
+
 describe("buildStream", () => {
   it("files each receipt under the turn that produced it, oldest first", () => {
     const runA = RunId.generate();
@@ -58,8 +91,8 @@ describe("buildStream", () => {
       [receipt(runB, 30), receipt(runA, 10), receipt(runA, 20)]
     );
     expect(stream.map((item) => item.kind)).toEqual(["turn", "turn"]);
-    expect(stream[0]?.receipts.map((entry) => entry.at)).toEqual([10, 20]);
-    expect(stream[1]?.receipts.map((entry) => entry.at)).toEqual([30]);
+    expect(receiptsAt(stream, 0)).toEqual([10, 20]);
+    expect(receiptsAt(stream, 1)).toEqual([30]);
   });
 
   it("groups receipts with no turn on screen as earlier, once, at the top", () => {
@@ -69,7 +102,7 @@ describe("buildStream", () => {
       [receipt(orphan, 5), receipt(orphan, 2)]
     );
     expect(stream[0]).toMatchObject({ kind: "earlier" });
-    expect(stream[0]?.receipts.map((entry) => entry.at)).toEqual([2, 5]);
+    expect(receiptsAt(stream, 0)).toEqual([2, 5]);
     expect(stream.length).toBe(2);
   });
 
@@ -143,5 +176,30 @@ describe("showThinking", () => {
   it("shows nothing when the chat is idle or errored", () => {
     expect(showThinking([asked], "ready")).toBe(false);
     expect(showThinking([], "error")).toBe(false);
+  });
+});
+
+describe("buildStream with events", () => {
+  it("puts each event after the last message that started before it", () => {
+    const stream = buildStream(
+      [clocked("m1", 10), clocked("m2", 20), clocked("m3", 30)],
+      [],
+      [event(25), event(5), event(40)]
+    );
+    expect(stream.map(label)).toEqual(["e5", "m1", "m2", "e25", "m3", "e40"]);
+  });
+
+  it("keeps a message without a clock beside the one before it", () => {
+    const draft: FroggyMessage = {
+      id: "d",
+      parts: [{ text: "x", type: "text" }],
+      role: "user",
+    };
+    const stream = buildStream(
+      [clocked("m1", 10), draft, clocked("m3", 30)],
+      [],
+      [event(15)]
+    );
+    expect(stream.map(label)).toEqual(["m1", "e15", "d", "m3"]);
   });
 });

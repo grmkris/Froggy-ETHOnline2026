@@ -9,6 +9,7 @@
  * answers it, and a protocol error must be said rather than swallowed.
  */
 
+import { formatUsd } from "@froggy/domain";
 import type { Mandate, PolicyDecision, Receipt } from "@froggy/domain";
 import type {
   AppServerMessage,
@@ -24,9 +25,23 @@ export interface Notice {
   readonly tone: "error" | "info";
 }
 
+/**
+ * Something that happened to the wallet while the conversation went on, and
+ * belongs in it: a freeze, an unfreeze, a top-up. Filed in the stream at the
+ * moment it happened, as a marker between turns.
+ */
+export interface TimelineEvent {
+  readonly at: number;
+  readonly id: string;
+  readonly kind: "frozen" | "topup" | "unfrozen";
+  readonly text: string;
+}
+
 export interface AppState {
   readonly approvals: readonly ApprovalRequest[];
   readonly connected: boolean;
+  /** Oldest first. */
+  readonly events: readonly TimelineEvent[];
   readonly lastDecision: PolicyDecision | null;
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
@@ -53,6 +68,7 @@ export type AppEvent =
 export const initialAppState: AppState = {
   approvals: [],
   connected: false,
+  events: [],
   lastDecision: null,
   mandate: null,
   modes: null,
@@ -64,6 +80,69 @@ export const initialAppState: AppState = {
 
 /** How many notices are kept on screen. Older ones are the log's problem. */
 const MAX_NOTICES = 3;
+/** How many timeline events are kept. A day of freezes is not this many. */
+const MAX_EVENTS = 100;
+
+/**
+ * What changed, as an event, when a state message differs from what we had.
+ *
+ * Only differences: the first mandate and the first wallet summary are the
+ * starting point, not a change, and a reconnect resending the same state
+ * must not file a second marker.
+ */
+const eventsFrom = (
+  state: AppState,
+  message: AppServerMessage,
+  at: number
+): readonly TimelineEvent[] => {
+  if (message.type === "mandate.state") {
+    const before = state.mandate?.frozen ?? null;
+    const after = message.mandate.frozen;
+    if (before === null || before === after) {
+      return [];
+    }
+    return after
+      ? [
+          {
+            at,
+            id: `frozen:${at}`,
+            kind: "frozen",
+            text: "The wallet was frozen. The pocket is zero and nothing is spent until it is unfrozen.",
+          },
+        ]
+      : [
+          {
+            at,
+            id: `unfrozen:${at}`,
+            kind: "unfrozen",
+            text: "The wallet was unfrozen.",
+          },
+        ];
+  }
+  if (message.type === "wallet.state") {
+    const before = state.wallet?.pocketUsdMicros ?? null;
+    const after = message.wallet.pocketUsdMicros ?? null;
+    if (before === null || after === null || after <= before) {
+      return [];
+    }
+    return [
+      {
+        at,
+        id: `topup:${at}`,
+        kind: "topup",
+        text: `The pocket was topped up by ${formatUsd(after - before)}, to ${formatUsd(after)}.`,
+      },
+    ];
+  }
+  return [];
+};
+
+const withEvents = (
+  state: AppState,
+  message: AppServerMessage,
+  at: number
+): readonly TimelineEvent[] =>
+  [...state.events, ...eventsFrom(state, message, at)].slice(-MAX_EVENTS);
 
 /** Merge without duplicates, newest first. Reconnects and backfills both land here. */
 const mergeReceipts = (
@@ -87,10 +166,18 @@ const onServer = (
       return { ...state, modes: message.modes, sessionId: message.sessionId };
     }
     case "mandate.state": {
-      return { ...state, mandate: message.mandate };
+      return {
+        ...state,
+        events: withEvents(state, message, at),
+        mandate: message.mandate,
+      };
     }
     case "wallet.state": {
-      return { ...state, wallet: message.wallet };
+      return {
+        ...state,
+        events: withEvents(state, message, at),
+        wallet: message.wallet,
+      };
     }
     case "receipt.appended": {
       return {
