@@ -40,6 +40,9 @@ export const explorerUrl = (
     case "hedera:testnet": {
       return `https://hashscan.io/testnet/transaction/${id}`;
     }
+    case "hedera:mainnet": {
+      return `https://hashscan.io/mainnet/transaction/${id}`;
+    }
     case "eip155:84532": {
       return `https://sepolia.basescan.org/tx/${id}`;
     }
@@ -62,10 +65,24 @@ const COMPACT_USD = new Intl.NumberFormat("en", {
 /** "$96M", "$1.2B", "$412K": a market's size at a glance. */
 export const compactUsd = (usd: number): string => COMPACT_USD.format(usd);
 
+/** HashScan's path segment for a Hedera network; testnet for anything unknown. */
+const hashscanNetwork = (network: string): string =>
+  network === "hedera:mainnet" ? "mainnet" : "testnet";
+
 /** A person's own Hedera account on HashScan. */
-export const hederaAccountUrl = (accountId: string): string =>
-  `https://hashscan.io/testnet/account/${encodeURIComponent(accountId)}`;
+export const hederaAccountUrl = (accountId: string, network: string): string =>
+  `https://hashscan.io/${hashscanNetwork(network)}/account/${encodeURIComponent(accountId)}`;
+
+/** An EVM address on the explorer of its Base. */
+export const evmAddressUrl = (address: string, network: string): string =>
+  network === "eip155:8453"
+    ? `https://basescan.org/address/${encodeURIComponent(address)}`
+    : `https://sepolia.basescan.org/address/${encodeURIComponent(address)}`;
 
 /** The HCS note itself, on HashScan, by topic and sequence number. */
-export const hcsMessageUrl = (topicId: string, sequence: number): string =>
-  `https://hashscan.io/testnet/topic/${encodeURIComponent(topicId)}/message/${sequence}`;
+export const hcsMessageUrl = (
+  topicId: string,
+  sequence: number,
+  network = "hedera:testnet"
+): string =>
+  `https://hashscan.io/${hashscanNetwork(network)}/topic/${encodeURIComponent(topicId)}/message/${sequence}`;

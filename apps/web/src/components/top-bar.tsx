@@ -49,9 +49,9 @@ const Pocket = ({
   pocketUsdMicros === null || pocketUsdMicros === undefined ? null : (
     <span
       className="flex items-baseline gap-1 text-xs whitespace-nowrap"
-      title="What is left in the Hedera pocket the paid requests are drawn from. A top-up adds to it."
+      title="Your service credit: what Froggy may spend on Hedera for you. A top-up adds to it."
     >
-      <span className="text-muted-foreground">pocket</span>
+      <span className="text-muted-foreground">credit</span>
       <span className="text-money text-sm leading-none">
         {formatUsd(pocketUsdMicros)}
       </span>

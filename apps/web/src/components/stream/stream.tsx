@@ -36,6 +36,8 @@ interface StreamProps {
   readonly asking: boolean;
   readonly busy: boolean;
   readonly empty: ReactNode;
+  /** Rendered first, above the conversation and the empty screen alike: the wallet. */
+  readonly header?: ReactNode;
   readonly items: readonly StreamItem[];
   /** The message the live page card sits under; null puts it at the top. */
   readonly liveAfter: string | null;
@@ -91,6 +93,7 @@ export const Stream = ({
   asking,
   busy,
   empty,
+  header,
   items,
   liveAfter,
   liveCard,
@@ -116,6 +119,11 @@ export const Stream = ({
             className="mx-auto w-full max-w-3xl gap-5"
             role="log"
           >
+            {header === undefined ? null : (
+              <MessageScrollerItem messageId="wallet">
+                {header}
+              </MessageScrollerItem>
+            )}
             {liveAtTop ? (
               <MessageScrollerItem messageId="live">
                 {liveCard}

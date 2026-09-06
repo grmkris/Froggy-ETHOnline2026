@@ -107,6 +107,11 @@ beforeAll(async () => {
       ledger: services.ledger,
       modes: environment.modes,
       onPolicyDecision: noop,
+      balances: {
+        hbar: async () => await Promise.resolve(null),
+        usdc: async () => await Promise.resolve(null),
+      },
+      networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
       onReceipt: noop,
       pocket: {
         networks: ["hedera:testnet"],

@@ -116,6 +116,20 @@ export const WalletSummary = Schema.Struct({
   agentSigner: AgentSignerState,
   balanceLabel: Schema.String,
   /**
+   * What the chains say the person holds, read for display and never spent
+   * on the strength of: USDC in the wallet on the configured Base, HBAR in
+   * their own Hedera account, and the rate that prices the HBAR. Null where
+   * nothing answered or there is no account yet. The networks say which
+   * explorer a link goes to.
+   */
+  balances: Schema.Struct({
+    evmNetwork: Schema.String,
+    hbarTinybars: Schema.NullOr(Schema.String),
+    hederaNetwork: Schema.String,
+    usdMicrosPerHbar: Schema.NullOr(Schema.Finite),
+    usdcUnits: Schema.NullOr(Schema.String),
+  }),
+  /**
    * The person's own Hedera account, `0.0.x`, once the host has opened one:
    * null before their first Hedera payment, and on a deployment that pays
    * from the host pocket.

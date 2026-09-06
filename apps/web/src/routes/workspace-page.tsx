@@ -35,6 +35,7 @@ import { DetailsDrawer } from "../components/drawer/details-drawer";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
 import { TopBar } from "../components/top-bar";
+import { WalletHome } from "../components/wallet/wallet-home";
 import { useAppSocket } from "../hooks/use-app-socket";
 import { useBrowserSocket } from "../hooks/use-browser-socket";
 import { useMediaQuery } from "../hooks/use-media-query";
@@ -301,6 +302,18 @@ export const WorkspacePage = (): ReactElement => {
             <Stream
               asking={app.approvals.length > 0}
               busy={busy}
+              header={
+                <WalletHome
+                  onConnectAgent={() => {
+                    setDetailsOpen(true);
+                  }}
+                  onTopUp={(amountUsd) => {
+                    send(`Top up the pocket with ${amountUsd} USDC`);
+                  }}
+                  receipts={app.receipts}
+                  wallet={app.wallet}
+                />
+              }
               empty={
                 <EmptyState
                   disabled={disabledReason !== null}

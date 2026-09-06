@@ -26,6 +26,7 @@ import type {
 } from "@froggy/payments";
 import {
   evmPayer,
+  hederaAccountBalance,
   hederaHost,
   liveHbarRates,
   liveHcsWriter,
@@ -44,6 +45,8 @@ import type {
 } from "@froggy/wallet";
 import {
   aesGcmKeystore,
+  decodeUint256,
+  encodeBalanceOf,
   evmRpc,
   livePrivyServer,
   memoryLedger,
@@ -68,6 +71,12 @@ interface EvmTransfers {
   }) => Promise<Erc20TransferOutcome>;
 }
 
+/** What the chains say someone holds. Display only; null when nothing answered. */
+interface Balances {
+  readonly hbar: (accountId: string) => Promise<bigint | null>;
+  readonly usdc: (address: string) => Promise<bigint | null>;
+}
+
 export interface Services {
   /**
    * Hedera accounts of people's own, opened at first need from the host's
@@ -75,6 +84,8 @@ export interface Services {
    * pocket (no key-encryption key, or no live Hedera).
    */
   readonly accounts: HederaAccounts | null;
+  /** Balances from the chains, cached briefly so a wallet pane does not poll the RPC per render. */
+  readonly balances: Balances;
   readonly environment: Environment;
   /**
    * Payers for the EVM legs, for one user's wallet, or none when the agent
@@ -208,8 +219,52 @@ export const createServices = (options: ServiceOptions): Services => {
           store,
         });
 
+  // A short cache: the wallet pane asks on every publish and every socket
+  // open, and a balance that is fifteen seconds old is still the balance.
+  const BALANCE_TTL_MS = 15_000;
+  const cached = new Map<string, { at: number; value: bigint | null }>();
+  const remember = async (
+    key: string,
+    read: () => Promise<bigint | null>
+  ): Promise<bigint | null> => {
+    const hit = cached.get(key);
+    const now = Date.now();
+    if (hit !== undefined && now - hit.at < BALANCE_TTL_MS) {
+      return hit.value;
+    }
+    const value = await read();
+    cached.set(key, { at: now, value });
+    return value;
+  };
+  const balances: Balances = {
+    hbar: async (accountId) =>
+      await remember(`hbar:${accountId}`, async () =>
+        environment.modes.hedera === "live"
+          ? await hederaAccountBalance({
+              accountId,
+              network: environment.hederaNetwork,
+            })
+          : null
+      ),
+    usdc: async (address) =>
+      await remember(`usdc:${address}`, async () => {
+        if (environment.modes.privy !== "live") {
+          return null;
+        }
+        try {
+          return decodeUint256(
+            await rpc.call(usdc.id, encodeBalanceOf(address))
+          );
+        } catch {
+          // A display figure: the RPC being down shows as unknown, not as zero.
+          return null;
+        }
+      }),
+  };
+
   return {
     accounts,
+    balances,
     environment,
     evmPayersFor: (wallet) => {
       if (wallet === null) {

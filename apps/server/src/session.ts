@@ -29,6 +29,7 @@ import {
   defaultRules,
   formatUsd,
   priceInUsdMicros,
+  KNOWN_ASSETS,
 } from "@froggy/domain";
 import type {
   SpendStatus,
@@ -209,6 +210,13 @@ export interface SessionDeps {
   readonly now?: () => number;
   readonly onPolicyDecision: (decision: PolicyDecision) => void;
   readonly onReceipt: (receipt: Receipt) => void;
+  /** What the chains say the person holds; display only. */
+  readonly balances: {
+    readonly hbar: (accountId: string) => Promise<bigint | null>;
+    readonly usdc: (address: string) => Promise<bigint | null>;
+  };
+  /** Which Base and which Hedera this deployment is on, for the pane's links. */
+  readonly networks: { readonly evm: string; readonly hedera: string };
   /**
    * The pocket the host pays these networks from, as this person's share of
    * it: a balance drawn down under the same lock as the reservation, given
@@ -704,6 +712,8 @@ export class WorkspaceSession {
     let spent = 0;
     let ledgerNote: string | null = null;
     let hederaAccountId: string | null = null;
+    let hbarTinybars: bigint | null = null;
+    let usdcUnits: bigint | null = null;
     try {
       const [rows, account] = await Promise.all([
         this.deps.ledger.since(this.userId, since),
@@ -713,6 +723,14 @@ export class WorkspaceSession {
         spent += row.usdMicros;
       }
       hederaAccountId = account?.accountId ?? null;
+      [hbarTinybars, usdcUnits] = await Promise.all([
+        hederaAccountId === null
+          ? null
+          : this.deps.balances.hbar(hederaAccountId),
+        this.addresses.signer === null
+          ? null
+          : this.deps.balances.usdc(this.addresses.signer),
+      ]);
     } catch (error) {
       ledgerNote = `Spend history unavailable: ${
         error instanceof Error ? error.message : "unknown error"
@@ -729,6 +747,19 @@ export class WorkspaceSession {
       agentSigner: this.agentSigner,
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",
+      balances: {
+        evmNetwork: this.deps.networks.evm,
+        hbarTinybars: hbarTinybars === null ? null : hbarTinybars.toString(),
+        hederaNetwork: this.deps.networks.hedera,
+        usdMicrosPerHbar:
+          this.deps.quote(
+            this.deps.networks.hedera === "hedera:mainnet"
+              ? KNOWN_ASSETS["hedera:mainnet:hbar"]
+              : KNOWN_ASSETS["hedera:testnet:hbar"],
+            this.now()
+          )?.usdMicrosPerUnit ?? null,
+        usdcUnits: usdcUnits === null ? null : usdcUnits.toString(),
+      },
       hederaAccountId,
       ledgerNote,
       pocketUsdMicros: this.pocket,

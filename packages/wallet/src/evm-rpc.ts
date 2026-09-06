@@ -47,6 +47,8 @@ export interface EvmTransactionReceipt {
 }
 
 export interface EvmRpc {
+  /** `eth_call` against `to` with `data`, at the latest block; the raw hex answer. */
+  readonly call: (to: string, data: string) => Promise<string>;
   readonly chainId: () => Promise<number>;
   readonly gasPrice: () => Promise<bigint>;
   readonly maxPriorityFeePerGas: () => Promise<bigint>;
@@ -98,7 +100,7 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
   /** One round trip, with the result parsed against `codec` before it leaves. */
   const call = async <T>(
     method: string,
-    params: readonly string[],
+    params: readonly (string | { readonly [key: string]: string })[],
     codec: Schema.Codec<T>
   ): Promise<T> => {
     nextId += 1;
@@ -155,6 +157,8 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
   };
 
   return {
+    call: async (to, data) =>
+      await call("eth_call", [{ data, to }, "latest"], Hex),
     chainId: async () => Number(await quantity("eth_chainId", [])),
     gasPrice: async () => await quantity("eth_gasPrice", []),
     maxPriorityFeePerGas: async () =>

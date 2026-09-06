@@ -8,6 +8,10 @@ const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const TREASURY = "0x74bcfbc5abb7c342a128764e1f17707ee3b0031f";
 
 const rpcWith = (overrides: Partial<EvmRpc> = {}): EvmRpc => ({
+  call: async () => {
+    await Promise.resolve();
+    return "0x";
+  },
   chainId: async () => {
     await Promise.resolve();
     return 84_532;

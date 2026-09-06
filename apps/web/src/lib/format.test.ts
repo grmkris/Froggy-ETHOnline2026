@@ -49,8 +49,11 @@ describe("hcsMessageUrl", () => {
 
 describe("hederaAccountUrl", () => {
   it("sends an account to HashScan", () => {
-    expect(hederaAccountUrl("0.0.9700388")).toBe(
+    expect(hederaAccountUrl("0.0.9700388", "hedera:testnet")).toBe(
       "https://hashscan.io/testnet/account/0.0.9700388"
+    );
+    expect(hederaAccountUrl("0.0.10396162", "hedera:mainnet")).toBe(
+      "https://hashscan.io/mainnet/account/0.0.10396162"
     );
   });
 });

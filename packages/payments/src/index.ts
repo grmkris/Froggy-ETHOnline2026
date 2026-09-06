@@ -39,6 +39,7 @@ export { decodeSettlementHeader, encodeSettlementHeader } from "./settlement";
 export { describePayment } from "./inspect";
 export type { PaymentDescription } from "./inspect";
 export {
+  hederaAccountBalance,
   lookupHederaTransaction,
   mirrorTransactionId,
   reconcileHederaPayment,

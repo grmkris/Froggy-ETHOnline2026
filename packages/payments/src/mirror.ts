@@ -95,3 +95,36 @@ export const reconcileHederaPayment = async (
   };
   return await ask(0);
 };
+
+const Account = Schema.Struct({
+  balance: Schema.Struct({ balance: Schema.Finite }),
+});
+const decodeAccount = Schema.decodeUnknownResult(Account);
+
+/**
+ * What an account holds, in tinybars, from the mirror node; null when the
+ * mirror does not answer or does not know the account. A display figure:
+ * nothing spends on the strength of it.
+ */
+export const hederaAccountBalance = async (input: {
+  readonly accountId: string;
+  readonly fetch?: MirrorFetch;
+  readonly network: string;
+}): Promise<bigint | null> => {
+  const fetchImpl: MirrorFetch = input.fetch ?? fetch;
+  const url = `${mirrorNodeUrlForNetwork(input.network)}/api/v1/accounts/${encodeURIComponent(input.accountId)}`;
+  try {
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const decoded = decodeAccount(await response.json());
+    return decoded._tag === "Success"
+      ? BigInt(Math.round(decoded.success.balance.balance))
+      : null;
+  } catch {
+    return null;
+  }
+};

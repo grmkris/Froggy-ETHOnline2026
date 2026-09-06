@@ -184,6 +184,11 @@ class FroggyServer extends Context.Service<
         // The server's own oracle is on every mandate's allowlist from the
         // first moment, so there is never a window where an allowlist exists
         // but is empty and therefore means nothing.
+        balances: services.balances,
+        networks: {
+          evm: environment.evmNetwork,
+          hedera: environment.hederaNetwork,
+        },
         oracleHost: new URL(oracleUrl).host,
         oraclePayTo: services.oracle.payTo,
         // The Hedera leg is paid from one host account; each person spends

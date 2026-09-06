@@ -68,6 +68,11 @@ const sessionWith = (
     ledger,
     modes: MODES,
     onPolicyDecision: noop,
+    balances: {
+      hbar: async () => await Promise.resolve(null),
+      usdc: async () => await Promise.resolve(null),
+    },
+    networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
     onReceipt: noop,
     quote: (_asset, now) => parQuote(now),
     store,
@@ -520,6 +525,11 @@ describe("the pocket", () => {
         ledger: memoryLedger(),
         modes: MODES,
         onPolicyDecision: noop,
+        balances: {
+          hbar: async () => await Promise.resolve(null),
+          usdc: async () => await Promise.resolve(null),
+        },
+        networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
         onReceipt: noop,
         pocket: {
           networks: ["hedera:testnet"],
@@ -668,6 +678,11 @@ describe("the pocket", () => {
         ledger: memoryLedger(),
         modes: MODES,
         onPolicyDecision: noop,
+        balances: {
+          hbar: async () => await Promise.resolve(null),
+          usdc: async () => await Promise.resolve(null),
+        },
+        networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
         onReceipt: noop,
         quote: (_asset, now) => parQuote(now),
         store,

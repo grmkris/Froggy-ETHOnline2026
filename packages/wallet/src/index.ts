@@ -4,7 +4,13 @@ export type {
   AgentTypedDataSigner,
   UnsignedEvmTransaction,
 } from "./evm-signer";
-export { encodeTransfer, ERC20_TRANSFER_ABI, isEvmAddress } from "./erc20";
+export {
+  decodeUint256,
+  encodeBalanceOf,
+  encodeTransfer,
+  ERC20_TRANSFER_ABI,
+  isEvmAddress,
+} from "./erc20";
 export { evmRpc, EvmRpcError } from "./evm-rpc";
 export type { EvmRpc, EvmTransactionReceipt } from "./evm-rpc";
 export { sendErc20Transfer } from "./transfer";

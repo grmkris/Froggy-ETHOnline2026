@@ -151,6 +151,11 @@ const createRegistry = (options: RegistryOptions = {}) => {
     },
     onMandate: noop,
     onPolicyDecision: noop,
+    balances: {
+      hbar: async () => await Promise.resolve(null),
+      usdc: async () => await Promise.resolve(null),
+    },
+    networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
     onReceipt: noop,
     oracleHost: "oracle.test",
     oraclePayTo: "0.0.5005",

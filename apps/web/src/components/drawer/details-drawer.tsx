@@ -219,7 +219,10 @@ const HederaAccount = ({
   ) : (
     <a
       className="underline decoration-dotted underline-offset-2 hover:decoration-solid"
-      href={hederaAccountUrl(accountId)}
+      href={hederaAccountUrl(
+        accountId,
+        wallet?.balances.hederaNetwork ?? "hedera:testnet"
+      )}
       rel="noreferrer"
       target="_blank"
     >

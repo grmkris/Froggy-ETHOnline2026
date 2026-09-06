@@ -137,8 +137,10 @@ const Because = ({
 
 /** The HCS note's number, linked to the note when the topic is known. */
 const HcsLine = ({
+  network,
   sequence,
 }: {
+  readonly network: string;
   readonly sequence: number;
 }): React.ReactElement => {
   const { hcsTopicId } = useSessionIds();
@@ -150,7 +152,7 @@ const HcsLine = ({
       ) : (
         <a
           className="text-foreground/80 underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          href={hcsMessageUrl(hcsTopicId, sequence)}
+          href={hcsMessageUrl(hcsTopicId, sequence, network)}
           rel="noreferrer"
           target="_blank"
         >
@@ -189,7 +191,10 @@ const ReceiptStub = ({
       />
     )}
     {receipt.settlement?.hcsSequence === undefined ? null : (
-      <HcsLine sequence={receipt.settlement.hcsSequence} />
+      <HcsLine
+        network={receipt.settlement.network}
+        sequence={receipt.settlement.hcsSequence}
+      />
     )}
     {receipt.failure === undefined ? null : (
       <StubLine label="not settled" value={receipt.failure} />

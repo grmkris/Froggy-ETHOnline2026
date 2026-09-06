@@ -81,6 +81,8 @@ export interface WorkspaceDeps {
    * exercisable without one.
    */
   readonly createBrowser?: (options: BrowserSessionOptions) => BrowserHandle;
+  /** What the chains say someone holds; display only. See `SessionDeps.balances`. */
+  readonly balances: SessionDeps["balances"];
   /** Always seated. Null when no account is reserved. */
   readonly demoUserId: UserId | null;
   /** Whether an agent turn is running for this session; the sweep leaves it alone. */
@@ -103,6 +105,8 @@ export interface WorkspaceDeps {
   readonly profileRoot: string;
   /** What an asset is worth. Null refuses the spend; see `quotes.ts`. */
   readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
+  /** Which Base and which Hedera this deployment is on. */
+  readonly networks: SessionDeps["networks"];
   /** Seats held for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
   readonly store: Store;
@@ -156,8 +160,10 @@ export class Workspaces {
     }
     const { ask } = this.deps;
     const withoutPocket: SessionDeps = {
+      balances: this.deps.balances,
       ledger: this.deps.ledger,
       modes: this.deps.modes,
+      networks: this.deps.networks,
       onMandate: (mandate) => {
         this.deps.onMandate(userId, mandate);
       },
