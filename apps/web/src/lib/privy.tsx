@@ -356,7 +356,10 @@ export const IdentityProvider = ({
                 ethereum: { createOnLogin: "all-users" },
                 showWalletUIs: false,
               },
-              loginMethods: ["google", "email", "wallet"],
+              // Social login only, on purpose: a person who connects an
+              // existing wallet and then sees a second, minted one has two
+              // answers to "which is mine", and the demo needs one.
+              loginMethods: ["google", "email"],
             }}
           >
             <PrivyBridge module={module} onChange={setIdentity} />

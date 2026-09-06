@@ -36,8 +36,8 @@ import { Schema } from "effect";
 
 import { detached } from "./detached";
 
-/** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. */
-const PRICE_TINYBARS = "5000000";
+/** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. One place, so the card and the 402 cannot disagree. */
+export const PRICE_TINYBARS = "5000000";
 
 export const SALES_PATH = "/oracle/sales/";
 

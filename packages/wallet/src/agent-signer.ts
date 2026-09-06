@@ -13,11 +13,12 @@
  *   - Freezing removes the signer. It is a revocation at Privy, not a boolean
  *     in our database that our own code has to remember to check.
  *
- * The policy allows exactly one thing: an EIP-712 `TransferWithAuthorization`
- * to the Graph's x402 payee, in Base mainnet USDC, at most $0.25. Every other
- * method — a transfer, a `personal_sign`, a key export — is denied by Privy
- * itself, in a process we do not run. That is the difference between a leash
- * and a promise.
+ * The policy allows exactly what `docs/privy-agent-policy.json` says and
+ * nothing else: today an EIP-712 `TransferWithAuthorization` to the Graph's
+ * x402 payee in Base mainnet USDC at most $0.02, and a capped USDC transfer to
+ * the treasury on Base Sepolia. Every other method — another transfer, a
+ * `personal_sign`, a key export — is denied by Privy itself, in a process we
+ * do not run. That is the difference between a leash and a promise.
  */
 
 import { generateAuthorizationSignatures } from "@privy-io/node";

@@ -366,7 +366,7 @@ export const buildTools = (deps: ToolDeps) => {
 
     graph_query: tool({
       description:
-        "Live lending markets across four pinned Graph deployments — Aave v3 on Ethereum and Base, Compound v3, Spark — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. This is the evidence a spend has to be justified by; query it before you pay for anything derived from it.",
+        "Live lending markets across twelve pinned Messari standardized deployments on four chains — Aave v2 and v3, Compound v2 and v3, Spark, Euler — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. This is the evidence a spend has to be justified by; query it before you pay for anything derived from it.",
       execute: async ({ symbol }, { toolCallId }) => {
         const snapshot = await graphFor(symbol, toolCallId).lendingMarkets(
           symbol

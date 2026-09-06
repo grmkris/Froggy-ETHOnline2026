@@ -5,7 +5,7 @@ Track: **Best AI Tooling or AI Use Case with The Graph (from scratch)**, and the
 ## What the agent does with it
 
 - `graph_query` (`apps/server/src/tools.ts`) runs one standardized lending query across every pinned deployment in `packages/graph/src/registry.ts`, at one block each, and returns the cheapest live USDC borrow with the deployment ids and block numbers as **evidence**. The paid snapshot the agent buys is derived from the same query, so a receipt says which indexes, at which blocks, justified the spend.
-- Freshness is a gate, not a note: a deployment whose `_meta` block is older than two hours is excluded, and if fewer than two are fresh the oracle answers 503 before charging anyone.
+- Freshness is a gate, not a note: a deployment whose `_meta` block is older than two hours contributes no markets, and every answer lists each deployment as fresh, stale or unavailable so a thin answer is visibly thin. The oracle does not refuse to sell on freshness; the sale is written before the fetch, and a fetch that fails after settlement is a failed sale with the settlement on it.
 - Markets nobody has borrowed from are not answers: a 0% rate with zero borrows is filtered out (Compound v3 ships three such USDC markets).
 
 ## Live data

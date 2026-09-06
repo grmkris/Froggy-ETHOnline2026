@@ -37,6 +37,7 @@ import type { InteractionRegistry } from "./interactions";
 import {
   handleOracleRequest,
   handleSaleLookup,
+  PRICE_TINYBARS,
   SALES_PATH,
 } from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
@@ -535,7 +536,7 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
   const { environment } = deps;
   const [requirement] = deps.services.oracle.challenge({
     description: "Cross-protocol USDC lending snapshot, cheapest borrow first.",
-    units: "5000000",
+    units: PRICE_TINYBARS,
     url: deps.oracleUrl,
   }).accepts;
   return {
