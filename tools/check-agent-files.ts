@@ -11,6 +11,17 @@ for await (const relativePath of skillDirectoryGlob.scan({
   count += 1;
   const path = `${skillRoot}/${relativePath}`;
   const source = await Bun.file(path).text();
+  const frontmatter = /^---\r?\n(?<matter>[\s\S]*?)\r?\n---/u.exec(source)
+    ?.groups?.["matter"];
+  if (frontmatter === undefined) {
+    errors.push(`${path}: missing YAML frontmatter`);
+  } else {
+    try {
+      Bun.YAML.parse(frontmatter);
+    } catch {
+      errors.push(`${path}: invalid YAML frontmatter`);
+    }
+  }
   const [folder] = relativePath.split("/");
   const nameMatch = /^name:\s*(?<name>[^\n]+)$/mu.exec(source);
   const descriptionMatch = /^description:\s*(?<description>.+)$/mu.exec(source);

@@ -1,6 +1,6 @@
 ---
 name: write-swift
-description: Write and review modern Swift: value models, Swift 6 concurrency, actors, protocols, generics, APIs, memory management, Swift Testing and macros.
+description: "Write and review modern Swift: value models, Swift 6 concurrency, actors, protocols, generics, APIs, memory management, Swift Testing and macros."
 ---
 
 # Write Swift

@@ -1,6 +1,6 @@
 ---
 name: ask-sonner
-description: Install, style and troubleshoot Sonner toasts: promise and loading states, updates, dismissal, positioning, icons, themes and multiple toasters.
+description: "Install, style and troubleshoot Sonner toasts: promise and loading states, updates, dismissal, positioning, icons, themes and multiple toasters."
 ---
 
 # Working With Sonner
