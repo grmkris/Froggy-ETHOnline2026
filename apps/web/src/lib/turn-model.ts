@@ -11,6 +11,8 @@ import type { Receipt } from "@froggy/domain";
 import { Schema } from "effect";
 
 import type { FroggyMessage } from "./stream-model";
+import { isToolPart, toolCallOf } from "./tool-call";
+import type { ToolCall } from "./tool-call";
 import { MONEY_TOOLS } from "./tool-stories";
 
 export interface ClaimedReceipts {
@@ -73,4 +75,119 @@ export const matchReceipts = (
     byCall,
     unclaimed: ordered.filter((receipt) => !claimed.has(receipt.id)),
   };
+};
+
+/**
+ * The parts of a turn, grouped the way a person reads them.
+ *
+ * Text, thought, and tool calls stay one block each, except the page steps:
+ * a run of browser calls is one story — "browsed the oracle, four steps" —
+ * and the step boundaries the SDK puts between them are not breaks in it.
+ * A step boundary between two other blocks stays, as a hairline.
+ */
+export type TurnBlock =
+  | {
+      readonly kind: "browse";
+      readonly calls: readonly ToolCall[];
+      readonly index: number;
+    }
+  | {
+      readonly kind: "reasoning";
+      readonly index: number;
+      readonly live: boolean;
+      readonly text: string;
+    }
+  | { readonly kind: "step"; readonly index: number }
+  | {
+      readonly kind: "text";
+      readonly index: number;
+      readonly live: boolean;
+      readonly text: string;
+    }
+  | { readonly kind: "tool"; readonly call: ToolCall; readonly index: number }
+  | { readonly kind: "unknown"; readonly index: number; readonly type: string };
+
+type Part = FroggyMessage["parts"][number];
+
+const isBrowserPart = (part: Part): boolean =>
+  part.type.startsWith("tool-browser_");
+
+/** Is the next thing that is not a step boundary another page step? */
+const nextIsBrowser = (parts: readonly Part[], from: number): boolean => {
+  for (let index = from + 1; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part !== undefined && part.type !== "step-start") {
+      return isBrowserPart(part);
+    }
+  }
+  return false;
+};
+
+/** One block for a part that is not a page step; null for a step boundary. */
+const blockOf = (part: Part, index: number): TurnBlock | null => {
+  if (part.type === "text") {
+    return {
+      index,
+      kind: "text",
+      live: part.state === "streaming",
+      text: part.text,
+    };
+  }
+  if (part.type === "reasoning") {
+    return part.text.trim() === ""
+      ? null
+      : {
+          index,
+          kind: "reasoning",
+          live: part.state === "streaming",
+          text: part.text,
+        };
+  }
+  if (isToolPart(part)) {
+    const call = toolCallOf(part);
+    return call === null
+      ? { index, kind: "unknown", type: part.type }
+      : { call, index, kind: "tool" };
+  }
+  return null;
+};
+
+export const groupParts = (message: FroggyMessage): readonly TurnBlock[] => {
+  const { parts } = message;
+  const blocks: TurnBlock[] = [];
+  let browse: { calls: ToolCall[]; index: number } | null = null;
+  const flush = (): void => {
+    if (browse !== null) {
+      blocks.push({ calls: browse.calls, index: browse.index, kind: "browse" });
+      browse = null;
+    }
+  };
+  for (const [index, part] of parts.entries()) {
+    if (part.type === "step-start") {
+      if (browse !== null && nextIsBrowser(parts, index)) {
+        continue;
+      }
+      flush();
+      if (index > 0 && index < parts.length - 1) {
+        blocks.push({ index, kind: "step" });
+      }
+      continue;
+    }
+    const call = isBrowserPart(part) ? toolCallOf(part) : null;
+    if (call !== null) {
+      if (browse === null) {
+        browse = { calls: [call], index };
+      } else {
+        browse.calls.push(call);
+      }
+      continue;
+    }
+    flush();
+    const block = blockOf(part, index);
+    if (block !== null) {
+      blocks.push(block);
+    }
+  }
+  flush();
+  return blocks;
 };

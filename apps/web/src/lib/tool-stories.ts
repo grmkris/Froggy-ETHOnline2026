@@ -29,6 +29,8 @@ type Icon = typeof GlobeIcon;
 export type Tone = "money" | "page" | "plain";
 
 export interface Story {
+  /** What is happening, while it is: "Opening example.com". Falls back to `sentence`. */
+  readonly doing?: (input: ToolInput) => string;
   readonly icon: Icon;
   readonly sentence: (input: ToolInput) => string;
   readonly tone: Tone;
@@ -39,21 +41,25 @@ const amount = (input: ToolInput): string =>
 
 const STORIES = {
   browser_click: {
+    doing: (input) => `Clicking ${input.ref ?? "an element"}`,
     icon: MousePointerClickIcon,
     sentence: (input) => `Clicked ${input.ref ?? "an element"}`,
     tone: "page",
   },
   browser_navigate: {
+    doing: (input) => `Opening ${hostOf(input.url ?? "")}`,
     icon: GlobeIcon,
     sentence: (input) => `Opened ${hostOf(input.url ?? "")}`,
     tone: "page",
   },
   browser_snapshot: {
+    doing: () => "Reading the page",
     icon: CameraIcon,
     sentence: () => "Read the page",
     tone: "page",
   },
   browser_type: {
+    doing: (input) => `Typing “${(input.text ?? "").slice(0, 40)}”`,
     icon: KeyboardIcon,
     sentence: (input) => `Typed “${(input.text ?? "").slice(0, 40)}”`,
     tone: "page",
@@ -102,6 +108,14 @@ export const MONEY_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 const BY_NAME: ReadonlyMap<string, Story> = new Map(Object.entries(STORIES));
+
+/** The line for a call: what it is doing while live, what it did after. */
+export const storyLine = (
+  story: Story,
+  input: ToolInput,
+  live: boolean
+): string =>
+  live ? (story.doing ?? story.sentence)(input) : story.sentence(input);
 
 /** A tool this file has not met reads as "Ran <its name in words>". */
 export const storyOf = (name: string): Story =>

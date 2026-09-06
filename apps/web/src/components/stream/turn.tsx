@@ -18,10 +18,10 @@ import {
 import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
-import { isToolPart, toolCallOf } from "../../lib/tool-call";
-import { matchReceipts } from "../../lib/turn-model";
+import { groupParts, matchReceipts } from "../../lib/turn-model";
 import type { ClaimedReceipts } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { BrowseCard } from "./browse-card";
 import { MarkdownText } from "./markdown-text";
 import { Reasoning } from "./reasoning";
 import { ToolCard } from "./tool-card";
@@ -34,7 +34,7 @@ interface TurnProps {
   readonly receipts: readonly Receipt[];
 }
 
-const Parts = ({
+const Blocks = ({
   asking,
   claimed,
   message,
@@ -44,53 +44,50 @@ const Parts = ({
   readonly message: FroggyMessage;
 }): ReactElement => (
   <>
-    {message.parts.map((part, index) => {
-      const key = `${message.id}-${index}`;
-      if (part.type === "text") {
-        return (
-          <MarkdownText
-            key={key}
-            live={part.state === "streaming"}
-            text={part.text}
-          />
-        );
+    {groupParts(message).map((block) => {
+      const key = `${message.id}-${block.index}`;
+      switch (block.kind) {
+        case "text": {
+          return <MarkdownText key={key} live={block.live} text={block.text} />;
+        }
+        case "reasoning": {
+          return <Reasoning key={key} live={block.live} text={block.text} />;
+        }
+        case "step": {
+          // A hairline between steps; not before the first, not after the last.
+          return (
+            <Marker
+              aria-hidden
+              className="min-h-2"
+              key={key}
+              variant="separator"
+            />
+          );
+        }
+        case "browse": {
+          return <BrowseCard calls={block.calls} key={key} />;
+        }
+        case "tool": {
+          return (
+            <ToolCard
+              asking={asking}
+              call={block.call}
+              key={key}
+              receipt={claimed.byCall.get(block.call.toolCallId) ?? null}
+            />
+          );
+        }
+        case "unknown": {
+          return (
+            <p className="text-machine text-muted-foreground" key={key}>
+              · {block.type}
+            </p>
+          );
+        }
+        default: {
+          return null;
+        }
       }
-      if (part.type === "reasoning") {
-        return part.text.trim() === "" ? null : (
-          <Reasoning
-            key={key}
-            live={part.state === "streaming"}
-            text={part.text}
-          />
-        );
-      }
-      if (part.type === "step-start") {
-        // A hairline between steps; not before the first, not after the last.
-        return index > 0 && index < message.parts.length - 1 ? (
-          <Marker
-            aria-hidden
-            className="min-h-2"
-            key={key}
-            variant="separator"
-          />
-        ) : null;
-      }
-      if (isToolPart(part)) {
-        const call = toolCallOf(part);
-        return call === null ? (
-          <p className="text-machine text-muted-foreground" key={key}>
-            · {part.type}
-          </p>
-        ) : (
-          <ToolCard
-            asking={asking}
-            call={call}
-            key={key}
-            receipt={claimed.byCall.get(call.toolCallId) ?? null}
-          />
-        );
-      }
-      return null;
     })}
   </>
 );
@@ -128,7 +125,7 @@ export const Turn = ({
         <FrogMark className="size-5" />
       </MessageAvatar>
       <MessageContent className="gap-2">
-        <Parts asking={asking} claimed={claimed} message={message} />
+        <Blocks asking={asking} claimed={claimed} message={message} />
         {after}
         {claimed.unclaimed.map((receipt) => (
           <ReceiptTicket key={receipt.id} receipt={receipt} />

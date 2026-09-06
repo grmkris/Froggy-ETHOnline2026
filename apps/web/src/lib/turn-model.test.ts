@@ -10,7 +10,7 @@ import {
 import type { Receipt } from "@froggy/domain";
 
 import type { FroggyMessage } from "./stream-model";
-import { matchReceipts } from "./turn-model";
+import { groupParts, matchReceipts } from "./turn-model";
 
 const receipt = (at: number, toolCallId?: string): Receipt => {
   const base: Receipt = {
@@ -95,5 +95,64 @@ describe("matchReceipts", () => {
     ]);
     expect([...byCall.keys()].toSorted()).toEqual(["c1", "c2"]);
     expect(unclaimed.map((entry) => entry.at)).toEqual([3, 20]);
+  });
+});
+
+describe("groupParts", () => {
+  it("folds a run of page steps into one block, across step boundaries", () => {
+    const turn: FroggyMessage = {
+      id: "a2",
+      parts: [
+        { type: "step-start" },
+        { text: "Let me look.", type: "text" },
+        { type: "step-start" },
+        tool("tool-browser_navigate", "b1"),
+        { type: "step-start" },
+        tool("tool-browser_snapshot", "b2"),
+        { type: "step-start" },
+        tool("tool-x402_fetch", "c1"),
+        { type: "step-start" },
+        { state: "streaming", text: "Paid.", type: "text" },
+      ],
+      role: "assistant",
+    };
+    const blocks = groupParts(turn);
+    expect(blocks.map((block) => block.kind)).toEqual([
+      "text",
+      "step",
+      "browse",
+      "step",
+      "tool",
+      "step",
+      "text",
+    ]);
+    const browse = blocks.at(2);
+    expect(
+      browse?.kind === "browse"
+        ? browse.calls.map((call) => call.toolCallId)
+        : []
+    ).toEqual(["b1", "b2"]);
+    const last = blocks.at(-1);
+    expect(last?.kind === "text" ? last.live : null).toBe(true);
+  });
+
+  it("drops an empty thought and names a part it cannot read", () => {
+    const turn: FroggyMessage = {
+      id: "a3",
+      parts: [
+        { text: "   ", type: "reasoning" },
+        { text: "why", type: "reasoning" },
+        {
+          input: {},
+          state: "input-streaming",
+          toolCallId: "d1",
+          toolName: "mystery",
+          type: "dynamic-tool",
+        },
+      ],
+      role: "assistant",
+    };
+    const kinds = groupParts(turn).map((block) => block.kind);
+    expect(kinds).toEqual(["reasoning", "tool"]);
   });
 });
