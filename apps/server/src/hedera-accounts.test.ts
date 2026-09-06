@@ -101,7 +101,7 @@ describe("createHederaAccounts", () => {
     expect(host.opened).toHaveLength(1);
   });
 
-  it("moves a top-up into the account at the rate, and nothing before there is one", async () => {
+  it("opens the account with the first top-up, then moves later ones into it at the rate", async () => {
     const host = fakeHost();
     const accounts = createHederaAccounts({
       host,
@@ -109,15 +109,35 @@ describe("createHederaAccounts", () => {
       rates: rates(80_000),
       store: memoryStore(),
     });
-    expect(await accounts.fund(ALICE, 1_000_000)).toBeNull();
-    await accounts.payerFor(ALICE, 500_000);
+    // $1 opens the account: 12.5 HBAR plus the fee margin, by the creation.
     expect(await accounts.fund(ALICE, 1_000_000)).toEqual({
+      opened: true,
+      tinybars: 1_250_000_000 + 10_000_000,
+      transactionId: "0.0.1@1.101",
+    });
+    expect(host.opened).toEqual([1_260_000_000]);
+    expect(await accounts.fund(ALICE, 1_000_000)).toEqual({
+      opened: false,
       tinybars: 1_250_000_000,
       transactionId: "0.0.1@2.1",
     });
     expect(host.transfers).toEqual([
       { accountId: "0.0.101", tinybars: 1_250_000_000 },
     ]);
+  });
+
+  it("refuses to pay for a person with no account and nothing to open one with", async () => {
+    const host = fakeHost();
+    const accounts = createHederaAccounts({
+      host,
+      keystore: aesGcmKeystore(KEK),
+      rates: rates(80_000),
+      store: memoryStore(),
+    });
+    const failure = await failureOf(accounts.payerFor(ALICE, 0));
+    expect(failure).toBeInstanceOf(HederaAccountError);
+    expect(failure?.message).toContain("first top-up");
+    expect(host.opened).toEqual([]);
   });
 
   it("refuses to open an account without a rate, and opens none", async () => {

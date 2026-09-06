@@ -217,7 +217,8 @@ export interface SessionDeps {
    */
   readonly pocket?: {
     readonly networks: readonly Amount["asset"]["network"][];
-    readonly startingUsdMicros: number;
+    /** What this person is credited once, at their first session; zero for most on mainnet. */
+    readonly startingUsdMicrosFor: (userId: UserId) => number;
   };
   readonly store: Store;
 }
@@ -486,7 +487,7 @@ export class WorkspaceSession {
           pocket ??
           (await this.deps.store.pocket.adjust(
             this.userId,
-            this.deps.pocket.startingUsdMicros
+            this.deps.pocket.startingUsdMicrosFor(this.userId)
           ));
       }
       if (saved !== null) {

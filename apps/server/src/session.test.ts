@@ -521,7 +521,10 @@ describe("the pocket", () => {
         modes: MODES,
         onPolicyDecision: noop,
         onReceipt: noop,
-        pocket: { networks: ["hedera:testnet"], startingUsdMicros },
+        pocket: {
+          networks: ["hedera:testnet"],
+          startingUsdMicrosFor: () => startingUsdMicros,
+        },
         quote: (_asset, now) => parQuote(now),
         store,
       },

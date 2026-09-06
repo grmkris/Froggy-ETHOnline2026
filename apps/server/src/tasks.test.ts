@@ -108,7 +108,10 @@ beforeAll(async () => {
       modes: environment.modes,
       onPolicyDecision: noop,
       onReceipt: noop,
-      pocket: { networks: ["hedera:testnet"], startingUsdMicros: 2_000_000 },
+      pocket: {
+        networks: ["hedera:testnet"],
+        startingUsdMicrosFor: () => 2_000_000,
+      },
       quote,
       store: services.store,
     },

@@ -28,21 +28,25 @@ interface HederaAccountsOptions {
 }
 
 interface Funded {
+  /** True when this top-up opened the account rather than adding to it. */
+  readonly opened: boolean;
   readonly tinybars: number;
   readonly transactionId: string;
 }
 
 export interface HederaAccounts {
   /**
-   * Moves HBAR worth `usdMicros` from the float into the person's account.
-   * Null when they have no account yet: the opening balance covers the
-   * pocket, top-ups included, when the account is opened.
+   * Moves HBAR worth `usdMicros` from the float into the person's account,
+   * opening the account with that value when they have none yet: a person's
+   * first top-up is what opens their account.
    */
-  readonly fund: (userId: UserId, usdMicros: number) => Promise<Funded | null>;
+  readonly fund: (userId: UserId, usdMicros: number) => Promise<Funded>;
   readonly lookup: (userId: UserId) => Promise<string | null>;
   /**
    * The person's own payer. Opens their account with `openingUsdMicros` of
-   * HBAR when they have none. Throws when it cannot, with the reason.
+   * HBAR when they have none and there is something to open it with; a
+   * person with no account and no credit is refused with the reason, since
+   * an account opened empty could not pay anyway.
    */
   readonly payerFor: (
     userId: UserId,
@@ -70,6 +74,7 @@ export const createHederaAccounts = (
     return Math.ceil((usdMicros / rate.usdMicrosPerHbar) * TINYBARS_PER_HBAR);
   };
 
+  let lastOpening: Funded | null = null;
   const open = async (
     userId: UserId,
     usdMicros: number
@@ -81,6 +86,11 @@ export const createHederaAccounts = (
       keyCiphertext: await options.keystore.seal(created.privateKey),
     };
     await options.store.hedera.save(userId, record);
+    lastOpening = {
+      opened: true,
+      tinybars,
+      transactionId: created.transactionId,
+    };
     return record;
   };
 
@@ -112,21 +122,33 @@ export const createHederaAccounts = (
     fund: async (userId, usdMicros) => {
       const record = await options.store.hedera.load(userId);
       if (record === null) {
-        return null;
+        await ensure(userId, usdMicros);
+        if (lastOpening === null) {
+          throw new HederaAccountError(
+            "The account was opened by another request at the same moment; the top-up will show in it."
+          );
+        }
+        return lastOpening;
       }
       const tinybars = tinybarsFor(usdMicros);
       const { transactionId } = await options.host.transfer(
         record.accountId,
         tinybars
       );
-      return { tinybars, transactionId };
+      return { opened: false, tinybars, transactionId };
     },
     lookup: async (userId) => {
       const record = await options.store.hedera.load(userId);
       return record?.accountId ?? null;
     },
     payerFor: async (userId, openingUsdMicros) => {
-      const record = await ensure(userId, openingUsdMicros);
+      const existing = await options.store.hedera.load(userId);
+      if (existing === null && openingUsdMicros <= 0) {
+        throw new HederaAccountError(
+          "Your Hedera account opens with your first top-up, and there has been none yet."
+        );
+      }
+      const record = existing ?? (await ensure(userId, openingUsdMicros));
       return liveHederaPayer({
         accountId: record.accountId,
         network: options.host.network,

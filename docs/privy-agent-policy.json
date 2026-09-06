@@ -2,10 +2,6 @@
   "version": "1.0",
   "name": "froggy-agent-v1",
   "chain_type": "ethereum",
-  "aggregation": {
-    "name": "froggy-topup-usdc-base-sepolia-24h",
-    "id": "mpjhq6o0t9gzdvg3x0x4gmb1"
-  },
   "rules": [
     {
       "name": "graph-x402-usdc-base-mainnet",
@@ -33,12 +29,30 @@
             "primary_type": "TransferWithAuthorization",
             "types": {
               "TransferWithAuthorization": [
-                { "name": "from", "type": "address" },
-                { "name": "to", "type": "address" },
-                { "name": "value", "type": "uint256" },
-                { "name": "validAfter", "type": "uint256" },
-                { "name": "validBefore", "type": "uint256" },
-                { "name": "nonce", "type": "bytes32" }
+                {
+                  "name": "from",
+                  "type": "address"
+                },
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "value",
+                  "type": "uint256"
+                },
+                {
+                  "name": "validAfter",
+                  "type": "uint256"
+                },
+                {
+                  "name": "validBefore",
+                  "type": "uint256"
+                },
+                {
+                  "name": "nonce",
+                  "type": "bytes32"
+                }
               ]
             }
           }
@@ -52,12 +66,30 @@
             "primary_type": "TransferWithAuthorization",
             "types": {
               "TransferWithAuthorization": [
-                { "name": "from", "type": "address" },
-                { "name": "to", "type": "address" },
-                { "name": "value", "type": "uint256" },
-                { "name": "validAfter", "type": "uint256" },
-                { "name": "validBefore", "type": "uint256" },
-                { "name": "nonce", "type": "bytes32" }
+                {
+                  "name": "from",
+                  "type": "address"
+                },
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "value",
+                  "type": "uint256"
+                },
+                {
+                  "name": "validAfter",
+                  "type": "uint256"
+                },
+                {
+                  "name": "validBefore",
+                  "type": "uint256"
+                },
+                {
+                  "name": "nonce",
+                  "type": "bytes32"
+                }
               ]
             }
           }
@@ -95,11 +127,22 @@
           "abi": [
             {
               "inputs": [
-                { "name": "to", "type": "address" },
-                { "name": "amount", "type": "uint256" }
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
               ],
               "name": "transfer",
-              "outputs": [{ "name": "", "type": "bool" }],
+              "outputs": [
+                {
+                  "name": "",
+                  "type": "bool"
+                }
+              ],
               "stateMutability": "nonpayable",
               "type": "function"
             }
@@ -113,11 +156,22 @@
           "abi": [
             {
               "inputs": [
-                { "name": "to", "type": "address" },
-                { "name": "amount", "type": "uint256" }
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
               ],
               "name": "transfer",
-              "outputs": [{ "name": "", "type": "bool" }],
+              "outputs": [
+                {
+                  "name": "",
+                  "type": "bool"
+                }
+              ],
               "stateMutability": "nonpayable",
               "type": "function"
             }
@@ -136,6 +190,111 @@
           "value": "1790726400"
         }
       ]
+    },
+    {
+      "name": "pocket-topup-usdc-base-mainnet",
+      "method": "eth_signTransaction",
+      "action": "ALLOW",
+      "conditions": [
+        {
+          "field_source": "ethereum_transaction",
+          "field": "chain_id",
+          "operator": "eq",
+          "value": "8453"
+        },
+        {
+          "field_source": "ethereum_transaction",
+          "field": "to",
+          "operator": "eq",
+          "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "transfer.to",
+          "operator": "eq",
+          "value": "0x8Cc232c9EB25b4b20ee448106858e3B6281708C2",
+          "abi": [
+            {
+              "inputs": [
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ],
+              "name": "transfer",
+              "outputs": [
+                {
+                  "name": "",
+                  "type": "bool"
+                }
+              ],
+              "stateMutability": "nonpayable",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "transfer.amount",
+          "operator": "lte",
+          "value": "0x1e8480",
+          "abi": [
+            {
+              "inputs": [
+                {
+                  "name": "to",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ],
+              "name": "transfer",
+              "outputs": [
+                {
+                  "name": "",
+                  "type": "bool"
+                }
+              ],
+              "stateMutability": "nonpayable",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "field_source": "reference",
+          "field": "aggregation.REPLACE_ME_MAINNET",
+          "operator": "lte",
+          "value": "0x4c4b40"
+        },
+        {
+          "field_source": "system",
+          "field": "current_unix_timestamp",
+          "operator": "lt",
+          "value": "1790726400"
+        }
+      ]
+    }
+  ],
+  "aggregations": [
+    {
+      "name": "froggy-topup-usdc-base-sepolia-24h",
+      "id": "mpjhq6o0t9gzdvg3x0x4gmb1",
+      "chainId": "84532",
+      "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "token": "aggregation.REPLACE_ME"
+    },
+    {
+      "name": "froggy-topup-usdc-base-mainnet-24h",
+      "id": "cx3m6izyslg00jkb9dbb63t5",
+      "chainId": "8453",
+      "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token": "aggregation.REPLACE_ME_MAINNET"
     }
   ]
 }

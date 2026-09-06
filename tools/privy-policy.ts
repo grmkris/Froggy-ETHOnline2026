@@ -44,7 +44,16 @@ const Policy = Schema.Struct({
   ),
 });
 const PolicyFile = Schema.Struct({
-  aggregation: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  /** One rolling 24-hour USDC sum per Base; a rule references its id by `token`. */
+  aggregations: Schema.Array(
+    Schema.Struct({
+      chainId: Schema.String,
+      id: Schema.String,
+      name: Schema.String,
+      token: Schema.String,
+      usdc: Schema.String,
+    })
+  ),
   rules: Schema.Array(Schema.Unknown),
 });
 
@@ -98,7 +107,6 @@ const readFile = async () => {
   return decoded.success;
 };
 
-const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const TRANSFER_ABI = [
   {
     inputs: [
@@ -115,54 +123,58 @@ const TRANSFER_ABI = [
 const aggregation = async (): Promise<void> => {
   const file = await readFile();
   // Idempotent on the name: a second run returns the same aggregation rather
-  // than a second one counting the same transfers twice.
-  const created = await request(
-    {
-      body: JSON.stringify({
-        conditions: [
-          {
-            field: "chain_id",
-            field_source: "ethereum_transaction",
-            operator: "eq",
-            value: "84532",
+  // than a second one counting the same transfers twice. One per Base.
+  for (const entry of file.aggregations) {
+    // Sequential on purpose: each is one request, and the order is the file's.
+    // eslint-disable-next-line no-await-in-loop
+    const created = await request(
+      {
+        body: JSON.stringify({
+          conditions: [
+            {
+              field: "chain_id",
+              field_source: "ethereum_transaction",
+              operator: "eq",
+              value: entry.chainId,
+            },
+            {
+              field: "to",
+              field_source: "ethereum_transaction",
+              operator: "eq",
+              value: entry.usdc,
+            },
+          ],
+          method: "eth_signTransaction",
+          metric: {
+            abi: TRANSFER_ABI,
+            field: "transfer.amount",
+            field_source: "ethereum_calldata",
+            function: "sum",
           },
-          {
-            field: "to",
-            field_source: "ethereum_transaction",
-            operator: "eq",
-            value: USDC_BASE_SEPOLIA,
-          },
-        ],
-        method: "eth_signTransaction",
-        metric: {
-          abi: TRANSFER_ABI,
-          field: "transfer.amount",
-          field_source: "ethereum_calldata",
-          function: "sum",
-        },
-        name: file.aggregation.name,
-        window: { seconds: 86_400, type: "rolling" },
-      }),
-      idempotencyKey: file.aggregation.name,
-      method: "POST",
-      path: "/aggregations",
-    },
-    Named
-  );
-  process.stdout.write(`${created.name} ${created.id}\n`);
+          name: entry.name,
+          window: { seconds: 86_400, type: "rolling" },
+        }),
+        idempotencyKey: entry.name,
+        method: "POST",
+        path: "/aggregations",
+      },
+      Named
+    );
+    process.stdout.write(`${created.name} ${created.id}\n`);
+  }
 };
 
 const apply = async (): Promise<void> => {
   const file = await readFile();
-  if (file.aggregation.id.includes("REPLACE_ME")) {
-    throw new Error(
-      "The policy file still names a placeholder aggregation; run `aggregation` first and paste the id."
-    );
+  let rules = JSON.stringify(file.rules);
+  for (const entry of file.aggregations) {
+    if (entry.id.includes("REPLACE_ME")) {
+      throw new Error(
+        `The policy file still names a placeholder for ${entry.name}; run \`aggregation\` first and paste the id.`
+      );
+    }
+    rules = rules.replaceAll(`"${entry.token}"`, `"aggregation.${entry.id}"`);
   }
-  const rules = JSON.stringify(file.rules).replaceAll(
-    "aggregation.REPLACE_ME",
-    `aggregation.${file.aggregation.id}`
-  );
   const policy = await request(
     {
       body: `{"rules":${rules}}`,

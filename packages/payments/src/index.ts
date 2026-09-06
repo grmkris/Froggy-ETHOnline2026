@@ -2,7 +2,13 @@ export { liveOracleGate, STUB_PAY_TO, stubOracleGate } from "./oracle";
 export type { LiveOracleOptions } from "./oracle";
 export { liveHederaPayer, STUB_ACCOUNT_ID, stubHederaPayer } from "./payer";
 export type { LivePayerOptions } from "./payer";
-export { evmPayer, SignerRefusedError } from "./evm";
+export {
+  EVM_CHAIN_IDS,
+  EVM_NETWORK_LABELS,
+  evmPayer,
+  isEvmNetwork,
+  SignerRefusedError,
+} from "./evm";
 export type {
   EvmNetwork,
   EvmPayerOptions,

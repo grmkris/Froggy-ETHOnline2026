@@ -33,6 +33,7 @@ import {
   x402Transport,
 } from "@froggy/graph";
 import type { GraphClient, GraphSnapshot } from "@froggy/graph";
+import { EVM_NETWORK_LABELS } from "@froggy/payments";
 import type { GraphQueryOutput } from "@froggy/protocol";
 import { EvmRpcError, PrivySignerRefusedError } from "@froggy/wallet";
 import { tool } from "ai";
@@ -201,6 +202,9 @@ export const typedByPerson = (address: string, userText: string): boolean =>
 
 export const buildTools = (deps: ToolDeps) => {
   const { browser, services, session } = deps;
+  const { evmNetwork } = services.environment;
+  const evmLabel = EVM_NETWORK_LABELS[evmNetwork];
+  const usdc = KNOWN_ASSETS[`${evmNetwork}:usdc`];
   /** Per-turn, because `buildTools` is called once per turn. Not module state. */
   let lastEvidence: Evidence | undefined;
   // Local development runs the app on `localhost`, and the oracle the agent
@@ -287,7 +291,7 @@ export const buildTools = (deps: ToolDeps) => {
     if (transfers === null) {
       return {
         error: "the agent has no signer on this wallet yet",
-        network: "eip155:84532",
+        network: evmNetwork,
         ok: false,
         stubbed: false,
         transactionId: null,
@@ -296,7 +300,7 @@ export const buildTools = (deps: ToolDeps) => {
     try {
       const outcome = await transfers.send({ to, units: BigInt(units) });
       const settled = {
-        network: "eip155:84532",
+        network: evmNetwork,
         ok: outcome.status === "success",
         stubbed: false,
         transactionId: outcome.hash,
@@ -311,7 +315,7 @@ export const buildTools = (deps: ToolDeps) => {
       ) {
         return {
           error: error.message,
-          network: "eip155:84532",
+          network: evmNetwork,
           ok: false,
           stubbed: false,
           transactionId: null,
@@ -471,12 +475,11 @@ export const buildTools = (deps: ToolDeps) => {
     }),
 
     wallet_send: tool({
-      description:
-        "Send USDC on Base Sepolia to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the caps and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.",
+      description: `Send USDC on ${evmLabel} to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the caps and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.`,
       execute: async ({ amountUsd, purpose, to }, { toolCallId }) => {
         const units = String(Math.round(amountUsd * 1_000_000));
         const attempt = session.spend({
-          amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
+          amount: { asset: usdc, units },
           idempotencyKey: `send:${to}:${amountUsd}:${deps.run.id}`,
           payeeId: to,
           payeeLabel: to,
@@ -505,7 +508,7 @@ export const buildTools = (deps: ToolDeps) => {
         const transaction = result?.receipt.settlement?.transactionId;
         return transaction === undefined
           ? "Allowed by the mandate; the transfer is recorded on the receipt."
-          : `Sent ${amountUsd} USDC to ${to} on Base Sepolia. Transaction ${transaction}.`;
+          : `Sent ${amountUsd} USDC to ${to} on ${evmLabel}. Transaction ${transaction}.`;
       },
       inputSchema: std(
         Schema.Struct({
@@ -523,8 +526,7 @@ export const buildTools = (deps: ToolDeps) => {
     }),
 
     wallet_topup: tool({
-      description:
-        "Top up the Hedera pocket the paid requests are drawn from: send USDC on Base Sepolia from the person's wallet to the treasury, signed under the wallet's own policy, and the pocket is credited one-to-one. The policy allows at most 2 USDC per top-up and 5 USDC per rolling day; the mandate's caps apply as well.",
+      description: `Top up the Hedera pocket the paid requests are drawn from: send USDC on ${evmLabel} from the person's wallet to the treasury, signed under the wallet's own policy, and the pocket is credited one-to-one. The policy allows at most 2 USDC per top-up and 5 USDC per rolling day; the mandate's caps apply as well.`,
       execute: async ({ amountUsd }, { toolCallId }) => {
         const treasury = services.environment.treasuryEvmAddress;
         if (treasury === null) {
@@ -536,7 +538,7 @@ export const buildTools = (deps: ToolDeps) => {
         // account, a transaction id when it moved, the reason when it did not.
         let hbarNote = "";
         const attempt = session.spend({
-          amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units },
+          amount: { asset: usdc, units },
           idempotencyKey: `topup:${amountUsd}:${deps.run.id}`,
           interactive: deps.interactive ?? true,
           payeeId: treasury,
@@ -544,7 +546,7 @@ export const buildTools = (deps: ToolDeps) => {
           // `server`: the treasury is configuration, not something the model
           // or a page proposed, and the signer's policy names the same address.
           provenance: "server",
-          purpose: `Top up the Hedera pocket with ${amountUsd} USDC (USDC to the treasury on Base Sepolia, pocket credited one-to-one)`,
+          purpose: `Top up the Hedera pocket with ${amountUsd} USDC (USDC to the treasury on ${evmLabel}, pocket credited one-to-one)`,
           runId: deps.run.id,
           signal: deps.run.signal,
           toolCallId,
@@ -568,7 +570,7 @@ export const buildTools = (deps: ToolDeps) => {
           return `Allowed by the mandate, but the top-up did not go through: ${result.receipt.failure}. Stop here.`;
         }
         const transaction = result?.receipt.settlement?.transactionId;
-        return `Topped up: ${amountUsd} USDC to the treasury on Base Sepolia${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.${hbarNote}`;
+        return `Topped up: ${amountUsd} USDC to the treasury on ${evmLabel}${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.${hbarNote}`;
       },
       inputSchema: std(
         Schema.Struct({

@@ -59,7 +59,7 @@ import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
 
-/** A USDC transfer on Base Sepolia from one person's wallet, signed under the policy. */
+/** A USDC transfer on the configured Base from one person's wallet, signed under the policy. */
 interface EvmTransfers {
   readonly send: (input: {
     readonly to: string;
@@ -92,6 +92,8 @@ export interface Services {
   readonly evmTransfersFor: (
     wallet: { readonly address: string; readonly id: string } | null
   ) => EvmTransfers | null;
+  /** The chain the RPC answers for, so boot can refuse a URL on the wrong Base. */
+  readonly evmChainId: () => Promise<number>;
   readonly graph: GraphClient;
   /**
    * Who pays the Hedera leg for this person: their own account, opened with
@@ -185,7 +187,7 @@ export const createServices = (options: ServiceOptions): Services => {
       : null;
 
   const rpc = evmRpc({ url: environment.evmRpcUrl });
-  const usdc = KNOWN_ASSETS["eip155:84532:usdc"];
+  const usdc = KNOWN_ASSETS[`${environment.evmNetwork}:usdc`];
   const store = sql === null ? memoryStore() : postgresStore(sql);
 
   const host =
@@ -234,7 +236,7 @@ export const createServices = (options: ServiceOptions): Services => {
         send: async ({ to, units }) =>
           await sendErc20Transfer({
             amount: units,
-            chainId: 84_532,
+            chainId: environment.evmChainId,
             rpc,
             signer,
             to,
@@ -242,6 +244,7 @@ export const createServices = (options: ServiceOptions): Services => {
           }),
       };
     },
+    evmChainId: async () => await rpc.chainId(),
     graph,
     hcs,
     hederaPayerFor: async ({ openingUsdMicros, userId }) =>

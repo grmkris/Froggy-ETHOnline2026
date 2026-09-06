@@ -24,6 +24,20 @@ const DEFAULT_TIMEOUT_SECONDS = 300;
 
 export type EvmNetwork = "eip155:8453" | "eip155:84532";
 
+export const EVM_CHAIN_IDS: Record<EvmNetwork, number> = {
+  "eip155:8453": 8453,
+  "eip155:84532": 84_532,
+};
+
+/** Plain words for a receipt or a tool's answer. */
+export const EVM_NETWORK_LABELS: Record<EvmNetwork, string> = {
+  "eip155:8453": "Base",
+  "eip155:84532": "Base Sepolia",
+};
+
+export const isEvmNetwork = (value: string): value is EvmNetwork =>
+  value === "eip155:8453" || value === "eip155:84532";
+
 /** A `0x` address, checked once at the boundary rather than trusted. */
 const isHexAddress = (value: string): value is `0x${string}` =>
   /^0x[\da-f]{40}$/iu.test(value);

@@ -50,6 +50,19 @@ class FroggyServer extends Context.Service<
 
       const runs = new ChatRunRegistry();
       const services = createServices({ environment });
+      if (environment.modes.privy === "live") {
+        // The RPC must be on the Base EVM_NETWORK names: a URL for the other
+        // Base would sign every transfer with the wrong chain id. Checked
+        // only when transfers are possible, so a stub boot works offline.
+        const chainId = yield* Effect.promise(
+          async () => await services.evmChainId()
+        );
+        if (chainId !== environment.evmChainId) {
+          throw new Error(
+            `EVM_RPC_URL answers chain ${chainId}, but EVM_NETWORK ${environment.evmNetwork} is chain ${environment.evmChainId}.`
+          );
+        }
+      }
       const oracleUrl = `${environment.appOrigin}${ORACLE_PATH}`;
 
       /**
@@ -177,7 +190,13 @@ class FroggyServer extends Context.Service<
         // their share of it, credited once and topped up under the policy.
         pocket: {
           networks: [environment.hederaNetwork],
-          startingUsdMicros: environment.pocketStartingUsdMicros,
+          // The team and the demo account get a starting credit so they can
+          // test without paying first; everyone else starts at what
+          // POCKET_STARTING_USD says, which is zero on mainnet.
+          startingUsdMicrosFor: (userId) =>
+            environment.startingCreditDids.includes(userId)
+              ? environment.teamStartingUsdMicros
+              : environment.pocketStartingUsdMicros,
         },
         profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,

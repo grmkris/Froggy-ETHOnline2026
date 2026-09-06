@@ -20,8 +20,8 @@
 
 import { decodeUserId } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
-import { isHederaNetwork } from "@froggy/payments";
-import type { HederaNetwork } from "@froggy/payments";
+import { EVM_CHAIN_IDS, isEvmNetwork, isHederaNetwork } from "@froggy/payments";
+import type { EvmNetwork, HederaNetwork } from "@froggy/payments";
 import type { ServiceMode, ServiceModes } from "@froggy/protocol";
 import { Config, Effect, Redacted, Result } from "effect";
 
@@ -50,6 +50,23 @@ const PLACEHOLDER = {
   telegramWebhookSecret: "",
   treasuryEvmAddress: "0xREPLACE_ME_TREASURY",
 } as const;
+
+/** The RPC named outright, else the older variable, else the public node for the network. */
+const rpcUrlFor = (
+  network: EvmNetwork,
+  named: string,
+  legacy: string
+): string => {
+  if (named !== "") {
+    return named;
+  }
+  if (legacy !== "") {
+    return legacy;
+  }
+  return network === "eip155:8453"
+    ? "https://mainnet.base.org"
+    : "https://sepolia.base.org";
+};
 
 const isPlaceholder = (value: string, placeholder: string): boolean =>
   value.trim() === "" || value.trim() === placeholder;
@@ -211,6 +228,15 @@ export interface Environment {
    * Testnet lunch money: enough for a few paid requests, credited once.
    */
   readonly pocketStartingUsdMicros: number;
+  /** Privy DIDs that start with `teamStartingUsdMicros` instead: the team and the demo account. */
+  readonly startingCreditDids: readonly string[];
+  readonly teamStartingUsdMicros: number;
+  /**
+   * Which Base the person's USDC lives on and top-ups move on. Mainnet or
+   * Sepolia; the RPC must answer with the matching chain id, checked at boot.
+   */
+  readonly evmNetwork: EvmNetwork;
+  readonly evmChainId: number;
   readonly port: number;
   /**
    * The agent's Privy authorization key and the policy it signs under.
@@ -352,9 +378,31 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "HEDERA_MIRROR_NODE_URL"
     ).pipe(Config.withDefault("https://mainnet-public.mirrornode.hedera.com"));
 
-    const evmRpcUrl = yield* Config.string("BASE_SEPOLIA_RPC_URL").pipe(
-      Config.withDefault("https://sepolia.base.org")
+    // `EVM_RPC_URL` first; `BASE_SEPOLIA_RPC_URL` is the older name a
+    // deployment may still carry. The default follows EVM_NETWORK.
+    const legacyRpcUrl = yield* Config.string("BASE_SEPOLIA_RPC_URL").pipe(
+      Config.withDefault("")
     );
+    const evmRpcUrlRaw = yield* Config.string("EVM_RPC_URL").pipe(
+      Config.withDefault("")
+    );
+    const startingCreditDidsRaw = yield* Config.string(
+      "STARTING_CREDIT_DIDS"
+    ).pipe(Config.withDefault(""));
+    const teamStartingUsd = yield* Config.number("TEAM_STARTING_USD").pipe(
+      Config.withDefault(1)
+    );
+    const evmNetworkRaw = yield* Config.string("EVM_NETWORK").pipe(
+      Config.withDefault("eip155:84532")
+    );
+    if (!isEvmNetwork(evmNetworkRaw)) {
+      // Fail closed, like HEDERA_NETWORK: a typo here would move USDC on the wrong chain.
+      throw new Error(
+        `EVM_NETWORK must be eip155:8453 or eip155:84532, not ${evmNetworkRaw}`
+      );
+    }
+    const evmNetwork: EvmNetwork = evmNetworkRaw;
+    const evmRpcUrl = rpcUrlFor(evmNetwork, evmRpcUrlRaw, legacyRpcUrl);
     const pocketStartingUsd = yield* Config.number("POCKET_STARTING_USD").pipe(
       Config.withDefault(0.5)
     );
@@ -472,6 +520,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       openAiCompatibleBaseUrl,
       openAiCompatibleModel,
       pocketStartingUsdMicros: Math.round(pocketStartingUsd * 1_000_000),
+      startingCreditDids: startingCreditDidsRaw
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
+      teamStartingUsdMicros: Math.round(teamStartingUsd * 1_000_000),
+      evmNetwork,
+      evmChainId: EVM_CHAIN_IDS[evmNetwork],
       port,
       // All three or none. Two of three is a deployment that would fail at the
       // first payment with an error from Privy rather than at boot with one
