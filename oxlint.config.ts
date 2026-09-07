@@ -33,6 +33,22 @@ export default defineConfig({
   overrides: [
     {
       /**
+       * Claude Design preview cards.
+       *
+       * design-sync resolves a component's preview by exact name —
+       * `.design-sync/previews/<ComponentName>.tsx` — so these filenames are a
+       * lookup key, not a style choice. Renaming them to kebab-case would
+       * silently drop every card back to the unauthored placeholder. The rule
+       * is right everywhere else in the repository; here it disagrees with the
+       * tool's contract.
+       */
+      files: [".design-sync/previews/*.tsx"],
+      rules: {
+        "unicorn/filename-case": "off",
+      },
+    },
+    {
+      /**
        * The Privy loader.
        *
        * Privy is imported dynamically so a build with no app id neither loads

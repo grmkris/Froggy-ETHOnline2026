@@ -34,3 +34,11 @@ test-results/
 .claude/
 .codex/
 .grok/
+
+# design-sync (staged converter, build output, machine state)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+packages/ui/.ds-generated/

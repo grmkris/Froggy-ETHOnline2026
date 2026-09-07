@@ -1,0 +1,10 @@
+/* design-sync Tailwind entry for @froggy/ui.
+   globals.css is Tailwind 4 SOURCE (@import "tailwindcss", @theme, @utility) --
+   it is never compiled inside packages/ui (only apps/web's Vite build does that).
+   This entry compiles it, scanning the DS components, the authored preview cards,
+   and the real app so the emitted stylesheet carries the vocabulary actually used. */
+@import "../packages/ui/src/styles/globals.css";
+
+@source "../packages/ui/src/**/*.{ts,tsx}";
+@source "../.design-sync/previews/**/*.{ts,tsx}";
+@source "../apps/web/src/**/*.{ts,tsx}";
