@@ -1,22 +1,20 @@
 # Status against the plan
 
-Updated Mon 7 Sep 2026. The operative plan is [NEXT_ITERATION.md](NEXT_ITERATION.md). The dated sections below are a historical implementation log, not the current blocker list.
+Updated Mon 7 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 Sep decisions and current completion list; [NEXT_ITERATION.md](NEXT_ITERATION.md) retains the broader submission plan. Dated sections below are historical implementation notes.
 
 ## Current release
 
-The product is **a wallet for your agents**: fund tasks, set spending limits, watch the work, and keep receipts. The calm wallet UI is deployed, with wallet funds separate from task credit, recoverable agent setup and funding requests, direct drawer destinations, restrained motion and truthful Stop feedback. See [the implementation record](../../plans/IMPLEMENTATION.md).
+Froggy has one dollar balance, automatic USDC-to-HBAR conversion when a payment needs it, and five pages: Chat, Wallet, Services, Agents and Settings. Spending-limit controls are hidden by default; provenance, allowlists and the policy engine remain. Telegram supports scheduled reminders and reports, with cancellation in Settings.
 
-Production uses **Hedera mainnet and Base mainnet**, with a separate mainnet database and no automatic credit for new users. The hosted oracle returned a real paid HTTP 200 response after the release fixed oversized payment headers and premature HTTP timeouts; Hedera mirror SUCCESS and HCS sequence 2 match its sale. The funded Privy treasury separately paid The Graph 0.01 USDC on Base. [Release evidence](../evidence/MAINNET_RELEASE.md) distinguishes these proofs from untested person-facing journeys.
+Production runs on Hedera mainnet and Base mainnet. Its health check was healthy during the recovery, with all six integrations live. Existing financial proofs are in [MAINNET_RELEASE.md](../evidence/MAINNET_RELEASE.md). Treasury supplier rules and payees were activated earlier on 7 Sep; `X_API_BEARER_TOKEN` remains absent and provider delivery proofs remain pending in [MARKETPLACE.md](../evidence/MARKETPLACE.md).
 
-Telegram linking is in **Connect an agent → Telegram**. The configured bot is `@froggy_onchainbot`; its webhook is healthy. The panel handles expired codes, retries, disconnect errors and automatic confirmation. A person must open the bot and tap Start to complete their link.
+The interrupted OAuth worktree is now integrated locally: remote `/mcp`, consent and manual-code pages, `froggy login`/`logout`, grants in Agents, and database migration 0009. The recovery also fixes concurrent code replay, refresh resource validation, the separate legacy-token display and CLI login process completion. [HERMES.md](../evidence/HERMES.md) distinguishes local verification from the live checks still required. The hosted OAuth endpoints still returned SPA HTML when checked; this integration has not been deployed by the recovery session.
 
-Marketplace and MCP/CLI source `f7fa2ee` is deployed with green CI. The final provider follow-up `6fcd329` adds bounded inline-image handling without activating suppliers. The combined source passed the full gate (410 unit tests), all 39 browser tests and both builds. [The marketplace handoff](../evidence/MARKETPLACE.md) lists its provider configuration and activation limits.
-
-Remaining work: explicit approval of the reviewed treasury supplier rules, then configuration and paid delivery proofs; an X API credential; official MCP OAuth and the public agents page (task 2.6); a real signed-in onramp/top-up journey and durable funding recovery. Repository publication and demo recording remain owner decisions. Earlier testnet and missing-key notes below describe past states.
+Remaining: deploy OAuth and exercise a real client; the signed-in funding/conversion journey; real Telegram scheduling and restart recovery; X configuration and paid provider delivery proofs. Card checkout is conditional on those lanes completing. Branding, repository publication and demo recording remain team decisions. See [ITERATION_3.md](ITERATION_3.md) for the order and owner inputs.
 
 ## Lane 4 landed on Mon 7 Sep (two-way Telegram)
 
-Branch `worktree-agent-acc848be4cb1b1377`, on top of lane 1: `50ee258` (contracts: `Schedule`, `ScheduleRequest`, the `notice` message, `RunSurface` `schedule`), `c2f195d` (the `schedules` table and migration 0008, `Store.schedules` with the claimed tick, `schedules.ts`, `notices.ts`, `TelegramPager.notify`, the `notify` tool, `runScheduledFor` with the digest and prompt jobs, `/api/schedules`), `596a7c5` (the `schedule`, `schedules_list` and `schedule_cancel` tools and the prompt paragraph). ADR `docs/decisions/0011`. Not in this lane: the Settings page list of schedules and `e2e/schedules.spec.ts` (lane 2's page), and a live Telegram run, which nobody has seen yet.
+Branch `worktree-agent-acc848be4cb1b1377`, on top of lane 1: `50ee258` (contracts: `Schedule`, `ScheduleRequest`, the `notice` message, `RunSurface` `schedule`), `c2f195d` (the `schedules` table and migration 0008, `Store.schedules` with the claimed tick, `schedules.ts`, `notices.ts`, `TelegramPager.notify`, the `notify` tool, `runScheduledFor` with the digest and prompt jobs, `/api/schedules`), `596a7c5` (the `schedule`, `schedules_list` and `schedule_cancel` tools and the prompt paragraph). ADR `docs/decisions/0011`. The Settings list and its browser test subsequently landed in `f23a3f2`; real Telegram delivery remains unverified by the recovery session.
 
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
@@ -177,3 +175,5 @@ Merges back to `main` are rebases by Session M, in the order the lanes finish.
 - `e2e/screens.spec.ts` walks every page at 1440, 768 and 390 (52 browser checks green); the wallet and services shots are in `docs/evidence/ui-wallet/`.
 
 Owner-visible on the live URL after deploy: `/wallet` shows one dollar total; `/services`, `/agents`, `/settings` are pages. Lane 4 (schedules, notify) and lane 5 (MCP OAuth, `froggy login`) continue in their worktrees.
+
+- **Lane 5 landed on its branch (agent B, 7 Sep):** `c0b4e03` the three OAuth tables and `Store.oauth` (migration to be generated after merge, as 0009); `eb78e13` the authorization server, scopes, `/mcp` with the resource-metadata 401, grants beside tokens on `/api/agents`; `3dd40d2` the consent and manual pages with `e2e/oauth.spec.ts`; `1907f66` `froggy login`/`logout` and the secret-free skill; ADR 0012. Note for the merge: the minted-token input was added to `apps/web/src/components/drawer/agent-settings.tsx`, which `main` has since moved to `components/agents/agent-settings.tsx`. Still owed: `docs/evidence/HERMES.md` and the live checks in plan 5.6.

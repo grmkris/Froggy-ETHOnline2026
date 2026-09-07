@@ -12,8 +12,13 @@
  * about answering questions.
  */
 
-import { AgentTokenId } from "@froggy/domain";
-import type { AgentToken, DirectoryEntry, UserId } from "@froggy/domain";
+import { AgentTokenId, OAuthGrantId } from "@froggy/domain";
+import type {
+  AgentToken,
+  DirectoryEntry,
+  OAuthGrant,
+  UserId,
+} from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
 import { Schema } from "effect";
 
@@ -21,6 +26,7 @@ import {
   agentMayCall,
   looksLikeAgentSecret,
   mintAgentToken,
+  requiredScope,
   resolveAgentSecret,
 } from "./agents";
 import { authenticate, bearerFromRequest } from "./auth";
@@ -36,6 +42,15 @@ import type { AgentGrants } from "./grants";
 import type { InteractionRegistry } from "./interactions";
 import { handleMcp } from "./mcp";
 import type { Notices } from "./notices";
+import {
+  handleOAuth,
+  handleOAuthApi,
+  insufficientScope,
+  looksLikeAccessToken,
+  resolveAccessToken,
+  revokeGrant,
+  unauthorizedMcp,
+} from "./oauth";
 import {
   handleOracleRequest,
   handleSaleLookup,
@@ -101,7 +116,10 @@ type ResponseBody =
   | ProbeSummary
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
-  | { readonly agents: readonly AgentToken[] }
+  | {
+      readonly agents: readonly AgentToken[];
+      readonly grants: readonly OAuthGrant[];
+    }
   | { readonly revoked: boolean }
   | {
       readonly secret: string;
@@ -297,7 +315,17 @@ const handleScheduling = async (
   return await handleSchedules(deps.services.store, request, userId, pathname);
 };
 
-/** Who is calling: a person with a Privy token, or an agent with a token the person minted. */
+const oauthDeps = (deps: RouterDeps) => ({
+  appOrigin: deps.environment.appOrigin,
+  store: deps.services.store,
+});
+
+/**
+ * Who is calling: a person with a Privy token, an agent with a legacy `fgy_`
+ * secret the person minted, or an agent with an `fga_` access token a
+ * grant issued. Both agent kinds reach the same short list of routes; the
+ * grant is further held to the scopes the person left on.
+ */
 const callerOf = async (
   deps: RouterDeps,
   request: Request,
@@ -322,7 +350,34 @@ const callerOf = async (
     if (!agentMayCall(pathname, request.method)) {
       return json({ error: "An agent token cannot do this." }, 403);
     }
-    return { caller: { agentTokenId: agent.token.id, userId: agent.userId } };
+    return {
+      caller: {
+        agentTokenId: agent.token.id,
+        scopes: null,
+        userId: agent.userId,
+      },
+    };
+  }
+  if (looksLikeAccessToken(token)) {
+    const resolved = await resolveAccessToken(
+      deps.services.store,
+      token,
+      Date.now()
+    );
+    if (resolved === null) {
+      return json(UNAUTHORIZED, 401);
+    }
+    if (!agentMayCall(pathname, request.method)) {
+      return json({ error: "An agent token cannot do this." }, 403);
+    }
+    const scopes = new Set(resolved.grant.scopes);
+    const needed = requiredScope(pathname, request.method);
+    if (needed !== null && !scopes.has(needed)) {
+      return insufficientScope(needed);
+    }
+    return {
+      caller: { agentTokenId: null, scopes, userId: resolved.userId },
+    };
   }
   const person = await authenticate(deps.services, token);
   if (person === null) {
@@ -330,7 +385,34 @@ const callerOf = async (
   }
   // Fire-and-forget, once per user. Nothing here waits on Privy.
   deps.grants.note(person, token);
-  return { caller: { agentTokenId: null, userId: person } };
+  return { caller: { agentTokenId: null, scopes: null, userId: person } };
+};
+
+/**
+ * `/mcp` and `/api/mcp`, one handler. A 401 here says where the resource
+ * metadata is, which is how an MCP client finds the authorization server.
+ */
+const handleMcpRoute = async (
+  deps: RouterDeps,
+  request: Request,
+  pathname: string
+): Promise<Response> => {
+  const resolved = await callerOf(deps, request, pathname);
+  if (resolved instanceof Response) {
+    return resolved.status === 401
+      ? unauthorizedMcp(
+          deps.environment.appOrigin,
+          bearerFromRequest(request) !== null
+        )
+      : resolved;
+  }
+  const workspace = await deps.workspaces.hydrate(resolved.caller.userId);
+  return await handleMcp(
+    deps.services,
+    workspace.session,
+    resolved.caller,
+    request
+  );
 };
 
 const TASK_EVENTS = /^\/api\/tasks\/(?<id>[^/]+)\/events$/u;
@@ -362,9 +444,6 @@ const handleTasks = async (
       caller,
       request
     );
-  }
-  if (pathname === "/api/mcp") {
-    return await handleMcp(deps.services, workspace.session, caller, request);
   }
   const { userId } = caller;
   if (pathname === TASKS_PATH && request.method === "POST") {
@@ -405,7 +484,11 @@ const handleAgents = async (
     return json({ asked: true }, 202);
   }
   if (pathname === "/api/agents" && request.method === "GET") {
-    return json({ agents: await deps.services.store.agents.list(userId) });
+    const [agents, grants] = await Promise.all([
+      deps.services.store.agents.list(userId),
+      deps.services.store.oauth.grants.list(userId),
+    ]);
+    return json({ agents, grants });
   }
   if (pathname === "/api/agents" && request.method === "POST") {
     const decoded = decodeAgentBody(await request.json().catch(() => null));
@@ -418,27 +501,69 @@ const handleAgents = async (
       decoded.success.label,
       Date.now()
     );
-    // The skill with this person's server and token filled in: the one paste
-    // that connects an agent. The secret is in it, and shown this once.
+    // The secret, shown this once and in its own field; the skill beside it
+    // carries the person's server and no token, so it can be pasted anywhere.
     return json(
       {
         secret: minted.secret,
-        skill: skillText({
-          token: minted.secret,
-          url: deps.environment.appOrigin,
-        }),
+        skill: skillText({ url: deps.environment.appOrigin }),
         token: minted.token,
       },
       201
     );
   }
+  // Disconnect, by id prefix: a legacy token or an OAuth grant, one button.
   if (pathname.startsWith("/api/agents/") && request.method === "DELETE") {
     const id = pathname.slice("/api/agents/".length);
-    if (!AgentTokenId.is(id)) {
-      return json({ revoked: false }, 404);
+    if (AgentTokenId.is(id)) {
+      await deps.services.store.agents.revoke(userId, id);
+      return json({ revoked: true });
     }
-    await deps.services.store.agents.revoke(userId, id);
-    return json({ revoked: true });
+    if (OAuthGrantId.is(id)) {
+      const revoked = await revokeGrant(
+        deps.services.store,
+        userId,
+        id,
+        Date.now()
+      );
+      return json({ revoked }, revoked ? 200 : 404);
+    }
+    return json({ revoked: false }, 404);
+  }
+  return null;
+};
+
+/** The web chat: a turn, a stop, and the AI SDK's resume. */
+const handleChatRoutes = async (
+  deps: RouterDeps,
+  request: Request,
+  workspace: Awaited<ReturnType<Workspaces["hydrate"]>>,
+  pathname: string
+): Promise<Response | null> => {
+  const sessionId = workspace.session.id;
+  if (pathname === "/api/chat" && request.method === "POST") {
+    return await handleChatPost(deps, request, workspace, workspace.userId);
+  }
+
+  if (pathname === "/api/chat/stop" && request.method === "POST") {
+    return json({ stopped: deps.runs.abort(sessionId) });
+  }
+
+  // The AI SDK's transport resumes at `/api/chat/<chat id>/stream`. That id is
+  // the client's own, generated by `useChat`, and it is deliberately not what
+  // resolves the run: the caller's token is. Trusting the path would let one
+  // signed-in user resume another's turn by guessing an id.
+  if (/^\/api\/chat\/[^/]+\/stream$/u.test(pathname)) {
+    const replay = deps.runs.get(sessionId)?.replay() ?? null;
+    // 204 rather than an empty 200: `useChat({resume:true})` reads "nothing to
+    // resume" from the status, and an empty body would look like a stream that
+    // ended the instant it opened.
+    if (replay === null) {
+      return new Response(null, { status: 204 });
+    }
+    return new Response(replay.pipeThrough(new TextEncoderStream()), {
+      headers: { "content-type": "text/event-stream" },
+    });
   }
   return null;
 };
@@ -473,30 +598,22 @@ const handleApi = async (
   if (agents !== null) {
     return agents;
   }
-
-  if (pathname === "/api/chat" && request.method === "POST") {
-    return await handleChatPost(deps, request, workspace, userId);
+  // The consent decision and the client's name for the page. A person's
+  // Privy token only: `agentMayCall` never lists `/api/oauth`, so no agent,
+  // legacy or granted, can consent on the person's behalf.
+  const oauth = await handleOAuthApi(
+    oauthDeps(deps),
+    request,
+    userId,
+    pathname
+  );
+  if (oauth !== null) {
+    return oauth;
   }
 
-  if (pathname === "/api/chat/stop" && request.method === "POST") {
-    return json({ stopped: deps.runs.abort(sessionId) });
-  }
-
-  // The AI SDK's transport resumes at `/api/chat/<chat id>/stream`. That id is
-  // the client's own, generated by `useChat`, and it is deliberately not what
-  // resolves the run: the caller's token is. Trusting the path would let one
-  // signed-in user resume another's turn by guessing an id.
-  if (/^\/api\/chat\/[^/]+\/stream$/u.test(pathname)) {
-    const replay = deps.runs.get(sessionId)?.replay() ?? null;
-    // 204 rather than an empty 200: `useChat({resume:true})` reads "nothing to
-    // resume" from the status, and an empty body would look like a stream that
-    // ended the instant it opened.
-    if (replay === null) {
-      return new Response(null, { status: 204 });
-    }
-    return new Response(replay.pipeThrough(new TextEncoderStream()), {
-      headers: { "content-type": "text/event-stream" },
-    });
+  const chat = await handleChatRoutes(deps, request, workspace, pathname);
+  if (chat !== null) {
+    return chat;
   }
 
   const scheduling = await handleScheduling(deps, request, userId, pathname);
@@ -652,6 +769,19 @@ export const handleRequest = async (
       { store: deps.services.store },
       pathname.slice(SALES_PATH.length)
     );
+  }
+
+  // The authorization server's public endpoints: metadata, registration,
+  // token and revocation. Open by design (an MCP client has no credential
+  // yet), CORS `*` on these and nothing else.
+  const oauth = await handleOAuth(oauthDeps(deps), request, pathname);
+  if (oauth !== null) {
+    return oauth;
+  }
+
+  // The MCP endpoint, at its public path and the older `/api` one.
+  if (pathname === "/mcp" || pathname === "/api/mcp") {
+    return await handleMcpRoute(deps, request, pathname);
   }
 
   const api = await handleApi(deps, request, pathname);

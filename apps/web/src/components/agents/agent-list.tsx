@@ -1,4 +1,4 @@
-/** The agents connected with a token, and the one button that disconnects each. */
+/** OAuth grants and legacy tokens, each with a way to disconnect it. */
 
 import { Button } from "@froggy/ui/components/button";
 import { Skeleton } from "@froggy/ui/components/skeleton";
@@ -11,9 +11,11 @@ const when = (at: number): string => new Date(at).toLocaleString();
 
 const AgentConnection = ({
   onRevoke,
+  scopes,
   token,
 }: {
   readonly onRevoke: (id: string) => Promise<void>;
+  readonly scopes?: readonly string[];
   readonly token: AgentToken;
 }): ReactElement => {
   const revoke = useMutation({
@@ -28,6 +30,11 @@ const AgentConnection = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-medium wrap-anywhere">{token.label}</h3>
+          {scopes === undefined ? null : (
+            <p className="text-muted-foreground mt-1 text-xs">
+              Permissions: {scopes.join(", ")}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1 text-xs">
             {token.lastUsedAt === null ? "Waiting for first use" : "Connected"}
           </p>
@@ -67,6 +74,9 @@ export const AgentList = ({
   "agents" | "revoke"
 >): ReactElement => {
   const live = agents.data?.agents.filter((token) => token.revokedAt === null);
+  const grants = agents.data?.grants.filter(
+    (grant) => grant.revokedAt === null
+  );
   const refreshLabel = agents.isError
     ? "Retry loading agents"
     : "Refresh status";
@@ -97,7 +107,7 @@ export const AgentList = ({
           Couldn’t load your agents. Retry to see their latest status.
         </p>
       ) : null}
-      {live?.length === 0 && !agents.isError ? (
+      {live?.length === 0 && grants?.length === 0 && !agents.isError ? (
         <p className="text-muted-foreground rounded-xl border border-dashed p-4">
           No connections yet. Create one above, or use Froggy in this workspace.
         </p>
@@ -106,6 +116,18 @@ export const AgentList = ({
         <ul className="flex flex-col gap-2">
           {live.map((token) => (
             <AgentConnection key={token.id} onRevoke={revoke} token={token} />
+          ))}
+        </ul>
+      )}
+      {grants === undefined || grants.length === 0 ? null : (
+        <ul className="flex flex-col gap-2">
+          {grants.map((grant) => (
+            <AgentConnection
+              key={grant.id}
+              onRevoke={revoke}
+              scopes={grant.scopes}
+              token={{ ...grant, label: grant.clientName }}
+            />
           ))}
         </ul>
       )}

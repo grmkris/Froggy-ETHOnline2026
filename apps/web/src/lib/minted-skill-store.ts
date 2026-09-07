@@ -1,5 +1,5 @@
 /**
- * The one-time skill a person just minted, held in memory until they say
+ * The connection a person just minted, held in memory until they say
  * they pasted it.
  *
  * Module state rather than component state, so walking to the wallet and
@@ -9,7 +9,12 @@
 
 import { useSyncExternalStore } from "react";
 
-let minted: string | null = null;
+interface MintedConnection {
+  readonly secret: string;
+  readonly skill: string;
+}
+
+let minted: MintedConnection | null = null;
 const listeners = new Set<() => void>();
 
 const subscribe = (listener: () => void): (() => void) => {
@@ -19,14 +24,14 @@ const subscribe = (listener: () => void): (() => void) => {
   };
 };
 
-const read = (): string | null => minted;
+const read = (): MintedConnection | null => minted;
 
-export const setMintedSkill = (skill: string | null): void => {
-  minted = skill;
+export const setMintedSkill = (connection: MintedConnection | null): void => {
+  minted = connection;
   for (const listener of listeners) {
     listener();
   }
 };
 
-export const useMintedSkill = (): string | null =>
+export const useMintedSkill = (): MintedConnection | null =>
   useSyncExternalStore(subscribe, read, read);

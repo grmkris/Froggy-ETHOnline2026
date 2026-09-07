@@ -34,7 +34,13 @@ const tools = [
   {
     name: "froggy_services",
     description: "List fixed-price services and availability before buying.",
-    inputSchema: inputSchema(Schema.Struct({})),
+    // Spelled out: an empty Effect struct renders as `anyOf [object, array]`,
+    // and the MCP SDK's client rejects a tool whose schema is not an object.
+    inputSchema: {
+      additionalProperties: false,
+      properties: {},
+      type: "object",
+    },
     annotations: { readOnlyHint: true },
   },
   {
@@ -86,6 +92,19 @@ const invokeTool = async (
   caller: TaskCaller,
   call: typeof Call.Type
 ): Promise<ToolResult> => {
+  // Every froggy_* tool is the catalog: a grant without `services` can list
+  // the tools and call none of them, and is told which scope to come back with.
+  if (caller.scopes !== null && !caller.scopes.has("services")) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: 'This connection lacks the "services" scope. Reconnect Froggy and allow it.',
+        },
+      ],
+      isError: true,
+    };
+  }
   try {
     let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
     switch (call.name) {

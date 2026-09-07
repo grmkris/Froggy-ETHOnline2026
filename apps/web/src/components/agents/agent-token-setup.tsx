@@ -1,5 +1,5 @@
 /**
- * The token path: a name, a connection, and the skill shown once.
+ * The token path: a name, a one-time token, and a reusable skill.
  *
  * Kept for agents that cannot open a browser. The skill stays in memory
  * until the person says they pasted it; the server keeps only a hash.
@@ -17,9 +17,11 @@ import { CopyButton } from "../copy-button";
 
 const MintedSkill = ({
   onDone,
+  secret,
   skill,
 }: {
   readonly onDone: () => void;
+  readonly secret: string;
   readonly skill: string;
 }): ReactElement => (
   <section
@@ -29,9 +31,18 @@ const MintedSkill = ({
     <div>
       <h3 className="font-medium">Give your agent its connection</h3>
       <p className="text-muted-foreground mt-1 text-sm">
-        Paste this into your agent as its <code>SKILL.md</code>. The connection
-        token is included and shown only here.
+        Save the token as your agent’s <code>FROGGY_TOKEN</code>. It is shown
+        only here. The reusable <code>SKILL.md</code> below contains no secret.
       </p>
+    </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        aria-label="Connection token"
+        className="text-machine min-h-11 min-w-0 flex-1"
+        readOnly
+        value={secret}
+      />
+      <CopyButton label="Copy connection token" text={secret} />
     </div>
     <Textarea
       aria-label="Skill for your agent"
@@ -65,8 +76,8 @@ export const AgentTokenSetup = ({
   return (
     <div className="flex flex-col gap-4 text-sm">
       <p className="text-muted-foreground">
-        For an agent that cannot open a browser to sign in. The skill it gets
-        carries a token you can disconnect below at any time.
+        For an unattended agent. Save its token separately from the skill; you
+        can disconnect it below at any time.
       </p>
       <form
         className="flex flex-col gap-2"
@@ -111,7 +122,8 @@ export const AgentTokenSetup = ({
             setMintedSkill(null);
             mint.reset();
           }}
-          skill={skill}
+          secret={skill.secret}
+          skill={skill.skill}
         />
       )}
     </div>

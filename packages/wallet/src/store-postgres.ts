@@ -11,6 +11,9 @@ import {
   agentTokens,
   directory,
   mandates,
+  oauthClients,
+  oauthGrants,
+  oauthTokens,
   receipts,
   sales,
   schedules,
@@ -18,10 +21,12 @@ import {
   telegramPairings,
   users,
 } from "@froggy/database";
-import { DirectoryId, decodeUserId } from "@froggy/domain";
+import { DirectoryId, decodeUserId, OAuthScope } from "@froggy/domain";
 import type {
   AgentToken,
   DirectoryEntry,
+  OAuthClient,
+  OAuthGrant,
   Sale,
   Schedule,
   Task,
@@ -36,10 +41,11 @@ import {
   lt,
   lte,
   or,
+  inArray,
   sql as raw,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
 import {
@@ -49,7 +55,7 @@ import {
   decodeTask,
   readReceipts,
 } from "./store";
-import type { DueSchedule, Store } from "./store";
+import type { DueSchedule, OAuthTokenRow, Store } from "./store";
 
 const millis = (value: Date | null): number | null =>
   value === null ? null : value.getTime();
@@ -155,12 +161,199 @@ const tokenOf = (row: TokenRow): AgentToken => ({
   revokedAt: millis(row.revokedAt),
 });
 
+type OAuthClientRow = typeof oauthClients.$inferSelect;
+type OAuthGrantRow = typeof oauthGrants.$inferSelect;
+type OAuthTokenDbRow = typeof oauthTokens.$inferSelect;
+
+const decodeScopes = Schema.decodeUnknownResult(Schema.Array(OAuthScope));
+const decodeUris = Schema.decodeUnknownResult(Schema.Array(Schema.String));
+const decodeTokenKind = Schema.decodeUnknownResult(
+  Schema.Literals(["access", "code", "refresh"])
+);
+
+/** The scopes a JSON column holds, or none: a scope this version cannot read grants nothing. */
+const scopesOf = (column: OAuthGrantRow["scopes"]): readonly OAuthScope[] => {
+  const decoded = decodeScopes(column);
+  return Result.isSuccess(decoded) ? decoded.success : [];
+};
+
+const oauthClientOf = (row: OAuthClientRow): OAuthClient | null => {
+  const uris = decodeUris(row.redirectUris);
+  return Result.isSuccess(uris)
+    ? {
+        createdAt: row.createdAt.getTime(),
+        id: row.id,
+        name: row.name,
+        redirectUris: uris.success,
+      }
+    : null;
+};
+
+const oauthGrantOf = (row: OAuthGrantRow, clientName: string): OAuthGrant => ({
+  clientId: row.clientId,
+  clientName,
+  createdAt: row.createdAt.getTime(),
+  id: row.id,
+  lastUsedAt: millis(row.lastUsedAt),
+  revokedAt: millis(row.revokedAt),
+  scopes: scopesOf(row.scopes),
+});
+
+const oauthTokenOf = (row: OAuthTokenDbRow): OAuthTokenRow | null => {
+  const kind = decodeTokenKind(row.kind);
+  if (Result.isFailure(kind)) {
+    return null;
+  }
+  return {
+    codeChallenge: row.codeChallenge,
+    createdAt: row.createdAt.getTime(),
+    expiresAt: row.expiresAt.getTime(),
+    grantId: row.grantId,
+    hash: row.hash,
+    kind: kind.success,
+    redirectUri: row.redirectUri,
+    resource: row.resource,
+    revokedAt: millis(row.revokedAt),
+    scopes: scopesOf(row.scopes),
+    usedAt: millis(row.usedAt),
+  };
+};
+
 export const postgresStore = (sql: Sql): Store => {
   const database = drizzle(sql);
   const ensureUser = async (userId: UserId): Promise<void> => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
+  const grantWithClient = async (
+    where: ReturnType<typeof eq>
+  ): Promise<
+    readonly { readonly grant: OAuthGrantRow; readonly name: string }[]
+  > =>
+    await database
+      .select({ grant: oauthGrants, name: oauthClients.name })
+      .from(oauthGrants)
+      .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
+      .where(where)
+      .orderBy(desc(oauthGrants.createdAt));
   return {
+    oauth: {
+      clients: {
+        byId: async (id) => {
+          const rows = await database
+            .select()
+            .from(oauthClients)
+            .where(eq(oauthClients.id, id))
+            .limit(1);
+          const [row] = rows;
+          return row === undefined ? null : oauthClientOf(row);
+        },
+        create: async (client) => {
+          await database.insert(oauthClients).values({
+            createdAt: new Date(client.createdAt),
+            id: client.id,
+            name: client.name,
+            redirectUris: client.redirectUris,
+          });
+        },
+      },
+      grants: {
+        byId: async (id) => {
+          const [row] = await grantWithClient(eq(oauthGrants.id, id));
+          if (row === undefined) {
+            return null;
+          }
+          const owner = decodeUserId(row.grant.userId);
+          return Result.isSuccess(owner)
+            ? {
+                grant: oauthGrantOf(row.grant, row.name),
+                userId: owner.success,
+              }
+            : null;
+        },
+        create: async (userId, grant) => {
+          await ensureUser(userId);
+          await database.insert(oauthGrants).values({
+            clientId: grant.clientId,
+            createdAt: new Date(grant.createdAt),
+            id: grant.id,
+            lastUsedAt: null,
+            revokedAt: null,
+            scopes: grant.scopes,
+            userId,
+          });
+        },
+        list: async (userId) => {
+          const rows = await grantWithClient(eq(oauthGrants.userId, userId));
+          return rows.map((row) => oauthGrantOf(row.grant, row.name));
+        },
+        revoke: async (userId, id, at) => {
+          const rows = await database
+            .update(oauthGrants)
+            .set({
+              revokedAt: raw`COALESCE(${oauthGrants.revokedAt}, ${new Date(at).toISOString()})`,
+            })
+            .where(and(eq(oauthGrants.id, id), eq(oauthGrants.userId, userId)))
+            .returning({ id: oauthGrants.id });
+          return rows.length > 0;
+        },
+        touch: async (id, at) => {
+          await database
+            .update(oauthGrants)
+            .set({ lastUsedAt: new Date(at) })
+            .where(eq(oauthGrants.id, id));
+        },
+      },
+      tokens: {
+        byHash: async (hash) => {
+          const rows = await database
+            .select()
+            .from(oauthTokens)
+            .where(eq(oauthTokens.hash, hash))
+            .limit(1);
+          const [row] = rows;
+          if (row === undefined || row.revokedAt !== null) {
+            return null;
+          }
+          return oauthTokenOf(row);
+        },
+        consume: async (hash, at) => {
+          // One statement: the row is marked used only where it is still
+          // unused, so two processes presenting one code agree on who won.
+          const rows = await database
+            .update(oauthTokens)
+            .set({ usedAt: new Date(at) })
+            .where(and(eq(oauthTokens.hash, hash), isNull(oauthTokens.usedAt)))
+            .returning({ hash: oauthTokens.hash });
+          return rows.length > 0;
+        },
+        insert: async (row) => {
+          await database.insert(oauthTokens).values({
+            codeChallenge: row.codeChallenge,
+            createdAt: new Date(row.createdAt),
+            expiresAt: new Date(row.expiresAt),
+            grantId: row.grantId,
+            hash: row.hash,
+            kind: row.kind,
+            redirectUri: row.redirectUri,
+            resource: row.resource,
+            revokedAt: null,
+            scopes: row.scopes,
+            usedAt: null,
+          });
+        },
+        revokeAllForGrant: async (grantId, at) => {
+          await database
+            .update(oauthTokens)
+            .set({ revokedAt: new Date(at) })
+            .where(
+              and(
+                eq(oauthTokens.grantId, grantId),
+                isNull(oauthTokens.revokedAt)
+              )
+            );
+        },
+      },
+    },
     agents: {
       create: async (userId, token) => {
         await ensureUser(userId);
@@ -611,6 +804,18 @@ export const postgresStore = (sql: Sql): Store => {
     },
     forget: async (userId) => {
       await database.delete(tasks).where(eq(tasks.userId, userId));
+      await database
+        .delete(oauthTokens)
+        .where(
+          inArray(
+            oauthTokens.grantId,
+            database
+              .select({ id: oauthGrants.id })
+              .from(oauthGrants)
+              .where(eq(oauthGrants.userId, userId))
+          )
+        );
+      await database.delete(oauthGrants).where(eq(oauthGrants.userId, userId));
       await database.delete(agentTokens).where(eq(agentTokens.userId, userId));
       await database.delete(directory).where(eq(directory.userId, userId));
       await database.delete(schedules).where(eq(schedules.userId, userId));

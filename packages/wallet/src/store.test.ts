@@ -3,6 +3,8 @@ import { describe, expect, it } from "bun:test";
 import {
   AgentTokenId,
   MandateId,
+  OAuthClientId,
+  OAuthGrantId,
   ReceiptId,
   RunId,
   SaleId,
@@ -344,6 +346,97 @@ describe("memoryStore schedules", () => {
     await store.forget(ALICE);
     expect(await store.schedules.list(ALICE)).toEqual([]);
     expect(await store.schedules.claimDue(NOW, 600_000)).toEqual([]);
+  });
+});
+
+const oauthClient = () => ({
+  createdAt: NOW,
+  id: OAuthClientId.generate(),
+  name: "Claude Code",
+  redirectUris: ["http://127.0.0.1/callback"],
+});
+
+const oauthGrant = (clientId: OAuthClientId) => ({
+  clientId,
+  clientName: "Claude Code",
+  createdAt: NOW,
+  id: OAuthGrantId.generate(),
+  lastUsedAt: null,
+  revokedAt: null,
+  scopes: ["services" as const],
+});
+
+const oauthToken = (grantId: OAuthGrantId, hash: string) => ({
+  codeChallenge: null,
+  createdAt: NOW,
+  expiresAt: NOW + 3_600_000,
+  grantId,
+  hash,
+  kind: "access" as const,
+  redirectUri: null,
+  resource: null,
+  revokedAt: null,
+  scopes: ["services" as const],
+  usedAt: null,
+});
+
+describe("memoryStore oauth", () => {
+  it("consumes a token once: true, then false on the replay", async () => {
+    const store = memoryStore();
+    const client = oauthClient();
+    await store.oauth.clients.create(client);
+    const grant = oauthGrant(client.id);
+    await store.oauth.grants.create(ALICE, grant);
+    await store.oauth.tokens.insert(oauthToken(grant.id, "code-1"));
+    expect(await store.oauth.tokens.consume("code-1", NOW + 1)).toBe(true);
+    expect(await store.oauth.tokens.consume("code-1", NOW + 2)).toBe(false);
+    expect(await store.oauth.tokens.consume("never-issued", NOW + 2)).toBe(
+      false
+    );
+    // The row is still readable: a used code is the replay signal, not gone.
+    const used = await store.oauth.tokens.byHash("code-1");
+    expect(used?.usedAt).toBe(NOW + 1);
+  });
+
+  it("hides every token under a revoked grant, and lists the grant as revoked", async () => {
+    const store = memoryStore();
+    const client = oauthClient();
+    await store.oauth.clients.create(client);
+    const grant = oauthGrant(client.id);
+    await store.oauth.grants.create(ALICE, grant);
+    await store.oauth.tokens.insert(oauthToken(grant.id, "access-1"));
+    await store.oauth.tokens.insert(oauthToken(grant.id, "refresh-1"));
+    await store.oauth.grants.touch(grant.id, NOW + 3);
+    const touched = await store.oauth.grants.byId(grant.id);
+    expect(touched?.grant.lastUsedAt).toBe(NOW + 3);
+    // Somebody else's id cannot revoke it.
+    expect(
+      await store.oauth.grants.revoke(userId("did:privy:bob"), grant.id, NOW)
+    ).toBe(false);
+    expect(await store.oauth.grants.revoke(ALICE, grant.id, NOW + 4)).toBe(
+      true
+    );
+    await store.oauth.tokens.revokeAllForGrant(grant.id, NOW + 4);
+    expect(await store.oauth.tokens.byHash("access-1")).toBeNull();
+    expect(await store.oauth.tokens.byHash("refresh-1")).toBeNull();
+    const listed = await store.oauth.grants.list(ALICE);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.revokedAt).toBe(NOW + 4);
+    expect(listed[0]?.clientName).toBe("Claude Code");
+    expect(await store.oauth.clients.byId(client.id)).toEqual(client);
+  });
+
+  it("forgets a person's grants and their tokens", async () => {
+    const store = memoryStore();
+    const client = oauthClient();
+    await store.oauth.clients.create(client);
+    const grant = oauthGrant(client.id);
+    await store.oauth.grants.create(ALICE, grant);
+    await store.oauth.tokens.insert(oauthToken(grant.id, "access-2"));
+    await store.forget(ALICE);
+    expect(await store.oauth.grants.list(ALICE)).toEqual([]);
+    expect(await store.oauth.grants.byId(grant.id)).toBeNull();
+    expect(await store.oauth.tokens.byHash("access-2")).toBeNull();
   });
 });
 

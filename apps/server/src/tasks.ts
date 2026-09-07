@@ -15,6 +15,7 @@
 
 import { RunId, SaleId, TaskId, usdMicros } from "@froggy/domain";
 import type {
+  OAuthScope,
   Receipt,
   Task,
   TaskKind,
@@ -38,6 +39,7 @@ import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
 import type { Notices } from "./notices";
+import { insufficientScope } from "./oauth";
 import type { ChatRunRegistry } from "./runs";
 import { serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
@@ -95,6 +97,8 @@ export interface TaskDeps {
 
 export interface TaskCaller {
   readonly agentTokenId: Task["agentTokenId"];
+  /** An OAuth grant's scopes; null for a person or a legacy `fgy_` token, which may do everything an agent may. */
+  readonly scopes: ReadonlySet<OAuthScope> | null;
   readonly userId: UserId;
 }
 
@@ -400,6 +404,10 @@ export const handleTaskPost = async (
     );
   }
   const body = decoded.success;
+  // A grant buys only the kinds the person left on; the scope is the kind.
+  if (caller.scopes !== null && !caller.scopes.has(body.kind)) {
+    return insufficientScope(body.kind);
+  }
   const key =
     request.headers.get("idempotency-key") ?? body.idempotencyKey ?? null;
   if (key !== null) {

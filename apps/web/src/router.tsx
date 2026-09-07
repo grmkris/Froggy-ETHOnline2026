@@ -91,6 +91,26 @@ const browserRoute = createRoute({
   path: "/browser",
 });
 
+/** An MCP client asking for the person's consent; the server vets the request. */
+const oauthAuthorizeRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/oauth-authorize-page"),
+    "OAuthAuthorizePage"
+  ),
+  getParentRoute: () => rootRoute,
+  path: "/oauth/authorize",
+});
+
+/** The code, for a client with no browser of its own to receive it on. */
+const oauthManualRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/oauth-manual-page"),
+    "OAuthManualPage"
+  ),
+  getParentRoute: () => rootRoute,
+  path: "/oauth/manual",
+});
+
 const routeTree = rootRoute.addChildren([
   workspaceRoute.addChildren([
     chatRoute,
@@ -100,6 +120,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
   ]),
   browserRoute,
+  oauthAuthorizeRoute,
+  oauthManualRoute,
 ]);
 
 export const router = createRouter({ routeTree });

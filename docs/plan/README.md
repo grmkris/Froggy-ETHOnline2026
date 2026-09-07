@@ -1,5 +1,7 @@
 # FABLE51 planning docs: index and what changed
 
+Current work: [iteration 3](ITERATION_3.md) records the 7 September decisions, recovered Claude work and remaining checks. [STATUS.md](STATUS.md) separates current state from the historical notes below.
+
 > **Superseded where noted.** These documents are the Saturday-morning spec and are kept as written. The owner's decisions of Saturday afternoon override them where the two differ: `DECISIONS.md` lists every such place and which are still open, `PLAN.md` is the operative plan, and `STATUS.md` is what has landed. The paragraph headed "The decision in one paragraph" below predates those decisions; read it with `DECISIONS.md` rows 1, 2 and 8 beside it.
 
 Written Sat 5 Sep 2026. These files are the research, product and go-to-market plan for the ETHOnline 2026 entry (submission Sun 13 Sep 2026 12:00 EDT). They were produced with Claude (Fable 5.1) through parallel research and design-panel workflows on 4-5 Sep and are committed as planning artifacts, as the event rules require. They leave the existing docs untouched and describe the product independently of the code state; the engineering owner decides how each decision lands in the tree.

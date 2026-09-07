@@ -14,7 +14,7 @@
  */
 
 import { AGENT_TOKEN_PREFIX, AgentTokenId } from "@froggy/domain";
-import type { AgentToken, UserId } from "@froggy/domain";
+import type { AgentToken, OAuthScope, UserId } from "@froggy/domain";
 import type { Store } from "@froggy/wallet";
 
 import { detached } from "./detached";
@@ -89,7 +89,26 @@ export const agentMayCall = (pathname: string, method: string): boolean =>
     pathname.startsWith("/api/services/tasks")) &&
     method === "GET") ||
   (pathname === "/api/services/run" && method === "POST") ||
-  (pathname === "/api/mcp" &&
+  ((pathname === "/api/mcp" || pathname === "/mcp") &&
     (method === "POST" || method === "GET" || method === "DELETE")) ||
   (pathname === "/api/wallet" && method === "GET") ||
   (pathname === "/api/wallet/pay" && method === "POST");
+
+/**
+ * The scope an OAuth grant needs for a route, or null when any grant may
+ * reach it: reads, the MCP envelope (each tool call checks `services`
+ * itself) and `POST /api/tasks`, whose scope is the body's kind and is
+ * decided once the body is read.
+ */
+export const requiredScope = (
+  pathname: string,
+  method: string
+): OAuthScope | null => {
+  if (pathname === "/api/wallet/pay" && method === "POST") {
+    return "pay";
+  }
+  if (pathname === "/api/services/run" && method === "POST") {
+    return "services";
+  }
+  return null;
+};

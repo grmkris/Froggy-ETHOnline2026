@@ -6,7 +6,7 @@ describe("the minted skill store", () => {
   it("holds one skill at a time and accepts being cleared", () => {
     // The hook reads through the same closure; setting and clearing must not throw
     // and must leave the module in the cleared state for the next test.
-    setMintedSkill("skill text");
+    setMintedSkill({ secret: "test-secret", skill: "skill text" });
     setMintedSkill(null);
     expect(true).toBe(true);
   });

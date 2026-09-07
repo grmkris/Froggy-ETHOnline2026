@@ -23,6 +23,8 @@
 import {
   AgentTokenId,
   DirectoryId,
+  OAuthClientId,
+  OAuthGrantId,
   ReceiptId,
   RunId,
   SaleId,
@@ -330,4 +332,75 @@ export const schedules = pgTable(
     index("schedules_due").on(table.status, table.nextRunAt),
     index("schedules_user").on(table.userId),
   ]
+);
+
+/**
+ * MCP clients that registered themselves (RFC 7591). Public clients only:
+ * there is no secret column because there is no secret — PKCE and the
+ * redirect URI are what bind a code to the client that asked for it.
+ */
+export const oauthClients = pgTable("oauth_clients", {
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  id: typeIdPrimaryKey(OAuthClientId),
+  name: text("name").notNull(),
+  /** A JSON array of absolute URIs, checked at registration. */
+  redirectUris: jsonb("redirect_uris").notNull(),
+});
+
+/**
+ * One person's consent to one client. Revoking the grant is what
+ * "Disconnect" does; every token under it stops on the next request.
+ */
+export const oauthGrants = pgTable(
+  "oauth_grants",
+  {
+    clientId: typeIdColumn(OAuthClientId, "client_id")
+      .notNull()
+      .references(() => oauthClients.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    id: typeIdPrimaryKey(OAuthGrantId),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** A JSON array of scope names. */
+    scopes: jsonb("scopes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+  },
+  (table) => [index("oauth_grants_user").on(table.userId)]
+);
+
+/**
+ * Codes, access tokens and refresh tokens, by the SHA-256 of the secret.
+ * `used_at` is set exactly once by `UPDATE … WHERE used_at IS NULL`, which is
+ * how a replayed code or an old refresh token is detected across processes.
+ */
+export const oauthTokens = pgTable(
+  "oauth_tokens",
+  {
+    /** PKCE S256 challenge, on codes only. */
+    codeChallenge: text("code_challenge"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    grantId: typeIdColumn(OAuthGrantId, "grant_id")
+      .notNull()
+      .references(() => oauthGrants.id),
+    hash: text("hash").primaryKey(),
+    /** `code | access | refresh`. */
+    kind: text("kind").notNull(),
+    /** The redirect the code was issued to, matched exactly at exchange. */
+    redirectUri: text("redirect_uri"),
+    /** RFC 8707: the resource the code was asked for, when one was named. */
+    resource: text("resource"),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    scopes: jsonb("scopes").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+  },
+  (table) => [index("oauth_tokens_grant").on(table.grantId)]
 );

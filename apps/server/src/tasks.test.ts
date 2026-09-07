@@ -160,7 +160,7 @@ const settle = async (): Promise<void> => {
 
 describe("a paid brief, from 402 to result", () => {
   it("quotes the task in HBAR, signs a payment under the mandate, records the sale, runs and answers by id", async () => {
-    const caller = { agentTokenId: null, userId: ALICE };
+    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
     const quoted = await handleTaskPost(
       deps,
       post({ kind: "brief", symbol: "USDC" }),
@@ -226,7 +226,7 @@ describe("a paid brief, from 402 to result", () => {
   });
 
   it("returns the earlier task for a repeated idempotency key before asking for money", async () => {
-    const caller = { agentTokenId: null, userId: ALICE };
+    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
     const first = await handleTaskPost(
       deps,
       post({ idempotencyKey: "hermes-brief-1", kind: "brief", symbol: "USDC" }),
@@ -270,7 +270,7 @@ describe("a paid brief, from 402 to result", () => {
   });
 
   it("claims concurrent paid retries before settling and rejects changed input", async () => {
-    const caller = { agentTokenId: null, userId: ALICE };
+    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
     const body = {
       idempotencyKey: "concurrent-legacy-task",
       kind: "brief",
@@ -334,7 +334,7 @@ describe("a paid brief, from 402 to result", () => {
     expect(conflict.status).toBe(409);
   });
   it("refuses a malformed task and an unknown id", async () => {
-    const caller = { agentTokenId: null, userId: ALICE };
+    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
     const bad = await handleTaskPost(
       deps,
       post({ kind: "brief" }),

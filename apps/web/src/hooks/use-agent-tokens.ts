@@ -1,5 +1,6 @@
 /** The agent tokens: the list, minting one, revoking one. One cache for both panels. */
 
+import { OAuthGrant } from "@froggy/domain";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { useCallback } from "react";
@@ -15,7 +16,10 @@ export const AgentToken = Schema.Struct({
   revokedAt: Schema.NullOr(Schema.Int),
 });
 export type AgentToken = typeof AgentToken.Type;
-const Listed = Schema.Struct({ agents: Schema.Array(AgentToken) });
+const Listed = Schema.Struct({
+  agents: Schema.Array(AgentToken),
+  grants: Schema.Array(OAuthGrant),
+});
 const Minted = Schema.Struct({
   secret: Schema.String,
   skill: Schema.String,
@@ -55,8 +59,9 @@ export const useAgentTokens = () => {
       if (!response.ok) {
         throw new Error(`agents: ${response.status}`);
       }
-      // The one-time skill goes to the store, never the query cache.
-      setMintedSkill(decodeMinted(await response.json()).skill);
+      // Keep the one-time token in memory across navigation, outside the cache.
+      const { secret, skill } = decodeMinted(await response.json());
+      setMintedSkill({ secret, skill });
     },
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: ["agents"] });

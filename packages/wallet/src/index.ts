@@ -28,6 +28,8 @@ export type {
   HederaAccountRecord,
   HederaCustody,
   ScheduleFinish,
+  OAuthTokenKind,
+  OAuthTokenRow,
   Store,
 } from "./store";
 export { postgresStore } from "./store-postgres";

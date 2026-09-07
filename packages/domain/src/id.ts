@@ -182,3 +182,11 @@ export type ScheduleId = typeof ScheduleId.Type;
 /** One message the agent sent the person unasked: a notify, a reminder, a report. */
 export const NoticeId = makeIdSchema("ntc", "NoticeId");
 export type NoticeId = typeof NoticeId.Type;
+
+/** An MCP client that registered itself: a name and where it may be sent back to. */
+export const OAuthClientId = makeIdSchema("oac", "OAuthClientId");
+export type OAuthClientId = typeof OAuthClientId.Type;
+
+/** One person's consent to one client, with its scopes. Revoked as a unit. */
+export const OAuthGrantId = makeIdSchema("oag", "OAuthGrantId");
+export type OAuthGrantId = typeof OAuthGrantId.Type;

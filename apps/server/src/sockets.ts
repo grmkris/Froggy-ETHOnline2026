@@ -277,7 +277,7 @@ export const createSocketHandlers = (deps: SocketDeps) => {
               : deps.services.environment.hederaHcsTopicId,
           // Null until this deployment answers MCP clients at /mcp with the
           // OAuth flow they expect; the Agents page must not advertise it first.
-          mcpUrl: null,
+          mcpUrl: `${deps.services.environment.appOrigin}/mcp`,
           modes: deps.services.environment.modes,
           policyId: deps.services.environment.privyAgent?.policyId ?? null,
           sessionId: workspace.session.id,

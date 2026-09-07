@@ -15,6 +15,11 @@ import type {
   AgentToken,
   AgentTokenId,
   DirectoryEntry,
+  OAuthClient,
+  OAuthClientId,
+  OAuthGrant,
+  OAuthGrantId,
+  OAuthScope,
   SaleId,
   ScheduleId,
   ScheduleStatus,
@@ -44,6 +49,31 @@ export interface ScheduleFinish {
   readonly lastRunAt?: number;
   readonly nextRunAt: number | null;
   readonly status: ScheduleStatus;
+}
+
+export type OAuthTokenKind = "access" | "code" | "refresh";
+
+/**
+ * A code, access token or refresh token, keyed by the hash of the secret.
+ * The secret itself is never stored; a copy of this row cannot be presented.
+ */
+export interface OAuthTokenRow {
+  /** PKCE S256 challenge, on codes only. */
+  readonly codeChallenge: string | null;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly grantId: OAuthGrantId;
+  /** SHA-256 of the secret, hex. */
+  readonly hash: string;
+  readonly kind: OAuthTokenKind;
+  /** The redirect the code was issued to, on codes only. */
+  readonly redirectUri: string | null;
+  /** The resource the code was asked for, on codes only, when one was named. */
+  readonly resource: string | null;
+  readonly revokedAt: number | null;
+  readonly scopes: readonly OAuthScope[];
+  /** Set exactly once, by `consume`. */
+  readonly usedAt: number | null;
 }
 
 /** What a task update may change. Everything else is fixed at creation. */
@@ -181,6 +211,48 @@ export interface Store {
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
   };
   /**
+   * The OAuth authorization server's state: registered clients, the grants
+   * people gave them, and the hashed codes and tokens under each grant.
+   * `tokens.consume` is the one write that must be atomic across processes:
+   * it sets `usedAt` only where it is still null and says whether it did, so
+   * a replayed code or an old refresh token is caught by whichever process
+   * sees it second.
+   */
+  readonly oauth: {
+    readonly clients: {
+      readonly byId: (id: OAuthClientId) => Promise<OAuthClient | null>;
+      readonly create: (client: OAuthClient) => Promise<void>;
+    };
+    readonly grants: {
+      /** Revoked grants included, so a token under one still resolves to "revoked". */
+      readonly byId: (id: OAuthGrantId) => Promise<{
+        readonly grant: OAuthGrant;
+        readonly userId: UserId;
+      } | null>;
+      readonly create: (userId: UserId, grant: OAuthGrant) => Promise<void>;
+      /** Every grant, revoked ones included, newest first. */
+      readonly list: (userId: UserId) => Promise<readonly OAuthGrant[]>;
+      /** True when the grant was this person's and is now revoked. */
+      readonly revoke: (
+        userId: UserId,
+        id: OAuthGrantId,
+        at: number
+      ) => Promise<boolean>;
+      readonly touch: (id: OAuthGrantId, at: number) => Promise<void>;
+    };
+    readonly tokens: {
+      /** Null for a revoked row; an expired or used row is returned and judged by the caller. */
+      readonly byHash: (hash: string) => Promise<OAuthTokenRow | null>;
+      /** False when the row was already used: the replay signal. */
+      readonly consume: (hash: string, at: number) => Promise<boolean>;
+      readonly insert: (row: OAuthTokenRow) => Promise<void>;
+      readonly revokeAllForGrant: (
+        grantId: OAuthGrantId,
+        at: number
+      ) => Promise<void>;
+    };
+  };
+  /**
    * The person's share of the host account that pays the Hedera leg, in USD
    * millionths. Never negative: a debit larger than the balance floors at
    * zero, and the policy is what stops it being asked for.
@@ -263,6 +335,17 @@ const digestRowOf = (
   return null;
 };
 
+/** The grant without its owner, which is the caller's to know separately. */
+const publicGrant = (row: OAuthGrant & { userId: UserId }): OAuthGrant => ({
+  clientId: row.clientId,
+  clientName: row.clientName,
+  createdAt: row.createdAt,
+  id: row.id,
+  lastUsedAt: row.lastUsedAt,
+  revokedAt: row.revokedAt,
+  scopes: row.scopes,
+});
+
 /**
  * Parse a stored document, or drop it.
  *
@@ -292,10 +375,89 @@ export const memoryStore = (): Store => {
   const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
   const sales = new Map<SaleId, Sale>();
   const tasks = new Map<TaskId, Task & { userId: UserId }>();
+  const oauthClients = new Map<OAuthClientId, OAuthClient>();
+  const oauthGrants = new Map<OAuthGrantId, OAuthGrant & { userId: UserId }>();
+  const oauthTokens = new Map<string, OAuthTokenRow>();
   const unpair = (userId: UserId): void => {
     pairings.delete(userId);
   };
   return {
+    oauth: {
+      clients: {
+        byId: async (id) => {
+          await Promise.resolve();
+          return oauthClients.get(id) ?? null;
+        },
+        create: async (client) => {
+          await Promise.resolve();
+          oauthClients.set(client.id, client);
+        },
+      },
+      grants: {
+        byId: async (id) => {
+          await Promise.resolve();
+          const row = oauthGrants.get(id);
+          return row === undefined
+            ? null
+            : { grant: publicGrant(row), userId: row.userId };
+        },
+        create: async (userId, grant) => {
+          await Promise.resolve();
+          oauthGrants.set(grant.id, { ...grant, userId });
+        },
+        list: async (userId) => {
+          await Promise.resolve();
+          return [...oauthGrants.values()]
+            .filter((row) => row.userId === userId)
+            .toSorted((a, b) => b.createdAt - a.createdAt)
+            .map(publicGrant);
+        },
+        revoke: async (userId, id, at) => {
+          await Promise.resolve();
+          const row = oauthGrants.get(id);
+          if (row === undefined || row.userId !== userId) {
+            return false;
+          }
+          oauthGrants.set(id, { ...row, revokedAt: row.revokedAt ?? at });
+          return true;
+        },
+        touch: async (id, at) => {
+          await Promise.resolve();
+          const row = oauthGrants.get(id);
+          if (row !== undefined) {
+            oauthGrants.set(id, { ...row, lastUsedAt: at });
+          }
+        },
+      },
+      tokens: {
+        byHash: async (hash) => {
+          await Promise.resolve();
+          const row = oauthTokens.get(hash);
+          return row === undefined || row.revokedAt !== null ? null : row;
+        },
+        consume: async (hash, at) => {
+          await Promise.resolve();
+          const row = oauthTokens.get(hash);
+          if (row === undefined || row.usedAt !== null) {
+            return false;
+          }
+          oauthTokens.set(hash, { ...row, usedAt: at });
+          return true;
+        },
+        insert: async (row) => {
+          await Promise.resolve();
+          oauthTokens.set(row.hash, row);
+        },
+        revokeAllForGrant: async (grantId, at) => {
+          await Promise.resolve();
+          for (const [hash, row] of oauthTokens) {
+            if (row.grantId === grantId && row.revokedAt === null) {
+              oauthTokens.set(hash, { ...row, revokedAt: at });
+            }
+          }
+        },
+      },
+    },
     agents: {
       create: async (userId, token) => {
         await Promise.resolve();
@@ -574,6 +736,16 @@ export const memoryStore = (): Store => {
       for (const [id, task] of tasks) {
         if (task.userId === userId) {
           tasks.delete(id);
+        }
+      }
+      for (const [id, grant] of oauthGrants) {
+        if (grant.userId === userId) {
+          oauthGrants.delete(id);
+          for (const [hash, row] of oauthTokens) {
+            if (row.grantId === id) {
+              oauthTokens.delete(hash);
+            }
+          }
         }
       }
       entries.delete(userId);

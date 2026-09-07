@@ -43,6 +43,9 @@ describe("agent tokens", () => {
     expect(agentMayCall("/api/tasks/tsk_x/events", "GET")).toBe(true);
     expect(agentMayCall("/api/wallet", "GET")).toBe(true);
     expect(agentMayCall("/api/wallet/pay", "POST")).toBe(true);
+    expect(agentMayCall("/mcp", "POST")).toBe(true);
+    expect(agentMayCall("/api/mcp", "POST")).toBe(true);
+    expect(agentMayCall("/api/oauth/consent", "POST")).toBe(false);
     expect(agentMayCall("/api/directory", "POST")).toBe(false);
     expect(agentMayCall("/api/agents", "POST")).toBe(false);
     expect(agentMayCall("/api/me", "DELETE")).toBe(false);
