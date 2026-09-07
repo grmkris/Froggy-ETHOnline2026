@@ -40,3 +40,11 @@ These are triaged and benign. A warn that is **not** on this list is new — loo
 `cfg.docsDir` is resolved with `resolve(PKG_DIR, …)`, and **PKG_DIR is the symlink** `packages/ui/node_modules/@froggy/ui` that `build-css.sh` creates — not `packages/ui`. So the path to a repo-root directory needs **five** `../` segments: `../../../../../.design-sync/docs`. The obvious-looking `../../.design-sync/docs` silently resolves to `packages/ui/node_modules/.design-sync/docs`, no doc matches, and every component lands in the single `general` group. If the pane ever shows one flat group again, check this first. A wrong path is at least loud in the build log (`! docsDir: … not found — skipped`).
 
 `.design-sync/docs/` holds one `<kebab-name>.md` per component: `category:` frontmatter sets the component's group in the pane, and the body becomes the first half of its `.prompt.md` (the generated `## Props` section is still appended, so a short body loses nothing).
+
+## The repo's own hooks apply to these files
+
+`lefthook` runs `oxfmt` and `oxlint` on commit, and `.design-sync/` is not exempt. Two consequences when authoring previews:
+
+- **Filenames must stay `<ComponentName>.tsx`** — design-sync looks previews up by exact component name. `unicorn/filename-case` wants kebab-case and is turned off for `.design-sync/previews/*.tsx` in `oxlint.config.ts`. Do not "fix" the filenames; the cards would silently drop back to the placeholder.
+- **The lint rules still judge the preview code.** Real errors caught here on the first run: an unused import, an export named `Shapes` (the anti-slop rule wants a domain name, not a structural one — it is now `TextLines`), and `render={<a href=… />}` anchors whose text comes from the parent at runtime, which `jsx-a11y` cannot see and which need an explicit `aria-label`. Run `bun run lint` before committing rather than discovering it in the hook.
+- `oxfmt` reformats `conventions.md` and the previews on commit. Harmless, but it means the first commit after authoring leaves the generated README one formatting pass behind; the next sync's rebuild picks it up and re-uploads.
