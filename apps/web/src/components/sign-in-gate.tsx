@@ -8,7 +8,7 @@ import { useIdentity } from "../lib/privy";
 
 const BEATS = [
   ["Fund", "Add funds for the work you want your agents to do."],
-  ["Approve", "Big spends ask you first. Your agent cannot approve itself."],
+  ["Control", "Freeze spending or disconnect an agent whenever you need."],
   ["Follow", "Watch the work, take control, and keep the receipts."],
 ] as const;
 
@@ -38,7 +38,7 @@ const Wordmark = (): React.ReactElement => (
       A wallet for your agents.
     </h1>
     <p className="text-muted-foreground mt-4 text-base leading-relaxed">
-      Fund tasks, set spending limits, and follow the work.
+      Fund tasks and follow the work your agents do.
     </p>
   </div>
 );

@@ -43,6 +43,8 @@ Local verification passed: `bun run check` (480 unit tests), `bun run e2e` (56 b
 
 ## Remaining work, in order
 
+Use the [owner acceptance checklist](OWNER_ACCEPTANCE.md) for the production configuration, consent, funding and Telegram steps. Follow-up verification passed the CLI under Node 20.20.2 and OAuth/tool calls through the official MCP SDK 1.30.0 with local stubs. The sign-in copy now describes funding, freezing and disconnecting; it no longer promises hidden spending controls or an automatic approval threshold.
+
 1. Complete human consent from an actual MCP client against the deployed OAuth integration. Disconnect must invalidate its next call. Public discovery and unauthenticated refusal have already passed in production.
 2. Complete the signed-in funding and Telegram journeys above. Local stubs establish behavior; they do not establish a live payment or delivered phone message.
 3. Supply the X credential through the secret configuration, then buy one small task per provider within the existing reviewed limits and fill the evidence table.

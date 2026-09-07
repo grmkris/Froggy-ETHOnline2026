@@ -1,6 +1,6 @@
 # Service marketplace — implementation and live activation
 
-The workspace's **Services** button opens the catalog, fixed prices, a request form and recent task results. The same tasks are available through chat (`services_list`, `service_run`, `service_status`), CLI and MCP. Downloads require the owner's bearer credential. Failed and uncertain work stays retrievable.
+The workspace's **Services** page contains the catalog, fixed prices, a request form and recent task results. The same tasks are available through chat (`services_list`, `service_run`, `service_status`), CLI and MCP. Downloads require the owner's bearer credential. Failed and uncertain work stays retrievable.
 
 ## Services and spending bounds
 
@@ -13,6 +13,10 @@ The workspace's **Services** button opens the catalog, fixed prices, a request f
 | BlockRun speech | $0.15 | $0.10 USDC | 1,000 characters, ElevenLabs Flash MP3 |
 
 Prices above are Froggy's fixed task prices. Supplier limits are ceilings, not claims about what every request costs. The existing Graph brief and shared browser task remain available through the existing task API and CLI.
+
+## Current production state — 7 September 2026
+
+OAuth is deployed at `/mcp`; discovery and invalid-token refusal passed against production. The reviewed treasury rules and supplier payees are configured for You.com and BlockRun. X still needs `X_API_BEARER_TOKEN`, and paid delivery evidence for all five services remains pending. The dated release sections below preserve the sequence of checks and activation; they do not replace this current state. See [external-client verification](HERMES.md) and the [owner acceptance checklist](../plan/OWNER_ACCEPTANCE.md).
 
 ## Configuration for the production owner
 
@@ -29,13 +33,13 @@ Prices above are Froggy's fixed task prices. Supplier limits are ceilings, not c
 4. Configure a server-only `X_API_BEARER_TOKEN` with the appropriate X API access and credit budget. The app does not read the operator's personal xurl store.
 5. Run one small task per provider from a funded person's wallet. Record the customer Hedera settlement and the supplier Base settlement separately, inspect the delivered artifact, and exercise a deliberate refusal.
 
-No new supplier policy has been applied and no new supplier has been paid by this implementation session. The separate mainnet cutover has a funded Hedera float and an existing oracle proof; that is not proof of these new adapters.
+The supplier policy and matching payees were activated in the afternoon section below. No paid provider delivery has been verified. The funded Hedera float and existing oracle proof do not establish a purchase from these adapters.
 
 ## Agent connection
 
-The generated skill in **Details → Agents** now includes an MCP configuration. It uses `node /absolute/path/to/froggy.mjs mcp`, with `FROGGY_URL` and the person's revocable `FROGGY_TOKEN`. HTTP clients can call `/api/mcp` with the same bearer. Tools: `froggy_services`, `froggy_service_run`, `froggy_service_status`.
+On **Agents**, connect an external MCP client to `https://app-production-58dd.up.railway.app/mcp`. It discovers OAuth, registers, and sends the person through Froggy's sign-in and consent page. `froggy login` uses the same flow; `--manual` supports a sandbox where the person opens the link on another device. The reusable skill contains no secret. Tokens are stored by the client and the person can revoke the connection through Agents.
 
-The official OAuth connection flow in plan task 2.6 is separate, pending work. This implementation adds no OAuth discovery claims or fake sign-in flow.
+The signed-in CLI can also bridge stdio MCP. Legacy `fgy_` tokens and `/api/mcp` remain available under **Advanced: connect with a token**. Tools: `froggy_services`, `froggy_service_run`, `froggy_service_status`. [ADR 0012](../decisions/0012-mcp-oauth-authorization-server.md) describes the deployed authorization server.
 
 Raw service API: `GET /api/services`, `POST /api/services/run`, `GET /api/services/tasks`, `GET /api/services/tasks/:id`, and `GET /api/services/tasks/:id/artifact`. Run body:
 

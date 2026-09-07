@@ -1,6 +1,6 @@
 # FABLE51 planning docs: index and what changed
 
-Current work: [iteration 3](ITERATION_3.md) records the 7 September decisions, recovered Claude work and remaining checks. [STATUS.md](STATUS.md) separates current state from the historical notes below.
+Current work: [iteration 3](ITERATION_3.md) records the 7 September decisions, recovered Claude work and remaining checks. [STATUS.md](STATUS.md) separates current state from the historical notes below. The [owner acceptance checklist](OWNER_ACCEPTANCE.md) gives the remaining configuration and signed-in checks in order.
 
 > **Superseded where noted.** These documents are the Saturday-morning spec and are kept as written. The owner's decisions of Saturday afternoon override them where the two differ: `DECISIONS.md` lists every such place and which are still open, `PLAN.md` is the operative plan, and `STATUS.md` is what has landed. The paragraph headed "The decision in one paragraph" below predates those decisions; read it with `DECISIONS.md` rows 1, 2 and 8 beside it.
 

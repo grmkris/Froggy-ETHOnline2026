@@ -14,7 +14,11 @@ OAuth unit tests cover redirect validation, mandatory PKCE, code expiry and sing
 
 Migration 0009 was applied with all preceding migrations to a disposable local Postgres 17 database. Independent connections passed OAuth client/grant/token round trips, concurrent single-use consumption, cross-user revocation refusal, grant revocation, schedule claiming and deletion of the test identity. This caught and fixed a timestamp serialization failure in the Postgres revocation query that the memory store could not expose. Reproduce with `DATABASE_URL=<disposable local database> bun tools/spikes/verify-oauth-postgres.ts` after `bun run db:migrate`.
 
-The full `bun run check` gate passed (480 unit tests, formatting, type-aware lint, TypeScript, boundaries, agent-file validation and knip). `bun run build` passed for the server and web app. The complete Chromium suite passed all 56 tests, including both CLI login modes under Node 22.23.2. Consent screenshots at 390 and 1440 pixels were visually inspected. Node 20 was not exercised on this machine.
+The full `bun run check` gate passed (480 unit tests, formatting, type-aware lint, TypeScript, boundaries, agent-file validation and knip). `bun run build` passed for the server and web app. The complete Chromium suite passed all 56 tests, including both CLI login modes under Node 22.23.2. Consent screenshots at 390 and 1440 pixels were visually inspected. Follow-up verification also passed both CLI login modes, refresh, logout and revocation under Node 20.20.2. The CLI downloaded from production ran its help command under that runtime.
+
+## Official client interoperability
+
+The installed `@modelcontextprotocol/sdk` 1.30.0 was exercised as an external client under Node 20.20.2, without adding it or its dependencies to the repository. Against the local app with explicit stubs, its `StreamableHTTPClientTransport` discovered metadata from the 401 challenge, dynamically registered, generated PKCE, sent the browser through consent, exchanged the code, initialized MCP, listed all three tools and called `froggy_services`. No transport errors were reported. Disconnecting through Agents made the issued token receive HTTP 401. This is protocol interoperability evidence; production consent from a real person remains below.
 
 ## Production release verification
 
@@ -28,10 +32,12 @@ Read-only checks against `https://app-production-58dd.up.railway.app` passed:
 - Unauthenticated POST `/mcp`: HTTP 401 with the production `resource_metadata` challenge.
 - POST `/mcp` with a nonexistent `fga_` token: HTTP 401 and `invalid_token`. This exercises the OAuth token lookup against the migrated live database.
 
+Anonymous production browser checks also passed at 1440px and 390px with no page or console errors. The real Privy email/Google dialog opened, and its email field accepted focus. No email was submitted and no user was signed in.
+
 ## Live checks still required
 
 1. Connect an external MCP client by URL, complete consent as a real Privy user, list tools and call `froggy_services`.
 2. Disconnect through Agents; the next token-authenticated call must return 401.
 3. Run `froggy login --manual` in Hermes' environment, relay the link to the owner, exchange the pasted code, read services, then log out. A paid brief is a separate live financial check.
 
-No live Hermes, Inspector, provider payment or Telegram delivery is claimed by this record.
+The [owner acceptance checklist](../plan/OWNER_ACCEPTANCE.md) contains the exact remaining configuration and signed-in steps. No live Hermes, Inspector, provider payment or Telegram delivery is claimed by this record.
