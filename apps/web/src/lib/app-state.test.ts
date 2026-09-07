@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  ApprovalId,
   NoticeId,
   ReceiptId,
   RunId,
@@ -9,7 +10,7 @@ import {
   usdMicros,
 } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
-import type { ApprovalRequest } from "@froggy/protocol";
+import type { ApprovalRequest, WalletSummary } from "@froggy/protocol";
 
 import { initialAppState, reduceApp } from "./app-state";
 import type { AppEvent, AppState } from "./app-state";
