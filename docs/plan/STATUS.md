@@ -14,6 +14,10 @@ Marketplace and MCP/CLI source `f7fa2ee` is deployed with green CI. The final pr
 
 Remaining work: explicit approval of the reviewed treasury supplier rules, then configuration and paid delivery proofs; an X API credential; official MCP OAuth and the public agents page (task 2.6); a real signed-in onramp/top-up journey and durable funding recovery. Repository publication and demo recording remain owner decisions. Earlier testnet and missing-key notes below describe past states.
 
+## Lane 4 landed on Mon 7 Sep (two-way Telegram)
+
+Branch `worktree-agent-acc848be4cb1b1377`, on top of lane 1: `50ee258` (contracts: `Schedule`, `ScheduleRequest`, the `notice` message, `RunSurface` `schedule`), `c2f195d` (the `schedules` table and migration 0008, `Store.schedules` with the claimed tick, `schedules.ts`, `notices.ts`, `TelegramPager.notify`, the `notify` tool, `runScheduledFor` with the digest and prompt jobs, `/api/schedules`), `596a7c5` (the `schedule`, `schedules_list` and `schedule_cancel` tools and the prompt paragraph). ADR `docs/decisions/0011`. Not in this lane: the Settings page list of schedules and `e2e/schedules.spec.ts` (lane 2's page), and a live Telegram run, which nobody has seen yet.
+
 ## Landed on Sat 5 Sep by the Opus session (commits `3622c96`..`5db02e8`)
 
 | Plan item | State | What landed | Still open |

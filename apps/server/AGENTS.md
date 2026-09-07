@@ -1,15 +1,17 @@
 # apps/server
 
-One Bun process: the SPA, the JSON API, both WebSockets, the paid oracle endpoint, the Telegram webhook, the digest scheduler, and one browser worker process per signed-in user. One origin, so there is no CORS configuration that exists only in development.
+One Bun process: the SPA, the JSON API, both WebSockets, the paid oracle endpoint, the Telegram webhook, the schedule ticker, and one browser worker process per signed-in user. One origin, so there is no CORS configuration that exists only in development.
 
-`index.ts` owns the process lifecycle and nothing else. `router.ts` answers requests. `services.ts` is the only file that holds the browser, the wallet and the payer at once — that adjacency is deliberate and contained. `turn.ts` is the one agent loop; the web chat, Telegram and the digest all start it and differ only in where the words go.
+`index.ts` owns the process lifecycle and nothing else. `router.ts` answers requests. `services.ts` is the only file that holds the browser, the wallet and the payer at once — that adjacency is deliberate and contained. `turn.ts` is the one agent loop; the web chat, Telegram and a scheduled run all start it and differ only in where the words go.
 
 Where money is decided and moved:
 
-- `session.ts` — `spend()` is the single choke point: price, policy, reservation and the pocket draw under one lock, then the payment, then the receipt. Nothing pays around it.
+- `session.ts` — `spend()` is the single choke point: price, policy, reservation and the pocket draw under one lock, then the payment, then the receipt. Nothing pays around it. Before a Hedera payment is judged, `replenish()` converts the person's USDC to HBAR when the pocket is short: a nested spend keyed `convert:<parent key>`, judged and receipted like any other, never a tool (`docs/decisions/0011`).
+- `conversion.ts` — the two legs of that conversion (the USDC transfer to the treasury, then funding the person's Hedera account), reported apart because they fail apart.
 - `paid-request.ts` — every paid HTTP request (`x402_fetch`, The Graph per query) goes through here, in this order: public URL, host allowlist, 402 decoded, a payer exists, then `spend()`.
-- `tools.ts` — the agent's tools. `wallet_send` and `wallet_topup` are ERC-20 transfers the person's Privy wallet signs under the committed policy and this process broadcasts; the signer's refusal is a fact on the receipt, never a reason to retry.
-- `freeze.ts` — the kill switch as one function, six steps, whichever surface presses it. The pocket is zeroed as the last of them.
+- `tools.ts` — the agent's tools. `wallet_send` is an ERC-20 transfer the person's Privy wallet signs under the committed policy and this process broadcasts; the signer's refusal is a fact on the receipt, never a reason to retry. `notify`, `schedule`, `schedules_list` and `schedule_cancel` are allowed as tools because none of them changes what may be spent.
+- `schedules.ts` — the next run of a cadence in the person's zone, and the minute tick that claims due rows through the store (one `UPDATE … RETURNING`, so two processes never fire the same row) and fires them: a reminder becomes a notice, a prompt or the digest becomes `runScheduledFor` in `jobs.ts`. `schedule-routes.ts` is the HTTP side and the one `createSchedule`.
+- `notices.ts` — what the agent says unasked: to the paired Telegram thread through `TelegramPager.notify`, and always into the web stream as a `notice` message whose `telegram` flag says whether the phone saw it.
 - `budget.ts` — turns and steps per person per UTC day, counted before any model call. In memory on purpose.
 - `unlock.ts` — one-time, ten-minute links to the page a payment unlocked, opened by the shared Chrome, which holds no token.
 
