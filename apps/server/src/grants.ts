@@ -100,6 +100,16 @@ export class AgentGrants {
     });
   }
 
+  /**
+   * The person just granted the signature in the browser, where Privy asked
+   * them directly. Ask again now, whatever the last answer was: the server
+   * reads the signer off the wallet rather than patching it in.
+   */
+  refresh(userId: UserId, accessToken: string): void {
+    this.asked.delete(userId);
+    this.note(userId, accessToken);
+  }
+
   private now(): number {
     return this.deps.now?.() ?? Date.now();
   }

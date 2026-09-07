@@ -142,6 +142,24 @@ const updateWallet = async (
 
 const UNRECOGNISED = "Privy refused the grant for an unrecognised reason.";
 
+/**
+ * Is the agent's quorum already a signer on this wallet?
+ *
+ * The person can also grant the signature from the browser, where Privy asks
+ * them directly; that path never passes through here, so the answer has to be
+ * read from the wallet rather than remembered.
+ */
+const alreadyAttached = async (
+  client: PrivyClient,
+  walletId: string,
+  quorumId: string
+): Promise<boolean> => {
+  const wallet = await client.wallets().get(walletId);
+  return wallet.additional_signers.some(
+    (signer) => signer.signer_id === quorumId
+  );
+};
+
 export const grantAgentSigner = async (
   client: PrivyClient,
   input: {
@@ -160,6 +178,9 @@ export const grantAgentSigner = async (
         reason: "No embedded wallet on this account yet.",
         wallet: null,
       };
+    }
+    if (await alreadyAttached(client, wallet.id, input.agent.quorumId)) {
+      return { attached: true, reason: null, wallet };
     }
     await updateWallet(client, {
       accessToken: input.accessToken,

@@ -270,6 +270,7 @@ export const createSocketHandlers = (deps: SocketDeps) => {
       if (ws.data.kind === "app") {
         appSockets.add(ws);
         sendApp(ws, {
+          agentSignerId: deps.services.environment.privyAgent?.quorumId ?? null,
           hcsTopicId:
             deps.services.environment.hederaHcsTopicId === ""
               ? null

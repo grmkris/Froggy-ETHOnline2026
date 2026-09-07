@@ -10,11 +10,17 @@
 import { createContext, useContext } from "react";
 
 export interface SessionIds {
+  /** The key quorum the agent signs with, named when the person grants it. */
+  readonly agentSignerId: string | null;
   readonly hcsTopicId: string | null;
   readonly policyId: string | null;
 }
 
-const NO_SESSION_IDS: SessionIds = { hcsTopicId: null, policyId: null };
+const NO_SESSION_IDS: SessionIds = {
+  agentSignerId: null,
+  hcsTopicId: null,
+  policyId: null,
+};
 
 export const SessionIdsContext = createContext<SessionIds>(NO_SESSION_IDS);
 

@@ -265,6 +265,7 @@ describe("timeline events for approvals and turns elsewhere", () => {
 describe("the welcome", () => {
   it("keeps the topic and the policy the tickets link to", () => {
     const state = server(initialAppState, {
+      agentSignerId: "quorum-test",
       hcsTopicId: "0.0.10381647",
       modes: {
         database: "stub",

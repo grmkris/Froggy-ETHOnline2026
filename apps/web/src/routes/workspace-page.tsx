@@ -262,8 +262,12 @@ export const WorkspacePage = (): ReactElement => {
     : composerLock(app.connected);
   const firstUse = items.length === 0 && !busy && !showLive;
   const sessionIds = useMemo(
-    () => ({ hcsTopicId: app.hcsTopicId, policyId: app.policyId }),
-    [app.hcsTopicId, app.policyId]
+    () => ({
+      agentSignerId: app.agentSignerId,
+      hcsTopicId: app.hcsTopicId,
+      policyId: app.policyId,
+    }),
+    [app.agentSignerId, app.hcsTopicId, app.policyId]
   );
 
   return (

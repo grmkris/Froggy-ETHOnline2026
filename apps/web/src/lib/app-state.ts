@@ -59,6 +59,8 @@ export interface AppState {
   /** Oldest first. */
   readonly events: readonly TimelineEvent[];
   /** Where the audit notes go, when a topic is pinned. */
+  /** The agent's key quorum, from the welcome; null when the server has no agent key. */
+  readonly agentSignerId: string | null;
   readonly hcsTopicId: string | null;
   readonly lastDecision: PolicyDecision | null;
   readonly mandate: Mandate | null;
@@ -89,6 +91,7 @@ export const initialAppState: AppState = {
   approvals: [],
   connected: false,
   events: [],
+  agentSignerId: null,
   hcsTopicId: null,
   lastDecision: null,
   mandate: null,
@@ -229,6 +232,7 @@ const onServer = (
     case "session.welcome": {
       return {
         ...state,
+        agentSignerId: message.agentSignerId,
         hcsTopicId: message.hcsTopicId,
         modes: message.modes,
         policyId: message.policyId,

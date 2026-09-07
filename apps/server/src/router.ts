@@ -87,6 +87,7 @@ type ResponseBody =
       readonly status: string;
     }
   | { readonly deleted: true }
+  | { readonly asked: true }
   | {
       readonly code: string;
       readonly expiresAt: number;
@@ -393,6 +394,16 @@ const handleAgents = async (
   userId: UserId,
   pathname: string
 ): Promise<Response | null> => {
+  // The person granted the agent a signature in the browser; read it now
+  // rather than on the next reload. Nothing waits on Privy here either.
+  if (pathname === "/api/agent-signer/refresh" && request.method === "POST") {
+    const token = bearerFromRequest(request);
+    if (token === null) {
+      return json(UNAUTHORIZED, 401);
+    }
+    deps.grants.refresh(userId, token);
+    return json({ asked: true }, 202);
+  }
   if (pathname === "/api/agents" && request.method === "GET") {
     return json({ agents: await deps.services.store.agents.list(userId) });
   }

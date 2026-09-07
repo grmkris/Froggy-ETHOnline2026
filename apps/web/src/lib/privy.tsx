@@ -52,6 +52,14 @@ export type FundOutcome =
   | { readonly kind: "refused"; readonly reason: string };
 
 /**
+ * What came of asking the person, through Privy's own prompt, to let the
+ * agent sign on their wallet under the policy. `refused` carries Privy's words.
+ */
+export type GrantOutcome =
+  | { readonly kind: "granted" }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/**
  * Where sign-in stands.
  *
  * `loading` is a real state, not a placeholder: with an app id configured the
@@ -74,6 +82,19 @@ export interface Identity {
   /** The money address: the smart account when there is one, else the signer. */
   readonly address: string | null;
   readonly authenticated: boolean;
+  /**
+   * Asks the person, in Privy's own prompt, to add the agent's key quorum as
+   * a signer on their wallet under `policyId`. Privy's primary path for a
+   * server signer, and the one that needs no dashboard toggle. Null without
+   * a Privy sign-in.
+   */
+  readonly grantAgentSigner:
+    | ((input: {
+        readonly address: string;
+        readonly policyId: string;
+        readonly signerId: string;
+      }) => Promise<GrantOutcome>)
+    | null;
   readonly login: () => void;
   readonly logout: () => void;
   readonly ready: boolean;
@@ -116,6 +137,7 @@ const localToken = (): string => {
 const LOCAL: Identity = {
   addFunds: null,
   address: null,
+  grantAgentSigner: null,
   // True: there *is* a caller, and the server will accept them. `stubbed`
   // is what tells the UI not to call it a sign-in.
   authenticated: true,
@@ -134,6 +156,7 @@ const nobody = async (): Promise<null> => await Promise.resolve(null);
 const LOADING: Identity = {
   addFunds: null,
   address: null,
+  grantAgentSigner: null,
   authenticated: false,
   login: unavailable,
   logout: unavailable,
@@ -169,6 +192,12 @@ interface PrivyModule {
     }) => Promise<{ status: "confirmed" | "submitted" }>;
   };
   readonly useLogin: () => { login: () => void };
+  readonly useSigners: () => {
+    addSigners: (input: {
+      address: string;
+      signers: { policyIds?: string[]; signerId: string }[];
+    }) => Promise<object>;
+  };
   readonly usePrivy: () => {
     authenticated: boolean;
     getAccessToken: () => Promise<string | null>;
@@ -198,6 +227,7 @@ const PrivyBridge = ({
   const { authenticated, getAccessToken, logout, ready, user } = mod.usePrivy();
   const { login } = mod.useLogin();
   const { fund } = mod.useFiatOnramp();
+  const { addSigners } = mod.useSigners();
 
   /**
    * Privy's callbacks, held rather than depended on.
@@ -212,9 +242,9 @@ const PrivyBridge = ({
    * boundary below caught the throw and blamed HTTPS or the app id, which is
    * what the deployed app said while both were correct.
    */
-  const callbacks = useRef({ fund, getAccessToken, login, logout });
+  const callbacks = useRef({ addSigners, fund, getAccessToken, login, logout });
   useEffect(() => {
-    callbacks.current = { fund, getAccessToken, login, logout };
+    callbacks.current = { addSigners, fund, getAccessToken, login, logout };
   });
 
   // Stable for the life of the bridge, so a consumer can hold one in a
@@ -254,6 +284,34 @@ const PrivyBridge = ({
     []
   );
 
+  const grantAgentSigner = useCallback(
+    async ({
+      address: wallet,
+      policyId,
+      signerId,
+    }: {
+      readonly address: string;
+      readonly policyId: string;
+      readonly signerId: string;
+    }): Promise<GrantOutcome> => {
+      try {
+        await callbacks.current.addSigners({
+          address: wallet,
+          signers: [{ policyIds: [policyId], signerId }],
+        });
+        return { kind: "granted" };
+      } catch (error) {
+        // Privy's words, verbatim: the person declined, or the dashboard
+        // does not allow signers. Never a retry on its own.
+        return {
+          kind: "refused",
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    []
+  );
+
   // Smart account first: that is where money is. Falling back to the embedded
   // EOA covers a user who has one but no smart wallet.
   const address = user?.smartWallet?.address ?? user?.wallet?.address ?? null;
@@ -264,6 +322,7 @@ const PrivyBridge = ({
       addFunds,
       address,
       authenticated,
+      grantAgentSigner,
       login: doLogin,
       logout: doLogout,
       ready,
@@ -280,6 +339,7 @@ const PrivyBridge = ({
     address,
     authenticated,
     doLogin,
+    grantAgentSigner,
     doLogout,
     onChange,
     ready,

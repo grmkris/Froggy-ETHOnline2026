@@ -139,6 +139,17 @@ describe("AgentGrants", () => {
     expect(h.calls.at(-1)).toBe("signer:granted:");
   });
 
+  it("asks again at once when the person granted the signer in the browser", async () => {
+    const h = harness([refused, attached]);
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.asks()).toBe(1);
+    h.grants.refresh(ALICE, "token");
+    expect(h.asks()).toBe(2);
+    await flush();
+    expect(h.calls.at(-1)).toBe("signer:granted:");
+  });
+
   it("treats a grant that threw as a refusal to retry, and touches nothing", async () => {
     const h = harness([
       async () => {

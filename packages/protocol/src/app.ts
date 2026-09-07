@@ -158,6 +158,12 @@ export type WalletSummary = typeof WalletSummary.Type;
 export const AppServerMessage = Schema.Union([
   Schema.Struct({
     ...Envelope,
+    /**
+     * The key quorum the agent signs with, when the server has one. Public:
+     * the browser names it when the person grants the agent a signature on
+     * their wallet, and Privy holds the key.
+     */
+    agentSignerId: Schema.NullOr(Schema.String),
     /** The Hedera Consensus Service topic the audit notes are posted to, when one is pinned. */
     hcsTopicId: Schema.NullOr(Schema.String),
     modes: ServiceModes,
