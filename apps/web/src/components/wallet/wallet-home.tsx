@@ -5,7 +5,12 @@ import { Button } from "@froggy/ui/components/button";
 import { ArrowUpRightIcon, ChevronDownIcon, PlusIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
-import { evmAddressUrl, explorerUrl, hederaAccountUrl } from "../../lib/format";
+import {
+  evmAddressUrl,
+  explorerUrl,
+  hederaAccountUrl,
+  shortAddress,
+} from "../../lib/format";
 import { capsLine, networkWords } from "../../lib/mandate-words";
 import { receiptStatus } from "../../lib/receipt-status";
 import { walletAmounts } from "../../lib/wallet-view";
@@ -201,6 +206,17 @@ export const WalletHome = ({
               ? "Base"
               : networkWords(wallet.balances.evmNetwork)}
           </dd>
+          {wallet !== null && wallet.address !== null ? (
+            <dd className="mt-1 flex items-center gap-1">
+              <span className="text-machine text-xs" title={wallet.address}>
+                {shortAddress(wallet.address)}
+              </span>
+              <CopyButton
+                label="Copy Base wallet address"
+                text={wallet.address}
+              />
+            </dd>
+          ) : null}
         </div>
         <div>
           <dt className="text-muted-foreground text-xs">Task credit</dt>
