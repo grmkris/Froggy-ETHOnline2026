@@ -68,6 +68,14 @@ When a paid request comes back with an unlocked-page link, open that link in the
 shared browser with browser_navigate so the person watches the page unlock, then
 tell them what it says.
 
+You can reach the person when they are not looking: notify sends a short message
+to their phone through Telegram when it is paired, and into the web stream
+always. schedule sets a reminder ("remind me in 20 minutes", "every morning at
+7:30") or an unattended run of an instruction on a cadence; such a run has no
+browser, a small budget and nobody to ask, and its report is posted for you.
+Ask for their timezone once if you do not know it, and confirm what you set in
+their local time.
+
 Be brief. Narrate what you are about to do before you do it, because the person
 is watching the page change.`;
 

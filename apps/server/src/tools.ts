@@ -23,7 +23,13 @@
  */
 
 import type { BrowserHandle } from "@froggy/browser";
-import { formatUsd, KNOWN_ASSETS, publicHttpUrl, TaskId } from "@froggy/domain";
+import {
+  formatUsd,
+  KNOWN_ASSETS,
+  publicHttpUrl,
+  ScheduleId,
+  TaskId,
+} from "@froggy/domain";
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
@@ -34,7 +40,7 @@ import {
 } from "@froggy/graph";
 import type { GraphClient, GraphSnapshot } from "@froggy/graph";
 import { EVM_NETWORK_LABELS } from "@froggy/payments";
-import { ServiceRequest } from "@froggy/protocol";
+import { ScheduleRequestBody, ServiceRequest } from "@froggy/protocol";
 import type { GraphQueryOutput } from "@froggy/protocol";
 import { tool } from "ai";
 import { Schema } from "effect";
@@ -43,6 +49,8 @@ import { describeProbe, probeUrl } from "./directory";
 import type { Notices } from "./notices";
 import { paidRequest } from "./paid-request";
 import type { ChatRun } from "./runs";
+import { createSchedule } from "./schedule-routes";
+import { describeSchedule, scheduleLine } from "./schedules";
 import { serviceCatalog } from "./service-providers";
 import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
@@ -594,6 +602,53 @@ export const buildTools = (deps: ToolDeps) => {
           ).annotate({ description: "What to say, in plain words." }),
         })
       ),
+    }),
+
+    // Scheduling changes when the agent runs, not what it may spend: a
+    // scheduled prompt runs under the same mandate as this turn, with
+    // fewer tools and a smaller budget. So these three may be tools.
+    schedule: tool({
+      description:
+        'Set a reminder or a scheduled unattended run for the person. `when` is "in" (minutes from now), "at" (a local "YYYY-MM-DDTHH:MM"), "daily" or "weekly" ("HH:MM" plus a weekday). A "remind" action says the text back to them at that time; a "prompt" action runs the text as an instruction to you, unattended, without the browser, and posts a report. Give the IANA timezone if the person has said where they are; otherwise their last known zone or UTC is used and the answer says so.',
+      execute: async (input) => {
+        const outcome = await createSchedule(
+          services.store,
+          session.userId,
+          input,
+          Date.now()
+        );
+        return outcome.kind === "created"
+          ? describeSchedule(outcome.schedule, outcome.timezoneDefaulted)
+          : `Not scheduled: ${outcome.reason}`;
+      },
+      inputSchema: std(ScheduleRequestBody),
+    }),
+
+    schedules_list: tool({
+      description:
+        "The person's reminders and scheduled runs, newest first, with each one's next local time and status.",
+      execute: async () => {
+        const rows = await services.store.schedules.list(session.userId);
+        return rows.length === 0
+          ? "No schedules."
+          : cap(rows.map(scheduleLine).join("\n"));
+      },
+      inputSchema: std(Schema.Struct({})),
+    }),
+
+    schedule_cancel: tool({
+      description:
+        "Cancel one of the person's active schedules by id (from schedules_list).",
+      execute: async ({ scheduleId }) => {
+        const cancelled = await services.store.schedules.cancel(
+          session.userId,
+          scheduleId
+        );
+        return cancelled
+          ? `Cancelled ${scheduleId}.`
+          : `Nothing to cancel: ${scheduleId} is not one of the person's active schedules.`;
+      },
+      inputSchema: std(Schema.Struct({ scheduleId: ScheduleId })),
     }),
   };
 };

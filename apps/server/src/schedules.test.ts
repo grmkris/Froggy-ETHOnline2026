@@ -8,9 +8,11 @@ import {
   cadenceOf,
   createScheduleTicker,
   describeCadence,
+  describeSchedule,
   isTimezone,
   localClock,
   nextRunAfter,
+  scheduleLine,
 } from "./schedules";
 
 const ALICE = userId("did:privy:alice");
@@ -134,6 +136,31 @@ const reminder = (
   nextRunAt,
   status: "active",
   timezone,
+});
+
+describe("describeSchedule and scheduleLine", () => {
+  test("tell the person the label, the cadence, the next local time, what happens, and a defaulted zone", () => {
+    const once = reminder(
+      { _tag: "once", at: AT + 2 * MINUTE },
+      AT + 2 * MINUTE
+    );
+    const said = describeSchedule(once, true);
+    expect(said).toContain('"oven"');
+    expect(said).toContain(once.id);
+    expect(said).toContain("Next: Sat 5 Sept, 08:32 (Europe/Berlin)");
+    expect(said).toContain("remind you on Telegram");
+    expect(said).toContain("Timezone assumed UTC");
+    const prompt: Schedule = {
+      ...reminder({ _tag: "daily", time: "07:30" }, AT),
+      action: { _tag: "prompt", text: "check rates" },
+      label: "rates",
+    };
+    expect(describeSchedule(prompt, false)).toContain("run unattended");
+    expect(describeSchedule(prompt, false)).not.toContain("assumed UTC");
+    const line = scheduleLine({ ...once, nextRunAt: null, status: "done" });
+    expect(line).toContain("[remind]");
+    expect(line).toContain("— done");
+  });
 });
 
 describe("createScheduleTicker", () => {

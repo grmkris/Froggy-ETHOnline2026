@@ -257,6 +257,41 @@ export const describeCadence = (
   return `every ${WEEKDAY_NAMES.get(cadence.weekday) ?? cadence.weekday} at ${cadence.time} (${timezone})`;
 };
 
+/** What a schedule does, in the words the tool answers with. */
+const actionWords = (schedule: Schedule): string => {
+  if (schedule.action._tag === "remind") {
+    return "I will remind you on Telegram when it is paired, and in the web stream.";
+  }
+  if (schedule.action._tag === "prompt") {
+    return "It will run unattended, without the browser, and post a report to Telegram and the web stream.";
+  }
+  return "It is the daily digest.";
+};
+
+/** What the model tells the person once a schedule exists. */
+export const describeSchedule = (
+  schedule: Schedule,
+  timezoneDefaulted: boolean
+): string => {
+  const next =
+    schedule.nextRunAt === null
+      ? ""
+      : ` Next: ${formatLocal(schedule.nextRunAt, schedule.timezone)}.`;
+  const zone = timezoneDefaulted
+    ? " Timezone assumed UTC; tell me yours and I will reschedule."
+    : "";
+  return `Scheduled "${schedule.label}" (${schedule.id}): ${describeCadence(schedule.cadence, schedule.timezone)}.${next} ${actionWords(schedule)}${zone}`;
+};
+
+/** One line per schedule, for the list. */
+export const scheduleLine = (schedule: Schedule): string => {
+  const next =
+    schedule.nextRunAt === null
+      ? schedule.status
+      : `next ${formatLocal(schedule.nextRunAt, schedule.timezone)}`;
+  return `${schedule.id} "${schedule.label}" [${schedule.action._tag}] ${describeCadence(schedule.cadence, schedule.timezone)} — ${next}`;
+};
+
 /** `busy` means the person was mid-turn and nothing ran. */
 export type FireOutcome = "busy" | "done";
 
