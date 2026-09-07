@@ -89,7 +89,7 @@ test("Connect opens Agents directly, retains setup and restores focus", async ({
   );
   await page.getByRole("button", { name: "Retry connection" }).click();
   const skill = page.getByLabel("Skill for your agent");
-  await expect(skill).toHaveValue(/FROGGY_TOKEN="fgy_/u);
+  await expect(skill).toHaveValue(/froggy-cli\.js/u);
   const issued = await skill.inputValue();
   await expect(
     page.getByText("Waiting for first use", { exact: false })
@@ -125,7 +125,7 @@ test("clipboard denial is recoverable and does not discard the skill", async ({
   await page.getByRole("button", { name: "Copy agent skill" }).click();
   await expect(page.getByRole("alert")).toContainText("Couldn’t copy");
   await expect(page.getByLabel("Skill for your agent")).toHaveValue(
-    /FROGGY_TOKEN="fgy_/u
+    /froggy-cli\.js/u
   );
   await expect(
     page.getByRole("button", { name: "Copy agent skill" })
