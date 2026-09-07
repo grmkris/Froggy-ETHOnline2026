@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  NoticeId,
   ReceiptId,
   RunId,
   SessionId,
@@ -116,5 +117,183 @@ describe("reduceApp", () => {
       type: "dismiss",
     });
     expect(state.notices.length).toBe(2);
+  });
+});
+
+const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
+  address: null,
+  agentNote: null,
+  agentSigner: "absent",
+  balanceLabel: "—",
+  balances: {
+    evmNetwork: "eip155:84532",
+    hbarTinybars: null,
+    hederaNetwork: "hedera:testnet",
+    usdMicrosPerHbar: null,
+    usdcUnits: null,
+  },
+  hederaAccountId: null,
+  ledgerNote: null,
+  pocketUsdMicros,
+  signerAddress: null,
+  totalUsdMicros: null,
+  windowSpentUsdMicros: 0,
+});
+
+describe("timeline events", () => {
+  it("files a conversion when the pocket grows, and nothing when it shrinks", () => {
+    let state = server(
+      initialAppState,
+      { type: "wallet.state", v: 1, wallet: walletOf(100_000) },
+      1
+    );
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletOf(1_100_000) },
+      2
+    );
+    expect(state.events).toMatchObject([
+      {
+        kind: "topup",
+        text: "Froggy moved $1.00 to Hedera for payments; $1.10 is ready there.",
+      },
+    ]);
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletOf(1_000_000) },
+      3
+    );
+    expect(state.events).toHaveLength(1);
+  });
+});
+
+const asking: ApprovalRequest = {
+  amountLabel: "$1.50",
+  detail: "Pay the oracle?",
+  expiresAt: 10,
+  id: "req-9",
+  options: [],
+  payeeLabel: "the oracle",
+  purpose: "a snapshot",
+  title: "Approve $1.50 to the oracle",
+};
+
+describe("timeline events for approvals and turns elsewhere", () => {
+  it("marks the pause once, however many times the card is resent", () => {
+    let state = server(
+      initialAppState,
+      { request: asking, type: "approval.request", v: 1 },
+      5
+    );
+    state = server(
+      state,
+      { request: asking, type: "approval.request", v: 1 },
+      6
+    );
+    expect(state.events.map((event) => event.kind)).toEqual(["asked"]);
+    expect(state.events[0]?.text).toContain("waiting for your answer");
+  });
+
+  it("marks the answer from the receipt that carries it, once", () => {
+    const answered: Receipt = {
+      ...receipt(50),
+      approval: { id: ApprovalId.generate(), resolution: "allow_once" },
+    };
+    let state = server(
+      initialAppState,
+      { receipt: answered, type: "receipt.appended", v: 1 },
+      51
+    );
+    state = server(
+      state,
+      { receipt: answered, type: "receipt.appended", v: 1 },
+      52
+    );
+    expect(state.events).toMatchObject([
+      { at: 50, kind: "answered", text: "You answered: allowed once." },
+    ]);
+  });
+
+  it("marks a turn started elsewhere in the conversation, not as a notice", () => {
+    const state = server(
+      initialAppState,
+      {
+        runId: RunId.generate(),
+        surface: "telegram",
+        type: "run.started",
+        v: 1,
+      },
+      7
+    );
+    expect(state.notices).toEqual([]);
+    expect(state.events).toMatchObject([{ kind: "elsewhere" }]);
+    expect(state.events[0]?.text).toContain("Telegram");
+    expect(
+      server(
+        state,
+        { runId: RunId.generate(), surface: "web", type: "run.started", v: 1 },
+        8
+      ).events
+    ).toHaveLength(1);
+  });
+
+  it("names a schedule as where a turn came from", () => {
+    const state = server(
+      initialAppState,
+      {
+        runId: RunId.generate(),
+        surface: "schedule",
+        type: "run.started",
+        v: 1,
+      },
+      7
+    );
+    expect(state.events[0]?.text).toContain("a schedule");
+  });
+
+  it("files a notice in the margin once, saying whether the phone saw it", () => {
+    const notice = {
+      at: 40,
+      id: NoticeId.generate(),
+      runId: null,
+      scheduleId: null,
+      source: "reminder" as const,
+      telegram: true,
+      text: "check the oven",
+    };
+    let state = server(initialAppState, { notice, type: "notice", v: 1 }, 41);
+    state = server(state, { notice, type: "notice", v: 1 }, 42);
+    expect(state.notices).toEqual([]);
+    expect(state.events).toMatchObject([
+      {
+        at: 40,
+        kind: "notice",
+        text: "Reminder: check the oven (also sent to Telegram)",
+      },
+    ]);
+  });
+});
+
+describe("the welcome", () => {
+  it("keeps the topic and the policy the tickets link to", () => {
+    const state = server(initialAppState, {
+      agentSignerId: "quorum-test",
+      hcsTopicId: "0.0.10381647",
+      mcpUrl: null,
+      modes: {
+        database: "stub",
+        graph: "stub",
+        hedera: "stub",
+        model: "stub",
+        privy: "stub",
+        telegram: "stub",
+      },
+      policyId: "rk6qw974uapbesb04u5tq5kb",
+      sessionId: SessionId.generate(),
+      type: "session.welcome",
+      v: 1,
+    });
+    expect(state.hcsTopicId).toBe("0.0.10381647");
+    expect(state.policyId).toBe("rk6qw974uapbesb04u5tq5kb");
   });
 });

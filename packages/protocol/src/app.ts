@@ -11,9 +11,12 @@
 import {
   ApprovalKind,
   Mandate,
+  NoticeId,
   PolicyDecision,
   ProtocolVersion,
   Receipt,
+  RunId,
+  ScheduleId,
   SessionId,
 } from "@froggy/domain";
 import { Schema } from "effect";
@@ -40,9 +43,40 @@ export const ServiceModes = Schema.Struct({
 });
 
 /** Where a turn was started from. The web app shows a turn it did not start. */
-export const RunSurface = Schema.Literals(["web", "telegram", "digest"]);
+export const RunSurface = Schema.Literals([
+  "web",
+  "telegram",
+  "digest",
+  "schedule",
+]);
 export type RunSurface = typeof RunSurface.Type;
 export type ServiceModes = typeof ServiceModes.Type;
+
+/**
+ * Something the agent said to the person without being asked: a message it
+ * chose to send, a reminder coming due, or the report of an unattended
+ * turn. `telegram` says whether it also reached their phone, so the stream
+ * can be honest about which surface the person actually saw it on.
+ */
+export const NoticeSource = Schema.Literals([
+  "notify",
+  "reminder",
+  "scheduled_run",
+]);
+export type NoticeSource = typeof NoticeSource.Type;
+
+export const Notice = Schema.Struct({
+  at: Schema.Int,
+  id: NoticeId,
+  /** The turn that sent it, when one did. */
+  runId: Schema.NullOr(RunId),
+  /** The schedule that fired it, when one did. */
+  scheduleId: Schema.NullOr(ScheduleId),
+  source: NoticeSource,
+  telegram: Schema.Boolean,
+  text: Schema.String,
+});
+export type Notice = typeof Notice.Type;
 
 /**
  * One option on an approval card.
@@ -225,6 +259,12 @@ export const AppServerMessage = Schema.Union([
     runId: Schema.String,
     surface: RunSurface,
     type: Schema.Literals(["run.started"]),
+  }),
+  /** The agent spoke unprompted. Filed in the stream where it happened. */
+  Schema.Struct({
+    ...Envelope,
+    notice: Notice,
+    type: Schema.Literals(["notice"]),
   }),
   Schema.Struct({
     ...Envelope,

@@ -174,3 +174,11 @@ export type TaskId = typeof TaskId.Type;
 /** A token an outside agent presents. Identifies the person's workspace, never a person. */
 export const AgentTokenId = makeIdSchema("agt", "AgentTokenId");
 export type AgentTokenId = typeof AgentTokenId.Type;
+
+/** A reminder or an unattended turn the person asked for, once or on a cadence. */
+export const ScheduleId = makeIdSchema("sch", "ScheduleId");
+export type ScheduleId = typeof ScheduleId.Type;
+
+/** One message the agent sent the person unasked: a notify, a reminder, a report. */
+export const NoticeId = makeIdSchema("ntc", "NoticeId");
+export type NoticeId = typeof NoticeId.Type;

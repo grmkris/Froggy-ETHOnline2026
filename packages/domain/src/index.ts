@@ -19,6 +19,17 @@ export { DigestSchedule, NO_DIGEST } from "./digest";
 export { DirectoryEntry } from "./directory";
 export { AGENT_TOKEN_PREFIX, AgentToken } from "./agent-token";
 export { Sale, SaleStatus } from "./sale";
+export {
+  ClockTime,
+  PromptAction,
+  RemindAction,
+  Schedule,
+  ScheduleAction,
+  ScheduleCadence,
+  ScheduleStatus,
+  Weekday,
+  WEEKDAYS,
+} from "./schedule";
 export { Task, TaskKind, TaskStatus } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
@@ -28,10 +39,12 @@ export {
   DirectoryId,
   MandateId,
   makeIdSchema,
+  NoticeId,
   ReceiptId,
   RuleId,
   RunId,
   SaleId,
+  ScheduleId,
   SessionId,
   SpendId,
   TabId,

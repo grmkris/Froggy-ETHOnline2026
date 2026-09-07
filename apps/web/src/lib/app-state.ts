@@ -32,15 +32,40 @@ export interface Notice {
 
 /**
  * Something that happened to the wallet while the conversation went on, and
- * belongs in it: a question, an answer, a conversion. Filed in the stream at the
- * moment it happened, as a marker between turns.
+ * belongs in it: a question, an answer, a conversion, a message the agent
+ * sent unasked. Filed in the stream at the moment it happened, as a marker
+ * between turns.
  */
 export interface TimelineEvent {
   readonly at: number;
   readonly id: string;
-  readonly kind: "answered" | "asked" | "elsewhere" | "topup";
+  readonly kind: "answered" | "asked" | "elsewhere" | "notice" | "topup";
   readonly text: string;
 }
+
+/** Where a turn that this tab did not start came from, in words. */
+const SURFACE_WORDS: ReadonlyMap<
+  Extract<AppServerMessage, { readonly type: "run.started" }>["surface"],
+  string
+> = new Map([
+  ["digest", "the daily digest"],
+  ["schedule", "a schedule"],
+  ["telegram", "Telegram"],
+  ["web", "the web"],
+]);
+
+type NoticeMessage = Extract<AppServerMessage, { readonly type: "notice" }>;
+
+const NOTICE_LEAD: ReadonlyMap<NoticeMessage["notice"]["source"], string> =
+  new Map([
+    ["notify", "Froggy"],
+    ["reminder", "Reminder"],
+    ["scheduled_run", "Scheduled run"],
+  ]);
+
+/** How a notice reads in the margin: what it was, and whether the phone saw it too. */
+const noticeText = (notice: NoticeMessage["notice"]): string =>
+  `${NOTICE_LEAD.get(notice.source) ?? "Froggy"}: ${notice.text}${notice.telegram ? " (also sent to Telegram)" : ""}`;
 
 /** How the person's answer reads in the margin. */
 const ANSWER_WORDS: Record<ApprovalResolution, string> = {
@@ -156,7 +181,22 @@ const runEvents = (
           at,
           id: `run:${message.runId}`,
           kind: "elsewhere",
-          text: `A turn started from ${message.surface === "telegram" ? "Telegram" : "the daily digest"}. Reload to follow it here.`,
+          text: `A turn started from ${SURFACE_WORDS.get(message.surface) ?? "elsewhere"}. Reload to follow it here.`,
+        },
+      ];
+
+const noticeEvents = (
+  state: AppState,
+  message: NoticeMessage
+): readonly TimelineEvent[] =>
+  state.events.some((event) => event.id === `notice:${message.notice.id}`)
+    ? []
+    : [
+        {
+          at: message.notice.at,
+          id: `notice:${message.notice.id}`,
+          kind: "notice",
+          text: noticeText(message.notice),
         },
       ];
 
@@ -203,6 +243,9 @@ const eventsFrom = (
   }
   if (message.type === "wallet.state") {
     return walletEvents(state, message, at);
+  }
+  if (message.type === "notice") {
+    return noticeEvents(state, message);
   }
   return [];
 };
@@ -300,6 +343,9 @@ const onServer = (
     case "run.started": {
       // A marker in the conversation, where the turn will appear, rather
       // than a notice above the composer.
+      return { ...state, events: withEvents(state, message, at) };
+    }
+    case "notice": {
       return { ...state, events: withEvents(state, message, at) };
     }
     case "pong": {

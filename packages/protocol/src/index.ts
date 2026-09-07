@@ -9,6 +9,8 @@ export {
   decodeAppServerMessage,
   encodeAppClientMessage,
   encodeAppServerMessage,
+  Notice,
+  NoticeSource,
   RunSurface,
   ServiceMode,
   ServiceModes,
@@ -61,3 +63,9 @@ export {
   ServiceResult,
   ServiceTicket,
 } from "./services";
+export {
+  ScheduleList,
+  ScheduleRequest,
+  ScheduleRequestBody,
+  ScheduleWhen,
+} from "./schedules";

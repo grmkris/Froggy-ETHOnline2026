@@ -16,6 +16,7 @@ import {
 } from "@froggy/ui/components/marker";
 import { cn } from "@froggy/ui/lib/utils";
 import {
+  BellIcon,
   CheckIcon,
   HandIcon,
   PiggyBankIcon,
@@ -31,6 +32,7 @@ const ICON: Record<TimelineEvent["kind"], typeof SunIcon> = {
   answered: CheckIcon,
   asked: HandIcon,
   elsewhere: SmartphoneIcon,
+  notice: BellIcon,
   topup: PiggyBankIcon,
 };
 
@@ -38,6 +40,7 @@ const TONE: Record<TimelineEvent["kind"], string> = {
   answered: "text-brand",
   asked: "text-drive-agent",
   elsewhere: "text-drive-human",
+  notice: "text-drive-agent",
   topup: "text-brand",
 };
 
