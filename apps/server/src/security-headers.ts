@@ -8,21 +8,30 @@
  * blob images for the screencast, its own WebSockets. `CSP_MODE=report` turns
  * the policy into a report-only header without a redeploy of code, for the
  * day a directive proves too strict; the framing headers stay enforced.
+ *
+ * The card onramp is the one thing Privy loads into *our* document rather
+ * than its iframe: `@stripe/stripe-js` and `@stripe/crypto` fetch
+ * `js.stripe.com/v3` and `crypto-js.stripe.com/crypto-onramp-outer.js`, and
+ * the checkout renders in frames from `crypto.link.com` and `*.js.stripe.com`
+ * (Stripe's own CSP guide for the embedded crypto onramp). Without those
+ * origins the onramp fails with "Something went wrong setting up checkout",
+ * which is how the first real top-up on 7 Sep ended. MoonPay is the fallback
+ * quote provider Privy calls directly.
  */
 
 const DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' https://challenges.cloudflare.com",
+  "script-src 'self' https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://crypto-js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://*.stripe.com",
   "font-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org",
-  "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com",
-  "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com",
+  "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://crypto.link.com",
+  "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://crypto.link.com",
+  "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https://api.stripe.com https://crypto.link.com https://api.moonpay.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
 ];

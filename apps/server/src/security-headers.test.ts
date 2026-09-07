@@ -23,6 +23,18 @@ describe("withSecurityHeaders", () => {
     expect(contentSecurityPolicy()).not.toContain("unsafe-eval");
   });
 
+  it("admits Stripe's onramp scripts and frames, which Privy loads into our page", () => {
+    const csp = contentSecurityPolicy();
+    const directive = (name: string): string =>
+      csp.split("; ").find((entry) => entry.startsWith(`${name} `)) ?? "";
+    expect(directive("script-src")).toContain("https://js.stripe.com");
+    expect(directive("script-src")).toContain("https://crypto-js.stripe.com");
+    expect(directive("frame-src")).toContain("https://crypto.link.com");
+    expect(directive("connect-src")).toContain("https://api.stripe.com");
+    // The page itself still runs only its own bundle and Stripe's.
+    expect(directive("script-src")).not.toContain("'unsafe-inline'");
+  });
+
   it("reports instead of enforcing when asked, and leaves non-HTML alone", () => {
     const page = withSecurityHeaders(
       new Response("<html></html>", {
