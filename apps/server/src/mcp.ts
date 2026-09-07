@@ -34,7 +34,13 @@ const tools = [
   {
     name: "froggy_services",
     description: "List fixed-price services and availability before buying.",
-    inputSchema: inputSchema(Schema.Struct({})),
+    // Spelled out: an empty Effect struct renders as `anyOf [object, array]`,
+    // and the MCP SDK's client rejects a tool whose schema is not an object.
+    inputSchema: {
+      additionalProperties: false,
+      properties: {},
+      type: "object",
+    },
     annotations: { readOnlyHint: true },
   },
   {
