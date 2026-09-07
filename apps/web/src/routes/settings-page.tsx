@@ -16,6 +16,7 @@ import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
 import { IntegrationBadges } from "../components/settings/integration-badges";
+import { ScheduleList } from "../components/settings/schedule-list";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
 
@@ -28,11 +29,14 @@ export const SettingsPage = (): ReactElement => {
         <CardHeader>
           <CardTitle>Reminders</CardTitle>
           <CardDescription>
-            A daily digest of what changed, sent to Telegram when it is paired.
+            What Froggy does on its own: the daily digest, and anything you
+            asked it to remind you of or run later. Sent to Telegram when it is
+            paired, and filed in the chat.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-5">
           <DigestSettings />
+          <ScheduleList />
         </CardContent>
       </Card>
       <Card>
