@@ -10,13 +10,14 @@
  * behind one interface. Nothing above this line knows which it holds.
  */
 
-import { Mandate, NO_DIGEST, Receipt, Sale, Task } from "@froggy/domain";
+import { Mandate, Receipt, Sale, Schedule, Task } from "@froggy/domain";
 import type {
   AgentToken,
   AgentTokenId,
-  DigestSchedule,
   DirectoryEntry,
   SaleId,
+  ScheduleId,
+  ScheduleStatus,
   TaskId,
   TelegramPairing,
   UserId,
@@ -27,6 +28,22 @@ import { Result, Schema } from "effect";
 interface AgentTokenRow extends AgentToken {
   /** SHA-256 of the secret, hex. Never the secret. */
   readonly secretHash: string;
+}
+
+/** A due schedule, with whose it is: the ticker fires it on their behalf. */
+export interface DueSchedule {
+  readonly schedule: Schedule;
+  readonly userId: UserId;
+}
+
+/**
+ * What a run writes back. `lastRunAt` is absent for a retry that did not
+ * run (the person was mid-turn), so the row keeps saying when it last did.
+ */
+export interface ScheduleFinish {
+  readonly lastRunAt?: number;
+  readonly nextRunAt: number | null;
+  readonly status: ScheduleStatus;
 }
 
 /** What a task update may change. Everything else is fixed at creation. */
@@ -112,19 +129,39 @@ export interface Store {
     readonly list: (userId: UserId) => Promise<readonly DirectoryEntry[]>;
     readonly remove: (userId: UserId, id: string) => Promise<void>;
   };
-  readonly digest: {
-    /** Every user with a digest hour set, for the scheduler's minute tick. */
-    readonly all: () => Promise<
-      readonly { readonly schedule: DigestSchedule; readonly userId: UserId }[]
-    >;
-    readonly load: (userId: UserId) => Promise<DigestSchedule>;
-    readonly save: (userId: UserId, schedule: DigestSchedule) => Promise<void>;
+  /**
+   * Reminders, unattended prompts and the digest. `claimDue` is the one
+   * concurrent operation: it marks and returns every active row that is due
+   * and unclaimed (or whose claim is older than `staleMs`) in one statement,
+   * so two tickers on one database split the rows rather than share them.
+   * `finish` writes the outcome and drops the claim.
+   */
+  readonly schedules: {
+    /** True when an active row of this person's was cancelled. */
+    readonly cancel: (userId: UserId, id: ScheduleId) => Promise<boolean>;
+    readonly claimDue: (
+      now: number,
+      staleMs: number
+    ) => Promise<readonly DueSchedule[]>;
+    readonly create: (userId: UserId, schedule: Schedule) => Promise<void>;
+    /** The person's active digest, if they have one. */
+    readonly digestOf: (userId: UserId) => Promise<Schedule | null>;
+    readonly finish: (id: ScheduleId, patch: ScheduleFinish) => Promise<void>;
+    /** Every schedule of theirs, newest first, whatever its status. */
+    readonly list: (userId: UserId) => Promise<readonly Schedule[]>;
+    /** Replace the digest: the old one is cancelled, `null` leaves none. */
+    readonly saveDigest: (
+      userId: UserId,
+      schedule: Schedule | null
+    ) => Promise<void>;
+    /** The zone of their most recent schedule, so a request without one is read in it. */
+    readonly timezoneFor: (userId: UserId) => Promise<string | null>;
   };
   /**
-   * Everything this store holds about one person: mandate, receipts, tasks
-   * and tokens. The ledger's spend rows are not here — they are the money
-   * record and stay — but nothing that says who this person was or what they
-   * allowed survives.
+   * Everything this store holds about one person: mandate, receipts, tasks,
+   * schedules and tokens. The ledger's spend rows are not here — they are
+   * the money record and stay — but nothing that says who this person was
+   * or what they allowed survives.
    */
   readonly forget: (userId: UserId) => Promise<void>;
   /**
@@ -179,6 +216,7 @@ export const decodeMandate = Schema.decodeUnknownResult(Mandate);
 const decodeReceipt = Schema.decodeUnknownResult(Receipt);
 export const decodeSale = Schema.decodeUnknownResult(Sale);
 export const decodeTask = Schema.decodeUnknownResult(Task);
+export const decodeSchedule = Schema.decodeUnknownResult(Schedule);
 
 /** The domain record, without the hash a caller must never see. */
 const publicToken = (row: AgentTokenRow): AgentToken => ({
@@ -188,6 +226,42 @@ const publicToken = (row: AgentTokenRow): AgentToken => ({
   lastUsedAt: row.lastUsedAt,
   revokedAt: row.revokedAt,
 });
+
+/** A schedule as the memory store keeps it: with its owner and its claim. */
+interface ScheduleRow extends Schedule {
+  readonly claimedAt: number | null;
+  readonly userId: UserId;
+}
+
+/** A schedule row as the domain sees it: without the owner and the claim. */
+const publicSchedule = (row: ScheduleRow): Schedule => ({
+  action: row.action,
+  cadence: row.cadence,
+  createdAt: row.createdAt,
+  id: row.id,
+  label: row.label,
+  lastRunAt: row.lastRunAt,
+  nextRunAt: row.nextRunAt,
+  status: row.status,
+  timezone: row.timezone,
+});
+
+/** The person's active digest among the rows, if any. */
+const digestRowOf = (
+  rows: Iterable<ScheduleRow>,
+  userId: UserId
+): Schedule | null => {
+  for (const row of rows) {
+    if (
+      row.userId === userId &&
+      row.action._tag === "digest" &&
+      row.status === "active"
+    ) {
+      return publicSchedule(row);
+    }
+  }
+  return null;
+};
 
 /**
  * Parse a stored document, or drop it.
@@ -210,7 +284,7 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 export const memoryStore = (): Store => {
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
-  const digests = new Map<UserId, DigestSchedule>();
+  const schedules = new Map<ScheduleId, ScheduleRow>();
   const pairings = new Map<UserId, TelegramPairing>();
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
@@ -394,20 +468,95 @@ export const memoryStore = (): Store => {
         unpair(userId);
       },
     },
-    digest: {
-      all: async () => {
+    schedules: {
+      cancel: async (userId, id) => {
         await Promise.resolve();
-        return [...digests.entries()]
-          .filter(([, schedule]) => schedule.hour !== null)
-          .map(([userId, schedule]) => ({ schedule, userId }));
+        const row = schedules.get(id);
+        if (
+          row === undefined ||
+          row.userId !== userId ||
+          row.status !== "active"
+        ) {
+          return false;
+        }
+        schedules.set(id, {
+          ...row,
+          claimedAt: null,
+          nextRunAt: null,
+          status: "cancelled",
+        });
+        return true;
       },
-      load: async (userId) => {
+      claimDue: async (now, staleMs) => {
         await Promise.resolve();
-        return digests.get(userId) ?? NO_DIGEST;
+        const due: DueSchedule[] = [];
+        for (const [id, row] of schedules) {
+          if (
+            row.status === "active" &&
+            row.nextRunAt !== null &&
+            row.nextRunAt <= now &&
+            (row.claimedAt === null || row.claimedAt < now - staleMs)
+          ) {
+            schedules.set(id, { ...row, claimedAt: now });
+            due.push({ schedule: publicSchedule(row), userId: row.userId });
+          }
+        }
+        return due;
       },
-      save: async (userId, schedule) => {
+      create: async (userId, schedule) => {
         await Promise.resolve();
-        digests.set(userId, schedule);
+        schedules.set(schedule.id, { ...schedule, claimedAt: null, userId });
+      },
+      digestOf: async (userId) => {
+        await Promise.resolve();
+        return digestRowOf(schedules.values(), userId);
+      },
+      finish: async (id, patch) => {
+        await Promise.resolve();
+        const row = schedules.get(id);
+        if (row !== undefined) {
+          schedules.set(id, {
+            ...row,
+            claimedAt: null,
+            lastRunAt: patch.lastRunAt ?? row.lastRunAt,
+            nextRunAt: patch.nextRunAt,
+            status: patch.status,
+          });
+        }
+      },
+      list: async (userId) => {
+        await Promise.resolve();
+        return [...schedules.values()]
+          .filter((row) => row.userId === userId)
+          .toSorted((a, b) => b.createdAt - a.createdAt)
+          .map(publicSchedule);
+      },
+      saveDigest: async (userId, schedule) => {
+        await Promise.resolve();
+        for (const [id, row] of schedules) {
+          if (
+            row.userId === userId &&
+            row.action._tag === "digest" &&
+            row.status === "active"
+          ) {
+            schedules.set(id, {
+              ...row,
+              claimedAt: null,
+              nextRunAt: null,
+              status: "cancelled",
+            });
+          }
+        }
+        if (schedule !== null) {
+          schedules.set(schedule.id, { ...schedule, claimedAt: null, userId });
+        }
+      },
+      timezoneFor: async (userId) => {
+        await Promise.resolve();
+        const [latest] = [...schedules.values()]
+          .filter((row) => row.userId === userId)
+          .toSorted((a, b) => b.createdAt - a.createdAt);
+        return latest?.timezone ?? null;
       },
     },
     forget: async (userId) => {
@@ -417,6 +566,11 @@ export const memoryStore = (): Store => {
           tokens.delete(id);
         }
       }
+      for (const [id, row] of schedules) {
+        if (row.userId === userId) {
+          schedules.delete(id);
+        }
+      }
       for (const [id, task] of tasks) {
         if (task.userId === userId) {
           tasks.delete(id);
@@ -424,7 +578,6 @@ export const memoryStore = (): Store => {
       }
       entries.delete(userId);
       unpair(userId);
-      digests.delete(userId);
       mandates.delete(userId);
       pockets.delete(userId);
       receipts.delete(userId);

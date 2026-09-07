@@ -40,6 +40,7 @@ import { tool } from "ai";
 import { Schema } from "effect";
 
 import { describeProbe, probeUrl } from "./directory";
+import type { Notices } from "./notices";
 import { paidRequest } from "./paid-request";
 import type { ChatRun } from "./runs";
 import { serviceCatalog } from "./service-providers";
@@ -137,6 +138,8 @@ export interface ToolDeps {
   readonly workspaces: Workspaces;
   /** False for a job: nobody can be asked, so an `ask` is refused. */
   readonly interactive?: boolean;
+  /** Where `notify` goes: the person's phone when paired, the web stream always. */
+  readonly notices: Notices;
   readonly run: ChatRun;
   readonly services: Services;
   readonly session: WorkspaceSession;
@@ -565,6 +568,32 @@ export const buildTools = (deps: ToolDeps) => {
         );
       },
       inputSchema: std(Schema.Struct({})),
+    }),
+
+    // Not spending authority: a message to the person changes nothing about
+    // what may be paid, so it may be a tool. It goes to their phone when a
+    // Telegram pairing exists, and always into the web stream.
+    notify: tool({
+      description:
+        "Send the person a short message on their phone (Telegram, when paired) and in the web stream, without waiting for them to ask. Use it for something they should see now: a reminder they set, a result that arrived, a question they need to come back for. Not for narrating what you are doing.",
+      execute: async ({ text }) => {
+        const notice = await deps.notices.post(session.userId, {
+          runId: deps.run.id,
+          source: "notify",
+          text,
+        });
+        return notice.telegram
+          ? "Sent to Telegram."
+          : "No Telegram is paired; shown in the web stream only.";
+      },
+      inputSchema: std(
+        Schema.Struct({
+          text: Schema.String.check(
+            Schema.isMinLength(1),
+            Schema.isMaxLength(1000)
+          ).annotate({ description: "What to say, in plain words." }),
+        })
+      ),
     }),
   };
 };

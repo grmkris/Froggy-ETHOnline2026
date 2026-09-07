@@ -37,6 +37,7 @@ import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
+import type { Notices } from "./notices";
 import type { ChatRunRegistry } from "./runs";
 import { serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
@@ -80,6 +81,8 @@ const decodePayBody = Schema.decodeUnknownResult(PayBody);
 export interface TaskDeps {
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
+  /** For the `notify` tool inside a browse turn. */
+  readonly notices: Notices;
   readonly now?: () => number;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
@@ -264,6 +267,7 @@ const runBrowse = async (
     {
       browser: workspace.browser,
       budget: deps.budget,
+      notices: deps.notices,
       oracleUrl: deps.oracleUrl,
       runs: deps.runs,
       services: deps.services,

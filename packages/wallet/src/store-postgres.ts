@@ -13,31 +13,49 @@ import {
   mandates,
   receipts,
   sales,
+  schedules,
   tasks,
   telegramPairings,
   users,
 } from "@froggy/database";
-import { DirectoryId, decodeUserId, NO_DIGEST } from "@froggy/domain";
+import { DirectoryId, decodeUserId } from "@froggy/domain";
 import type {
   AgentToken,
-  DigestSchedule,
   DirectoryEntry,
   Sale,
+  Schedule,
   Task,
   UserId,
 } from "@froggy/domain";
-import { and, asc, desc, eq, isNotNull, sql as raw } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql as raw,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { Result } from "effect";
 import type { Sql } from "postgres";
 
-import { decodeMandate, decodeSale, decodeTask, readReceipts } from "./store";
-import type { Store } from "./store";
+import {
+  decodeMandate,
+  decodeSale,
+  decodeSchedule,
+  decodeTask,
+  readReceipts,
+} from "./store";
+import type { DueSchedule, Store } from "./store";
 
 const millis = (value: Date | null): number | null =>
   value === null ? null : value.getTime();
 
 type SaleRow = typeof sales.$inferSelect;
+type ScheduleRow = typeof schedules.$inferSelect;
 type TaskRow = typeof tasks.$inferSelect;
 type TokenRow = typeof agentTokens.$inferSelect;
 
@@ -84,6 +102,50 @@ const taskOf = (row: TaskRow): Task | null => {
   });
   return Result.isSuccess(decoded) ? decoded.success : null;
 };
+
+const scheduleOf = (row: ScheduleRow): Schedule | null => {
+  const decoded = decodeSchedule({
+    action: row.action,
+    cadence: row.cadence,
+    createdAt: row.createdAt.getTime(),
+    id: row.id,
+    label: row.label,
+    lastRunAt: millis(row.lastRunAt),
+    nextRunAt: millis(row.nextRunAt),
+    status: row.status,
+    timezone: row.timezone,
+  });
+  return Result.isSuccess(decoded) ? decoded.success : null;
+};
+
+/** Rows into schedules, dropping the ones this version cannot read. */
+const schedulesOf = (rows: readonly ScheduleRow[]): Schedule[] => {
+  const listed: Schedule[] = [];
+  for (const row of rows) {
+    const schedule = scheduleOf(row);
+    if (schedule !== null) {
+      listed.push(schedule);
+    }
+  }
+  return listed;
+};
+
+const scheduleInsert = (
+  userId: UserId,
+  schedule: Schedule
+): typeof schedules.$inferInsert => ({
+  action: schedule.action,
+  cadence: schedule.cadence,
+  claimedAt: null,
+  createdAt: new Date(schedule.createdAt),
+  id: schedule.id,
+  label: schedule.label,
+  lastRunAt: schedule.lastRunAt === null ? null : new Date(schedule.lastRunAt),
+  nextRunAt: schedule.nextRunAt === null ? null : new Date(schedule.nextRunAt),
+  status: schedule.status,
+  timezone: schedule.timezone,
+  userId,
+});
 
 const tokenOf = (row: TokenRow): AgentToken => ({
   createdAt: row.createdAt.getTime(),
@@ -434,54 +496,124 @@ export const postgresStore = (sql: Sql): Store => {
           .where(eq(telegramPairings.userId, userId));
       },
     },
-    digest: {
-      all: async () => {
+    schedules: {
+      cancel: async (userId, id) => {
         const rows = await database
-          .select({
-            did: users.did,
-            hour: users.digestHour,
-            timezone: users.digestTimezone,
-          })
-          .from(users)
-          .where(isNotNull(users.digestHour));
-        const scheduled: {
-          readonly schedule: DigestSchedule;
-          readonly userId: UserId;
-        }[] = [];
+          .update(schedules)
+          .set({ claimedAt: null, nextRunAt: null, status: "cancelled" })
+          .where(
+            and(
+              eq(schedules.id, id),
+              eq(schedules.userId, userId),
+              eq(schedules.status, "active")
+            )
+          )
+          .returning({ id: schedules.id });
+        return rows.length > 0;
+      },
+      claimDue: async (now, staleMs) => {
+        // One statement claims and reads: the rows it returns are the rows
+        // it marked, so a second ticker on the same database, running the
+        // same statement a moment later, finds them claimed and takes none.
+        const rows = await database
+          .update(schedules)
+          .set({ claimedAt: new Date(now) })
+          .where(
+            and(
+              eq(schedules.status, "active"),
+              lte(schedules.nextRunAt, new Date(now)),
+              or(
+                isNull(schedules.claimedAt),
+                lt(schedules.claimedAt, new Date(now - staleMs))
+              )
+            )
+          )
+          .returning();
+        const due: DueSchedule[] = [];
         for (const row of rows) {
-          const decoded = decodeUserId(row.did);
-          if (Result.isSuccess(decoded) && row.hour !== null) {
-            scheduled.push({
-              schedule: { hour: row.hour, timezone: row.timezone ?? "UTC" },
-              userId: decoded.success,
-            });
+          const schedule = scheduleOf(row);
+          const owner = decodeUserId(row.userId);
+          if (schedule !== null && Result.isSuccess(owner)) {
+            due.push({ schedule, userId: owner.success });
           }
         }
-        return scheduled;
+        return due;
       },
-      load: async (userId) => {
-        const rows = await database
-          .select({ hour: users.digestHour, timezone: users.digestTimezone })
-          .from(users)
-          .where(eq(users.did, userId))
-          .limit(1);
-        const [row] = rows;
-        return row === undefined
-          ? NO_DIGEST
-          : { hour: row.hour, timezone: row.timezone ?? "UTC" };
-      },
-      save: async (userId, schedule) => {
+      create: async (userId, schedule) => {
         await ensureUser(userId);
         await database
-          .update(users)
-          .set({ digestHour: schedule.hour, digestTimezone: schedule.timezone })
-          .where(eq(users.did, userId));
+          .insert(schedules)
+          .values(scheduleInsert(userId, schedule));
+      },
+      digestOf: async (userId) => {
+        const rows = await database
+          .select()
+          .from(schedules)
+          .where(
+            and(
+              eq(schedules.userId, userId),
+              eq(schedules.status, "active"),
+              raw`${schedules.action}->>'_tag' = 'digest'`
+            )
+          )
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : scheduleOf(row);
+      },
+      finish: async (id, patch) => {
+        const set: Partial<typeof schedules.$inferInsert> = {
+          claimedAt: null,
+          nextRunAt:
+            patch.nextRunAt === null ? null : new Date(patch.nextRunAt),
+          status: patch.status,
+        };
+        if (patch.lastRunAt !== undefined) {
+          set.lastRunAt = new Date(patch.lastRunAt);
+        }
+        await database.update(schedules).set(set).where(eq(schedules.id, id));
+      },
+      list: async (userId) => {
+        const rows = await database
+          .select()
+          .from(schedules)
+          .where(eq(schedules.userId, userId))
+          .orderBy(desc(schedules.createdAt))
+          .limit(100);
+        return schedulesOf(rows);
+      },
+      saveDigest: async (userId, schedule) => {
+        await ensureUser(userId);
+        await database
+          .update(schedules)
+          .set({ claimedAt: null, nextRunAt: null, status: "cancelled" })
+          .where(
+            and(
+              eq(schedules.userId, userId),
+              eq(schedules.status, "active"),
+              raw`${schedules.action}->>'_tag' = 'digest'`
+            )
+          );
+        if (schedule !== null) {
+          await database
+            .insert(schedules)
+            .values(scheduleInsert(userId, schedule));
+        }
+      },
+      timezoneFor: async (userId) => {
+        const rows = await database
+          .select({ timezone: schedules.timezone })
+          .from(schedules)
+          .where(eq(schedules.userId, userId))
+          .orderBy(desc(schedules.createdAt))
+          .limit(1);
+        return rows[0]?.timezone ?? null;
       },
     },
     forget: async (userId) => {
       await database.delete(tasks).where(eq(tasks.userId, userId));
       await database.delete(agentTokens).where(eq(agentTokens.userId, userId));
       await database.delete(directory).where(eq(directory.userId, userId));
+      await database.delete(schedules).where(eq(schedules.userId, userId));
       await database
         .delete(telegramPairings)
         .where(eq(telegramPairings.userId, userId));
@@ -493,11 +625,7 @@ export const postgresStore = (sql: Sql): Store => {
       // Hedera account stays too: it holds their money.
       await database
         .update(users)
-        .set({
-          digestHour: null,
-          digestTimezone: null,
-          pocketUsdMicros: null,
-        })
+        .set({ pocketUsdMicros: null })
         .where(eq(users.did, userId));
     },
     hedera: {

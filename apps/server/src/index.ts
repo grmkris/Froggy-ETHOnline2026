@@ -22,11 +22,12 @@ import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
 import { AgentGrants } from "./grants";
 import { InteractionRegistry } from "./interactions";
-import { runDailyFor } from "./jobs";
+import { digestJob, promptJob, runScheduledFor } from "./jobs";
+import { createNotices } from "./notices";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
-import { createDigestScheduler } from "./scheduler";
+import { createScheduleTicker } from "./schedules";
 import { cspModeOf, withSecurityHeaders } from "./security-headers";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
@@ -38,8 +39,8 @@ import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
 const SWEEP_INTERVAL_MS = 60_000;
-/** The digest clock. A minute, because a digest is due during an hour. */
-const DIGEST_TICK_MS = 60_000;
+/** The schedule clock. A minute: the finest grain a cadence can name. */
+const SCHEDULE_TICK_MS = 60_000;
 
 class FroggyServer extends Context.Service<
   FroggyServer,
@@ -253,6 +254,15 @@ class FroggyServer extends Context.Service<
       sinks.publishApp = sockets.publishApp;
       sinks.publishBrowserState = sockets.publishBrowserState;
 
+      // What the agent says unprompted: to the phone through the pager,
+      // which is built next and needs these same notices for its own turns,
+      // so the pager is reached through the sinks rather than by reference.
+      const notices = createNotices({
+        notify: async (userId, text) =>
+          (await sinks.pager?.notify(userId, text)) ?? false,
+        publishApp: sockets.publishApp,
+      });
+
       // The pager. Live only with a bot token *and* a webhook secret; the
       // stub answers 404 and says so.
       const pager: TelegramPager =
@@ -263,6 +273,7 @@ class FroggyServer extends Context.Service<
               budget,
               unlocks,
               interactions,
+              notices,
               oracleUrl,
               publishApp: sockets.publishApp,
               runs,
@@ -273,31 +284,44 @@ class FroggyServer extends Context.Service<
           : stubTelegramPager();
       sinks.pager = pager;
 
-      // Digests run unattended, under the person's own mandate, with nobody
-      // to ask. They land on the pager: a Telegram thread when paired, the
-      // log otherwise.
-      const scheduler = createDigestScheduler({
-        run: async (userId) => {
-          await runDailyFor(
-            {
-              oracleUrl,
-              publishApp: sockets.publishApp,
-              runs,
-              services,
-              sink: pager,
-              unlocks,
-              workspaces,
-            },
-            userId
-          );
+      // Reminders, scheduled prompts and the digest, on one clock. A run
+      // happens unattended, under the person's own mandate, with nobody to
+      // ask; its report lands on the pager (a Telegram card when paired,
+      // the log otherwise) and in the web stream as a notice.
+      const jobDeps = {
+        notices,
+        oracleUrl,
+        publishApp: sockets.publishApp,
+        runs,
+        services,
+        sink: pager,
+        unlocks,
+        workspaces,
+      };
+      const ticker = createScheduleTicker({
+        fire: async (userId, schedule) => {
+          if (schedule.action._tag === "remind") {
+            await notices.post(userId, {
+              scheduleId: schedule.id,
+              source: "reminder",
+              text: schedule.action.text,
+            });
+            return "done";
+          }
+          const job =
+            schedule.action._tag === "digest"
+              ? digestJob(oracleUrl)
+              : promptJob(schedule, oracleUrl);
+          const report = await runScheduledFor(jobDeps, userId, job);
+          return report.outcome === "skipped" ? "busy" : "done";
         },
-        scheduled: async () => await services.store.digest.all(),
+        store: services.store,
       });
-      const digestTick = setInterval(() => {
-        detached("digest tick", async () => {
-          await scheduler.tick();
+      const scheduleTick = setInterval(() => {
+        detached("schedule tick", async () => {
+          await ticker.tick();
         });
-      }, DIGEST_TICK_MS);
+      }, SCHEDULE_TICK_MS);
 
       const routerDeps = {
         budget,
@@ -305,6 +329,7 @@ class FroggyServer extends Context.Service<
         unlocks,
         grants,
         interactions,
+        notices,
         oracleUrl,
         pager,
         runs,
@@ -378,7 +403,7 @@ class FroggyServer extends Context.Service<
         (running) =>
           Effect.promise(async () => {
             clearInterval(sweep);
-            clearInterval(digestTick);
+            clearInterval(scheduleTick);
             await running.stop(true);
             await workspaces.closeAll();
             await services.shutdown();

@@ -7,6 +7,7 @@ import { Effect, Schema } from "effect";
 import { ModelBudget } from "./budget";
 import { loadEnvironment } from "./environment";
 import { InteractionRegistry } from "./interactions";
+import { createNotices } from "./notices";
 import { createQuotes } from "./quotes";
 import { ChatRunRegistry } from "./runs";
 import { createServices } from "./services";
@@ -128,6 +129,10 @@ beforeAll(async () => {
     interactions: new InteractionRegistry({
       onRequest: noop,
       onResolved: noop,
+    }),
+    notices: createNotices({
+      notify: async () => await Promise.resolve(false),
+      publishApp: noop,
     }),
     oracleUrl: "http://localhost:3000/oracle/snapshot",
     runs: new ChatRunRegistry(),

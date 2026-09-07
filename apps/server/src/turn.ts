@@ -26,6 +26,7 @@ import type { UIMessage } from "ai";
 import type { ModelBudget } from "./budget";
 import { detached } from "./detached";
 import { createModel } from "./model";
+import type { Notices } from "./notices";
 import type { ChatRun, ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
@@ -74,6 +75,8 @@ export interface TurnDeps {
   readonly browser: BrowserHandle;
   /** Turns and steps per person per day. Refuses before any model call. */
   readonly budget: ModelBudget;
+  /** Where the `notify` tool's message goes. */
+  readonly notices: Notices;
   readonly oracleUrl: string;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -113,6 +116,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   // `toModelOutput` is applied by the conversion, so the two must agree.
   const tools = buildTools({
     browser: deps.browser,
+    notices: deps.notices,
     run,
     services: deps.services,
     session: deps.session,

@@ -23,7 +23,13 @@ export { privyHederaKeys } from "./privy-hedera-keys";
 export type { HederaKey, HederaKeys } from "./privy-hedera-keys";
 export type { Keystore } from "./keystore";
 export { memoryStore } from "./store";
-export type { HederaAccountRecord, HederaCustody, Store } from "./store";
+export type {
+  DueSchedule,
+  HederaAccountRecord,
+  HederaCustody,
+  ScheduleFinish,
+  Store,
+} from "./store";
 export { postgresStore } from "./store-postgres";
 export { authorize } from "./policy";
 export type { AuthorizeInput, LedgerEntry } from "./policy";

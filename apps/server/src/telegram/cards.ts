@@ -13,7 +13,7 @@ import type { ApprovalRequest } from "@froggy/protocol";
 import { Actions, Button, Card, CardText, Field, Fields } from "chat";
 import type { ButtonStyle, CardElement } from "chat";
 
-import type { DigestReport } from "../jobs";
+import type { JobReport } from "../jobs";
 
 export const APPROVAL_ACTION = "approval";
 
@@ -69,7 +69,7 @@ export const approvalCard = (request: ApprovalRequest): CardElement =>
     title: request.title,
   });
 
-const outcomeLine = (report: DigestReport): string => {
+const outcomeLine = (report: JobReport): string => {
   if (report.outcome === "skipped") {
     return `Skipped: ${report.reason ?? "no reason given"}.`;
   }
@@ -79,7 +79,8 @@ const outcomeLine = (report: DigestReport): string => {
   return report.summary === "" ? "Nothing to report." : report.summary;
 };
 
-export const digestCard = (report: DigestReport): CardElement =>
+/** The report of an unattended turn: the digest's, or a scheduled prompt's. */
+export const reportCard = (report: JobReport): CardElement =>
   Card({
     children: [
       CardText(outcomeLine(report)),
@@ -96,14 +97,14 @@ export const digestCard = (report: DigestReport): CardElement =>
         }),
       ]),
     ],
-    title: "Your daily digest",
+    title: report.title,
   });
 
 export const pairedCard = (): CardElement =>
   Card({
     children: [
       CardText(
-        "This chat is now your pager. Your daily digest lands here, approval questions come here with buttons, and you can talk to the agent by writing to it."
+        "This chat is now your pager. Reminders, scheduled runs and your daily digest land here, approval questions come here with buttons, and you can talk to the agent by writing to it."
       ),
     ],
     title: "Paired with Froggy",

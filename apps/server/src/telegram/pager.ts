@@ -29,7 +29,8 @@ import { ModelBudgetExhaustedError } from "../budget";
 import type { ModelBudget } from "../budget";
 import { detached } from "../detached";
 import type { InteractionRegistry } from "../interactions";
-import type { DigestReport, DigestSink } from "../jobs";
+import type { JobReport, ReportSink } from "../jobs";
+import type { Notices } from "../notices";
 import type { ChatRunRegistry } from "../runs";
 import type { Services } from "../services";
 import { recordTurn, sseOf, startTurn } from "../turn";
@@ -38,20 +39,26 @@ import type { Workspaces } from "../workspaces";
 import {
   APPROVAL_ACTION,
   approvalCard,
-  digestCard,
   pairedCard,
   parseApprovalValue,
+  reportCard,
 } from "./cards";
 import { PairingCodes } from "./pairing";
 
 /** How much of a Telegram conversation the model sees. Phones are terse. */
 const HISTORY = 20;
 
-export interface TelegramPager extends DigestSink {
+export interface TelegramPager extends ReportSink {
   readonly codes: PairingCodes;
   /** The deep link a person opens to pair, given a fresh code. */
   readonly link: (code: string) => string | null;
   readonly mode: "live" | "stub";
+  /**
+   * A plain message to the person's paired chat, unprompted. True when it
+   * was paired and posted; false is the honest answer everywhere else, and
+   * the caller says "shown in the web stream only" on the strength of it.
+   */
+  readonly notify: (userId: UserId, text: string) => Promise<boolean>;
   /** An approval question, to the person's paired chat if they have one. */
   readonly postApproval: (userId: UserId, request: ApprovalRequest) => void;
   readonly webhook: (request: Request) => Promise<Response>;
@@ -59,14 +66,19 @@ export interface TelegramPager extends DigestSink {
 
 export const stubTelegramPager = (): TelegramPager => ({
   codes: new PairingCodes(),
-  deliver: async (report: DigestReport) => {
+  deliver: async (report: JobReport) => {
     await Promise.resolve();
     console.info(
-      `[digest] ${report.userId} ${report.outcome}: ${report.summary || "(no summary)"} — spent $${(report.spentUsdMicros / 1_000_000).toFixed(4)} over ${report.receipts.length} receipt(s)`
+      `[report] ${report.userId} "${report.title}" ${report.outcome}: ${report.summary || "(no summary)"} — spent $${(report.spentUsdMicros / 1_000_000).toFixed(4)} over ${report.receipts.length} receipt(s)`
     );
   },
   link: () => null,
   mode: "stub",
+  notify: async (userId, text) => {
+    await Promise.resolve();
+    console.info(`[notify] ${userId}: ${text}`);
+    return false;
+  },
   postApproval: (): void => undefined,
   webhook: async () =>
     await Promise.resolve(
@@ -83,6 +95,8 @@ export interface LivePagerDeps {
   /** Turns and steps per person per day, shared with the web chat. */
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
+  /** For the `notify` tool inside a turn started here. */
+  readonly notices: Notices;
   readonly oracleUrl: string;
   readonly publishApp: (userId: UserId, message: AppServerMessage) => void;
   readonly runs: ChatRunRegistry;
@@ -209,6 +223,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
         {
           browser: workspace.browser,
           budget: deps.budget,
+          notices: deps.notices,
           oracleUrl: deps.oracleUrl,
           runs: deps.runs,
           services: deps.services,
@@ -247,13 +262,36 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     codes,
     deliver: async (report) => {
       await Promise.resolve();
-      postTo(report.userId, digestCard(report));
+      postTo(report.userId, reportCard(report));
     },
     link: (code) =>
       deps.botUsername === ""
         ? null
         : `https://t.me/${deps.botUsername}?start=${code}`,
     mode: "live",
+    notify: async (userId, text) => {
+      const pairing = await store.telegram.forUser(userId);
+      if (pairing === null) {
+        return false;
+      }
+      // Awaited, unlike `postTo`: the caller reports whether the phone saw
+      // it, and that has to be true when said.
+      await bot.thread(pairing.threadId).post(text);
+      // Into the DM history as the agent's own line, so the person's next
+      // reply ("yes, do that") lands in a conversation the model remembers.
+      const sent: UIMessage = {
+        id: `tg-notify-${Date.now()}`,
+        parts: [
+          { text: `[Sent to you as a notification] ${text}`, type: "text" },
+        ],
+        role: "assistant",
+      };
+      histories.set(
+        userId,
+        [...(histories.get(userId) ?? []), sent].slice(-HISTORY)
+      );
+      return true;
+    },
     postApproval: (userId, request) => {
       postTo(userId, approvalCard(request));
     },

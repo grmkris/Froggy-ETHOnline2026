@@ -26,6 +26,7 @@ import {
   ReceiptId,
   RunId,
   SaleId,
+  ScheduleId,
   SessionId,
   SpendId,
   TaskId,
@@ -34,7 +35,6 @@ import {
   bigint,
   boolean,
   index,
-  integer,
   jsonb,
   pgTable,
   text,
@@ -50,13 +50,6 @@ export const users = pgTable("users", {
     .defaultNow(),
   /** Privy's DID. The identity, owned by Privy; this is a foreign key to it. */
   did: text("did").primaryKey(),
-  /**
-   * The local hour (0–23) the daily digest runs, or null for never, in the
-   * IANA zone beside it. Stored as the person said it, not as UTC: a digest
-   * "at eight" should still be at eight after the clocks change.
-   */
-  digestHour: integer("digest_hour"),
-  digestTimezone: text("digest_timezone"),
   /**
    * `0.0.x`. The person's own Hedera account, opened by the host at their
    * first Hedera payment and funded from the host's float. What a receipt
@@ -298,5 +291,43 @@ export const agentTokens = pgTable(
   (table) => [
     uniqueIndex("agent_tokens_secret").on(table.secretHash),
     index("agent_tokens_user").on(table.userId),
+  ]
+);
+
+/**
+ * Reminders, unattended prompts and the digest, one row each.
+ *
+ * `action` and `cadence` are documents, as the domain decodes them; the
+ * cadence is what the person said ("daily at 07:30") and `next_run_at` is
+ * the one instant derived from it. `claimed_at` is the lock: a ticker takes
+ * a due row by setting it in the same statement that reads it, so two
+ * processes on one database never fire the same reminder twice. `finish`
+ * clears it; a claim older than the stale window is treated as abandoned,
+ * which makes a crash between claim and finish at-least-once rather than
+ * never.
+ */
+export const schedules = pgTable(
+  "schedules",
+  {
+    action: jsonb("action").notNull(),
+    cadence: jsonb("cadence").notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    id: typeIdPrimaryKey(ScheduleId),
+    label: text("label").notNull(),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    /** `active | done | cancelled`. */
+    status: text("status").notNull(),
+    timezone: text("timezone").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+  },
+  (table) => [
+    index("schedules_due").on(table.status, table.nextRunAt),
+    index("schedules_user").on(table.userId),
   ]
 );

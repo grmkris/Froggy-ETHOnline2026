@@ -6,6 +6,7 @@ import {
   ReceiptId,
   RunId,
   SaleId,
+  ScheduleId,
   SessionId,
   SpendId,
   TaskId,
@@ -13,7 +14,7 @@ import {
   usdMicros,
   userId,
 } from "@froggy/domain";
-import type { Mandate, Receipt, Sale, Task } from "@froggy/domain";
+import type { Mandate, Receipt, Sale, Schedule, Task } from "@froggy/domain";
 
 import { memoryStore, readReceipts } from "./store";
 
@@ -226,6 +227,123 @@ describe("memoryStore sales, tasks and agent tokens", () => {
     expect(await store.tasks.list(ALICE, 10)).toEqual([]);
     expect(await store.agents.list(ALICE)).toEqual([]);
     expect(await store.sales.byId(recorded.sale.id)).not.toBeNull();
+  });
+});
+
+const reminder = (nextRunAt: number, createdAt = NOW): Schedule => ({
+  action: { _tag: "remind", text: "check the oven" },
+  cadence: { _tag: "once", at: nextRunAt },
+  createdAt,
+  id: ScheduleId.generate(),
+  label: "oven",
+  lastRunAt: null,
+  nextRunAt,
+  status: "active",
+  timezone: "Europe/Berlin",
+});
+
+const digest = (nextRunAt: number): Schedule => ({
+  ...reminder(nextRunAt),
+  action: { _tag: "digest" },
+  cadence: { _tag: "daily", time: "08:00" },
+  label: "Daily digest",
+});
+
+describe("memoryStore schedules", () => {
+  it("creates, lists newest first and cancels only an active row of the owner's", async () => {
+    const store = memoryStore();
+    const first = reminder(NOW + 60_000, NOW);
+    const second = reminder(NOW + 120_000, NOW + 1);
+    await store.schedules.create(ALICE, first);
+    await store.schedules.create(ALICE, second);
+    const listed = await store.schedules.list(ALICE);
+    expect(listed.map((row) => row.id)).toEqual([second.id, first.id]);
+    expect(
+      await store.schedules.cancel(userId("did:privy:bob"), first.id)
+    ).toBe(false);
+    expect(await store.schedules.cancel(ALICE, first.id)).toBe(true);
+    expect(await store.schedules.cancel(ALICE, first.id)).toBe(false);
+    const afterCancel = await store.schedules.list(ALICE);
+    expect(afterCancel.find((row) => row.id === first.id)).toMatchObject({
+      nextRunAt: null,
+      status: "cancelled",
+    });
+    expect(await store.schedules.timezoneFor(ALICE)).toBe("Europe/Berlin");
+    expect(await store.schedules.timezoneFor(userId("did:privy:bob"))).toBe(
+      null
+    );
+  });
+
+  it("claims a due row once, and again only after the claim goes stale", async () => {
+    const store = memoryStore();
+    const due = reminder(NOW);
+    await store.schedules.create(ALICE, due);
+    await store.schedules.create(ALICE, reminder(NOW + 3_600_000));
+    const first = await store.schedules.claimDue(NOW, 600_000);
+    expect(first.map((row) => row.schedule.id)).toEqual([due.id]);
+    expect(first[0]?.userId).toBe(ALICE);
+    expect(await store.schedules.claimDue(NOW + 1000, 600_000)).toEqual([]);
+    // The process that claimed it died: past the stale window it is due again.
+    const again = await store.schedules.claimDue(NOW + 600_001, 600_000);
+    expect(again.map((row) => row.schedule.id)).toEqual([due.id]);
+  });
+
+  it("finish clears the claim, writes the outcome and keeps lastRunAt on a retry", async () => {
+    const store = memoryStore();
+    const due = reminder(NOW);
+    await store.schedules.create(ALICE, due);
+    await store.schedules.claimDue(NOW, 600_000);
+    await store.schedules.finish(due.id, {
+      nextRunAt: NOW + 60_000,
+      status: "active",
+    });
+    // Unclaimed and due again in a minute, with no run recorded.
+    const [retry] = await store.schedules.list(ALICE);
+    expect(retry).toMatchObject({
+      lastRunAt: null,
+      nextRunAt: NOW + 60_000,
+      status: "active",
+    });
+    expect(await store.schedules.claimDue(NOW + 60_000, 600_000)).toHaveLength(
+      1
+    );
+    await store.schedules.finish(due.id, {
+      lastRunAt: NOW + 60_000,
+      nextRunAt: null,
+      status: "done",
+    });
+    const [done] = await store.schedules.list(ALICE);
+    expect(done).toMatchObject({
+      lastRunAt: NOW + 60_000,
+      nextRunAt: null,
+      status: "done",
+    });
+    expect(await store.schedules.claimDue(NOW + 120_000, 600_000)).toEqual([]);
+  });
+
+  it("keeps one digest per person: saving replaces, null removes", async () => {
+    const store = memoryStore();
+    expect(await store.schedules.digestOf(ALICE)).toBeNull();
+    const morning = digest(NOW + 3_600_000);
+    await store.schedules.saveDigest(ALICE, morning);
+    const first = await store.schedules.digestOf(ALICE);
+    expect(first?.id).toBe(morning.id);
+    const evening = digest(NOW + 7_200_000);
+    await store.schedules.saveDigest(ALICE, evening);
+    const second = await store.schedules.digestOf(ALICE);
+    expect(second?.id).toBe(evening.id);
+    const rows = await store.schedules.list(ALICE);
+    expect(rows.find((row) => row.id === morning.id)?.status).toBe("cancelled");
+    await store.schedules.saveDigest(ALICE, null);
+    expect(await store.schedules.digestOf(ALICE)).toBeNull();
+  });
+
+  it("forgets a person's schedules", async () => {
+    const store = memoryStore();
+    await store.schedules.create(ALICE, reminder(NOW));
+    await store.forget(ALICE);
+    expect(await store.schedules.list(ALICE)).toEqual([]);
+    expect(await store.schedules.claimDue(NOW, 600_000)).toEqual([]);
   });
 });
 

@@ -12,7 +12,7 @@
  * about answering questions.
  */
 
-import { AgentTokenId, DigestSchedule } from "@froggy/domain";
+import { AgentTokenId } from "@froggy/domain";
 import type { AgentToken, DirectoryEntry, UserId } from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
 import { Schema } from "effect";
@@ -35,6 +35,7 @@ import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import type { InteractionRegistry } from "./interactions";
 import { handleMcp } from "./mcp";
+import type { Notices } from "./notices";
 import {
   handleOracleRequest,
   handleSaleLookup,
@@ -42,6 +43,7 @@ import {
   SALES_PATH,
 } from "./oracle-route";
 import type { ChatRunRegistry } from "./runs";
+import { handleDigest, handleSchedules } from "./schedule-routes";
 import { handleServices } from "./service-routes";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
@@ -75,7 +77,6 @@ const AgentBody = Schema.Struct({ label: Schema.String });
 const decodeAgentBody = Schema.decodeUnknownResult(AgentBody);
 
 const TASKS_PATH = "/api/tasks";
-const decodeDigest = Schema.decodeUnknownResult(DigestSchedule);
 
 /** Every JSON response this server sends. Named so the shapes stay enumerable. */
 type ResponseBody =
@@ -98,7 +99,6 @@ type ResponseBody =
   | { readonly removed: boolean }
   | AddOutcome
   | ProbeSummary
-  | DigestSchedule
   | { readonly receipts: WorkspaceSession["history"] }
   | { readonly stopped: boolean }
   | { readonly agents: readonly AgentToken[] }
@@ -120,6 +120,8 @@ export interface RouterDeps {
   readonly unlocks: UnlockTokens;
   readonly grants: AgentGrants;
   readonly interactions: InteractionRegistry;
+  /** Where the agent's unprompted messages go. */
+  readonly notices: Notices;
   readonly oracleUrl: string;
   readonly pager: TelegramPager;
   readonly runs: ChatRunRegistry;
@@ -205,6 +207,7 @@ const handleChatPost = async (
       {
         browser: workspace.browser,
         budget: deps.budget,
+        notices: deps.notices,
         oracleUrl: deps.oracleUrl,
         runs: deps.runs,
         services: deps.services,
@@ -281,21 +284,17 @@ const handleDirectory = async (
   return json({ error: "Not found." }, 404);
 };
 
-/** The digest schedule: read it, or replace it. */
-const handleDigest = async (
+/** The digest, reminders and scheduled runs: a person's, never an agent token's. */
+const handleScheduling = async (
   deps: RouterDeps,
   request: Request,
-  userId: UserId
-): Promise<Response> => {
-  if (request.method !== "PUT") {
-    return json(await deps.services.store.digest.load(userId));
+  userId: UserId,
+  pathname: string
+): Promise<Response | null> => {
+  if (pathname === "/api/digest") {
+    return await handleDigest(deps.services.store, request, userId);
   }
-  const decoded = decodeDigest(await request.json());
-  if (decoded._tag === "Failure") {
-    return json({ error: "Malformed digest schedule." }, 400);
-  }
-  await deps.services.store.digest.save(userId, decoded.success);
-  return json(decoded.success);
+  return await handleSchedules(deps.services.store, request, userId, pathname);
 };
 
 /** Who is calling: a person with a Privy token, or an agent with a token the person minted. */
@@ -348,6 +347,7 @@ const handleTasks = async (
   const taskDeps: TaskDeps = {
     budget: deps.budget,
     interactions: deps.interactions,
+    notices: deps.notices,
     oracleUrl: deps.oracleUrl,
     runs: deps.runs,
     services: deps.services,
@@ -499,8 +499,9 @@ const handleApi = async (
     });
   }
 
-  if (pathname === "/api/digest") {
-    return await handleDigest(deps, request, userId);
+  const scheduling = await handleScheduling(deps, request, userId, pathname);
+  if (scheduling !== null) {
+    return scheduling;
   }
 
   if (pathname === "/api/telegram") {
