@@ -16,15 +16,22 @@ Migration 0009 was applied with all preceding migrations to a disposable local P
 
 The full `bun run check` gate passed (480 unit tests, formatting, type-aware lint, TypeScript, boundaries, agent-file validation and knip). `bun run build` passed for the server and web app. The complete Chromium suite passed all 56 tests, including both CLI login modes under Node 22.23.2. Consent screenshots at 390 and 1440 pixels were visually inspected. Node 20 was not exercised on this machine.
 
+## Production release verification
+
+The owner authorized the push after recovery. Merge `3179edb` passed [GitHub CI](https://github.com/grmkris/agentic-wallet/actions/runs/34129091126), including all 56 browser tests. Railway deployment `8dda0c7a-8857-4e6d-9490-834f353d6130` succeeded on 7 September 2026 at 13:56 UTC after the migration step and application startup.
+
+Read-only checks against `https://app-production-58dd.up.railway.app` passed:
+
+- `/health`: HTTP 200, status `ok`, database/graph/hedera/model/privy/telegram all `live`.
+- `/.well-known/oauth-authorization-server`: HTTP 200 JSON, the production issuer and endpoints, mandatory PKCE S256 and authorization-code/refresh support.
+- `/.well-known/oauth-protected-resource` and its `/mcp` variant: HTTP 200 JSON identifying the production MCP resource and authorization server.
+- Unauthenticated POST `/mcp`: HTTP 401 with the production `resource_metadata` challenge.
+- POST `/mcp` with a nonexistent `fga_` token: HTTP 401 and `invalid_token`. This exercises the OAuth token lookup against the migrated live database.
+
 ## Live checks still required
 
-At recovery, the hosted `/mcp` and `/.well-known/oauth-authorization-server` returned HTML from the SPA. The new OAuth code and migration were not deployed. `/health` was healthy with all six integrations live.
-
-After deployment:
-
-1. Confirm both metadata documents return JSON; an unauthenticated POST to `/mcp` returns 401 with its `resource_metadata` challenge.
-2. Connect an external MCP client by URL, complete consent as a real Privy user, list tools and call `froggy_services`.
-3. Disconnect through Agents; the next token-authenticated call must return 401.
-4. Run `froggy login --manual` in Hermes' environment, relay the link to the owner, exchange the pasted code, read services, then log out. A paid brief is a separate live financial check.
+1. Connect an external MCP client by URL, complete consent as a real Privy user, list tools and call `froggy_services`.
+2. Disconnect through Agents; the next token-authenticated call must return 401.
+3. Run `froggy login --manual` in Hermes' environment, relay the link to the owner, exchange the pasted code, read services, then log out. A paid brief is a separate live financial check.
 
 No live Hermes, Inspector, provider payment or Telegram delivery is claimed by this record.
