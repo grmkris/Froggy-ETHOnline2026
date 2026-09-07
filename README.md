@@ -127,7 +127,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 4. **"Top up the pocket."** The agent asks the person's own Privy wallet to sign a USDC transfer to the treasury on Base mainnet. Privy's rule (b) allows it: right token, right recipient, at most 2 USDC, at most 5 USDC a day. The pocket grows by what landed.
 5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
 6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
-7. **Connect Hermes.** Mint a token in Details → Agents, paste the skill it shows into your personal agent, and run `froggy brief USDC` there: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts.
+7. **Connect an agent.** `claude mcp add --transport http froggy https://<host>/mcp` and authenticate: a tab opens on Froggy, you see what the agent may buy, and you click Allow. Or install the CLI and run `froggy login` (`--manual` in a sandbox with no browser), then `froggy brief USDC`: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts. Nothing is pasted; Disconnect on the Agents page ends it.
 
 ## On-chain and live evidence
 
@@ -159,11 +159,11 @@ curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
 
 **Mainnet since Mon 7 Sep.** Float `0.0.10847552`, receiver `0.0.10847556`, HCS topic `0.0.10847557`. Production uses a separate mainnet ledger; the old testnet database is retained. The top-up is configured to transfer Base mainnet USDC to the treasury and allocate HBAR from the float. A direct Privy-signed treasury query paid The Graph 0.01 USDC on Base and returned live data. This does not prove the person's onramp, top-up or login-time signer grant; those journeys still need a real signed-in person.
 
-**Known gaps.** Durable funding confirmation and partial-allocation recovery remain open. Uncertain payments require reconciliation before another purchase. The new marketplace suppliers need their reviewed policy configuration and paid delivery proofs; X search also needs provider credentials. The MCP bridge uses revocable bearer tokens; OAuth onboarding and the public agents page remain task 2.6.
+**Known gaps.** Durable funding confirmation and partial-allocation recovery remain open. Uncertain payments require reconciliation before another purchase. The new marketplace suppliers need their reviewed policy configuration and paid delivery proofs; X search also needs provider credentials. MCP clients sign in through OAuth 2.1 at `/mcp` (ADR 0012); the live check from Hermes' sandbox and the public agents page are still owed.
 
 ## Not in scope
 
-Guest access without sign-in. Anything that changes spending authority as an agent tool. Card purchases, bridges, OAuth onboarding and a completed real onramp are not claims of this release.
+Guest access without sign-in. Anything that changes spending authority as an agent tool. Card purchases, bridges, browser-based MCP clients on another origin and a completed real onramp are not claims of this release.
 
 ## Team
 
@@ -173,8 +173,8 @@ Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2
 
 - **The workspace.** Wallet-first; tasks continue in chat, where the page is a card in the stream, or a pane beside it, or a window of its own. Receipts are tickets: what and why on the body, rule id, transaction and evidence on the stub. A refusal is a stamp.
 - **Telegram.** Open Connect an agent → Telegram, then open the bot and tap Start using the expiring link. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; a plain message runs the same agent on the same mandate.
-- **The task API and the CLI.** `POST /api/tasks` sells a lending brief or a browse behind a 402 priced in HBAR at the mirror-node rate, with a durable task id, idempotency, status, receipts and an event stream. `GET /froggy-cli.js` serves a dependency-free command for Node or Bun that is a real x402 client with your Froggy wallet as its signer; `skills/froggy/SKILL.md` is the text a personal agent installs, and Details → Agents hands you a copy with your token filled in.
-- **Services and MCP.** The catalog, chat, CLI and `/api/mcp` share durable service tasks and spending controls. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
+- **The task API and the CLI.** `POST /api/tasks` sells a lending brief or a browse behind a 402 priced in HBAR at the mirror-node rate, with a durable task id, idempotency, status, receipts and an event stream. `GET /froggy-cli.js` serves a dependency-free command for Node or Bun that is a real x402 client with your Froggy wallet as its signer; `froggy login` signs it in through the browser (or `--manual` by a pasted code) and `skills/froggy/SKILL.md` is the text a personal agent installs, with no secret in it. A minted token under "Advanced: connect with a token" remains for an unattended agent.
+- **Services and MCP.** Froggy is a remote MCP server at `/mcp` with OAuth 2.1: dynamic registration, PKCE, a consent page with one switch per scope (`brief`, `browse`, `pay`, `services`), short-lived access tokens, rotating refresh tokens, and Disconnect on the Agents page. The catalog, chat, CLI and MCP share durable service tasks and spending controls. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
 - **The daily digest.** One unattended turn a day at the hour you pick, bounded to a minute, a dozen steps, five cents and one paid request; nobody can be asked, so anything over the threshold is refused.
 - **The directory.** Paste a URL and it is probed, never paid; if the 402 is one this wallet can honour, one click makes it payable, and that click is the only way a stranger's host reaches the allowlist.
 
