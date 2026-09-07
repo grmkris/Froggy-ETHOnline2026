@@ -15,8 +15,9 @@ test("buy a demo service and recover its result after reload", async ({
   await page.goto("/services");
   await page.getByRole("button", { name: "Choose search the web" }).click();
   await page.getByLabel("Your request").fill("Find affordable train tickets");
-  await page.getByRole("button", { name: "Try demo · $0.03" }).click();
-  await expect(page.getByLabel("Service tasks")).toContainText("done");
+  await page.getByRole("button", { name: "Try simulated · $0.03" }).click();
+  await expect(page.getByLabel("Service tasks")).toContainText("Done");
+  await expect(page.getByLabel("Service tasks")).toContainText("Simulated");
   await expect(page.getByLabel("Service tasks")).toContainText(
     "DEMO — Search the web"
   );

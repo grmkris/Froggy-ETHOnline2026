@@ -1,9 +1,11 @@
+import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
   createRoute,
   createRouter,
   lazyRouteComponent,
 } from "@tanstack/react-router";
+import { Schema } from "effect";
 
 import { AppShell } from "./components/app-shell";
 import { WorkspaceLayout } from "./routes/workspace-layout";
@@ -41,11 +43,33 @@ const walletRoute = page(
   async () => await import("./routes/wallet-page"),
   "WalletPage"
 );
-const servicesRoute = page(
-  "/services",
-  async () => await import("./routes/services-page"),
-  "ServicesPage"
-);
+/** The chosen service, when the URL names one; anything else is no choice. */
+const ServicesSearch = Schema.Struct({
+  service: Schema.optional(ServiceName),
+});
+const decodeServicesSearch = Schema.decodeUnknownResult(ServicesSearch);
+type ServicesSearch = typeof ServicesSearch.Type;
+
+/** What the router hands over: whatever the URL held under that key. */
+interface ServicesSearchInput {
+  readonly service?: unknown;
+}
+
+/** Only a known service survives; anything else is no choice. */
+const servicesSearch = (raw: ServicesSearchInput): ServicesSearch => {
+  const decoded = decodeServicesSearch(raw);
+  return decoded._tag === "Success" ? decoded.success : {};
+};
+
+const servicesRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/services-page"),
+    "ServicesPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/services",
+  validateSearch: servicesSearch,
+});
 const agentsRoute = page(
   "/agents",
   async () => await import("./routes/agents-page"),

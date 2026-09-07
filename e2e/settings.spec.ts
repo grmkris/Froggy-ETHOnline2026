@@ -18,8 +18,11 @@ test("deleting my data wipes the receipts and starts over", async ({
 
   await page.goto("/settings");
   await page.getByRole("button", { name: "Delete my data" }).click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.waitForLoadState("load");
+  // Confirming wipes the account and reloads the page; wait for that load.
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.getByRole("button", { name: "Delete", exact: true }).click(),
+  ]);
 
   await page.goto("/wallet");
   await expect(
