@@ -39,11 +39,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
   await page.goto("/agents");
   await expect(page.getByRole("alert")).toContainText("Couldn’t load");
   await page.getByRole("button", { name: "Retry loading agents" }).click();
-  await expect(
-    page.getByText(
-      "No connections yet. Create one above, or use Froggy in this workspace."
-    )
-  ).toBeVisible();
+  await expect(page.getByText("No connections yet.")).toBeVisible();
 
   await page
     .getByText("Advanced: connect with a token", { exact: true })
@@ -99,9 +95,5 @@ test("connect an agent, read the skill once, disconnect it", async ({
     .getByRole("button", { name: "Retry disconnecting Hermes on Contabo" })
     .click();
   expect(disconnectAttempts).toBe(2);
-  await expect(
-    page.getByText(
-      "No connections yet. Create one above, or use Froggy in this workspace."
-    )
-  ).toBeVisible();
+  await expect(page.getByText("No connections yet.")).toBeVisible();
 });

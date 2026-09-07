@@ -71,7 +71,7 @@ export const ApprovalTicket = ({
       <TicketBody>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-drive-agent text-xs font-semibold tracking-wide uppercase">
+            <p className="text-drive-agent-foreground text-xs font-semibold tracking-wide uppercase">
               Your call
             </p>
             <div className="mt-1 flex items-baseline gap-2">

@@ -21,7 +21,7 @@ export const IntegrationBadges = ({
       <Badge
         className={
           mode === "stub"
-            ? "border-drive-agent/60 text-drive-agent"
+            ? "border-drive-agent/60 text-drive-agent-foreground"
             : "border-brand/40 text-brand"
         }
         key={name}

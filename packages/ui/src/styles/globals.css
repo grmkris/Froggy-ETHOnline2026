@@ -688,6 +688,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-ink: var(--foreground);
   --color-drive-agent: var(--drive-agent);
+  --color-drive-agent-foreground: var(--drive-agent-foreground);
   --color-drive-agent-soft: var(--drive-agent-soft);
   --color-drive-human: var(--drive-human);
   --color-drive-human-soft: var(--drive-human-soft);
@@ -735,6 +736,7 @@
   --input: oklch(0.9 0.012 100);
   --ring: oklch(0.72 0.16 135);
   --drive-agent: oklch(0.76 0.16 68);
+  --drive-agent-foreground: oklch(0.46 0.1 60);
   --drive-agent-soft: oklch(0.965 0.045 80);
   --drive-human: oklch(0.6 0.16 252);
   --drive-human-soft: oklch(0.955 0.03 250);

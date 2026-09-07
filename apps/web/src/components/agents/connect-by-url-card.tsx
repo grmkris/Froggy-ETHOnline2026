@@ -34,7 +34,7 @@ const Steps = ({
   readonly title: string;
 }): ReactElement => (
   <details className="group rounded-xl border px-3">
-    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium select-none">
+    <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-sm font-medium outline-none select-none focus-visible:ring-2">
       {title}
       <ChevronDownIcon aria-hidden className="size-4 group-open:rotate-180" />
     </summary>
@@ -47,13 +47,13 @@ export const ConnectByUrlCard = ({
 }: {
   readonly mcpUrl: string | null;
 }): ReactElement => (
-  <Card>
+  <Card className="sm:[--card-spacing:--spacing(6)]">
     <CardHeader>
       <CardTitle className="flex flex-wrap items-center gap-2">
         Connect by URL
         {mcpUrl === null ? (
           <Badge
-            className="border-drive-agent/60 text-drive-agent"
+            className="border-drive-agent/60 text-drive-agent-foreground"
             variant="outline"
           >
             Not on this deployment yet

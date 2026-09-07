@@ -18,7 +18,7 @@ const STATUS_TONE: Record<
   string
 > = {
   fresh: "text-brand",
-  stale: "text-drive-agent",
+  stale: "text-drive-agent-foreground",
   unavailable: "text-muted-foreground",
 };
 
@@ -60,7 +60,7 @@ export const GraphSummary = ({
       <p className="text-muted-foreground text-xs">
         {graph.fresh} of {graph.total} indexes fresh
         {graph.stubbed ? (
-          <span className="text-drive-agent">
+          <span className="text-drive-agent-foreground">
             {" "}
             · recorded fixture, not a live index
           </span>

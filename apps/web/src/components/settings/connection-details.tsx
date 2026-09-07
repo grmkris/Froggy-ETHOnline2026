@@ -38,7 +38,7 @@ export const ConnectionDetails = ({
   readonly webMcp: WebMcpStatus;
 }): ReactElement => (
   <div className="flex flex-col gap-4 text-sm">
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 break-words">
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 wrap-anywhere">
       <dt className="text-muted-foreground">Signer</dt>
       <dd className="text-machine">
         {shortAddress(wallet?.signerAddress ?? null)}

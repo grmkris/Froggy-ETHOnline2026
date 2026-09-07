@@ -46,7 +46,7 @@ const PHASE: Partial<Record<ToolPhase, string>> = {
 };
 
 const OUTCOME_TEXT: Record<Outcome, string> = {
-  asked: "text-drive-agent",
+  asked: "text-drive-agent-foreground",
   info: "text-foreground",
   ok: "text-foreground",
   refused: "text-refused",

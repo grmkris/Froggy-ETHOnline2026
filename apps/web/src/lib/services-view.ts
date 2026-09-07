@@ -71,7 +71,7 @@ export const readinessBadge = (
 ): ReadinessBadge => {
   if (status === "demo") {
     return {
-      className: "border-drive-agent/60 text-drive-agent",
+      className: "border-drive-agent/60 text-drive-agent-foreground",
       label: "Simulated",
     };
   }

@@ -6,8 +6,15 @@
 import { formatUsd } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Button, buttonVariants } from "@froggy/ui/components/button";
+import { FrogMark } from "@froggy/ui/components/frog-mark";
+import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRightIcon } from "lucide-react";
+import {
+  ArrowUpRightIcon,
+  BotIcon,
+  ChartNoAxesCombinedIcon,
+  SparklesIcon,
+} from "lucide-react";
 import type { ReactElement } from "react";
 
 import { walletAmounts } from "../../lib/wallet-view";
@@ -20,7 +27,7 @@ interface EmptyStateProps {
 }
 
 const ACTION =
-  "h-auto min-h-11 justify-between gap-3 px-4 py-3 text-left whitespace-normal";
+  "h-auto min-h-11 min-w-0 flex-row items-start justify-start gap-3 p-4 text-left whitespace-normal has-data-[icon=inline-start]:pl-4 sm:min-h-40 sm:flex-col sm:p-5 sm:has-data-[icon=inline-start]:pl-5";
 
 /** The balance as one line that leads to the wallet. */
 const WalletPeek = ({
@@ -53,16 +60,27 @@ export const EmptyState = ({
 }: EmptyStateProps): ReactElement => (
   <section
     aria-label="Use Froggy here"
-    className="flex flex-col gap-4 px-1 py-2"
+    className="flex flex-col gap-6 px-1 py-2 sm:gap-8"
   >
     <div>
-      <h2 className="font-display text-2xl font-semibold tracking-tight text-balance">
+      <div className="mb-4 flex items-center gap-3 sm:mb-5 sm:flex-col sm:items-start sm:gap-5">
+        <span className="bg-brand-soft grid size-10 shrink-0 place-items-center rounded-xl sm:size-16 sm:rounded-2xl">
+          <FrogMark className="size-8 sm:size-12" />
+        </span>
+        <p className="text-brand text-[10px] font-medium tracking-[0.14em] uppercase sm:text-xs">
+          A little help goes a long way
+        </p>
+      </div>
+      <h1 className="font-display max-w-lg text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl">
         What would you like to do?
-      </h2>
-      <WalletPeek wallet={wallet} />
+      </h1>
+      <p className="text-muted-foreground mt-3 max-w-lg text-sm leading-relaxed">
+        Research an idea, make something, or put your agent to work.
+      </p>
     </div>
-    <div className="flex flex-col gap-2">
+    <div className="grid gap-3 sm:grid-cols-3">
       <Button
+        aria-label="Buy the lending snapshot"
         className={ACTION}
         disabled={disabled}
         onClick={() => {
@@ -70,29 +88,49 @@ export const EmptyState = ({
         }}
         variant="outline"
       >
-        Buy the lending snapshot{" "}
-        <ArrowUpRightIcon className="shrink-0" data-icon="inline-end" />
+        <ChartNoAxesCombinedIcon aria-hidden data-icon="inline-start" />
+        <span className="flex flex-col gap-1">
+          <span>Buy the lending snapshot</span>
+          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
+            A fresh look at the lending market.
+          </span>
+        </span>
       </Button>
       <Link
-        className={`${buttonVariants({ variant: "outline" })} ${ACTION}`}
+        aria-label="Browse services"
+        className={cn(buttonVariants({ variant: "outline" }), ACTION)}
         to="/services"
       >
-        Browse services
-        <ArrowUpRightIcon className="shrink-0" data-icon="inline-end" />
+        <SparklesIcon aria-hidden data-icon="inline-start" />
+        <span className="flex flex-col gap-1">
+          <span>Browse services</span>
+          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
+            Search, images, audio, and more.
+          </span>
+        </span>
       </Link>
       <Link
-        className={`${buttonVariants({ variant: "outline" })} ${ACTION}`}
+        aria-label="Connect an agent"
+        className={cn(buttonVariants({ variant: "outline" }), ACTION)}
         to="/agents"
       >
-        Connect an agent
-        <ArrowUpRightIcon className="shrink-0" data-icon="inline-end" />
+        <BotIcon aria-hidden data-icon="inline-start" />
+        <span className="flex flex-col gap-1">
+          <span>Connect an agent</span>
+          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
+            Bring your own. Set it to work.
+          </span>
+        </span>
       </Link>
     </div>
-    <p className="text-muted-foreground text-xs">
-      Paid tasks are paid from your wallet. Every payment leaves a receipt.
-      {modes?.model === "stub"
-        ? " This build uses a simulated agent and marks its receipts."
-        : ""}
-    </p>
+    <div className="flex flex-col gap-1 border-t pt-3">
+      <WalletPeek wallet={wallet} />
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        Paid tasks are paid from your wallet. Every payment leaves a receipt.
+        {modes?.model === "stub"
+          ? " This build uses a simulated agent and marks its receipts."
+          : ""}
+      </p>
+    </div>
   </section>
 );

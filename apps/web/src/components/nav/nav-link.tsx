@@ -7,6 +7,7 @@
  * is waiting there, and the accessible name says so.
  */
 
+import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
@@ -36,7 +37,12 @@ export const NavLink = ({
     <Link
       activeOptions={{ exact: item.to === "/" }}
       aria-label={name}
-      className={`text-muted-foreground hover:bg-card/70 hover:text-foreground focus-visible:ring-ring data-[status=active]:bg-card data-[status=active]:text-brand data-[status=active]:shadow-card after:bg-brand relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-medium transition-colors duration-150 outline-none after:absolute after:rounded-full after:opacity-0 after:transition-opacity after:duration-150 focus-visible:ring-2 data-[status=active]:after:opacity-100 ${EDGE[edge]}`}
+      className={cn(
+        "text-muted-foreground hover:bg-card/70 hover:text-foreground focus-visible:ring-ring data-[status=active]:bg-card data-[status=active]:text-brand data-[status=active]:shadow-card after:bg-brand relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-medium transition-colors duration-150 outline-none after:absolute after:rounded-full after:opacity-0 after:transition-opacity after:duration-150 focus-visible:ring-2 data-[status=active]:after:opacity-100",
+        EDGE[edge],
+        edge === "left" &&
+          "lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3 lg:text-sm"
+      )}
       to={item.to}
     >
       <span className="relative">

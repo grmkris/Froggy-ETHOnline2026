@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@froggy/ui/components/card";
+import { ArrowUpRightIcon } from "lucide-react";
 import { createElement } from "react";
 import type { ReactElement } from "react";
 
@@ -48,7 +49,7 @@ export const ServiceCard = ({
         <CardTitle className="pt-1">{card.title}</CardTitle>
         <CardDescription>{card.description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-2 text-xs">
+      <CardContent className="mt-auto flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">{card.provider}</span>
         <Badge className={readiness.className} variant="outline">
           {readiness.label}
@@ -56,13 +57,15 @@ export const ServiceCard = ({
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-2">
         <Button
+          aria-label={`Choose ${card.title.toLowerCase()}`}
           aria-describedby={card.status === "unavailable" ? noteId : undefined}
-          className="min-h-11"
+          className="min-h-11 w-full justify-between"
           disabled={card.status === "unavailable"}
           onClick={onChoose}
           variant={selected ? "default" : "outline"}
         >
-          Choose {card.title.toLowerCase()}
+          Choose service
+          <ArrowUpRightIcon data-icon="inline-end" />
         </Button>
         {card.status === "unavailable" ? (
           <p className="text-muted-foreground text-xs" id={noteId}>

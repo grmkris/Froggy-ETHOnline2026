@@ -1,8 +1,16 @@
 /** OAuth grants and legacy tokens, each with a way to disconnect it. */
 
 import { Button } from "@froggy/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@froggy/ui/components/empty";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { useMutation } from "@tanstack/react-query";
+import { BotIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import type { AgentToken, useAgentTokens } from "../../hooks/use-agent-tokens";
@@ -108,9 +116,18 @@ export const AgentList = ({
         </p>
       ) : null}
       {live?.length === 0 && grants?.length === 0 && !agents.isError ? (
-        <p className="text-muted-foreground rounded-xl border border-dashed p-4">
-          No connections yet. Create one above, or use Froggy in this workspace.
-        </p>
+        <Empty className="flex-none border py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BotIcon aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>No connections yet.</EmptyTitle>
+            <EmptyDescription>
+              Connect your agent by URL to get started. Its access will appear
+              here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : null}
       {live === undefined || live.length === 0 ? null : (
         <ul className="flex flex-col gap-2">

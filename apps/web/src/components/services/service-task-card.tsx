@@ -79,7 +79,7 @@ export const ServiceTaskCard = ({
         <TaskStatusBadge status={task.status} />
         {task.stubbed ? (
           <Badge
-            className="border-drive-agent/60 text-drive-agent"
+            className="border-drive-agent/60 text-drive-agent-foreground"
             variant="outline"
           >
             Simulated

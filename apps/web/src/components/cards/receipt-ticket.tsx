@@ -254,7 +254,7 @@ export const ReceiptTicket = ({
             )}
             {receipt.stubbed ? (
               <Badge
-                className="border-drive-agent/60 text-drive-agent text-[10px]"
+                className="border-drive-agent/60 text-drive-agent-foreground text-[10px]"
                 variant="outline"
               >
                 stubbed

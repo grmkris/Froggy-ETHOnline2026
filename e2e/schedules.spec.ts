@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+import { captureResponsive } from "./capture";
+
 /**
  * What is scheduled shows on the settings page and can be cancelled there.
  * The rows come from the API; the test serves two and takes one away.
  */
 test("scheduled reminders are listed and can be cancelled", async ({
   page,
-}) => {
+}, testInfo) => {
   let cancelled = 0;
   const rows = [
     {
@@ -46,6 +48,7 @@ test("scheduled reminders are listed and can be cancelled", async ({
   await expect(scheduled.getByText("oven", { exact: true })).toBeVisible();
   await expect(scheduled.getByText("Every day at 07:30")).toBeVisible();
   await expect(scheduled.getByText("Remind: check the oven")).toBeVisible();
+  await captureResponsive(page, testInfo, "settings-scheduled");
   await scheduled.getByRole("button", { name: "Cancel oven" }).click();
   await expect(scheduled.getByText("oven", { exact: true })).toHaveCount(0);
   await expect(

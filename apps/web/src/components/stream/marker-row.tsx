@@ -38,9 +38,9 @@ const ICON: Record<TimelineEvent["kind"], typeof SunIcon> = {
 
 const TONE: Record<TimelineEvent["kind"], string> = {
   answered: "text-brand",
-  asked: "text-drive-agent",
+  asked: "text-drive-agent-foreground",
   elsewhere: "text-drive-human",
-  notice: "text-drive-agent",
+  notice: "text-drive-agent-foreground",
   topup: "text-brand",
 };
 

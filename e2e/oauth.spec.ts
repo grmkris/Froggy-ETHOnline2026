@@ -3,6 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Schema } from "effect";
 
+import { captureResponsive, captureScreen } from "./capture";
+
 /**
  * An MCP client connects the official way: it registers itself, the person
  * consents in the page, the code is exchanged for a token that reaches
@@ -80,9 +82,7 @@ test("an MCP client signs in through the consent page and is held to its scopes"
         () => document.documentElement.scrollWidth <= window.innerWidth
       )
     ).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`oauth-consent-${width}.png`),
-    });
+    await captureScreen(page, testInfo, "oauth-consent");
   };
   await captureConsent(1440);
   await captureConsent(390);
@@ -110,6 +110,7 @@ test("an MCP client signs in through the consent page and is held to its scopes"
   expect(exchange.status()).toBe(200);
   const issued = Schema.decodeUnknownSync(Tokens)(await exchange.json());
   expect(issued.scope).toBe("brief services");
+  await captureResponsive(page, testInfo, "oauth-manual");
 
   const agent = {
     accept: "application/json, text/event-stream",

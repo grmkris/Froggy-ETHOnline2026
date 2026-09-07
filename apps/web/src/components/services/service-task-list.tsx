@@ -10,9 +10,11 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@froggy/ui/components/empty";
 import { Skeleton } from "@froggy/ui/components/skeleton";
+import { InboxIcon } from "lucide-react";
 import type { ReactElement, RefObject } from "react";
 
 import type { ServiceApi } from "../../hooks/use-service-api";
@@ -30,7 +32,7 @@ export const ServiceTaskList = ({
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
   readonly tasks: ServiceApi["tasks"];
 }): ReactElement => (
-  <section aria-label="Service tasks" className="flex flex-col gap-3">
+  <section aria-label="Service tasks" className="flex min-w-0 flex-col gap-3">
     <h2
       className="font-display text-lg font-semibold outline-none"
       ref={headingRef}
@@ -50,8 +52,11 @@ export const ServiceTaskList = ({
       </output>
     ) : null}
     {tasks.data?.tasks.length === 0 ? (
-      <Empty className="border">
+      <Empty className="flex-none border py-10">
         <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <InboxIcon aria-hidden />
+          </EmptyMedia>
           <EmptyTitle>No tasks yet.</EmptyTitle>
           <EmptyDescription>
             Results from you and your connected agents appear here.

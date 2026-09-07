@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { captureResponsive } from "./capture";
 import { lowerApprovalThreshold } from "./mandate";
 
 /**
@@ -10,7 +11,7 @@ import { lowerApprovalThreshold } from "./mandate";
  */
 test("a turn streams into the log as cards and markdown, with no browser errors", async ({
   page,
-}) => {
+}, testInfo) => {
   const browserErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -55,6 +56,7 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
     page.getByRole("button", { exact: true, name: "Send" })
   ).toBeVisible({ timeout: 20_000 });
   await expect(log).toHaveAttribute("aria-busy", "false");
+  await captureResponsive(page, testInfo, "chat-completed");
   expect(browserErrors).toEqual([]);
 });
 

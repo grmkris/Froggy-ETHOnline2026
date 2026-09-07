@@ -9,11 +9,11 @@ import { statusWords } from "../../lib/services-view";
 import type { StatusTone } from "../../lib/services-view";
 
 const TONE_CLASS: ReadonlyMap<StatusTone, string> = new Map([
-  ["asking", "border-drive-agent/60 text-drive-agent"],
+  ["asking", "border-drive-agent/60 text-drive-agent-foreground"],
   ["done", "border-brand/40 text-brand"],
   ["failed", "border-destructive/40 text-destructive"],
   ["settling", "text-muted-foreground"],
-  ["uncertain", "border-drive-agent/60 text-drive-agent"],
+  ["uncertain", "border-drive-agent/60 text-drive-agent-foreground"],
 ]);
 
 export const TaskStatusBadge = ({

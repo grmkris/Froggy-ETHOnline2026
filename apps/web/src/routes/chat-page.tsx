@@ -127,8 +127,11 @@ export const ChatPage = (): ReactElement => {
           </div>
         ) : null}
         {firstUse ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            data-slot="chat-welcome-scroll"
+          >
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-12">
               <EmptyState
                 disabled={disabledReason !== null}
                 modes={app.modes}

@@ -5,8 +5,10 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@froggy/ui/components/empty";
+import { ReceiptTextIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { ReceiptTicket } from "../cards/receipt-ticket";
@@ -19,8 +21,11 @@ export const WalletActivity = ({
   <section aria-label="Activity" className="flex flex-col gap-3" id="activity">
     <h2 className="font-display text-lg font-semibold">Activity</h2>
     {receipts.length === 0 ? (
-      <Empty className="border">
+      <Empty className="border py-10">
         <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ReceiptTextIcon aria-hidden />
+          </EmptyMedia>
           <EmptyTitle>Nothing spent or refused yet.</EmptyTitle>
           <EmptyDescription>
             Every payment and every refusal lands here with its receipt.

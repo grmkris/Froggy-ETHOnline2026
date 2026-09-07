@@ -108,10 +108,13 @@ export const WorkspaceLayout = (): ReactElement => {
 
   const deleteMyData = useCallback(async (): Promise<void> => {
     const token = await getToken();
-    await fetch("/api/me", {
+    const response = await fetch("/api/me", {
       headers: token === null ? {} : { authorization: `Bearer ${token}` },
       method: "DELETE",
     });
+    if (!response.ok) {
+      throw new Error(`delete account: ${response.status}`);
+    }
     globalThis.location.reload();
   }, [getToken]);
 

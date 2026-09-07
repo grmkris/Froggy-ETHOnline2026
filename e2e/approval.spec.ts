@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { captureResponsive } from "./capture";
 import { lowerApprovalThreshold } from "./mandate";
 
 /**
@@ -12,7 +13,7 @@ import { lowerApprovalThreshold } from "./mandate";
  */
 test("a spend over the threshold asks, and the answer is on the receipt", async ({
   page,
-}) => {
+}, testInfo) => {
   const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/");
   await leash.applied;
@@ -29,12 +30,14 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
     "Allow for this session",
     "Allow once",
   ]);
+  await captureResponsive(page, testInfo, "chat-approval");
   await ticket.getByRole("button", { name: "Allow once" }).click();
 
   await expect(ticket).toHaveCount(0);
   const receipt = page.getByLabel(/^Receipt: Paid/u).first();
   await expect(receipt).toBeVisible({ timeout: 20_000 });
   await expect(receipt).toContainText("you allowed it once");
+  await captureResponsive(page, testInfo, "chat-receipt");
 });
 
 test("saying no files a refusal, and nothing is paid", async ({ page }) => {

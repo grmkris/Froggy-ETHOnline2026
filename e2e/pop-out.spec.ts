@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { captureResponsive, captureScreen } from "./capture";
+
 /**
  * The page leaves the column and comes back.
  *
@@ -7,12 +9,13 @@ import { expect, test } from "@playwright/test";
  * to prove it moves. Driving a real page is a manual check.
  */
 
-test("the page can go to a split pane and back", async ({ page }) => {
+test("the page can go to a split pane and back", async ({ page }, testInfo) => {
   await page.setViewportSize({ height: 860, width: 1400 });
   await page.goto("/");
   // Ask for the card without starting a Chrome: the card, with its "nothing
   // open yet" explanation, is all the layout needs.
   await page.getByRole("button", { name: "Show the browser" }).click();
+  await captureResponsive(page, testInfo, "browser-inline");
   await page
     .getByRole("button", { name: "Show the page beside the conversation" })
     .click();
@@ -21,6 +24,7 @@ test("the page can go to a split pane and back", async ({ page }) => {
       name: "The shared browser, beside the conversation",
     })
   ).toBeVisible();
+  await captureScreen(page, testInfo, "browser-split");
   await page
     .getByRole("button", { name: "Put the page back in the conversation" })
     .click();
@@ -34,7 +38,7 @@ test("the page can go to a split pane and back", async ({ page }) => {
 test("the page can go to its own window, and the tab knows", async ({
   context,
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ height: 860, width: 1400 });
   await page.goto("/");
   await page.getByRole("button", { name: "Show the browser" }).click();
@@ -50,6 +54,7 @@ test("the page can go to its own window, and the tab knows", async ({
     page.getByText("The page is open in another window.")
   ).toBeVisible();
 
+  await captureResponsive(popup, testInfo, "browser-window");
   await popup.close();
   await expect(
     page.getByText("The page is open in another window.")
