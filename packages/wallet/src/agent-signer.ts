@@ -140,6 +140,8 @@ const updateWallet = async (
   });
 };
 
+const UNRECOGNISED = "Privy refused the grant for an unrecognised reason.";
+
 export const grantAgentSigner = async (
   client: PrivyClient,
   input: {
@@ -149,8 +151,9 @@ export const grantAgentSigner = async (
     readonly did: string;
   }
 ): Promise<AgentGrant> => {
+  let wallet: UserWallet | null = null;
   try {
-    const wallet = await embeddedWalletFor(client, input.did);
+    wallet = await embeddedWalletFor(client, input.did);
     if (wallet === null) {
       return {
         attached: false,
@@ -173,16 +176,15 @@ export const grantAgentSigner = async (
     });
     return { attached: true, reason: null, wallet };
   } catch (error) {
-    // Returned rather than thrown: a wallet the agent cannot sign for is a
-    // degraded workspace, not a failed request. The person can still chat,
-    // still see their mandate, and now also sees why nothing can be paid.
+    // Returned rather than thrown, and with whatever wallet was found: a
+    // wallet the agent cannot sign for is a degraded workspace, not a missing
+    // one. The person's address, balances and funding never depended on the
+    // agent's signature, so they keep those; what they lose, and are told
+    // about, is the agent's ability to pay.
     return {
       attached: false,
-      reason:
-        error instanceof Error
-          ? describe(error)
-          : "Privy refused the grant for an unrecognised reason.",
-      wallet: null,
+      reason: error instanceof Error ? describe(error) : UNRECOGNISED,
+      wallet,
     };
   }
 };
