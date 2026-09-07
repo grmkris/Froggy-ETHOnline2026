@@ -68,3 +68,9 @@ The owner's direction on the evening of 6 Sep was mainnet everywhere, with no te
 - The wallet pane shows the ledger's dollar figure, not the account's on-chain balance; the drawer links the account on HashScan instead.
 - A top-up whose HBAR transfer fails leaves the ledger credited and the account short; the tool's answer says so, and nothing retries it yet.
 - `HEDERA_KEK` is one secret on the deployment: lose it and every person's key is unrecoverable (testnet HBAR today). The owner keeps a copy outside Railway.
+
+## First person-owned account and person-paid task, mainnet, 7 Sep 10:06 CEST
+
+- Account `0.0.10848064` (EVM alias `0xeb63f8cd3e1a4773d742023464e711e03e922a37`) opened by the float at first funded need: `0.0.10847552-1788768364-629577051`, 12.4834 HBAR, the owner's $1 team credit.
+- Task purchase settled from that account through the facilitator: `0.0.10571514-1788768371-653824122`, 6.1917 HBAR to `0.0.10847556`; fee paid by the facilitator. Balance after: 6.29 HBAR.
+- The task failed at the model provider (content inspection), which is a model fault, not a payment one; no note beyond the sale since this was a task purchase rather than an oracle sale.
