@@ -174,3 +174,11 @@ export type TaskId = typeof TaskId.Type;
 /** A token an outside agent presents. Identifies the person's workspace, never a person. */
 export const AgentTokenId = makeIdSchema("agt", "AgentTokenId");
 export type AgentTokenId = typeof AgentTokenId.Type;
+
+/** An MCP client that registered itself: a name and where it may be sent back to. */
+export const OAuthClientId = makeIdSchema("oac", "OAuthClientId");
+export type OAuthClientId = typeof OAuthClientId.Type;
+
+/** One person's consent to one client, with its scopes. Revoked as a unit. */
+export const OAuthGrantId = makeIdSchema("oag", "OAuthGrantId");
+export type OAuthGrantId = typeof OAuthGrantId.Type;

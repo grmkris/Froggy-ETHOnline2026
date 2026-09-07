@@ -18,6 +18,14 @@ export {
 export { DigestSchedule, NO_DIGEST } from "./digest";
 export { DirectoryEntry } from "./directory";
 export { AGENT_TOKEN_PREFIX, AgentToken } from "./agent-token";
+export {
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_REFRESH_TOKEN_PREFIX,
+  OAUTH_SCOPES,
+  OAuthClient,
+  OAuthGrant,
+  OAuthScope,
+} from "./oauth";
 export { Sale, SaleStatus } from "./sale";
 export { Task, TaskKind, TaskStatus } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
@@ -28,6 +36,8 @@ export {
   DirectoryId,
   MandateId,
   makeIdSchema,
+  OAuthClientId,
+  OAuthGrantId,
   ReceiptId,
   RuleId,
   RunId,
