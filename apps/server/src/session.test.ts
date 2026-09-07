@@ -793,6 +793,215 @@ describe("the pocket", () => {
   });
 });
 
+describe("converting USDC when the pocket is short", () => {
+  const TREASURY = "0xtreasury";
+  const USDC = KNOWN_ASSETS["eip155:84532:usdc"];
+  type Convert = NonNullable<SessionDeps["convert"]>;
+
+  /** A session with a pocket, a granted signer and a recording converter. */
+  const converting = (
+    store: Store,
+    starting: number,
+    options: {
+      readonly funded?: Parameters<Convert["perform"]>[0] extends never
+        ? never
+        : Awaited<ReturnType<Convert["perform"]>>["funded"];
+      readonly held?: bigint | null;
+      readonly transferOk?: boolean;
+    } = {}
+  ) => {
+    const performed: number[] = [];
+    const perform: Convert["perform"] = async (_userId, _wallet, amount) => {
+      performed.push(amount);
+      await Promise.resolve();
+      const transfer =
+        options.transferOk === false
+          ? {
+              error: "Privy: policy refused the transfer",
+              network: "eip155:84532",
+              ok: false,
+              stubbed: false,
+              transactionId: null,
+            }
+          : {
+              network: "eip155:84532",
+              ok: true,
+              stubbed: false,
+              transactionId: `0xconvert${performed.length}`,
+            };
+      return {
+        funded:
+          options.transferOk === false
+            ? null
+            : (options.funded ?? { note: "1.0000 HBAR moved (0.0.1@x)" }),
+        transfer,
+      };
+    };
+    const session = new WorkspaceSession(
+      SessionId.generate(),
+      ALICE,
+      {
+        balances: {
+          hbar: async () => await Promise.resolve(null),
+          usdc: async () => await Promise.resolve(options.held ?? null),
+        },
+        convert: {
+          asset: USDC,
+          payeeId: TREASURY,
+          payeeLabel: "the treasury",
+          perform,
+        },
+        ledger: memoryLedger(),
+        modes: MODES,
+        networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
+        onPolicyDecision: noop,
+        onReceipt: noop,
+        pocket: {
+          networks: ["hedera:testnet"],
+          startingUsdMicrosFor: () => starting,
+        },
+        quote: (_asset, now) => parQuote(now),
+        store,
+      },
+      { hosts: ["froggy.test"], payeeIds: ["0.0.1", TREASURY] }
+    );
+    session.setWallet({ address: "0xalice", id: "wallet-alice" });
+    session.setAgentSigner("granted", null);
+    return { performed, session };
+  };
+
+  const paying = (key: string, units: string, sent: { count: number }) =>
+    request({
+      key,
+      settle: async () => {
+        sent.count += 1;
+        await Promise.resolve();
+        return {
+          network: "hedera:testnet",
+          ok: true,
+          stubbed: false,
+          transactionId: `0.0.1@${key}`,
+        };
+      },
+      units,
+    });
+
+  test("buys at least two dollars of HBAR, then pays, and both are on the receipts", async () => {
+    const { performed, session } = converting(memoryStore(), 500_000);
+    await session.hydrate();
+    const sent = { count: 0 };
+    // 1.00 HBAR at par; the pocket holds 0.50.
+    const result = await session.spend(paying("short", "100000000", sent));
+    expect(performed).toEqual([1_500_000]);
+    expect(sent.count).toBe(1);
+    expect(result.decision._tag).toBe("allow");
+    expect(session.pocket).toBe(1_000_000);
+    const keys = session.history.map(
+      (receipt) => receipt.intent.idempotencyKey
+    );
+    expect(keys).toEqual(["convert:short", "short"]);
+    expect(session.history[0]?.settlement?.note).toContain("HBAR moved");
+  });
+
+  test("converts twice the price for a bigger payment, bounded by the USDC held", async () => {
+    const { performed, session } = converting(memoryStore(), 0, {
+      held: 4_000_000n,
+    });
+    await session.hydrate();
+    const sent = { count: 0 };
+    // 3.00 HBAR at par: the target is 6.00, the wallet holds 4.00.
+    const result = await session.spend(paying("big", "300000000", sent));
+    expect(performed).toEqual([4_000_000]);
+    expect(result.decision._tag).toBe("allow");
+    expect(sent.count).toBe(1);
+  });
+
+  test("refuses without sending when the USDC held cannot cover the shortfall", async () => {
+    const { performed, session } = converting(memoryStore(), 0, {
+      held: 2_000_000n,
+    });
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend(paying("toobig", "300000000", sent));
+    expect(performed).toEqual([]);
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "conversion_failed",
+    });
+    expect(
+      result.decision._tag === "deny" ? result.decision.message : ""
+    ).toContain("Add funds");
+  });
+
+  test("refuses when the signer refuses the USDC leg, quoting it", async () => {
+    const { session } = converting(memoryStore(), 0, { transferOk: false });
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend(paying("refused", "100000000", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({ code: "conversion_failed" });
+    expect(
+      result.decision._tag === "deny" ? result.decision.message : ""
+    ).toContain("Privy: policy refused");
+    expect(session.history[0]?.failure).toContain("Privy: policy refused");
+    expect(session.pocket).toBe(0);
+  });
+
+  test("keeps the credit but refuses the payment when the HBAR did not arrive", async () => {
+    const { session } = converting(memoryStore(), 0, {
+      funded: { error: "the mirror node timed out" },
+    });
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend(paying("late", "100000000", sent));
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({ code: "conversion_failed" });
+    expect(
+      result.decision._tag === "deny" ? result.decision.message : ""
+    ).toContain("Try again in a minute");
+    expect(session.pocket).toBe(2_000_000);
+  });
+
+  test("two short spends at once share one conversion", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    await session.hydrate();
+    const sent = { count: 0 };
+    const [a, b] = await Promise.all([
+      session.spend(paying("one", "50000000", sent)),
+      session.spend(paying("two", "50000000", sent)),
+    ]);
+    expect(performed).toEqual([2_000_000]);
+    expect([a.decision._tag, b.decision._tag]).toEqual(["allow", "allow"]);
+    expect(sent.count).toBe(2);
+  });
+
+  test("still converts for a job nobody is watching", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend({
+      ...paying("job", "100000000", sent),
+      interactive: false,
+    });
+    expect(performed).toEqual([2_000_000]);
+    expect(result.decision._tag).toBe("allow");
+  });
+
+  test("refuses when the agent has no signer, and says so", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    session.setAgentSigner("absent", "Privy said no");
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend(paying("nosigner", "100000000", sent));
+    expect(performed).toEqual([]);
+    expect(result.decision).toMatchObject({ code: "conversion_failed" });
+    expect(
+      result.decision._tag === "deny" ? result.decision.message : ""
+    ).toContain("Privy said no");
+  });
+});
+
 describe("the receipt names the tool call that spent", () => {
   test("carries the call id through an allow and through a refusal", async () => {
     const session = sessionWith(memoryLedger(), undefined, undefined, LIMITED);

@@ -102,6 +102,8 @@ export interface WorkspaceDeps {
   readonly oraclePayTo: string;
   /** The pocket every session draws its Hedera payments from. See `SessionDeps.pocket`. */
   readonly pocket?: SessionDeps["pocket"];
+  /** USDC into HBAR when a pocket is short. See `SessionDeps.convert`. */
+  readonly convert?: SessionDeps["convert"] | undefined;
   readonly profileRoot: string;
   /** What an asset is worth. Null refuses the spend; see `quotes.ts`. */
   readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
@@ -179,9 +181,11 @@ export class Workspaces {
       spendingLimits: this.deps.spendingLimits === true,
       store: this.deps.store,
     };
-    const { pocket } = this.deps;
-    const sessionDeps: SessionDeps =
+    const { convert, pocket } = this.deps;
+    const withPocket: SessionDeps =
       pocket === undefined ? withoutPocket : { ...withoutPocket, pocket };
+    const sessionDeps: SessionDeps =
+      convert === undefined ? withPocket : { ...withPocket, convert };
     const treasury = this.deps.treasuryPayee ?? null;
     const session = new WorkspaceSession(
       SessionId.generate(),

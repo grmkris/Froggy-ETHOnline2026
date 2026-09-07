@@ -111,6 +111,8 @@ export interface SpendRequest {
     /** The HCS note about this payment, when one was posted. */
     readonly hcsSequence?: number;
     readonly network: string;
+    /** What else the settlement moved, for the receipt. See `Settlement.note`. */
+    readonly note?: string;
     readonly ok: boolean;
     /**
      * True once the payment left this process: the header was handed to a
@@ -129,7 +131,7 @@ export interface SpendRequest {
 }
 
 /** What a settlement reports back. Named because three paths now handle it. */
-type Settled = Awaited<ReturnType<SpendRequest["settle"]>>;
+export type Settled = Awaited<ReturnType<SpendRequest["settle"]>>;
 
 /** The priced intent and what the policy made of it. */
 interface Judged {
@@ -140,15 +142,63 @@ interface Judged {
   readonly usdMicros: UsdMicros;
 }
 
-/** A settlement record, with the HCS note only when there is one. */
+/**
+ * The idempotency key of a conversion is the parent's, prefixed: an SDK retry
+ * of the payment joins the same conversion rather than buying HBAR twice.
+ */
+const CONVERSION_KEY_PREFIX = "convert:";
+/** Never move less than this: Base gas and Hedera fees make dust pointless. */
+const CONVERSION_FLOOR_USD_MICROS = 2_000_000;
+/** Convert enough for the payment and the next one like it. */
+const CONVERSION_MULTIPLE = 2;
+
+/** The two legs of a conversion, reported apart because they fail apart. */
+export interface ConversionOutcome {
+  /**
+   * What became of the HBAR once the USDC had moved: a note for the receipt,
+   * the reason it did not arrive, or null on a deployment with no accounts.
+   */
+  readonly funded:
+    | { readonly note: string }
+    | { readonly error: string }
+    | null;
+  /** The USDC leg, Privy's refusal verbatim in `error` when it refused. */
+  readonly transfer: Settled;
+}
+
+/** What the settle closure of a conversion learned, read back after it ran. */
+interface ConversionLegs {
+  funded: ConversionOutcome["funded"];
+}
+
+/** The refusal a conversion that did not happen turns into. */
+const conversionRefused = (message: string): PolicyDecision => ({
+  _tag: "deny",
+  code: "conversion_failed",
+  message,
+});
+
+/** A settlement record, with the HCS note and the side note only when there is one. */
 const settlementOf = (
-  network: string,
-  transactionId: string,
-  hcsSequence: number | undefined
-): Receipt["settlement"] =>
-  hcsSequence === undefined
-    ? { network, transactionId }
-    : { hcsSequence, network, transactionId };
+  outcome: Settled & { readonly transactionId: string }
+) => {
+  const draft: Draft<
+    NonNullable<Receipt["settlement"]>,
+    "hcsSequence" | "note"
+  > = { network: outcome.network, transactionId: outcome.transactionId };
+  if (outcome.hcsSequence !== undefined) {
+    draft.hcsSequence = outcome.hcsSequence;
+  }
+  if (outcome.note !== undefined) {
+    draft.note = outcome.note;
+  }
+  const settlement: NonNullable<Receipt["settlement"]> = draft;
+  return settlement;
+};
+
+/** A conversion receipt: USDC that became HBAR so another spend could happen. */
+export const isConversion = (receipt: Receipt): boolean =>
+  receipt.intent.idempotencyKey.startsWith(CONVERSION_KEY_PREFIX);
 
 /** The network's word on a sent payment, or `unknown` when there is no one to ask. */
 const verdictOf = async (
@@ -228,6 +278,22 @@ export interface SessionDeps {
     readonly networks: readonly Amount["asset"]["network"][];
     /** What this person is credited once, at their first session; zero for most on mainnet. */
     readonly startingUsdMicrosFor: (userId: UserId) => number;
+  };
+  /**
+   * How USDC becomes HBAR when the pocket is short: a transfer from the
+   * person's wallet to the treasury, then the same value in HBAR from the
+   * float into their Hedera account. Absent when there is no treasury, in
+   * which case a short pocket is refused as it always was.
+   */
+  readonly convert?: {
+    readonly asset: Amount["asset"];
+    readonly payeeId: string;
+    readonly payeeLabel: string;
+    readonly perform: (
+      userId: UserId,
+      wallet: { readonly address: string; readonly id: string },
+      usdMicros: number
+    ) => Promise<ConversionOutcome>;
   };
   /**
    * Whether caps, an expiry and an approval threshold are part of this
@@ -474,6 +540,8 @@ export class WorkspaceSession {
   private agentNote: string | null = null;
   /** The pocket balance as last read or written; null until hydrated. */
   private pocketBalance: number | null = null;
+  /** A conversion in flight, so a second short spend waits for it rather than buying HBAR again. */
+  private replenishing: Promise<void> | null = null;
   /** What the server itself must be able to pay, whatever mandate is loaded. */
   private readonly birthright: {
     readonly hosts: readonly string[];
@@ -883,17 +951,12 @@ export class WorkspaceSession {
   }
 
   /**
-   * Price the intent and ask the policy. No side effects, no money.
+   * Price the intent. No side effects, no money, no policy.
    *
-   * Split out so both the paying path and the joining path build the same
-   * receipt from the same decision — a caller that lost the race still gets a
-   * receipt saying what the policy thought, not a blank one.
+   * Split from the judgement so the conversion step can know what a spend
+   * costs before anything is locked or reserved.
    */
-  private async judge(
-    request: SpendRequest,
-    approved = false
-  ): Promise<Judged> {
-    const at = this.now();
+  private price(request: SpendRequest, at: number) {
     // Recorded on the receipt rather than assumed, so a receipt says what rate
     // it was judged against — and so a rate that later turns out to have been
     // wrong is visible rather than inferred.
@@ -927,6 +990,176 @@ export class WorkspaceSession {
       quote
     );
     const intent: SpendIntent = { ...decoded.success, usdMicros };
+    return { intent, quote, usdMicros };
+  }
+
+  /**
+   * Make the pocket cover a Hedera spend, converting USDC when it does not.
+   *
+   * Runs before the judgement and outside its lock: the two legs take
+   * seconds of Privy and Hedera time, and nothing about them changes the
+   * arithmetic the lock protects. Null means proceed. A decision means the
+   * spend is refused with it, and says which leg said no.
+   */
+  private async replenish(
+    request: SpendRequest
+  ): Promise<PolicyDecision | null> {
+    const { convert } = this.deps;
+    if (convert === undefined || this.deps.pocket === undefined) {
+      return null;
+    }
+    const { intent, usdMicros } = this.price(request, this.now());
+    if (!this.drawsFromPocket(intent)) {
+      return null;
+    }
+    // Whatever is in flight lands first; then the pocket is looked at again,
+    // because the conversion may have been for this very shortfall.
+    const inFlight = this.replenishing;
+    if (inFlight !== null) {
+      await inFlight;
+      return await this.replenish(request);
+    }
+    const pocket = this.pocketBalance ?? 0;
+    const shortfall = usdMicros - pocket;
+    if (shortfall <= 0) {
+      return null;
+    }
+    // Claimed with no `await` between the check above and here, so a second
+    // short spend joins this conversion rather than starting its own.
+    const run = this.convertFor(request, convert, usdMicros, pocket);
+    // The guard never rejects, or the next short spend would inherit it.
+    const guard = (async () => {
+      try {
+        await run;
+      } catch {
+        swallow();
+      }
+    })();
+    this.replenishing = guard;
+    try {
+      return await run;
+    } finally {
+      if (this.replenishing === guard) {
+        this.replenishing = null;
+      }
+    }
+  }
+
+  /** How much to convert, and whether it can be: the signer, then the USDC held. */
+  private async convertFor(
+    request: SpendRequest,
+    convert: NonNullable<SessionDeps["convert"]>,
+    usdMicros: number,
+    pocket: number
+  ): Promise<PolicyDecision | null> {
+    const wallet = this.agentWallet;
+    if (wallet === null) {
+      return conversionRefused(
+        `Your Hedera balance holds ${formatUsd(pocket)} and this needs ${formatUsd(usdMicros)}. Converting USDC would need the agent's signer on your wallet, which it does not have${this.agentNote === null ? "" : `: ${this.agentNote}`}.`
+      );
+    }
+    const shortfall = usdMicros - pocket;
+    const target = Math.max(
+      CONVERSION_FLOOR_USD_MICROS,
+      usdMicros * CONVERSION_MULTIPLE
+    );
+    let amount = target - pocket;
+    const held = await this.deps.balances.usdc(
+      this.addresses.signer ?? wallet.address
+    );
+    if (held !== null) {
+      amount = Math.min(amount, Number(held));
+    }
+    if (amount < shortfall) {
+      return conversionRefused(
+        `You hold ${held === null ? "no known" : formatUsd(Number(held))} USDC on Base and this needs ${formatUsd(shortfall)} more on Hedera. Add funds to continue.`
+      );
+    }
+    return await this.convertNow(request, convert, wallet, amount);
+  }
+
+  /** The conversion itself: a nested spend of USDC, judged like any other. */
+  private async convertNow(
+    request: SpendRequest,
+    convert: NonNullable<SessionDeps["convert"]>,
+    wallet: { readonly address: string; readonly id: string },
+    amount: number
+  ): Promise<PolicyDecision | null> {
+    // Held on an object rather than a `let`: the settle closure writes it, and
+    // a `let` assigned inside a closure reads as its initial value afterwards.
+    const legs: ConversionLegs = { funded: null };
+    const spend: Draft<SpendRequest, "interactive" | "signal" | "toolCallId"> =
+      {
+        amount: { asset: convert.asset, units: String(amount) },
+        idempotencyKey: `${CONVERSION_KEY_PREFIX}${request.idempotencyKey}`,
+        payeeId: convert.payeeId,
+        payeeLabel: convert.payeeLabel,
+        // The treasury is configuration, not something a page or the model
+        // proposed, and the signer's policy names the same address.
+        provenance: "server",
+        purpose: `Convert ${formatUsd(amount)} of USDC to HBAR for: ${request.purpose}`,
+        runId: request.runId,
+        settle: async () => {
+          const outcome = await convert.perform(this.userId, wallet, amount);
+          if (outcome.transfer.ok) {
+            // USDC has six decimals, so its units are USD millionths: the
+            // credit is the amount, at par.
+            await this.creditPocket(amount);
+          }
+          legs.funded = outcome.funded;
+          return outcome.funded !== null && "note" in outcome.funded
+            ? { ...outcome.transfer, note: outcome.funded.note }
+            : outcome.transfer;
+        },
+      };
+    if (request.interactive !== undefined) {
+      spend.interactive = request.interactive;
+    }
+    if (request.signal !== undefined) {
+      spend.signal = request.signal;
+    }
+    if (request.toolCallId !== undefined) {
+      spend.toolCallId = request.toolCallId;
+    }
+    const result = await this.spend(spend);
+    if (result.decision._tag === "deny") {
+      return conversionRefused(
+        `Converting ${formatUsd(amount)} of USDC to HBAR was refused: ${result.decision.message} Nothing was paid.`
+      );
+    }
+    if (result.decision._tag === "ask") {
+      return conversionRefused(
+        `Converting ${formatUsd(amount)} of USDC to HBAR needed an answer that did not come. Nothing was paid.`
+      );
+    }
+    const notDone = result.abandoned ?? result.receipt.failure;
+    if (notDone !== undefined && notDone !== null) {
+      return conversionRefused(
+        `Converting ${formatUsd(amount)} of USDC to HBAR did not happen: ${notDone}. Nothing was paid.`
+      );
+    }
+    const settled = legs.funded;
+    if (settled !== null && "error" in settled) {
+      return conversionRefused(
+        `${formatUsd(amount)} of USDC reached the treasury (transaction ${result.receipt.settlement?.transactionId ?? "unknown"}) and your balance was credited, but the HBAR did not reach your Hedera account: ${settled.error}. Try again in a minute.`
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Price the intent and ask the policy. No side effects, no money.
+   *
+   * Split out so both the paying path and the joining path build the same
+   * receipt from the same decision — a caller that lost the race still gets a
+   * receipt saying what the policy thought, not a blank one.
+   */
+  private async judge(
+    request: SpendRequest,
+    approved = false
+  ): Promise<Judged> {
+    const at = this.now();
+    const { intent, quote, usdMicros } = this.price(request, at);
 
     const since = at - widestWindowMs(this.mandate);
     const recent = await this.deps.ledger.since(this.userId, since);
@@ -1127,6 +1360,27 @@ export class WorkspaceSession {
     request: SpendRequest,
     publish: (outcome: Settled) => void
   ): Promise<SpendResult> {
+    const short = await this.replenish(request);
+    if (short !== null) {
+      // Published like any refusal, before the model narrates it.
+      this.deps.onPolicyDecision(short);
+      const at = this.now();
+      const { intent, quote, usdMicros } = this.price(request, at);
+      const judged: Judged = { at, decision: short, intent, quote, usdMicros };
+      const spendId = SpendId.generate();
+      await this.refuse(request, judged, spendId);
+      return this.finish({
+        abandoned: null,
+        at,
+        decision: short,
+        intent,
+        quote,
+        runId: request.runId,
+        spendId,
+        stubbed: false,
+        toolCallId: request.toolCallId,
+      });
+    }
     let attempt = await this.judgeAndReserve(request, false);
     let approval: ApprovalRecord | undefined;
 
@@ -1267,11 +1521,7 @@ export class WorkspaceSession {
       settlement:
         outcome.transactionId === null
           ? undefined
-          : settlementOf(
-              outcome.network,
-              outcome.transactionId,
-              outcome.hcsSequence
-            ),
+          : settlementOf({ ...outcome, transactionId: outcome.transactionId }),
       spendId: row.id,
       stubbed: outcome.stubbed,
     });

@@ -17,6 +17,7 @@ import { Config, Context, Effect, Layer } from "effect";
 
 import { authenticate, bearerFromProtocols } from "./auth";
 import { ModelBudget } from "./budget";
+import { createConversion } from "./conversion";
 import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
 import { AgentGrants } from "./grants";
@@ -192,6 +193,9 @@ class FroggyServer extends Context.Service<
         },
         oracleHost: new URL(oracleUrl).host,
         oraclePayTo: services.oracle.payTo,
+        // When a person's HBAR runs short, their USDC becomes HBAR on the
+        // spot: the treasury takes the USDC, the float funds their account.
+        convert: createConversion(services),
         // The Hedera leg is paid from one host account; each person spends
         // their share of it, credited once and topped up under the policy.
         pocket: {

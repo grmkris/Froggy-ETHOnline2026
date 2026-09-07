@@ -19,6 +19,7 @@ import { stepCountIs, streamText } from "ai";
 import { createModel } from "./model";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
+import { isConversion } from "./session";
 import { buildTools } from "./tools";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
@@ -68,9 +69,12 @@ export interface JobDeps {
   readonly workspaces: Workspaces;
 }
 
+/** What the digest paid: settled receipts, less the USDC that only became HBAR. */
 const spentIn = (receipts: readonly Receipt[]): number =>
   receipts
-    .filter((receipt) => receipt.settlement !== undefined)
+    .filter(
+      (receipt) => receipt.settlement !== undefined && !isConversion(receipt)
+    )
     .reduce((total, receipt) => total + receipt.intent.usdMicros, 0);
 
 /**

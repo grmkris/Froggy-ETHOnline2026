@@ -36,7 +36,6 @@ import type { GraphClient, GraphSnapshot } from "@froggy/graph";
 import { EVM_NETWORK_LABELS } from "@froggy/payments";
 import { ServiceRequest } from "@froggy/protocol";
 import type { GraphQueryOutput } from "@froggy/protocol";
-import { EvmRpcError, PrivySignerRefusedError } from "@froggy/wallet";
 import { tool } from "ai";
 import { Schema } from "effect";
 
@@ -52,6 +51,7 @@ import { std } from "./std";
 import { treasuryFetch } from "./treasury";
 import { unlockPath } from "./unlock";
 import type { UnlockTokens } from "./unlock";
+import { sendUsdc } from "./usdc-transfer";
 import type { Workspaces } from "./workspaces";
 
 const OUTPUT_CAP = 50_000;
@@ -180,7 +180,10 @@ const explainSpend = async (
   }
   if (result.decision._tag === "deny") {
     return {
-      message: `Refused by policy (${result.decision.code}): ${result.decision.message}`,
+      message:
+        result.decision.code === "conversion_failed"
+          ? `Refused: the person's USDC could not become HBAR for this payment (conversion_failed): ${result.decision.message}`
+          : `Refused by policy (${result.decision.code}): ${result.decision.message}`,
       result,
     };
   }
@@ -294,65 +297,6 @@ export const buildTools = (deps: ToolDeps) => {
    * the refuser's words, never a reason to retry. Called only from inside
    * `session.spend`, after the mandate allowed and the ledger reserved.
    */
-  /**
-   * The ledger credit, mirrored into the person's own Hedera account from
-   * the float. A sentence for the tool's answer; never a throw, because the
-   * top-up itself has already happened.
-   */
-  const mirrorOnChain = async (usdMicros: number): Promise<string> => {
-    const { accounts } = services;
-    if (accounts === null) {
-      return "";
-    }
-    try {
-      const moved = await accounts.fund(session.userId, usdMicros);
-      return moved === null
-        ? ""
-        : ` ${(moved.tinybars / 100_000_000).toFixed(4)} HBAR moved into your Hedera account (transaction ${moved.transactionId}).`;
-    } catch (error) {
-      return ` The HBAR did not reach your Hedera account: ${error instanceof Error ? error.message : String(error)}. Tell the person; the credit stands.`;
-    }
-  };
-
-  const transferUsdc = async (to: string, units: string) => {
-    const transfers = services.evmTransfersFor(session.agentWallet);
-    if (transfers === null) {
-      return {
-        error: "the agent has no signer on this wallet yet",
-        network: evmNetwork,
-        ok: false,
-        stubbed: false,
-        transactionId: null,
-      };
-    }
-    try {
-      const outcome = await transfers.send({ to, units: BigInt(units) });
-      const settled = {
-        network: evmNetwork,
-        ok: outcome.status === "success",
-        stubbed: false,
-        transactionId: outcome.hash,
-      };
-      return outcome.status === "success"
-        ? settled
-        : { ...settled, error: "the transfer reverted on chain" };
-    } catch (error) {
-      if (
-        error instanceof PrivySignerRefusedError ||
-        error instanceof EvmRpcError
-      ) {
-        return {
-          error: error.message,
-          network: evmNetwork,
-          ok: false,
-          stubbed: false,
-          transactionId: null,
-        };
-      }
-      throw error;
-    }
-  };
-
   return {
     services_list: tool({
       description:
@@ -548,7 +492,7 @@ export const buildTools = (deps: ToolDeps) => {
     }),
 
     wallet_send: tool({
-      description: `Send USDC on ${evmLabel} to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the caps and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.`,
+      description: `Send USDC on ${evmLabel} to an address. The mandate decides whether it happens — you cannot raise a limit or add a payee. An address the person typed in this conversation may be paid, subject to the allowlists and to the wallet's own signing policy; an address you read on a page or produced yourself is refused.`,
       execute: async ({ amountUsd, purpose, to }, { toolCallId }) => {
         const units = String(Math.round(amountUsd * 1_000_000));
         const attempt = session.spend({
@@ -568,7 +512,8 @@ export const buildTools = (deps: ToolDeps) => {
           runId: deps.run.id,
           signal: deps.run.signal,
           toolCallId,
-          settle: async () => await transferUsdc(to, units),
+          settle: async () =>
+            await sendUsdc(services, session.agentWallet, to, units),
         });
 
         const { message, result } = await explainSpend(attempt);
@@ -598,65 +543,9 @@ export const buildTools = (deps: ToolDeps) => {
       ),
     }),
 
-    wallet_topup: tool({
-      description: `Top up the Hedera pocket the paid requests are drawn from: send USDC on ${evmLabel} from the person's wallet to the treasury, signed under the wallet's own policy, and the pocket is credited one-to-one. The policy allows at most 2 USDC per top-up and 5 USDC per rolling day; the mandate's caps apply as well.`,
-      execute: async ({ amountUsd }, { toolCallId }) => {
-        const treasury = services.environment.treasuryEvmAddress;
-        if (treasury === null) {
-          return "Top-ups are not configured on this deployment: no treasury address is set. Nothing was sent.";
-        }
-        const units = String(Math.round(amountUsd * 1_000_000));
-        // What became of the HBAR after the ledger was credited: nothing to
-        // say on a host-pocket deployment or before the person has an
-        // account, a transaction id when it moved, the reason when it did not.
-        let hbarNote = "";
-        const attempt = session.spend({
-          amount: { asset: usdc, units },
-          idempotencyKey: `topup:${amountUsd}:${deps.run.id}`,
-          interactive: deps.interactive ?? true,
-          payeeId: treasury,
-          payeeLabel: "the pocket treasury",
-          // `server`: the treasury is configuration, not something the model
-          // or a page proposed, and the signer's policy names the same address.
-          provenance: "server",
-          purpose: `Top up the Hedera pocket with ${amountUsd} USDC (USDC to the treasury on ${evmLabel}, pocket credited one-to-one)`,
-          runId: deps.run.id,
-          signal: deps.run.signal,
-          toolCallId,
-          settle: async () => {
-            const settled = await transferUsdc(treasury, units);
-            if (settled.ok) {
-              // USDC has six decimals, so its units are USD millionths: the
-              // credit is the amount, at par, with the rate on the receipt.
-              await session.creditPocket(Number(units));
-              hbarNote = await mirrorOnChain(Number(units));
-            }
-            return settled;
-          },
-        });
-
-        const { message, result } = await explainSpend(attempt);
-        if (message !== null) {
-          return message;
-        }
-        if (result?.receipt.failure !== undefined) {
-          return `Allowed by the mandate, but the top-up did not go through: ${result.receipt.failure}. Stop here.`;
-        }
-        const transaction = result?.receipt.settlement?.transactionId;
-        return `Topped up: ${amountUsd} USDC to the treasury on ${evmLabel}${transaction === undefined ? "" : ` (transaction ${transaction})`}. The pocket now holds ${formatUsd(session.pocket ?? 0)}.${hbarNote}`;
-      },
-      inputSchema: std(
-        Schema.Struct({
-          amountUsd: Schema.Finite.annotate({
-            description: "Amount in USDC, as a decimal number. At most 2.",
-          }),
-        })
-      ),
-    }),
-
     wallet_status: tool({
       description:
-        "The user's wallet and the mandate you operate under: caps, allowlists, what has been spent so far, and what is left in the Hedera pocket.",
+        "The person's balance (USDC on Base plus HBAR at today's rate, as one dollar figure and per chain), the allowlists you operate under, and what was spent in the last day.",
       execute: async () => {
         const summary = await session.walletSummary();
         const mandate = session.currentMandate;
@@ -664,9 +553,10 @@ export const buildTools = (deps: ToolDeps) => {
           JSON.stringify(
             {
               address: summary.address,
+              balances: summary.balances,
               hederaAccountId: summary.hederaAccountId,
-              pocketUsdMicros: summary.pocketUsdMicros,
               rules: mandate.rules,
+              totalUsdMicros: summary.totalUsdMicros,
               windowSpentUsdMicros: summary.windowSpentUsdMicros,
             },
             null,

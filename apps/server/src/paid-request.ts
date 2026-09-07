@@ -27,7 +27,11 @@ import { PrivySignerRefusedError } from "@froggy/wallet";
 import { OutboundRefusedError, readCapped, safeFetch } from "./outbound";
 import type { ChatRun } from "./runs";
 import type { Services } from "./services";
-import { MalformedSpendError, UnpricedAssetError } from "./session";
+import {
+  isConversion,
+  MalformedSpendError,
+  UnpricedAssetError,
+} from "./session";
 import type { SpendRequest, WorkspaceSession } from "./session";
 import { assetFor } from "./tools-assets";
 
@@ -104,7 +108,9 @@ const guard = (
     !deps.interactive &&
     session.history.some(
       (receipt) =>
-        receipt.runId === deps.run.id && receipt.settlement !== undefined
+        receipt.runId === deps.run.id &&
+        receipt.settlement !== undefined &&
+        !isConversion(receipt)
     )
   ) {
     return refused(
