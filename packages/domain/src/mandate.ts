@@ -187,48 +187,81 @@ export type PolicyDecision = typeof PolicyDecision.Type;
 /**
  * The mandate a new session starts with.
  *
- * Small on purpose: a demo that opens with a generous allowance is not
- * demonstrating restraint. `payeeIds` starts empty and is filled by the server
- * when it mints its own oracle `payTo`, so there is no moment where an
- * allowlist exists but means nothing.
+ * Allowlists only, unless the deployment keeps spending limits on. Restraint
+ * lives in three other places: the payee and host allowlists here, the
+ * provenance rule that never lets a page-supplied address reach a key, and
+ * Privy's own policy on the signer. Caps and the approval threshold are the
+ * "advanced settings" of a later iteration; a deployment that turns
+ * `limits` on gets the same seven rules it always had.
+ *
+ * `payeeIds` starts empty and is filled by the server when it mints its own
+ * oracle `payTo`, so there is no moment where an allowlist exists but means
+ * nothing.
  */
 export const defaultRules = (params: {
   readonly hosts: readonly string[];
   readonly ids: () => RuleId;
+  /** Caps, an expiry and an approval threshold, when the deployment keeps them. */
+  readonly limits: boolean;
   readonly now: number;
   readonly payeeIds: readonly string[];
-}): readonly MandateRule[] => [
-  {
-    _tag: "per_tx_cap",
-    id: params.ids(),
-    maxUsdMicros: usd(2),
-  },
-  {
-    _tag: "window_cap",
-    id: params.ids(),
-    maxUsdMicros: usd(10),
-    windowMs: 24 * 60 * 60 * 1000,
-  },
-  { _tag: "payee_allowlist", id: params.ids(), payeeIds: params.payeeIds },
-  { _tag: "host_allowlist", hosts: params.hosts, id: params.ids() },
-  {
-    _tag: "network_allowlist",
-    id: params.ids(),
-    networks: [
-      "eip155:8453",
-      "eip155:84532",
-      "hedera:mainnet",
-      "hedera:testnet",
-    ],
-  },
-  {
-    _tag: "expiry",
-    id: params.ids(),
-    notAfter: params.now + 24 * 60 * 60 * 1000,
-  },
-  {
-    _tag: "approval_threshold",
-    id: params.ids(),
-    overUsdMicros: usd(1),
-  },
-];
+}): readonly MandateRule[] => {
+  const allowlists: readonly MandateRule[] = [
+    { _tag: "payee_allowlist", id: params.ids(), payeeIds: params.payeeIds },
+    { _tag: "host_allowlist", hosts: params.hosts, id: params.ids() },
+    {
+      _tag: "network_allowlist",
+      id: params.ids(),
+      networks: [
+        "eip155:8453",
+        "eip155:84532",
+        "hedera:mainnet",
+        "hedera:testnet",
+      ],
+    },
+  ];
+  if (!params.limits) {
+    return allowlists;
+  }
+  return [
+    {
+      _tag: "per_tx_cap",
+      id: params.ids(),
+      maxUsdMicros: usd(2),
+    },
+    {
+      _tag: "window_cap",
+      id: params.ids(),
+      maxUsdMicros: usd(10),
+      windowMs: 24 * 60 * 60 * 1000,
+    },
+    ...allowlists,
+    {
+      _tag: "expiry",
+      id: params.ids(),
+      notAfter: params.now + 24 * 60 * 60 * 1000,
+    },
+    {
+      _tag: "approval_threshold",
+      id: params.ids(),
+      overUsdMicros: usd(1),
+    },
+  ];
+};
+
+/** The rules a deployment without spending limits strips from any mandate. */
+export const LIMIT_RULES: ReadonlySet<MandateRule["_tag"]> = new Set([
+  "per_tx_cap",
+  "window_cap",
+  "expiry",
+  "approval_threshold",
+]);
+
+/** The mandate without its limits; the same object when there were none. */
+export const withoutLimits = (mandate: Mandate): Mandate =>
+  mandate.rules.some((rule) => LIMIT_RULES.has(rule._tag))
+    ? {
+        ...mandate,
+        rules: mandate.rules.filter((rule) => !LIMIT_RULES.has(rule._tag)),
+      }
+    : mandate;

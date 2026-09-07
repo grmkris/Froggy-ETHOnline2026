@@ -233,6 +233,12 @@ export interface Environment {
    * Testnet lunch money: enough for a few paid requests, credited once.
    */
   readonly pocketStartingUsdMicros: number;
+  /**
+   * Whether mandates carry caps, an expiry and an approval threshold. Off by
+   * default: the first iteration is allowlists, provenance and Privy's policy;
+   * limits return later as a setting. On for the browser tests of approvals.
+   */
+  readonly spendingLimits: boolean;
   /** Privy DIDs that start with `teamStartingUsdMicros` instead: the team and the demo account. */
   readonly startingCreditDids: readonly string[];
   readonly teamStartingUsdMicros: number;
@@ -426,6 +432,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const pocketStartingUsd = yield* Config.number("POCKET_STARTING_USD").pipe(
       Config.withDefault(0.5)
     );
+    const spendingLimits = yield* Config.boolean("SPENDING_LIMITS").pipe(
+      Config.withDefault(false)
+    );
     const treasuryEvmAddress = yield* Config.string(
       "TREASURY_EVM_ADDRESS"
     ).pipe(Config.withDefault(PLACEHOLDER.treasuryEvmAddress));
@@ -567,6 +576,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       openAiCompatibleBaseUrl,
       openAiCompatibleModel,
       pocketStartingUsdMicros: Math.round(pocketStartingUsd * 1_000_000),
+      spendingLimits,
       startingCreditDids: startingCreditDidsRaw
         .split(",")
         .map((entry) => entry.trim())

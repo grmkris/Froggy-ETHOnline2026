@@ -207,6 +207,7 @@ class FroggyServer extends Context.Service<
         profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,
         reservedBrowsers: environment.reservedBrowsers,
+        spendingLimits: environment.spendingLimits,
         store: services.store,
         treasuryPayee: environment.treasuryEvmAddress,
       });

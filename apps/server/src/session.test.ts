@@ -59,12 +59,17 @@ const noop = (): void => {
   // These tests read state rather than events.
 };
 
+/** The deployment that keeps caps and a threshold: what the approval tests need. */
+const LIMITED: Partial<SessionDeps> = { spendingLimits: true };
+
 const sessionWith = (
   ledger: SpendLedger,
   store: Store = memoryStore(),
-  ask?: (input: AskInput) => Promise<ApprovalOutcome>
+  ask?: (input: AskInput) => Promise<ApprovalOutcome>,
+  extra: Partial<SessionDeps> = {}
 ): WorkspaceSession => {
   const deps: SessionDeps = {
+    ...extra,
     ledger,
     modes: MODES,
     onPolicyDecision: noop,
@@ -344,7 +349,7 @@ describe("the lock around judgement and reservation", () => {
   test("two different spends cannot jointly exceed the rolling cap", async () => {
     // One rule: $10 per 24 hours at par. Two $6 spends racing used to both
     // read "$0 spent so far", both pass, and both reserve.
-    const session = sessionWith(memoryLedger());
+    const session = sessionWith(memoryLedger(), undefined, undefined, LIMITED);
     session.updateMandate({
       ...session.currentMandate,
       rules: [
@@ -370,7 +375,7 @@ describe("the lock around judgement and reservation", () => {
 
   test("a refusal is filed but never counts against the cap", async () => {
     const ledger = memoryLedger();
-    const session = sessionWith(ledger);
+    const session = sessionWith(ledger, undefined, undefined, LIMITED);
     // Over the $2 per-transaction cap: refused before any reservation.
     const refused = await session.spend(
       request({ key: "big", units: "300000000" })
@@ -400,7 +405,68 @@ describe("what a malformed request gets", () => {
   });
 });
 
-describe("hydration", () => {});
+/** A $2 per-transaction cap, the rule a deployment without limits strips. */
+const cap = () => ({
+  _tag: "per_tx_cap" as const,
+  id: RuleId.generate(),
+  maxUsdMicros: usd(2),
+});
+
+describe("spending limits", () => {
+  test("a new mandate is allowlists only", () => {
+    const tags = sessionWith(memoryLedger()).currentMandate.rules.map(
+      (rule) => rule._tag
+    );
+    expect(tags).toEqual([
+      "payee_allowlist",
+      "host_allowlist",
+      "network_allowlist",
+    ]);
+  });
+
+  test("a deployment that keeps them starts with the seven rules", () => {
+    const tags = sessionWith(
+      memoryLedger(),
+      undefined,
+      undefined,
+      LIMITED
+    ).currentMandate.rules.map((rule) => rule._tag);
+    expect(tags).toContain("per_tx_cap");
+    expect(tags).toContain("approval_threshold");
+    expect(tags).toHaveLength(7);
+  });
+
+  test("a posted cap is stripped on the way in", () => {
+    const session = sessionWith(memoryLedger());
+    const next = session.updateMandate({
+      ...session.currentMandate,
+      rules: [...session.currentMandate.rules, cap()],
+    });
+    expect(next.rules.some((rule) => rule._tag === "per_tx_cap")).toBe(false);
+  });
+
+  test("a saved cap is stripped on load, republished and rewritten", async () => {
+    const store = memoryStore();
+    const first = sessionWith(memoryLedger(), store);
+    await store.mandates.save(ALICE, {
+      ...first.currentMandate,
+      rules: [...first.currentMandate.rules, cap()],
+    });
+    const published: string[][] = [];
+    const session = sessionWith(memoryLedger(), store, undefined, {
+      onMandate: (mandate) => {
+        published.push(mandate.rules.map((rule) => rule._tag));
+      },
+    });
+    await session.hydrate();
+    expect(
+      session.currentMandate.rules.some((rule) => rule._tag === "per_tx_cap")
+    ).toBe(false);
+    expect(published.at(-1)).not.toContain("per_tx_cap");
+    const saved = await store.mandates.load(ALICE);
+    expect(saved?.rules.some((rule) => rule._tag === "per_tx_cap")).toBe(false);
+  });
+});
 
 /**
  * The default mandate asks above $1 and caps a transaction at $2, so 1.5 HBAR
@@ -427,7 +493,7 @@ describe("a spend over the approval threshold", () => {
     });
 
   test("is refused as unavailable when nobody can be asked", async () => {
-    const session = sessionWith(memoryLedger());
+    const session = sessionWith(memoryLedger(), undefined, undefined, LIMITED);
     const sent = { count: 0 };
     const result = await session.spend(payingRequest("nobody", sent));
     expect(sent.count).toBe(0);
@@ -444,7 +510,7 @@ describe("a spend over the approval threshold", () => {
       kind: "answered",
       optionId: "allow_once",
     }));
-    const session = sessionWith(memoryLedger(), memoryStore(), ask);
+    const session = sessionWith(memoryLedger(), memoryStore(), ask, LIMITED);
     const sent = { count: 0 };
     const result = await session.spend({
       ...payingRequest("job", sent),
@@ -462,7 +528,7 @@ describe("a spend over the approval threshold", () => {
       optionId: "allow_once",
     }));
     const ledger = memoryLedger();
-    const session = sessionWith(ledger, memoryStore(), ask);
+    const session = sessionWith(ledger, memoryStore(), ask, LIMITED);
     const sent = { count: 0 };
     const result = await session.spend(payingRequest("once", sent));
     expect(asked.length).toBe(1);
@@ -488,7 +554,7 @@ describe("a spend over the approval threshold", () => {
       optionId: "allow_session",
     }));
     const store = memoryStore();
-    const session = sessionWith(memoryLedger(), store, ask);
+    const session = sessionWith(memoryLedger(), store, ask, LIMITED);
     const sent = { count: 0 };
     await session.spend(payingRequest("first", sent));
     expect(asked.length).toBe(1);
@@ -515,7 +581,7 @@ describe("a spend over the approval threshold", () => {
       optionId: "deny",
     }));
     const ledger = memoryLedger();
-    const session = sessionWith(ledger, memoryStore(), ask);
+    const session = sessionWith(ledger, memoryStore(), ask, LIMITED);
     const sent = { count: 0 };
     const result = await session.spend(payingRequest("no", sent));
     expect(sent.count).toBe(0);
@@ -532,7 +598,7 @@ describe("a spend over the approval threshold", () => {
 
   test("treats silence as a refusal", async () => {
     const { ask } = asker(() => ({ kind: "deadline" }));
-    const session = sessionWith(memoryLedger(), memoryStore(), ask);
+    const session = sessionWith(memoryLedger(), memoryStore(), ask, LIMITED);
     const sent = { count: 0 };
     const result = await session.spend(payingRequest("late", sent));
     expect(sent.count).toBe(0);
@@ -729,7 +795,7 @@ describe("the pocket", () => {
 
 describe("the receipt names the tool call that spent", () => {
   test("carries the call id through an allow and through a refusal", async () => {
-    const session = sessionWith(memoryLedger());
+    const session = sessionWith(memoryLedger(), undefined, undefined, LIMITED);
 
     const paid = await session.spend(
       request({ key: "paid", toolCallId: "call-1" })

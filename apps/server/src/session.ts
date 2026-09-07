@@ -27,6 +27,7 @@ import {
   SpendId,
   SpendIntent as SpendIntentSchema,
   defaultRules,
+  withoutLimits,
   formatUsd,
   priceInUsdMicros,
   KNOWN_ASSETS,
@@ -228,6 +229,14 @@ export interface SessionDeps {
     /** What this person is credited once, at their first session; zero for most on mainnet. */
     readonly startingUsdMicrosFor: (userId: UserId) => number;
   };
+  /**
+   * Whether caps, an expiry and an approval threshold are part of this
+   * deployment. Off, a new mandate is allowlists only and a saved or posted
+   * mandate is stripped of them on the way in, so an older client cannot put
+   * a cap back that nothing on screen can edit. On for tests of the approval
+   * machinery and for the day limits return as a setting.
+   */
+  readonly spendingLimits?: boolean;
   readonly store: Store;
 }
 
@@ -491,6 +500,7 @@ export class WorkspaceSession {
       rules: defaultRules({
         hosts: allowlist.hosts,
         ids: () => RuleIdSchema.generate(),
+        limits: deps.spendingLimits === true,
         now: this.now(),
         payeeIds: allowlist.payeeIds,
       }),
@@ -534,10 +544,13 @@ export class WorkspaceSession {
         // A mandate saved before a server payee existed — the treasury, say —
         // would refuse that payee forever. The server's own hosts and payees
         // are appended, never the person's removed.
-        this.mandate = this.withBirthright({
-          ...saved,
-          sessionId: this.id,
-        });
+        const admitted = this.admit({ ...saved, sessionId: this.id });
+        this.mandate = this.withBirthright(admitted);
+        if (admitted !== saved) {
+          // Saved with limits by an earlier build: rewritten once, here, so
+          // the stored document matches what this deployment enforces.
+          this.persistMandate();
+        }
       }
       const known = new Set(this.receipts.map((receipt) => receipt.id));
       for (const receipt of recent.toReversed()) {
@@ -664,9 +677,14 @@ export class WorkspaceSession {
    * Unfreezing is its own message.
    */
   updateMandate(next: Mandate): Mandate {
-    this.mandate = { ...next, sessionId: this.id };
+    this.mandate = this.admit({ ...next, sessionId: this.id });
     this.persistMandate();
     return this.mandate;
+  }
+
+  /** What this deployment keeps of a mandate that arrived from outside. */
+  private admit(mandate: Mandate): Mandate {
+    return this.deps.spendingLimits === true ? mandate : withoutLimits(mandate);
   }
 
   /**

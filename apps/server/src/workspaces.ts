@@ -109,6 +109,8 @@ export interface WorkspaceDeps {
   readonly networks: SessionDeps["networks"];
   /** Seats held for the demo account while it is not using one. */
   readonly reservedBrowsers: number;
+  /** Whether mandates keep caps and thresholds. See `SessionDeps.spendingLimits`. */
+  readonly spendingLimits?: boolean;
   readonly store: Store;
   /** Where a top-up sends USDC; allowlisted as a payee so the transfer can be judged. Null when unset. */
   readonly treasuryPayee?: string | null;
@@ -174,6 +176,7 @@ export class Workspaces {
       onReceipt: (receipt) => {
         this.deps.onReceipt(userId, receipt);
       },
+      spendingLimits: this.deps.spendingLimits === true,
       store: this.deps.store,
     };
     const { pocket } = this.deps;

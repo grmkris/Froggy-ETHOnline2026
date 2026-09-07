@@ -60,6 +60,8 @@ export default defineConfig({
         EVM_RPC_URL: "",
         BASE_SEPOLIA_RPC_URL: "",
         POCKET_STARTING_USD: "0.50",
+        // The approval specs need a threshold to lower; production has none.
+        SPENDING_LIMITS: "true",
         STARTING_CREDIT_DIDS: "",
         MAX_BROWSERS: "0",
         EXTRA_ORIGINS: "",
