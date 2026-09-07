@@ -66,17 +66,22 @@ export const ConnectByUrlCard = ({
       </CardDescription>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          aria-label="MCP URL"
-          className="text-machine min-h-11 min-w-0 flex-1 select-all"
-          readOnly
-          value={mcpUrl ?? "Not available on this deployment"}
-        />
-        {mcpUrl === null ? null : (
+      {mcpUrl === null ? (
+        <p className="text-muted-foreground text-sm">
+          This deployment does not answer MCP clients yet. Use Telegram, or the
+          token path below.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            aria-label="MCP URL"
+            className="text-machine min-h-11 min-w-0 flex-1 select-all"
+            readOnly
+            value={mcpUrl}
+          />
           <CopyButton label="Copy MCP URL" text={mcpUrl} />
-        )}
-      </div>
+        </div>
+      )}
       {mcpUrl === null ? null : (
         <div className="flex flex-col gap-2">
           <Steps title="Claude Code">

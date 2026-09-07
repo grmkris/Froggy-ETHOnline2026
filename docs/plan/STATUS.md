@@ -161,3 +161,15 @@ The 7 Sep team sync (Kristjan, Jonas, Hemang) set nine decisions: one balance, s
 - **Worktree agent B (branch off `ea6fef4`):** lane 5, MCP OAuth 2.1 and `froggy login`: `packages/domain/src/oauth.ts`, `Store.oauth`, `apps/server/src/oauth.ts`, `router.ts`, `agents.ts`, `mcp.ts`, `tasks.ts`, `cli/froggy.ts`, `skill.ts`, two web routes `/oauth/authorize` and `/oauth/manual`, ADR 0012. Its migration is generated after merge, as 0009.
 
 Merges back to `main` are rebases by Session M, in the order the lanes finish.
+
+### Session M, Mon 7 Sep afternoon: lanes 2 and 3 landed on `main`
+
+- `9b2ad42` card, empty, alert and spinner primitives in `packages/ui`.
+- `71b55a5` the browser tests set an approval threshold on the app socket (`e2e/mandate.ts`) instead of through a drawer.
+- `4d4a5bc` five pages under one layout route (`apps/web/src/routes/workspace-layout.tsx`, contexts in `lib/workspace-context.ts` and `lib/chat-context.ts`), a rail on a desktop and a tab bar on a phone, one wallet total with the breakdown behind a disclosure, Add funds as one button, the policy tab, mandate editor, leash meter and task-credit form gone; specs walk the routes.
+- `9c0a16a` the words "pocket" and "top-up" leave every screen; the wallet status card and WebMCP read the one total; README updated.
+- `dc0bdb7` the services page redesigned: cards, one form, a task list, the chosen service in the URL.
+- `4c20408` the Agents page: connect by URL first (loud until `/mcp` answers), Telegram, the token path behind Advanced; the minted skill survives navigation.
+- `e2e/screens.spec.ts` walks every page at 1440, 768 and 390 (52 browser checks green); the wallet and services shots are in `docs/evidence/ui-wallet/`.
+
+Owner-visible on the live URL after deploy: `/wallet` shows one dollar total; `/services`, `/agents`, `/settings` are pages. Lane 4 (schedules, notify) and lane 5 (MCP OAuth, `froggy login`) continue in their worktrees.

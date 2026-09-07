@@ -64,13 +64,13 @@ export const DigestSettings = (): ReactElement => {
         <span>
           Daily digest
           <span className="text-muted-foreground block text-xs">
-            An unattended turn, once a day, under the same mandate. Nobody can
-            be asked, so anything over the threshold is refused.
+            An unattended turn, once a day, under the same rules. Nobody can be
+            asked, so a spend that needs your answer is refused.
           </span>
         </span>
         <select
           aria-label="Daily digest hour"
-          className="border-input h-8 rounded-lg border bg-transparent px-2 text-sm"
+          className="border-input min-h-11 rounded-lg border bg-transparent px-2 text-sm"
           disabled={schedule.isPending || save.isPending}
           onChange={(event) => {
             const hour =

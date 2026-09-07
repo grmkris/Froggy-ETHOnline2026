@@ -165,8 +165,8 @@ export const TelegramSettings = ({
       <div>
         <h3 className="font-medium">Telegram</h3>
         <p className="text-muted-foreground mt-1 text-xs">
-          Talk to Froggy and answer approval requests from your phone, using
-          this wallet’s limits.
+          Talk to Froggy and answer its questions from your phone, under the
+          same rules as here.
         </p>
       </div>
       {configured ? (
