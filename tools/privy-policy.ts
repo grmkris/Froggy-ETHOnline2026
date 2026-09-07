@@ -1,9 +1,17 @@
 /**
- * The committed policy, applied. Three verbs:
+ * The committed policy, applied. Four verbs:
  *
  *   bun run privy:policy aggregation   create the 24-hour USDC aggregation (idempotent by name), print its id
  *   bun run privy:policy apply         PATCH the policy's rules from docs/privy-agent-policy.json
+ *   bun run privy:policy merge <file>  add the rules in <file> (a JSON array) that the live policy lacks, by name
  *   bun run privy:policy show          print the live policy, so what Privy holds can be compared with the file
+ *
+ * `apply` replaces the rules wholesale and is for the agent policy the file
+ * describes in full. `merge` is for the treasury policy, whose rules were
+ * written by hand over time: it keeps every rule Privy already holds and
+ * appends only the named ones that are missing, so running it twice is the
+ * same as running it once. PRIVY_POLICY_ID names the target; without it the
+ * agent policy from PRIVY_AGENT_POLICY_ID is the target, as before.
  *
  * REST with the app secret rather than the SDK, for the same reason as the
  * key-quorum script: this policy has no owner, so basic auth is all Privy
@@ -26,7 +34,11 @@ const env = (name: string): string => {
 
 const appId = env("PRIVY_APP_ID");
 const appSecret = env("PRIVY_APP_SECRET");
-const policyId = env("PRIVY_AGENT_POLICY_ID");
+const override = process.env["PRIVY_POLICY_ID"];
+const policyId =
+  override === undefined || override === ""
+    ? env("PRIVY_AGENT_POLICY_ID")
+    : override;
 
 /** Only the fields the tool reads; Privy's answers carry more. */
 const Named = Schema.Struct({ id: Schema.String, name: Schema.String });
@@ -190,6 +202,96 @@ const apply = async (): Promise<void> => {
   }
 };
 
+/** A rule as the merge sees it: its name, and whatever else Privy wants, untouched. */
+const NamedRule = Schema.Struct({ name: Schema.String });
+const RawPolicy = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  rules: Schema.Array(Schema.Unknown),
+});
+const RuleFile = Schema.Array(Schema.Unknown);
+
+const NamedRules = Schema.Array(NamedRule);
+
+/** What JSON can hold, as far as a replacer is concerned. */
+type Json =
+  | boolean
+  | number
+  | string
+  | null
+  | readonly Json[]
+  | { readonly [key: string]: Json };
+
+const dropId = (key: string, value: Json): Json | undefined =>
+  key === "id" ? undefined : value;
+
+/** The same rules with every `id` key dropped, at any depth. */
+const withoutIds = (rules: readonly unknown[]): readonly unknown[] => {
+  const decoded = Schema.decodeUnknownResult(RuleFile)(
+    JSON.parse(JSON.stringify(rules, dropId))
+  );
+  if (Result.isFailure(decoded)) {
+    throw new Error("The live rules could not be read back.");
+  }
+  return decoded.success;
+};
+
+/** The names in a list of rules, refusing a rule without one. */
+const namesOf = (rules: readonly unknown[]): readonly string[] => {
+  const decoded = Schema.decodeUnknownResult(NamedRules)(rules);
+  if (Result.isFailure(decoded)) {
+    throw new Error("Every rule must carry a name.");
+  }
+  return decoded.success.map((rule) => rule.name);
+};
+
+const merge = async (): Promise<void> => {
+  const file = process.argv.at(3);
+  if (file === undefined) {
+    throw new Error("merge needs the path of a JSON array of rules.");
+  }
+  const decoded = Schema.decodeUnknownResult(RuleFile)(
+    await Bun.file(file).json()
+  );
+  if (Result.isFailure(decoded)) {
+    throw new Error(`${file} is not a JSON array of rules.`);
+  }
+  // The live rules are kept as Privy sent them, untouched, because the codec
+  // that reads them for display drops fields that a PATCH must send back.
+  const live = await request(
+    { method: "GET", path: `/policies/${policyId}` },
+    RawPolicy
+  );
+  // Privy sends each rule back with an `id` it will not accept on a PATCH;
+  // everything else about a live rule is returned exactly as it came.
+  const kept = withoutIds(live.rules);
+  const present = new Set(namesOf(kept));
+  const names = namesOf(decoded.success);
+  const added = decoded.success.filter(
+    (_rule, index) => !present.has(names[index] ?? "")
+  );
+  if (added.length === 0) {
+    process.stdout.write(
+      `${live.name}: every rule in ${file} is already there; nothing sent.\n`
+    );
+    return;
+  }
+  const policy = await request(
+    {
+      body: JSON.stringify({ rules: [...kept, ...added] }),
+      method: "PATCH",
+      path: `/policies/${policyId}`,
+    },
+    Policy
+  );
+  for (const rule of policy.rules) {
+    const mark = present.has(rule.name) ? " " : "+";
+    process.stdout.write(
+      `${mark} ${rule.action} ${rule.method} ${rule.name} (${rule.conditions.length} conditions)\n`
+    );
+  }
+};
+
 const show = async (): Promise<void> => {
   const policy = await request(
     { method: "GET", path: `/policies/${policyId}` },
@@ -198,7 +300,7 @@ const show = async (): Promise<void> => {
   process.stdout.write(`${JSON.stringify(policy, null, 2)}\n`);
 };
 
-const verbs = { aggregation, apply, show };
+const verbs = { aggregation, apply, merge, show };
 const verb = process.argv[2] ?? "show";
 const run = Object.entries(verbs).find(([name]) => name === verb)?.[1];
 if (run === undefined) {

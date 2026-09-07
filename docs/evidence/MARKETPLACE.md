@@ -82,3 +82,19 @@ Follow-up validation: `bun run check` and `bun run build` pass; 22 focused payme
 Commit `f7fa2ee` is deployed as Railway release `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25`, with [green CI](https://github.com/grmkris/agentic-wallet/actions/runs/34065738962). The release owner independently passed 408 unit tests, all 39 browser tests and both builds, reviewed the mobile catalog, and checked the live CLI download and MCP authentication refusal.
 
 Fresh unpaid quotes matched the listed payees: web search 0.005 USDC, inference 0.002, image 0.053501 and short speech 0.002. Supplier activation remains blocked on explicit approval of the two treasury policy additions: automatic approval review rejected the general cutover instruction as insufficient authorization for these persistent new signing permissions. No policy additions, supplier-payee configuration or paid supplier checks were applied. The separate X credential is also absent. See [MAINNET_RELEASE.md](MAINNET_RELEASE.md) for the exact boundary and the successful core mainnet payment proofs.
+
+## Activation, 7 September (afternoon)
+
+Done by the agent session under the owner's 7 Sep decision that activation is a lane the agent runs:
+
+- **Treasury policy `wdct7xe9re788wr3htum96pw`** now holds five rules: the three it had (`bridge-eth-to-hedera-via-stargate`, `graph-x402-usdc-base-mainnet`, `swap-eth-to-usdc-uniswap-base`) plus `you-search-x402-base` and `blockrun-services-x402-base` from `docs/privy-service-supplier-rules.json`, merged with `PRIVY_POLICY_ID=wdct7xe9re788wr3htum96pw bun run privy:policy merge docs/privy-service-supplier-rules.json` (the new `merge` verb keeps every live rule and appends only the named ones that are missing; Privy refuses a live rule's `id` on a PATCH, so ids are stripped and nothing else is touched). Read back with `show`; the policy has no owner, so the app secret was enough.
+- **Railway, service `app`:** `SERVICE_SUPPLIER_PAYEES=api.you.com=0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f,blockrun.ai=0xe9030014F5DAe217d0A152f02A043567b16c1aBf` set. Boot validates both hosts and addresses.
+- **Still the owner's:** `X_API_BEARER_TOKEN` (the X credential is Kristjan's); and one small purchase per provider from a funded person on the live URL, with the customer's Hedera settlement and the supplier's Base transfer recorded below. Until the token is set, `x_search` reads unavailable and the other four read configured.
+
+| Provider | Task id | Customer settlement (HashScan) | Supplier settlement (Basescan) | Artifact |
+| --- | --- | --- | --- | --- |
+| You.com web search | pending |  |  |  |
+| BlockRun inference | pending |  |  |  |
+| BlockRun image | pending |  |  |  |
+| BlockRun speech | pending |  |  |  |
+| X search | pending the token |  | none (API credit) |  |
