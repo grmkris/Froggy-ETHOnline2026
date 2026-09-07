@@ -86,6 +86,19 @@ const invokeTool = async (
   caller: TaskCaller,
   call: typeof Call.Type
 ): Promise<ToolResult> => {
+  // Every froggy_* tool is the catalog: a grant without `services` can list
+  // the tools and call none of them, and is told which scope to come back with.
+  if (caller.scopes !== null && !caller.scopes.has("services")) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: 'This connection lacks the "services" scope. Reconnect Froggy and allow it.',
+        },
+      ],
+      isError: true,
+    };
+  }
   try {
     let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
     switch (call.name) {

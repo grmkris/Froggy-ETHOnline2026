@@ -239,7 +239,7 @@ describe("service purchases", () => {
     const response = await handleServices(
       context.services,
       context.session,
-      { userId: other, agentTokenId: null },
+      { userId: other, agentTokenId: null, scopes: null },
       new Request(`https://froggy.example/api/services/tasks/${ticket.id}`)
     );
     expect(response.status).toBe(404);
@@ -268,7 +268,7 @@ describe("service purchases", () => {
     const own = await handleServices(
       context.services,
       context.session,
-      { userId: context.session.userId, agentTokenId: null },
+      { userId: context.session.userId, agentTokenId: null, scopes: null },
       new Request(url)
     );
     expect(own.status).toBe(200);
@@ -279,21 +279,29 @@ describe("service purchases", () => {
     const other = await handleServices(
       context.services,
       context.session,
-      { userId: userId("did:privy:other-artifact-owner"), agentTokenId: null },
+      {
+        userId: userId("did:privy:other-artifact-owner"),
+        agentTokenId: null,
+        scopes: null,
+      },
       new Request(url)
     );
     expect(other.status).toBe(404);
     const listed = await handleServices(
       context.services,
       context.session,
-      { userId: context.session.userId, agentTokenId: null },
+      { userId: context.session.userId, agentTokenId: null, scopes: null },
       new Request("https://froggy.example/api/services/tasks")
     );
     expect(await listed.text()).not.toContain("iVBORw0KGgo");
   });
   it("MCP lists tools, rejects hostile origins and ignores notification purchases", async () => {
     const context = await fixture();
-    const caller = { userId: context.session.userId, agentTokenId: null };
+    const caller = {
+      userId: context.session.userId,
+      agentTokenId: null,
+      scopes: null,
+    };
     const list = await handleMcp(
       context.services,
       context.session,

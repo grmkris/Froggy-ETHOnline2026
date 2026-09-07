@@ -330,7 +330,11 @@ class FroggyServer extends Context.Service<
               const { pathname } = new URL(request.url);
               // Mainnet settlement can outlast Bun's 10-second idle timeout.
               // Keep the response open while the server-owned operation finishes.
-              if (pathname === ORACLE_PATH || pathname.startsWith("/api/")) {
+              if (
+                pathname === ORACLE_PATH ||
+                pathname === "/mcp" ||
+                pathname.startsWith("/api/")
+              ) {
                 bunServer.timeout(request, 180);
               }
               if (pathname !== "/ws/app" && pathname !== "/ws/browser") {
