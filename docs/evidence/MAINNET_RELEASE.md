@@ -41,7 +41,7 @@ The isolated mainnet and Telegram release passed `bun run check:fast`, `bun run 
 
 ## Post-deployment proof
 
-Deployment `8989fae8-7bcb-4d22-8dc4-e92ed244d9bc` of `bb7ba44` completed successfully after [CI run 34065294863](https://github.com/grmkris/agentic-wallet/actions/runs/34065294863). An independent 0.05 HBAR request then returned HTTP 200 in 35.2 seconds, with 13 market rows across 12 fresh indexes and `stubbed: false`.
+Deployment `8989fae8-7bcb-4d22-8dc4-e92ed244d9bc` of `bb7ba44` completed successfully after [CI run 34065294863](https://github.com/grmkris/Froggy-ETHOnline2026/actions/runs/34065294863). An independent 0.05 HBAR request then returned HTTP 200 in 35.2 seconds, with 13 market rows across 12 fresh indexes and `stubbed: false`.
 
 - [Mainnet settlement `0.0.10571514@1788735637.380133493`](https://hashscan.io/mainnet/transaction/0.0.10571514%401788735637.380133493): mirror SUCCESS, exactly 5,000,000 tinybars from float to receiver, facilitator paid the fee.
 - HCS topic `0.0.10847557`, sequence **2**, names the same transaction and sale `sal_01m1wf8tygesqb1t728qv9f475`.
@@ -54,7 +54,7 @@ The subsequent marketplace/MCP/CLI commit `f7fa2ee` was independently checked in
 
 ## Combined deployment and activation boundary
 
-Marketplace/MCP/CLI commit `f7fa2ee` passed [CI run 34065738962](https://github.com/grmkris/agentic-wallet/actions/runs/34065738962) and deployed successfully as `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25`. Live checks found all six core integrations live, the correct mainnet 402, HTTP 401 for absent and invalid MCP credentials, and a downloadable Node CLI whose help exposes the MCP bridge and service commands. Authenticated positive MCP behavior is covered by the 39-test local browser suite, not claimed as a live customer purchase.
+Marketplace/MCP/CLI commit `f7fa2ee` passed [CI run 34065738962](https://github.com/grmkris/Froggy-ETHOnline2026/actions/runs/34065738962) and deployed successfully as `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25`. Live checks found all six core integrations live, the correct mainnet 402, HTTP 401 for absent and invalid MCP credentials, and a downloadable Node CLI whose help exposes the MCP bridge and service commands. Authenticated positive MCP behavior is covered by the 39-test local browser suite, not claimed as a live customer purchase.
 
 Fresh unpaid supplier quotes on 7 September matched the proposed Base USDC payees: You.com 0.005 USDC, BlockRun inference 0.002, image 0.053501 and short speech 0.002. One initial quote request timed out; the bounded read-only retry returned all four quotes. These are quotes, not payments.
 

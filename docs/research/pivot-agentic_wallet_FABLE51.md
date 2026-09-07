@@ -94,7 +94,7 @@
 
 ## Red team
 
-### PRIZE RULES: literal ETHOnline 2026 track text (prizes.md), BRIEF §1 / RESEARCH §2 rules, and the state of the actual repo (grmkris/agentic-wallet, 12 commits as of 4 Sep 23:47). — fixable — 6.5/10
+### PRIZE RULES: literal ETHOnline 2026 track text (prizes.md), BRIEF §1 / RESEARCH §2 rules, and the state of the actual repo (grmkris/Froggy-ETHOnline2026, 12 commits as of 4 Sep 23:47). — fixable — 6.5/10
 
 - **[major]** The candidate's Day-0 plan ('new repo with first commit after kickoff') contradicts reality: the repo already holds 11 code commits made tonight, and the kickoff timestamp those commits must postdate is not confirmed anywhere I could read. Starting a new repo would discard exactly the granular history the rules demand.
   - evidence: VERIFIED: `git log` shows 61ef247 'Bootstrap Froggy' 2026-09-04 22:08 +0200 through 96a4917 22:38 +0200 (grmkris), plus three doc commits 23:39-23:47 +0300; 148 source files tracked. Rule text (details page, VERIFIED fetch): 'All work on your project must begin after the hackathon officially starts. Any prior project-specific code, designs, or assets are not allowed unless they're from public libraries or starter kits' and 'Submissions with large single commits or missing histories may be disqualified'. Kickoff time: details/start pages omit it, the event page returned HTTP 500, web-search budget is exhausted; The Graph's resources post gives only 'Sep 4-16'. INFERRED: 16:08 EDT on 4 Sep is after any plausible kickoff, but nobody has checked.

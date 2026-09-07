@@ -83,7 +83,7 @@ Follow-up validation: `bun run check` and `bun run build` pass; 22 focused payme
 
 ## Production release handoff — 7 September
 
-Commit `f7fa2ee` is deployed as Railway release `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25`, with [green CI](https://github.com/grmkris/agentic-wallet/actions/runs/34065738962). The release owner independently passed 408 unit tests, all 39 browser tests and both builds, reviewed the mobile catalog, and checked the live CLI download and MCP authentication refusal.
+Commit `f7fa2ee` is deployed as Railway release `9e4dde82-eb8f-4cbf-b7a9-ec0178876f25`, with [green CI](https://github.com/grmkris/Froggy-ETHOnline2026/actions/runs/34065738962). The release owner independently passed 408 unit tests, all 39 browser tests and both builds, reviewed the mobile catalog, and checked the live CLI download and MCP authentication refusal.
 
 Fresh unpaid quotes matched the listed payees: web search 0.005 USDC, inference 0.002, image 0.053501 and short speech 0.002. Supplier activation remains blocked on explicit approval of the two treasury policy additions: automatic approval review rejected the general cutover instruction as insufficient authorization for these persistent new signing permissions. No policy additions, supplier-payee configuration or paid supplier checks were applied. The separate X credential is also absent. See [MAINNET_RELEASE.md](MAINNET_RELEASE.md) for the exact boundary and the successful core mainnet payment proofs.
 

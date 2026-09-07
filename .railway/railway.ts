@@ -28,7 +28,10 @@ export default defineRailway((ctx) => {
   // deploy if CI fails. It requires that every sha produces a run, which is why
   // the CI workflow carries no `paths-ignore`: a sha with no workflow run has
   // nothing to wait on and the deploy hangs in WAITING forever.
-  const repo = github("grmkris/agentic-wallet", { branch, checkSuites: true });
+  const repo = github("grmkris/Froggy-ETHOnline2026", {
+    branch,
+    checkSuites: true,
+  });
 
   // The type is omitted on purpose: `ON_FAILURE` is the default and reads back
   // as `null`, so writing it makes every plan report a change that never settles.

@@ -22,7 +22,7 @@ The installed `@modelcontextprotocol/sdk` 1.30.0 was exercised as an external cl
 
 ## Production release verification
 
-The owner authorized the push after recovery. Merge `3179edb` passed [GitHub CI](https://github.com/grmkris/agentic-wallet/actions/runs/34129091126), including all 56 browser tests. Railway deployment `8dda0c7a-8857-4e6d-9490-834f353d6130` succeeded on 7 September 2026 at 13:56 UTC after the migration step and application startup.
+The owner authorized the push after recovery. Merge `3179edb` passed [GitHub CI](https://github.com/grmkris/Froggy-ETHOnline2026/actions/runs/34129091126), including all 56 browser tests. Railway deployment `8dda0c7a-8857-4e6d-9490-834f353d6130` succeeded on 7 September 2026 at 13:56 UTC after the migration step and application startup.
 
 Read-only checks against `https://app-production-58dd.up.railway.app` passed:
 

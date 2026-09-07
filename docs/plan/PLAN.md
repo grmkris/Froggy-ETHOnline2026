@@ -2,7 +2,7 @@
 
 > **Superseded for iteration 2 on Sun 6 Sep 2026.** The team's grilling produced `docs/plan/NEXT_ITERATION.md`, which carries the current scope, money flows, tasks and gates; `docs/plan/DECISIONS.md` ends with the block that records what changed. This file stays as the record of iteration 1 and of the backlog it planned.
 
-Written Sat 5 Sep 2026 and imported into the repository the same evening; until then it lived only on the build box. Submission is Sun 13 Sep 12:00 EDT, internal cut Sat 12 Sep 20:00 CEST. Remote `grmkris/agentic-wallet`, live at `https://app-production-58dd.up.railway.app` (Railway project `froggy`, one environment, one replica, volume at `/data`).
+Written Sat 5 Sep 2026 and imported into the repository the same evening; until then it lived only on the build box. Submission is Sun 13 Sep 12:00 EDT, internal cut Sat 12 Sep 20:00 CEST. Remote `grmkris/Froggy-ETHOnline2026`, live at `https://app-production-58dd.up.railway.app` (Railway project `froggy`, one environment, one replica, volume at `/data`).
 
 Three files share the work. This one is the plan: decisions, target architecture, backlog, owner steps, timeline. `STATUS.md` is what has landed, kept by the session doing the building. `DECISIONS.md` is the ledger of every place the Saturday-morning spec and this plan differ, and which of those are still open. The **State** column below was last written at 08:40 CEST on Sun 6 Sep against commit `01fa4b3`, after the overnight run that followed the planning session recorded in `DECISIONS.md`; `STATUS.md` moves faster than this file does.
 

@@ -697,7 +697,7 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
               url: deps.oracleUrl,
             },
           ],
-    source: "https://github.com/grmkris/agentic-wallet",
+    source: "https://github.com/grmkris/Froggy-ETHOnline2026",
     version: 1,
   };
 };
