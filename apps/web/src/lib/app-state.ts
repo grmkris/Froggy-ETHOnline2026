@@ -63,6 +63,8 @@ export interface AppState {
   readonly agentSignerId: string | null;
   readonly hcsTopicId: string | null;
   readonly lastDecision: PolicyDecision | null;
+  /** Where an MCP client connects by URL; null until this deployment answers there. */
+  readonly mcpUrl: string | null;
   readonly mandate: Mandate | null;
   readonly modes: ServiceModes | null;
   readonly notices: readonly Notice[];
@@ -94,6 +96,7 @@ export const initialAppState: AppState = {
   agentSignerId: null,
   hcsTopicId: null,
   lastDecision: null,
+  mcpUrl: null,
   mandate: null,
   modes: null,
   notices: [],
@@ -234,6 +237,7 @@ const onServer = (
         ...state,
         agentSignerId: message.agentSignerId,
         hcsTopicId: message.hcsTopicId,
+        mcpUrl: message.mcpUrl,
         modes: message.modes,
         policyId: message.policyId,
         sessionId: message.sessionId,

@@ -45,6 +45,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
     )
   ).toBeVisible();
 
+  await page.getByText("Advanced: connect with a token").click();
   await page.getByLabel("Agent name").fill("Hermes on Contabo");
   await page.getByRole("button", { name: "Create connection" }).click();
   const skill = page.getByLabel("Skill for your agent");

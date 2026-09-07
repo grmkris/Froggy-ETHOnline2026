@@ -77,6 +77,7 @@ test("Connect an agent leads to the Agents page, where setup is recoverable", as
   await page.goto("/wallet");
   await page.getByRole("link", { name: "Connect an agent" }).click();
   await expect(page).toHaveURL(/\/agents$/u);
+  await page.getByText("Advanced: connect with a token").click();
   await page.getByLabel("Agent name").fill("My agent");
   await page.getByRole("button", { name: "Create connection" }).click();
   await expect(page.getByRole("alert")).toContainText(
@@ -107,6 +108,7 @@ test("clipboard denial is recoverable and does not discard the skill", async ({
     });
   });
   await page.goto("/agents");
+  await page.getByText("Advanced: connect with a token").click();
   await page.getByRole("button", { name: "Create connection" }).click();
   await expect(page.getByLabel("Skill for your agent")).toBeVisible();
   await page.getByRole("button", { name: "Copy agent skill" }).click();
