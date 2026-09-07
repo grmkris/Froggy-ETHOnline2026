@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { lowerApprovalThreshold } from "./mandate";
+
 /**
  * The stream as the person reads it: tool cards that say what happened in
  * words, an answer rendered as markdown while it arrives, and a log that is
@@ -64,12 +66,9 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
 test("while an approval is open the log is busy and the paying tool says it is waiting", async ({
   page,
 }) => {
+  const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/");
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByText("Edit the mandate").click();
-  await page.getByLabel("Ask me above").fill("0.001");
-  await page.getByRole("button", { name: "Save mandate" }).click();
-  await page.keyboard.press("Escape");
+  await leash.applied;
 
   await page.getByText("Buy the lending snapshot").click();
   const ticket = page.getByLabel(/^Approve .* to /u);

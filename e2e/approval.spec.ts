@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { lowerApprovalThreshold } from "./mandate";
+
 /**
  * The approval round trip, end to end, with no key in sight.
  *
@@ -11,13 +13,9 @@ import { expect, test } from "@playwright/test";
 test("a spend over the threshold asks, and the answer is on the receipt", async ({
   page,
 }) => {
+  const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/");
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByText("Edit the mandate").click();
-  await page.getByLabel("Ask me above").fill("0.001");
-  await page.getByRole("button", { name: "Save mandate" }).click();
-  await expect(page.getByText("ask above $0.001")).toBeVisible();
-  await page.keyboard.press("Escape");
+  await leash.applied;
 
   await page.getByText("Buy the lending snapshot").click();
 
@@ -40,12 +38,9 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
 });
 
 test("saying no files a refusal, and nothing is paid", async ({ page }) => {
+  const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/");
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByText("Edit the mandate").click();
-  await page.getByLabel("Ask me above").fill("0.001");
-  await page.getByRole("button", { name: "Save mandate" }).click();
-  await page.keyboard.press("Escape");
+  await leash.applied;
 
   await page.getByText("Buy the lending snapshot").click();
   const ticket = page.getByLabel(/^Approve .* to /u);

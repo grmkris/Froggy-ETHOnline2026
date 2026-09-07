@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { lowerApprovalThreshold } from "./mandate";
+
 for (const failure of ["http", "network"] as const) {
   test(`an unconfirmed stop can be retried after ${failure} failure`, async ({
     page,
@@ -15,13 +17,9 @@ for (const failure of ["http", "network"] as const) {
         await route.continue();
       }
     });
+    const leash = await lowerApprovalThreshold(page, 0.001);
     await page.goto("/");
-    await page.getByRole("button", { name: "Details" }).click();
-    await page.getByText("Edit the mandate").click();
-    await page.getByLabel("Ask me above").fill("0.001");
-    await page.getByRole("button", { name: "Save mandate" }).click();
-    await expect(page.getByText("ask above $0.001")).toBeVisible();
-    await page.keyboard.press("Escape");
+    await leash.applied;
     await page
       .getByRole("button", { name: "Buy the lending snapshot" })
       .click();
