@@ -55,7 +55,7 @@ export type FundOutcome =
  * What came of asking the person, through Privy's own prompt, to let the
  * agent sign on their wallet under the policy. `refused` carries Privy's words.
  */
-export type GrantOutcome =
+type GrantOutcome =
   | { readonly kind: "granted" }
   | { readonly kind: "refused"; readonly reason: string };
 
