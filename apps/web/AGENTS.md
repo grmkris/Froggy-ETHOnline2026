@@ -1,6 +1,6 @@
 # apps/web
 
-First use starts at the wallet: balances, funding and agent setup. Once a task starts, the conversation contains the live shared page and its receipts; approvals sit above the composer. Wallet and settings remain available in a drawer without remounting the conversation. Keep first-use scrolling separate from chat auto-follow.
+The workspace is five pages under one layout route (`routes/workspace-layout.tsx`): chat, wallet, services, agents, settings, reached from a rail on a desktop and a tab bar on a phone. The layout owns the sockets, the conversation and the painter and hands them down through `lib/workspace-context.ts` and `lib/chat-context.ts`, so leaving the chat mid-turn never stops the turn; the chat page reads its state from the context and unmounts freely. Once a task starts, the conversation contains the live shared page and its receipts; approvals sit above the composer. Keep each page's own scrolling separate from chat auto-follow.
 
 Stop asks the server to cancel a run. An acknowledged request is not proof that an already-submitted payment was reversed; keep unconfirmed cancellation visible with a retry action.
 

@@ -332,22 +332,3 @@ export const reduceApp = (state: AppState, event: AppEvent): AppState => {
     }
   }
 };
-
-/** The rolling cap the meter is drawn against: the widest window rule. */
-export const bindingWindowCap = (
-  mandate: Mandate | null
-): { readonly maxUsdMicros: number; readonly windowMs: number } | null => {
-  if (mandate === null) {
-    return null;
-  }
-  let widest: { maxUsdMicros: number; windowMs: number } | null = null;
-  for (const rule of mandate.rules) {
-    if (
-      rule._tag === "window_cap" &&
-      (widest === null || rule.windowMs > widest.windowMs)
-    ) {
-      widest = { maxUsdMicros: rule.maxUsdMicros, windowMs: rule.windowMs };
-    }
-  }
-  return widest;
-};

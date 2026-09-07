@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * An outside agent is connected from the drawer and disconnected there.
+ * An outside agent is connected on the Agents page and disconnected there.
  *
  * Minting shows the skill once with the token inside it; the list then
  * carries the name and its dates, and Disconnect empties it. The server side
@@ -36,9 +36,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
     }
     await route.continue();
   });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByRole("tab", { name: "Agents" }).click();
+  await page.goto("/agents");
   await expect(page.getByRole("alert")).toContainText("Couldn’t load");
   await page.getByRole("button", { name: "Retry loading agents" }).click();
   await expect(

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("boots the workspace with the leash on screen and no browser errors", async ({
+test("boots the workspace with its five places and no browser errors", async ({
   page,
 }) => {
   const browserErrors: string[] = [];
@@ -17,22 +17,17 @@ test("boots the workspace with the leash on screen and no browser errors", async
 
   await expect(page.getByText("Froggy", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
-  // The leash is in the header before anything is spent. A leash you cannot
-  // see is indistinguishable from no leash.
   await expect(
-    page.getByLabel("Spending against the rolling cap")
-  ).toContainText("of $10.00 today");
+    page.getByRole("navigation", { name: "Primary" }).getByRole("link")
+  ).toHaveCount(5);
 
   expect(browserErrors).toEqual([]);
 });
 
-test("the details drawer lists every rule the agent is held to", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Details" }).click();
-  await expect(page.getByText(/per transaction/u)).toBeVisible();
-  await expect(page.getByText(/ask above/u)).toBeVisible();
+test("settings show what the session is connected as", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByText("Session", { exact: true })).toBeVisible();
+  await expect(page.getByText("Signer", { exact: true })).toBeVisible();
 });
 
 test("the paid endpoint answers 402 before it answers anything else", async ({

@@ -694,8 +694,8 @@
   --color-refused: var(--destructive);
   --color-refused-soft: var(--refused-soft);
   --color-paper-deep: var(--paper-deep);
-  /* Streamdown frames code blocks and tables in shadcn's sidebar colour. We
-     have no sidebar; the deeper paper is the same quiet step back. */
+  /* Streamdown frames code blocks and tables in shadcn's sidebar colour. Our
+     rail uses the deeper paper too, so the two agree on the same step back. */
   --color-sidebar: var(--paper-deep);
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);

@@ -70,10 +70,7 @@ test("Telegram linking recovers from errors and confirms the real pairing state"
       json: { paired, since: paired ? Date.now() : null },
     });
   });
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Connect an agent", exact: true })
-    .click();
+  await page.goto("/agents");
   const telegram = page.getByRole("region", { name: "Telegram connection" });
   await expect(telegram.getByRole("alert")).toContainText("Couldn’t check");
   await telegram.getByRole("button", { name: "Retry Telegram status" }).click();
@@ -90,15 +87,7 @@ test("Telegram linking recovers from errors and confirms the real pairing state"
   await expect(
     telegram.getByText("/start ABCDEF", { exact: true })
   ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: "Connect an agent", exact: true })
-    .click();
-  await expect(
-    telegram.getByText("/start ABCDEF", { exact: true })
-  ).toBeVisible();
   expect(creates).toBe(2);
-  await expect(page.getByRole("dialog")).toHaveCSS("opacity", "1");
   await page.screenshot({ path: testInfo.outputPath("telegram-linking.png") });
   paired = true;
   await expect(

@@ -12,9 +12,7 @@ test("buy a demo service and recover its result after reload", async ({
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
-  await page.getByRole("button", { name: "Services", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.goto("/services");
   await page.getByRole("button", { name: "Choose search the web" }).click();
   await page.getByLabel("Your request").fill("Find affordable train tickets");
   await page.getByRole("button", { name: "Try demo · $0.03" }).click();
@@ -23,13 +21,11 @@ test("buy a demo service and recover its result after reload", async ({
     "DEMO — Search the web"
   );
   await page.reload();
-  await page.getByRole("button", { name: "Services", exact: true }).click();
   await expect(page.getByLabel("Service tasks")).toContainText(
     "Find affordable train tickets"
   );
   await page.screenshot({ path: testInfo.outputPath("services-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("dialog")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth

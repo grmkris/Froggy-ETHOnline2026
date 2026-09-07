@@ -1,0 +1,94 @@
+/**
+ * What sits under the conversation: notices, the open questions, the stop
+ * feedback, and the composer. Pinned above the keyboard so an approval can be
+ * answered from wherever the person is looking.
+ */
+
+import { motion } from "motion/react";
+import type { ReactElement } from "react";
+
+import type { AppStream } from "../../hooks/use-app-socket";
+import type { Notice } from "../../lib/app-state";
+import { CHAT_ERROR_ID } from "../../lib/chat-error";
+import type { SlashCommand } from "../../lib/slash";
+import { ApprovalTicket } from "../cards/approval-ticket";
+import { NoticeList } from "../cards/notice-list";
+import { Composer } from "../composer";
+import { StopFeedback } from "../stop-feedback";
+import type { useStopRun } from "../stop-feedback";
+
+export const ComposerStack = ({
+  app,
+  busy,
+  chatNotices,
+  disabledReason,
+  onClearError,
+  onCommand,
+  onSend,
+  stopRun,
+  suggestions,
+}: {
+  readonly app: AppStream;
+  readonly busy: boolean;
+  readonly chatNotices: readonly Notice[];
+  readonly disabledReason: string | null;
+  readonly onClearError: () => void;
+  readonly onCommand: (command: SlashCommand) => void;
+  readonly onSend: (text: string) => void;
+  readonly stopRun: ReturnType<typeof useStopRun>;
+  readonly suggestions: readonly string[];
+}): ReactElement => (
+  <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <NoticeList
+      notices={[...chatNotices, ...app.notices]}
+      onDismiss={(id) => {
+        if (id === CHAT_ERROR_ID) {
+          onClearError();
+          return;
+        }
+        app.dispatch({ id, type: "dismiss" });
+      }}
+    />
+    {app.approvals.map((request) => (
+      <motion.div
+        animate={{ opacity: 1 }}
+        initial={{ opacity: 0 }}
+        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+        key={request.id}
+      >
+        <ApprovalTicket
+          disabled={!app.connected}
+          onAnswer={(requestId, optionId) => {
+            app.send({
+              optionId,
+              requestId,
+              type: "approval.resolve",
+              v: 1,
+            });
+          }}
+          request={request}
+        />
+      </motion.div>
+    ))}
+    <StopFeedback
+      state={stopRun.state}
+      onRetry={() => {
+        stopRun.stop();
+      }}
+      onDismiss={() => {
+        stopRun.clear();
+      }}
+    />
+    <Composer
+      asking={app.approvals.length > 0}
+      busy={busy}
+      disabledReason={disabledReason}
+      onCommand={onCommand}
+      onSend={onSend}
+      onStop={() => {
+        stopRun.stop();
+      }}
+      suggestions={suggestions}
+    />
+  </div>
+);
