@@ -152,7 +152,7 @@
           "field_source": "ethereum_calldata",
           "field": "transfer.amount",
           "operator": "lte",
-          "value": "0x1e8480",
+          "value": "0x989680",
           "abi": [
             {
               "inputs": [
@@ -181,7 +181,7 @@
           "field_source": "reference",
           "field": "aggregation.REPLACE_ME",
           "operator": "lte",
-          "value": "0x4c4b40"
+          "value": "0x17d7840"
         },
         {
           "field_source": "system",
@@ -241,7 +241,7 @@
           "field_source": "ethereum_calldata",
           "field": "transfer.amount",
           "operator": "lte",
-          "value": "0x1e8480",
+          "value": "0x989680",
           "abi": [
             {
               "inputs": [
@@ -270,7 +270,7 @@
           "field_source": "reference",
           "field": "aggregation.REPLACE_ME_MAINNET",
           "operator": "lte",
-          "value": "0x4c4b40"
+          "value": "0x17d7840"
         },
         {
           "field_source": "system",

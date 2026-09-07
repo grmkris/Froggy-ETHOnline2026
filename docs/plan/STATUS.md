@@ -150,3 +150,13 @@ Kristjan asked Session F to watch the two Codex sessions, finish their work if t
 ## Marketplace lane — Codex, 7 September
 
 Marketplace implementation and verification are complete locally: `service-{providers,tasks,routes}*`, `mcp.ts`, `tasks.ts`, `tools.ts`, `cli/froggy.ts`, `skill.ts`, the additive service handlers in `router.ts`, `service-browser.tsx`, `lib/tool-{call,stories,summary}*`, the service schemas, and the marketplace docs/tests. The full gate, build and 39 browser checks pass, including a real Node MCP stdio client. Follow-up work and activation limits are recorded in `docs/plan/MARKETPLACE_RUN.md`. Other agents' Telegram, payer, security-header and production work is being preserved. Activation handoff: `docs/evidence/MARKETPLACE.md`. No production policy or config changed here.
+
+## Lanes (Mon 7 Sep, 13:00 CEST) — iteration 3 per `~/.claude/plans/team-demoed-froggy-s-new-zesty-bird.md`
+
+The 7 Sep team sync (Kristjan, Jonas, Hemang) set nine decisions: one balance, spending limits hidden, USDC to HBAR just in time, two-way Telegram, MCP with OAuth 2.1, sidebar routes, a redesigned services page, marketplace activation as a lane, the card lane last. Lane 1 landed on `main` this morning (`3d1cdb0` one balance and `conversion_failed`; `9cf1200` allowlist-only mandates under `SPENDING_LIMITS`; `ea6fef4` the just-in-time conversion inside `spend()`, `wallet_topup` removed). Owner action for lane 1: apply the raised top-up caps in `docs/privy-agent-policy.json` (10 USDC per transfer, 25 USDC a day) with `bun run privy:policy apply`, and grant the agent its signer once with the "Let the agent sign under policy" button.
+
+- **Session M (this session, on `main`):** lane 2, the web restructure (`apps/web/**`, `e2e/**`, `packages/ui/src/components/{card,empty,alert,spinner}.tsx`), then lane 3, the services page. Please stay out of `apps/web` and `e2e`.
+- **Worktree agent A (branch off `ea6fef4`):** lane 4, two-way Telegram: `packages/domain/src/schedule.ts`, `packages/protocol/src/schedules.ts`, migration 0008 (`schedules` table), `Store.schedules`, `apps/server/src/{notices,schedules,schedule-routes}.ts`, `jobs.ts`, `telegram/pager.ts`, `tools.ts` (notify, schedule, schedules_list, schedule_cancel), ADR 0011.
+- **Worktree agent B (branch off `ea6fef4`):** lane 5, MCP OAuth 2.1 and `froggy login`: `packages/domain/src/oauth.ts`, `Store.oauth`, `apps/server/src/oauth.ts`, `router.ts`, `agents.ts`, `mcp.ts`, `tasks.ts`, `cli/froggy.ts`, `skill.ts`, two web routes `/oauth/authorize` and `/oauth/manual`, ADR 0012. Its migration is generated after merge, as 0009.
+
+Merges back to `main` are rebases by Session M, in the order the lanes finish.
