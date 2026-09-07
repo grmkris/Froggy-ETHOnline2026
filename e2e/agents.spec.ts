@@ -51,8 +51,13 @@ test("connect an agent, read the skill once, disconnect it", async ({
   await page.getByRole("button", { name: "Create connection" }).click();
   const skill = page.getByLabel("Skill for your agent");
   await expect(skill).toBeVisible();
-  await expect(skill).toHaveValue(/FROGGY_TOKEN="fgy_/u);
+  // The token is its own field now; the skill carries the server and no secret.
+  await expect(
+    page.getByRole("textbox", { name: "Connection token" })
+  ).toHaveValue(/^fgy_/u);
+  await expect(skill).not.toHaveValue(/fgy_/u);
   await expect(skill).toHaveValue(/froggy-cli\.js/u);
+  await expect(skill).toHaveValue(/\/mcp/u);
 
   await page.getByRole("button", { name: "I pasted it" }).click();
   await expect(page.getByText("Hermes on Contabo")).toBeVisible();

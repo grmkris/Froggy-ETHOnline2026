@@ -501,15 +501,12 @@ const handleAgents = async (
       decoded.success.label,
       Date.now()
     );
-    // The skill with this person's server and token filled in: the one paste
-    // that connects an agent. The secret is in it, and shown this once.
+    // The secret, shown this once and in its own field; the skill beside it
+    // carries the person's server and no token, so it can be pasted anywhere.
     return json(
       {
         secret: minted.secret,
-        skill: skillText({
-          token: minted.secret,
-          url: deps.environment.appOrigin,
-        }),
+        skill: skillText({ url: deps.environment.appOrigin }),
         token: minted.token,
       },
       201

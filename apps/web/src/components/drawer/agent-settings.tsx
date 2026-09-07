@@ -35,9 +35,11 @@ const when = (at: number): string => new Date(at).toLocaleString();
 
 const MintedSkill = ({
   onDone,
+  secret,
   skill,
 }: {
   readonly onDone: () => void;
+  readonly secret: string;
   readonly skill: string;
 }): ReactElement => (
   <section
@@ -47,10 +49,16 @@ const MintedSkill = ({
     <div>
       <h3 className="font-medium">Give your agent its connection</h3>
       <p className="text-muted-foreground mt-1 text-sm">
-        Paste this into your agent as its <code>SKILL.md</code>. The connection
-        token is included and shown only here.
+        Set the token as <code>FROGGY_TOKEN</code> in your agent, and paste the
+        skill as its <code>SKILL.md</code>. The token is shown only here.
       </p>
     </div>
+    <Input
+      aria-label="Connection token"
+      className="text-machine min-h-11 text-xs"
+      readOnly
+      value={secret}
+    />
     <Textarea
       aria-label="Skill for your agent"
       className="text-machine h-40 text-xs"
@@ -58,6 +66,9 @@ const MintedSkill = ({
       value={skill}
     />
     <div className="flex flex-wrap items-start gap-2">
+      <CopyButton label="Copy connection token" text={secret}>
+        Copy token
+      </CopyButton>
       <CopyButton label="Copy agent skill" text={skill}>
         Copy skill
       </CopyButton>
@@ -143,7 +154,7 @@ export const AgentSettings = ({
   const queries = useQueryClient();
   const inputId = useId();
   const [label, setLabel] = useState("Hermes");
-  const [skill, setSkill] = useState<string>();
+  const [minted, setMinted] = useState<typeof Minted.Type>();
   const headers = async (): Promise<Record<string, string>> => {
     const token = await getToken();
     return token === null ? {} : { authorization: `Bearer ${token}` };
@@ -173,8 +184,8 @@ export const AgentSettings = ({
       if (!response.ok) {
         throw new Error(`agents: ${response.status}`);
       }
-      // Keep the one-time skill in the mounted host, out of the query cache.
-      setSkill(decodeMinted(await response.json()).skill);
+      // Keep the one-time token in the mounted host, out of the query cache.
+      setMinted(decodeMinted(await response.json()));
     },
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: ["agents"] });
@@ -184,7 +195,7 @@ export const AgentSettings = ({
 
   const live = agents.data?.agents.filter((token) => token.revokedAt === null);
   const canCreate =
-    !mint.isPending && label.trim() !== "" && skill === undefined;
+    !mint.isPending && label.trim() !== "" && minted === undefined;
   const createLabel = mint.isError ? "Retry connection" : "Create connection";
   const refreshLabel = agents.isError
     ? "Retry loading agents"
@@ -237,13 +248,14 @@ export const AgentSettings = ({
           </p>
         ) : null}
       </form>
-      {skill === undefined ? null : (
+      {minted === undefined ? null : (
         <MintedSkill
           onDone={() => {
-            setSkill(undefined);
+            setMinted(undefined);
             mint.reset();
           }}
-          skill={skill}
+          secret={minted.secret}
+          skill={minted.skill}
         />
       )}
       <section aria-label="Your agents" className="flex flex-col gap-3">
