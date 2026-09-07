@@ -22,7 +22,8 @@ const CODE_WORDS: Record<DenialCode, string> = {
   network_not_allowed: "That network is not allowed.",
   payee_not_allowed: "That payee is not on the list.",
   per_tx_cap_exceeded: "Over the cap for one payment.",
-  pocket_exhausted: "The pocket does not hold enough. A top-up fixes it.",
+  pocket_exhausted:
+    "Not enough on Hedera for this, and nothing to convert. Add funds to continue.",
   unpriceable: "The asset could not be priced, so nothing was judged.",
   untrusted_provenance:
     "The address came from a page or from the model, not from you.",

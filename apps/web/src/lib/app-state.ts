@@ -32,7 +32,7 @@ export interface Notice {
 
 /**
  * Something that happened to the wallet while the conversation went on, and
- * belongs in it: a question, an answer, a top-up. Filed in the stream at the
+ * belongs in it: a question, an answer, a conversion. Filed in the stream at the
  * moment it happened, as a marker between turns.
  */
 export interface TimelineEvent {
@@ -172,7 +172,7 @@ const walletEvents = (
       at,
       id: `topup:${at}`,
       kind: "topup",
-      text: `The pocket was topped up by ${formatUsd(after - before)}, to ${formatUsd(after)}.`,
+      text: `Froggy moved ${formatUsd(after - before)} to Hedera for payments; ${formatUsd(after)} is ready there.`,
     },
   ];
 };

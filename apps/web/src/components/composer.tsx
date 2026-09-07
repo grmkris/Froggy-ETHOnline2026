@@ -152,9 +152,7 @@ export const Composer = ({
               <button
                 className="hover:bg-accent flex w-full items-baseline gap-3 px-3 py-2 text-left transition-colors"
                 onClick={() => {
-                  setDraft(
-                    entry.name === "topup" ? "/topup " : `/${entry.name}`
-                  );
+                  setDraft(`/${entry.name}`);
                 }}
                 type="button"
               >

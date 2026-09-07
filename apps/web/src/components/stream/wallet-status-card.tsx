@@ -3,8 +3,7 @@
  *
  * `wallet_status` answers the model in JSON, and JSON is not what a person
  * reads. The same object as a small table: the address, what this window
- * has spent, what the pocket holds, and how
- * many rules the mandate carries.
+ * has spent, the one balance, and the Hedera account.
  */
 
 import { formatUsd } from "@froggy/domain";
@@ -30,29 +29,22 @@ export const WalletStatusCard = ({
   status,
 }: {
   readonly status: WalletStatus;
-}): ReactElement => {
-  const rules = status.rules ?? [];
-  return (
-    <table className="text-machine mx-3 mb-3 ml-9">
-      <tbody>
-        <Row label="address" value={shortAddress(status.address ?? null)} />
-        <Row
-          label="spent this window"
-          value={formatUsd(status.windowSpentUsdMicros)}
-        />
-        {status.pocketUsdMicros === null ||
-        status.pocketUsdMicros === undefined ? null : (
-          <Row label="pocket" value={formatUsd(status.pocketUsdMicros)} />
-        )}
-        {status.hederaAccountId === null ||
-        status.hederaAccountId === undefined ? null : (
-          <Row label="hedera account" value={status.hederaAccountId} />
-        )}
-        <Row
-          label="rules"
-          value={`${rules.length}${rules.length === 0 ? "" : `: ${rules.map((rule) => rule._tag.replaceAll("_", " ")).join(", ")}`}`}
-        />
-      </tbody>
-    </table>
-  );
-};
+}): ReactElement => (
+  <table className="text-machine mx-3 mb-3 ml-9">
+    <tbody>
+      <Row label="address" value={shortAddress(status.address ?? null)} />
+      <Row
+        label="spent this window"
+        value={formatUsd(status.windowSpentUsdMicros)}
+      />
+      {status.totalUsdMicros === null ||
+      status.totalUsdMicros === undefined ? null : (
+        <Row label="balance" value={formatUsd(status.totalUsdMicros)} />
+      )}
+      {status.hederaAccountId === null ||
+      status.hederaAccountId === undefined ? null : (
+        <Row label="hedera account" value={status.hederaAccountId} />
+      )}
+    </tbody>
+  </table>
+);

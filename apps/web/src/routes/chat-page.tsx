@@ -67,7 +67,6 @@ export const ChatPage = (): ReactElement => {
     suggestionInputFrom({
       busy,
       messages: chat.messages,
-      pocketUsdMicros: app.wallet?.pocketUsdMicros ?? null,
       receipts: app.receipts,
     })
   );

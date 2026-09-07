@@ -3,13 +3,6 @@ import { describe, expect, it } from "bun:test";
 import { MONEY_TOOLS, storyOf } from "./tool-stories";
 
 describe("storyOf", () => {
-  it("names the top-up with its amount", () => {
-    expect(storyOf("wallet_topup").sentence({ amountUsd: 1 })).toBe(
-      "Topped up the pocket with 1 USDC"
-    );
-    expect(storyOf("wallet_topup").tone).toBe("money");
-  });
-
   it("shortens the address a send was aimed at", () => {
     expect(
       storyOf("wallet_send").sentence({
@@ -30,7 +23,6 @@ describe("storyOf", () => {
       "graph_query",
       "service_run",
       "wallet_send",
-      "wallet_topup",
       "x402_fetch",
     ]);
   });

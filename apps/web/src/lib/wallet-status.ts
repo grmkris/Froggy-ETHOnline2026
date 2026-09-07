@@ -12,9 +12,12 @@ export const WalletStatus = Schema.Struct({
   address: Schema.optional(Schema.NullOr(Schema.String)),
   /** The person's own Hedera account, once opened. */
   hederaAccountId: Schema.optional(Schema.NullOr(Schema.String)),
+  /** The person's own Hedera pocket, on deployments that still report one. */
   pocketUsdMicros: Schema.optional(Schema.NullOr(Schema.Finite)),
-  /** Only the kinds matter here; the drawer lays the rules out in full. */
+  /** Only the kinds matter here; the page says what the allowlists hold. */
   rules: Schema.optional(Schema.Array(Schema.Struct({ _tag: Schema.String }))),
+  /** The one balance: USDC on Base plus HBAR at the rate. */
+  totalUsdMicros: Schema.optional(Schema.NullOr(Schema.Finite)),
   windowSpentUsdMicros: Schema.Finite,
 });
 export type WalletStatus = typeof WalletStatus.Type;

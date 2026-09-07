@@ -2,7 +2,7 @@
 
 > A wallet for your agents. Fund tasks, set spending limits, watch the work, and keep receipts.
 
-Connect your own agent or use Froggy here. Start with a wallet overview that separates wallet funds from task credit, then follow a task through its result and receipt. An outside agent can request paid tasks over Hedera x402 without holding a wallet private key.
+Connect your own agent or use Froggy here. Start with one balance, USDC on Base and HBAR on Hedera in dollars, then follow a task through its result and receipt. An outside agent can request paid tasks over Hedera x402 without holding a wallet private key.
 
 Inside a task, a human and an AI share **one Chrome**. The human watches a live screencast and can take the page mid-action. The agent drives that same Chrome over CDP. Spending rules are evaluated outside the model on every payment. Privy holds the wallet keys; the host enforces the mandate, including limits that Privy's raw Hedera signing cannot express.
 
@@ -121,10 +121,10 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 ## The demo, in order
 
-1. **Open the workspace.** The mandate is on screen before anything has been spent: caps, allowlists, the pocket, the policy id.
+1. **Open the workspace.** One balance is on screen before anything has been spent, and the settings name the allowlists and the policy id.
 2. **"What is the cheapest USDC borrow right now?"** One standardized Messari query across twelve lending deployments on four chains, at one block each, through The Graph. The answer names the indexes and blocks it came from.
 3. **"Buy the snapshot."** The agent asks our own x402 endpoint, the configured payer pays 0.05 HBAR on Hedera mainnet through the facilitator under the mandate, the HCS note posts, and the agent opens the one-time unlocked page in the shared Chrome. Receipt: rule, transaction, HCS sequence, evidence hash.
-4. **"Top up the pocket."** The agent asks the person's own Privy wallet to sign a USDC transfer to the treasury on Base mainnet. Privy's rule (b) allows it: right token, right recipient, at most 2 USDC, at most 5 USDC a day. The pocket grows by what landed.
+4. **A Hedera payment with no HBAR.** Froggy converts on the spot: the person's own Privy wallet signs a USDC transfer to the treasury on Base mainnet under rule (b) (right token, right recipient, at most 10 USDC, at most 25 USDC a day), the float funds their Hedera account with the same value, and the payment goes through. Two receipts, one purchase.
 5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
 6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
 7. **Connect Hermes.** Mint a token in Details → Agents, paste the skill it shows into your personal agent, and run `froggy brief USDC` there: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts.

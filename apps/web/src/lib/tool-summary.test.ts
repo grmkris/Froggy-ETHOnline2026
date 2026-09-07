@@ -112,15 +112,6 @@ describe("summarize spends", () => {
       stubbed: false,
     });
   });
-
-  it("names a chain failure as not paid, not as refused by the signer", () => {
-    const text =
-      "Allowed by the mandate, but the top-up did not go through: the transfer reverted on chain. Stop here.";
-    expect(summarize(call("wallet_topup", text))).toMatchObject({
-      detail: "the transfer reverted on chain",
-      headline: "Allowed by the mandate, but not paid",
-    });
-  });
 });
 
 describe("summarize x402_fetch", () => {
@@ -156,29 +147,19 @@ describe("summarize wallet tools", () => {
     });
   });
 
-  it("reads a top-up and what the pocket holds now", () => {
-    const text =
-      "Topped up: 1 USDC to the treasury on Base Sepolia (transaction 0xabc123). The pocket now holds $1.0040.";
-    expect(summarize(call("wallet_topup", text))).toMatchObject({
-      detail: "The pocket now holds $1.0040.",
-      headline: "Topped up 1 USDC",
-      outcome: "ok",
-    });
-  });
-
   it("reads the wallet's JSON into money words", () => {
     const text = JSON.stringify(
       {
         address: "0xabc",
-        pocketUsdMicros: 250_000,
         rules: [],
+        totalUsdMicros: 250_000,
         windowSpentUsdMicros: 4000,
       },
       null,
       2
     );
     expect(summarize(call("wallet_status", text))).toMatchObject({
-      detail: "Pocket $0.25",
+      detail: "Balance $0.25",
       headline: "$0.0040 spent in this window",
       outcome: "info",
     });

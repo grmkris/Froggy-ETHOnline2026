@@ -163,33 +163,16 @@ const sendSummary = (text: string): ToolSummary | null => {
   return spendOutcome(text);
 };
 
-const TOPPED =
-  /^Topped up: (?<amount>[\d.]+) USDC to the treasury on Base Sepolia.*?\. (?<pocket>The pocket now holds .+)$/su;
-
-const topupSummary = (text: string): ToolSummary | null => {
-  const toppedMatch = TOPPED.exec(text);
-  const topped = group(toppedMatch, "amount");
-  const pocket = group(toppedMatch, "pocket");
-  if (topped !== undefined) {
-    return summary(`Topped up ${topped} USDC`, "ok", pocket ?? null);
-  }
-  if (text.startsWith("Top-ups are not configured")) {
-    return summary("Top-ups are not configured here", "info", text);
-  }
-  return spendOutcome(text);
-};
-
 const statusSummary = (text: string): ToolSummary | null => {
   const status = walletStatusOf(text);
   if (status === null) {
     return null;
   }
-  const { pocketUsdMicros, windowSpentUsdMicros } = status;
-  const pocket =
-    pocketUsdMicros === undefined || pocketUsdMicros === null
-      ? []
-      : [`Pocket ${formatUsd(pocketUsdMicros)}`];
-  const detail = pocket.join(" · ");
+  const { totalUsdMicros, windowSpentUsdMicros } = status;
+  const detail =
+    totalUsdMicros === undefined || totalUsdMicros === null
+      ? ""
+      : `Balance ${formatUsd(totalUsdMicros)}`;
   return summary(
     `${formatUsd(windowSpentUsdMicros)} spent in this window`,
     "info",
@@ -273,9 +256,6 @@ export const summarize = (call: ToolCall): ToolSummary | null => {
     }
     case "wallet_send": {
       return sendSummary(text);
-    }
-    case "wallet_topup": {
-      return topupSummary(text);
     }
     case "wallet_status": {
       return statusSummary(text);

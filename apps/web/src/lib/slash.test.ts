@@ -12,16 +12,6 @@ describe("parseSlash", () => {
     expect(parseSlash("/STOP ")).toEqual({ kind: "stop" });
     expect(parseSlash("/status")).toEqual({ kind: "status" });
   });
-
-  it("reads a top-up amount and refuses a missing or nonsense one", () => {
-    expect(parseSlash("/topup 1.5")).toEqual({ amountUsd: 1.5, kind: "topup" });
-    expect(parseSlash("/topup")).toMatchObject({
-      kind: "unknown",
-      name: "topup",
-    });
-    expect(parseSlash("/topup -2")).toMatchObject({ kind: "unknown" });
-    expect(parseSlash("/topup lots")).toMatchObject({ kind: "unknown" });
-  });
 });
 
 describe("slashMatches", () => {
@@ -29,7 +19,6 @@ describe("slashMatches", () => {
     expect(slashMatches("/").map((entry) => entry.name)).toEqual([
       "stop",
       "status",
-      "topup",
     ]);
     expect(slashMatches("/st").map((entry) => entry.name)).toEqual([
       "stop",

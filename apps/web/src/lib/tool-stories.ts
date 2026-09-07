@@ -12,7 +12,6 @@ import {
   GlobeIcon,
   KeyboardIcon,
   MousePointerClickIcon,
-  PiggyBankIcon,
   ReceiptTextIcon,
   SearchIcon,
   SendIcon,
@@ -98,11 +97,6 @@ const STORIES = {
     sentence: () => "Checked the wallet",
     tone: "plain",
   },
-  wallet_topup: {
-    icon: PiggyBankIcon,
-    sentence: (input) => `Topped up the pocket with ${amount(input)}`,
-    tone: "money",
-  },
   x402_probe: {
     icon: SearchIcon,
     sentence: (input) => `Asked what ${hostOf(input.url ?? "")} costs`,
@@ -121,7 +115,6 @@ export const MONEY_TOOLS: ReadonlySet<string> = new Set([
   "graph_query",
   "service_run",
   "wallet_send",
-  "wallet_topup",
   "x402_fetch",
 ]);
 

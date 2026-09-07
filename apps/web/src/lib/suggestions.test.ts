@@ -8,7 +8,6 @@ const quiet: SuggestionInput = {
   hasGraph: false,
   hasPaid: false,
   lastRefused: false,
-  pocketUsdMicros: 500_000,
   started: true,
 };
 
@@ -20,10 +19,10 @@ describe("suggestionsFor", () => {
     );
   });
 
-  it("asks why after a refusal, and offers a top-up for an empty pocket", () => {
-    expect(
-      suggestionsFor({ ...quiet, lastRefused: true, pocketUsdMicros: 20_000 })
-    ).toEqual(["Why was that refused?", "Top up the pocket with 1 USDC"]);
+  it("asks why after a refusal", () => {
+    expect(suggestionsFor({ ...quiet, lastRefused: true })).toEqual([
+      "Why was that refused?",
+    ]);
   });
 
   it("offers the purchase after a Graph answer, and the question after the purchase", () => {
@@ -41,7 +40,6 @@ describe("suggestionsFor", () => {
       hasGraph: true,
       hasPaid: true,
       lastRefused: true,
-      pocketUsdMicros: 0,
     });
     expect(every.length).toBeLessThanOrEqual(3);
   });
@@ -67,7 +65,6 @@ describe("suggestionInputFrom", () => {
           role: "assistant",
         },
       ],
-      pocketUsdMicros: 5,
       receipts: [],
     });
     expect(input).toMatchObject({
