@@ -386,6 +386,38 @@ const widestWindowMs = (mandate: Mandate): number => {
 /** Swallow a settled rejection in a chain that must never inherit one. */
 const swallow = (): void => undefined;
 
+/** Tinybars in one HBAR. */
+const TINYBARS_PER_HBAR = 100_000_000;
+
+/**
+ * The one balance: USDC on Base plus the HBAR in the person's own Hedera
+ * account at the mirror rate. Null when either side is unknown, because a
+ * total that silently drops an unreadable balance would look complete. A
+ * person with no Hedera account yet holds a known zero there, not an unknown.
+ */
+export const totalOf = (parts: {
+  readonly hbarTinybars: bigint | null;
+  readonly hederaAccountId: string | null;
+  readonly usdMicrosPerHbar: number | null;
+  readonly usdcUnits: bigint | null;
+}): number | null => {
+  if (parts.usdcUnits === null) {
+    return null;
+  }
+  const usdc = Number(parts.usdcUnits);
+  if (parts.hederaAccountId === null) {
+    return Number.isSafeInteger(usdc) ? usdc : null;
+  }
+  if (parts.hbarTinybars === null || parts.usdMicrosPerHbar === null) {
+    return null;
+  }
+  const hbar = Math.round(
+    (Number(parts.hbarTinybars) / TINYBARS_PER_HBAR) * parts.usdMicrosPerHbar
+  );
+  const total = usdc + hbar;
+  return Number.isSafeInteger(total) ? total : null;
+};
+
 export class WorkspaceSession {
   readonly id: SessionId;
   /**
@@ -736,6 +768,13 @@ export class WorkspaceSession {
         error instanceof Error ? error.message : "unknown error"
       }. The figure below is a floor, and payments will be refused.`;
     }
+    const usdMicrosPerHbar =
+      this.deps.quote(
+        this.deps.networks.hedera === "hedera:mainnet"
+          ? KNOWN_ASSETS["hedera:mainnet:hbar"]
+          : KNOWN_ASSETS["hedera:testnet:hbar"],
+        this.now()
+      )?.usdMicrosPerUnit ?? null;
     return {
       // The *signer*, not the smart account. The Graph's x402 leg is an
       // EIP-3009 authorization signed by the address that holds the USDC, and
@@ -751,19 +790,19 @@ export class WorkspaceSession {
         evmNetwork: this.deps.networks.evm,
         hbarTinybars: hbarTinybars === null ? null : hbarTinybars.toString(),
         hederaNetwork: this.deps.networks.hedera,
-        usdMicrosPerHbar:
-          this.deps.quote(
-            this.deps.networks.hedera === "hedera:mainnet"
-              ? KNOWN_ASSETS["hedera:mainnet:hbar"]
-              : KNOWN_ASSETS["hedera:testnet:hbar"],
-            this.now()
-          )?.usdMicrosPerUnit ?? null,
+        usdMicrosPerHbar,
         usdcUnits: usdcUnits === null ? null : usdcUnits.toString(),
       },
       hederaAccountId,
       ledgerNote,
       pocketUsdMicros: this.pocket,
       signerAddress: this.addresses.signer,
+      totalUsdMicros: totalOf({
+        hbarTinybars,
+        hederaAccountId,
+        usdMicrosPerHbar,
+        usdcUnits,
+      }),
       windowSpentUsdMicros: spent,
     };
   }

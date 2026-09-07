@@ -164,6 +164,7 @@ const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
   ledgerNote: null,
   pocketUsdMicros,
   signerAddress: null,
+  totalUsdMicros: null,
   windowSpentUsdMicros: 0,
 });
 
@@ -267,6 +268,7 @@ describe("the welcome", () => {
     const state = server(initialAppState, {
       agentSignerId: "quorum-test",
       hcsTopicId: "0.0.10381647",
+      mcpUrl: null,
       modes: {
         database: "stub",
         graph: "stub",

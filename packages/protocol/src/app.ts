@@ -151,6 +151,12 @@ export const WalletSummary = Schema.Struct({
   pocketUsdMicros: Schema.NullOr(Schema.Int),
   /** The embedded EOA. What `personal_sign` recovers to; not where funds live. */
   signerAddress: Schema.NullOr(Schema.String),
+  /**
+   * The one number a person is shown: USDC on Base plus the HBAR in their own
+   * Hedera account at the mirror-node rate, in USD millionths. Null when
+   * either side is unknown, because an unknown balance is not zero.
+   */
+  totalUsdMicros: Schema.NullOr(Schema.Int),
   windowSpentUsdMicros: Schema.Int,
 });
 export type WalletSummary = typeof WalletSummary.Type;
@@ -166,6 +172,8 @@ export const AppServerMessage = Schema.Union([
     agentSignerId: Schema.NullOr(Schema.String),
     /** The Hedera Consensus Service topic the audit notes are posted to, when one is pinned. */
     hcsTopicId: Schema.NullOr(Schema.String),
+    /** Where an MCP client connects by URL, once this deployment answers there; null until it does. */
+    mcpUrl: Schema.NullOr(Schema.String),
     modes: ServiceModes,
     /** The Privy policy the agent's signer is held to, when the agent has one. */
     policyId: Schema.NullOr(Schema.String),

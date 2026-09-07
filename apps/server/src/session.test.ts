@@ -28,7 +28,7 @@ import { memoryLedger, memoryStore } from "@froggy/wallet";
 import type { SpendLedger, Store } from "@froggy/wallet";
 
 import type { ApprovalOutcome } from "./interactions";
-import { MalformedSpendError, WorkspaceSession } from "./session";
+import { MalformedSpendError, totalOf, WorkspaceSession } from "./session";
 import type { AskInput, SessionDeps, SpendRequest } from "./session";
 
 const MODES: ServiceModes = {
@@ -140,6 +140,34 @@ describe("walletSummary with an unreadable ledger", () => {
     // "we have no idea", which is the more dangerous of the two by far.
     expect(summary.ledgerNote).toContain("unavailable");
     expect(summary.ledgerNote).toContain("floor");
+  });
+});
+
+describe("the one balance", () => {
+  const parts = {
+    hbarTinybars: 100_000_000n,
+    hederaAccountId: "0.0.42",
+    usdMicrosPerHbar: 80_000,
+    usdcUnits: 1_000_000n,
+  };
+
+  test("adds USDC to HBAR at the rate", () => {
+    expect(totalOf(parts)).toBe(1_080_000);
+  });
+
+  test("is unknown when the USDC balance is", () => {
+    expect(totalOf({ ...parts, usdcUnits: null })).toBeNull();
+  });
+
+  test("is unknown when an account exists but its HBAR or the rate does not", () => {
+    expect(totalOf({ ...parts, hbarTinybars: null })).toBeNull();
+    expect(totalOf({ ...parts, usdMicrosPerHbar: null })).toBeNull();
+  });
+
+  test("counts no Hedera account as a known zero", () => {
+    expect(
+      totalOf({ ...parts, hbarTinybars: null, hederaAccountId: null })
+    ).toBe(1_000_000);
   });
 });
 

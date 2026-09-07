@@ -141,6 +141,12 @@ export const DenialCode = Schema.Literals([
   "unpriceable",
   /** The pocket the host pays from does not hold enough. A top-up fixes it. */
   "pocket_exhausted",
+  /**
+   * The pocket was short and converting the person's USDC into HBAR did not
+   * happen. The message names who refused: the signer, the chain, or the
+   * balance itself.
+   */
+  "conversion_failed",
   /** The policy asked, and the person said no. */
   "approval_denied",
   /** The policy asked, and nobody answered in time. */

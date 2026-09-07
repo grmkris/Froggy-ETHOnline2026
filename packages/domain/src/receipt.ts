@@ -56,6 +56,11 @@ export const Settlement = Schema.Struct({
   /** The Hedera Consensus Service note about this payment, when one was posted. */
   hcsSequence: Schema.optional(Schema.Int),
   network: Schema.String,
+  /**
+   * What else this settlement moved, in one sentence: a USDC transfer that
+   * also funded HBAR into the person's Hedera account says so here.
+   */
+  note: Schema.optional(Schema.String),
   /** Chain-native transaction identifier. Hedera's is not a 0x hash. */
   transactionId: Schema.String,
 });

@@ -28,6 +28,7 @@ const SUMMARY: WalletSummary = {
   ledgerNote: null,
   pocketUsdMicros: 0,
   signerAddress: WALLET.address,
+  totalUsdMicros: null,
   windowSpentUsdMicros: 0,
 };
 

@@ -29,6 +29,7 @@ const wallet: WalletSummary = {
   },
   pocketUsdMicros: 500_000,
   signerAddress: null,
+  totalUsdMicros: null,
   windowSpentUsdMicros: 0,
 };
 
