@@ -7,7 +7,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { IdentityProvider } from "./lib/privy";
+import { initializeTheme } from "./lib/theme";
 import { router } from "./router";
+
+initializeTheme();
 
 const root = document.querySelector("#root");
 if (!root) {

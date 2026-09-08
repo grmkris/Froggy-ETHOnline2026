@@ -11,6 +11,7 @@ import {
 import type { ReactElement } from "react";
 
 import { Page } from "../components/nav/page";
+import { AppearanceSettings } from "../components/settings/appearance-settings";
 import { ConnectionDetails } from "../components/settings/connection-details";
 import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
@@ -85,6 +86,7 @@ export const SettingsPage = (): ReactElement => {
               <IntegrationBadges modes={app.modes} stubbed={identity.stubbed} />
             </CardContent>
           </Card>
+          <AppearanceSettings />
           <Card>
             <CardHeader>
               <CardTitle>Account</CardTitle>
