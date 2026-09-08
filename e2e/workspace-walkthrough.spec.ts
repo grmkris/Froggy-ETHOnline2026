@@ -47,12 +47,10 @@ for (const size of [
 
     await nav.getByRole("button", { name: /^More/u }).click();
     await nav.getByRole("link", { name: "Agents", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "MCP URL" })).toHaveValue(
-      /\/mcp$/u
-    );
-    await page.getByText("Claude Code", { exact: true }).click();
-    await page.getByText("Cursor", { exact: true }).click();
-    await page.getByText("Hermes", { exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Copy for your agent" })
+    ).toBeVisible();
+    await expect(page.getByLabel("Agent name")).toBeHidden();
     await capturePage(page, testInfo, "agent-instructions");
     await page
       .getByText("Advanced: connect with a token", { exact: true })

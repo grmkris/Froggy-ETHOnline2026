@@ -6,7 +6,7 @@ import {
   OAuthGrantId,
 } from "../packages/domain/src/id";
 
-for (const path of ["/", "/wallet"]) {
+for (const path of ["/", "/wallet", "/agents"]) {
   test(`copy agent instructions and recover clipboard denial on ${path}`, async ({
     page,
     context,

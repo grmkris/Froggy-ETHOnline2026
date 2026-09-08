@@ -36,7 +36,10 @@ const AgentConnection = ({
   return (
     <li className="bg-muted shadow-inset flex flex-col gap-2 rounded-xl p-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <a
+          className="focus-visible:ring-ring min-w-0 flex-1 rounded-lg outline-none focus-visible:ring-2"
+          href={`/agents/${token.id}`}
+        >
           <h3 className="font-medium wrap-anywhere">{token.label}</h3>
           {scopes === undefined ? null : (
             <p className="text-muted-foreground mt-1 text-xs">
@@ -44,14 +47,14 @@ const AgentConnection = ({
             </p>
           )}
           <p className="text-muted-foreground mt-1 text-xs">
-            {token.lastUsedAt === null ? "Waiting for first use" : "Connected"}
+            Connected since {when(token.createdAt)}
           </p>
           <p className="text-muted-foreground mt-1 text-xs">
             {token.lastUsedAt === null
-              ? `Created ${when(token.createdAt)}`
+              ? "Waiting for first use"
               : `Last used ${when(token.lastUsedAt)}`}
           </p>
-        </div>
+        </a>
         <Button
           aria-label={`${revoke.isError ? "Retry disconnecting" : "Disconnect"} ${token.label}`}
           className="min-h-11"
@@ -123,8 +126,8 @@ export const AgentList = ({
             </EmptyMedia>
             <EmptyTitle>No connections yet.</EmptyTitle>
             <EmptyDescription>
-              Connect your agent by URL to get started. Its access will appear
-              here.
+              Copy the instructions above into your agent’s chat. Its connection
+              will appear here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

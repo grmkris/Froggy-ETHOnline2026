@@ -144,9 +144,9 @@ test("an MCP client signs in through the consent page and is held to its scopes"
   expect(grant?.scopes).toEqual(["brief", "services"]);
   expect(grant?.revokedAt).toBeNull();
   await page.goto("/agents");
-  await expect(page.getByRole("textbox", { name: "MCP URL" })).toHaveValue(
-    `${baseURL}/mcp`
-  );
+  await expect(
+    page.getByRole("button", { name: "Copy for your agent" })
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "E2E MCP client" })
   ).toBeVisible();
