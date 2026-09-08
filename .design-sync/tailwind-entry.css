@@ -72,3 +72,57 @@
 @source inline("border-{0,2,4}");
 @source inline("border-{t,b,s,e,x,y}{,-0,-2,-4}");
 @source inline("opacity-{0,20,40,50,60,70,80,90,100}");
+
+/* ---------------------------------------------------------------------------
+   Re-register the palette as real theme variables.
+
+   globals.css declares the semantic colours in an `@theme inline` block, and
+   `inline` means exactly what it says: Tailwind substitutes the value into
+   each utility and never emits a `--color-*` variable. The compiled sheet
+   therefore carries the palette only as the bare `--background` / `--brand` /
+   `--drive-agent` customs in the base layer, while the theme layer keeps just
+   the stock leftovers Tailwind happened to need -- black, white, gray-500 and
+   six reds.
+
+   Claude Design builds its Colors panel from the theme layer, so it showed
+   those leftovers and none of Froggy: no frog-green, no agent amber, no human
+   blue. A design agent reading that panel has no way to find the brand.
+
+   Re-declaring the same keys in a non-inline `@theme static` emits them. The
+   values are unchanged -- utilities gain one level of indirection
+   (`var(--color-border)` resolving through `--color-border: var(--border)`),
+   which is why the rendered output is identical.
+   --------------------------------------------------------------------------- */
+
+@theme static {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink: var(--foreground);
+  --color-drive-agent: var(--drive-agent);
+  --color-drive-agent-foreground: var(--drive-agent-foreground);
+  --color-drive-agent-soft: var(--drive-agent-soft);
+  --color-drive-human: var(--drive-human);
+  --color-drive-human-soft: var(--drive-human-soft);
+  --color-refused: var(--destructive);
+  --color-refused-soft: var(--refused-soft);
+  --color-paper-deep: var(--paper-deep);
+  --color-sidebar: var(--paper-deep);
+}

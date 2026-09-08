@@ -62,3 +62,15 @@ The families covered are the layout floor: grid and column tracks, gap/padding/m
 NOTES already predicted this and the 8 Sep re-sync confirmed it: the commit hook's `oxfmt` pass reformatted 10 preview files _after_ they had been uploaded, so the next sync saw 10 moved `sourceKeys` with no authored change behind them — `AlertDialogHeader, Badge, ChromeBar, Collapsible, DrivingRing, Message, MessageScroller, Switch, Textarea, Ticket`, of which 5 also moved their `renderHashes` (JSX reflow shifts text-node whitespace).
 
 Benign, and it settles on its own. But it means **a re-sync run straight after the first commit of new previews will always show a batch of "changed" components that nobody changed.** Do not go looking for a regression. To avoid it entirely, run `bun run format` before the sync rather than after.
+
+## `@theme inline` hides the palette from Claude Design
+
+The Colors panel in the Design System pane showed `Black`, `White`, `Red ×6`, `Gray`, `--_base` and three `--tw-*` variables — Tailwind's stock leftovers and its runtime plumbing. None of Froggy. No frog-green, no agent amber, no human blue.
+
+Cause: `globals.css` declares the semantic colours in `@theme inline`, and `inline` means Tailwind substitutes each value into the utilities and **never emits a `--color-*` variable**. The palette survived only as the bare `--background` / `--brand` / `--drive-agent` customs in the base layer. The pane builds its Colors panel from the theme layer, so it found only what Tailwind had put there for its own reasons.
+
+This is why the earlier `[TOKENS_MISSING]` triage was too generous. Those warns were correctly judged non-blocking, but the conclusion "none are DS tokens and none need a `cfg.tokensPkg`" hid the real problem: the DS tokens were not in the theme layer _at all_.
+
+Fix: `tailwind-entry.css` re-declares the same 30 keys in a non-inline `@theme static`, which emits them. Verified safe — the only change to the compiled sheet is one level of indirection (`var(--color-border)` resolving through `--color-border: var(--border)`), every one of the 2382 differing lines is that substitution or a new token, and the re-sync reported **113 unchanged, 0 changed**: no component render moved. 332K → 340K.
+
+If the panel ever goes back to showing reds and grays, this block was dropped.
