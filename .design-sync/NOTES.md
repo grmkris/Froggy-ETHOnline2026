@@ -74,3 +74,7 @@ This is why the earlier `[TOKENS_MISSING]` triage was too generous. Those warns 
 Fix: `tailwind-entry.css` re-declares the same 30 keys in a non-inline `@theme static`, which emits them. Verified safe — the only change to the compiled sheet is one level of indirection (`var(--color-border)` resolving through `--color-border: var(--border)`), every one of the 2382 differing lines is that substitution or a new token, and the re-sync reported **113 unchanged, 0 changed**: no component render moved. 332K → 340K.
 
 If the panel ever goes back to showing reds and grays, this block was dropped.
+
+## The pre-push hook is stricter than the commit hook
+
+`lefthook` runs `bun run check` before a push, and that includes `lint:types` (`oxlint --type-aware`). The previews import the bare `@froggy/ui`, which nothing outside the design-sync converter can resolve: the package has no root export and no tsconfig includes `.design-sync/`. Under the type-aware run every import is therefore the error type and every JSX return trips `no-unsafe-return`. The first push of these files was rejected on all 41 previews at once. `oxlint.config.ts` now turns the five `no-unsafe-*` rules off for `.design-sync/previews/*.tsx` only; the plain lint still judges them. Run `bun run check` before a push, not just `bun run lint`.

@@ -45,6 +45,18 @@ export default defineConfig({
       files: [".design-sync/previews/*.tsx"],
       rules: {
         "unicorn/filename-case": "off",
+        // The previews import the bare package, `@froggy/ui`, which only the
+        // design-sync converter resolves (it builds a barrel and links the
+        // package under packages/ui/node_modules). No tsconfig in the repo
+        // includes this folder and the package has no root export, so the
+        // type-aware run sees every import as the error type and flags every
+        // JSX return. The non-type rules still apply; these five only ever
+        // fire on that unresolved import.
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
       },
     },
     {
