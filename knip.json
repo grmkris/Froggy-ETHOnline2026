@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["tools/spikes/**", ".railway/railway.ts"],
+  "ignore": ["tools/spikes/**", ".railway/railway.ts", ".design-sync/**"],
   "ignoreDependencies": ["railway"],
   "workspaces": {
     "packages/browser": {
