@@ -10,6 +10,7 @@
  * button on a code block.
  */
 
+import { useReducedMotion } from "motion/react";
 import { memo } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Streamdown } from "streamdown";
@@ -70,21 +71,35 @@ const CONTROLS = {
 
 const NO_IMAGES = ["img"] as const;
 
-const MarkdownTextBase = ({ live, text }: MarkdownTextProps): ReactElement => (
-  <Streamdown
-    animated={false}
-    className="[&_h1]:font-display [&_h2]:font-display [&_h3]:font-display min-w-0 [&_code]:font-mono max-sm:[&_td]:whitespace-nowrap"
-    components={{ a: SafeLink }}
-    controls={CONTROLS}
-    disallowedElements={NO_IMAGES}
-    isAnimating={live}
-    linkSafety={{ enabled: false }}
-    mode={live ? "streaming" : "static"}
-    skipHtml
-  >
-    {text}
-  </Streamdown>
-);
+const MarkdownTextBase = ({ live, text }: MarkdownTextProps): ReactElement => {
+  const reduced = useReducedMotion() === true;
+  return (
+    <Streamdown
+      animated={
+        reduced
+          ? false
+          : {
+              animation: "fadeIn",
+              duration: 180,
+              easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+              sep: "word",
+              stagger: 12,
+              maxBacklogMs: 120,
+            }
+      }
+      className="[&_h1]:font-display [&_h2]:font-display [&_h3]:font-display min-w-0 [&_code]:font-mono max-sm:[&_td]:whitespace-nowrap"
+      components={{ a: SafeLink }}
+      controls={CONTROLS}
+      disallowedElements={NO_IMAGES}
+      isAnimating={live}
+      linkSafety={{ enabled: false }}
+      mode={live ? "streaming" : "static"}
+      skipHtml
+    >
+      {text}
+    </Streamdown>
+  );
+};
 
 /** Memoised: every token re-renders the turn, and only the live part changes. */
 export const MarkdownText = memo(MarkdownTextBase);

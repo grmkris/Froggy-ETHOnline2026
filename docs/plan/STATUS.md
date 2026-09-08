@@ -1,5 +1,7 @@
 # Status against the plan
 
+**8 September 2026 — Motion second pass:** visible directional page slides, a spring pill indicator and menus, rising/staggered stream cards and wallet rows, spring approvals and receipts, live shimmer and word fades, 600ms torph totals, press feedback, and a whole-page appearance crossfade. Reduced motion, keyboard immediacy and held controls are covered; the full browser suite passes **96/96**. [Second-pass decisions and evidence](../design/MOTION_NAVIGATION_2026-09-08.md#second-pass--8-september-2026).
+
 Updated Tue 8 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 Sep decisions and current completion list; [NEXT_ITERATION.md](NEXT_ITERATION.md) retains the broader submission plan. Dated sections below are historical implementation notes.
 
 ## Motion and navigation lane — 8 September 2026

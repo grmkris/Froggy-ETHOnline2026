@@ -29,7 +29,7 @@ import type { ReactElement } from "react";
 
 import type { StreamItem } from "../../lib/stream-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
-import { MotionItem } from "../motion-item";
+import { MotionItem, useArrivalDelays } from "../motion-item";
 import { MarkerRow } from "./marker-row";
 import { Turn } from "./turn";
 
@@ -97,6 +97,16 @@ export const Stream = ({
   retryId,
   thinking,
 }: StreamProps): ReactElement => {
+  const ids = items.map((item) => {
+    if (item.kind === "earlier") {
+      return "earlier";
+    }
+    if (item.kind === "marker") {
+      return item.event.id;
+    }
+    return item.message.id;
+  });
+  const delays = useArrivalDelays(ids);
   const liveAtTop = liveCard !== null && liveAfter === null;
   return (
     <MessageScrollerProvider
@@ -121,11 +131,11 @@ export const Stream = ({
               </MessageScrollerItem>
             ) : null}
             <AnimatePresence initial={false}>
-              {items.map((item) => {
+              {items.map((item, index) => {
                 if (item.kind === "earlier") {
                   return (
                     <MessageScrollerItem key="earlier" messageId="earlier">
-                      <MotionItem>
+                      <MotionItem delay={delays.get(ids[index] ?? "") ?? 0}>
                         <Earlier receipts={item.receipts} />
                       </MotionItem>
                     </MessageScrollerItem>
@@ -137,7 +147,7 @@ export const Stream = ({
                       key={item.event.id}
                       messageId={item.event.id}
                     >
-                      <MotionItem>
+                      <MotionItem delay={delays.get(ids[index] ?? "") ?? 0}>
                         <MarkerRow event={item.event} />
                       </MotionItem>
                     </MessageScrollerItem>
@@ -150,7 +160,7 @@ export const Stream = ({
                     // The person's message is what a new turn anchors to.
                     scrollAnchor={item.message.role === "user"}
                   >
-                    <MotionItem>
+                    <MotionItem delay={delays.get(ids[index] ?? "") ?? 0}>
                       <Turn
                         after={item.message.id === liveAfter ? liveCard : null}
                         asking={asking}

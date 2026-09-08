@@ -11,12 +11,45 @@ import type { WalletSummary } from "@froggy/protocol";
 import { buttonVariants } from "@froggy/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { WalletIcon } from "lucide-react";
+import { useEffect } from "react";
 import type { ReactElement } from "react";
+import { useTextMorph } from "torph/react";
 
 import { walletAmounts } from "../../lib/wallet-view";
-import { MorphText } from "../morph-text";
 import { AddFunds } from "./add-funds";
 import { WalletBreakdown } from "./wallet-breakdown";
+
+/** Start known totals at zero; Torph keeps the target accessible while digits roll. */
+const WalletTotal = ({ value }: { readonly value: number }): ReactElement => {
+  const { ref, update } = useTextMorph({
+    duration: 600,
+    ease: "cubic-bezier(0.23, 1, 0.32, 1)",
+    numbers: true,
+    respectReducedMotion: true,
+  });
+  useEffect(() => {
+    update(formatUsd(0));
+  }, [update]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      update(formatUsd(value));
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [update, value]);
+  return (
+    <p
+      className="text-money mt-2 tabular-nums"
+      data-slot="wallet-total"
+      ref={(element) => {
+        ref.current = element;
+      }}
+    >
+      {formatUsd(0)}
+    </p>
+  );
+};
 
 export const WalletHome = ({
   wallet,
@@ -42,11 +75,11 @@ export const WalletHome = ({
         <h2 className="text-muted-foreground text-sm font-medium">
           Your wallet
         </h2>
-        <MorphText as="p" className="text-money mt-2 tabular-nums">
-          {totalUsdMicros === null
-            ? "Total unavailable"
-            : formatUsd(totalUsdMicros)}
-        </MorphText>
+        {totalUsdMicros === null ? (
+          <p className="text-money mt-2 tabular-nums">Total unavailable</p>
+        ) : (
+          <WalletTotal value={totalUsdMicros} />
+        )}
         <p className="text-muted-foreground mt-2 text-xs">
           {totalUsdMicros === null
             ? "Known balances are shown below. An unavailable balance is not zero."

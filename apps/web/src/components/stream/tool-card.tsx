@@ -27,6 +27,7 @@ import { summarize } from "../../lib/tool-summary";
 import type { Outcome, ToolSummary } from "../../lib/tool-summary";
 import { walletStatusOf } from "../../lib/wallet-status";
 import type { WalletStatus } from "../../lib/wallet-status";
+import { MotionItem } from "../motion-item";
 import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
 import { WalletStatusCard } from "./wallet-status-card";
@@ -65,7 +66,11 @@ const Body = ({
   readonly wallet: WalletStatus | null;
 }): ReactElement | null => {
   if (receipt !== null) {
-    return <MoneyBody call={call} receipt={receipt} />;
+    return (
+      <MotionItem key={receipt.id} spring>
+        <MoneyBody call={call} receipt={receipt} />
+      </MotionItem>
+    );
   }
   if (call.graph !== null) {
     return <GraphSummary graph={call.graph} />;

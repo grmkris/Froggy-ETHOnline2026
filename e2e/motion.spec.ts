@@ -1,9 +1,93 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+import {
+  decodeAppServerMessage,
+  encodeAppServerMessage,
+} from "../packages/protocol/src/app";
+import { lowerApprovalThreshold } from "./mandate";
+
+interface WalletUpdate {
+  send?: (units: string) => void;
+}
+
+interface MotionSample {
+  readonly slot: string;
+  readonly name: string;
+  readonly duration: number;
+  readonly delay: number;
+  readonly frames: readonly {
+    readonly transform: string;
+    readonly opacity: string;
+  }[];
+}
+
+declare global {
+  interface Window {
+    motionSamples: MotionSample[];
+    finishMotionBrowse?: () => void;
+    motionIndicatorFrames: { path: string; x: number }[];
+  }
+}
+
+/** Observe real browser animations, including snapshots and Motion's WAAPI output. */
+const observeMotion = async (page: Page): Promise<void> => {
+  await page.addInitScript(() => {
+    window.motionSamples = [];
+    window.motionIndicatorFrames = [];
+    const seen = new WeakSet<Animation>();
+    const sample = (): void => {
+      const indicator = document.querySelector(
+        '[data-slot="navigation-indicator"]'
+      );
+      if (indicator !== null && window.motionIndicatorFrames.length < 600) {
+        window.motionIndicatorFrames.push({
+          path: location.pathname,
+          x: indicator.getBoundingClientRect().x,
+        });
+      }
+      for (const animation of document.getAnimations()) {
+        const { effect } = animation;
+        if (
+          seen.has(animation) ||
+          !(effect instanceof KeyframeEffect) ||
+          !(effect.target instanceof HTMLElement)
+        ) {
+          continue;
+        }
+        seen.add(animation);
+        const timing = effect.getTiming();
+        if (window.motionSamples.length < 300) {
+          window.motionSamples.push({
+            slot:
+              effect.target.dataset["slot"] ??
+              effect.target.closest<HTMLElement>("[data-slot=wallet-total]")
+                ?.dataset["slot"] ??
+              "",
+            name:
+              animation instanceof CSSAnimation
+                ? animation.animationName
+                : (effect.pseudoElement ?? ""),
+            duration: Number(timing.duration),
+            delay: timing.delay ?? 0,
+            frames: effect.getKeyframes().map((frame) => ({
+              transform: String(frame["transform"] ?? "none"),
+              opacity: String(frame["opacity"] ?? ""),
+            })),
+          });
+        }
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+};
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`appearance keeps its hit targets still with ${reducedMotion} motion`, async ({
     page,
   }) => {
+    await observeMotion(page);
     await page.emulateMedia({ reducedMotion });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");
@@ -28,6 +112,17 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
       })
     );
     expect(after).toEqual(before);
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(() =>
+            window.motionSamples.some(
+              (sample) =>
+                sample.name === "surface-in" && sample.duration === 250
+            )
+          )
+      )
+      .toBe(true);
     await appearance.getByRole("button", { name: "Passbook" }).click();
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme",
@@ -69,4 +164,462 @@ test("reduced-motion dialogs stay centred and return keyboard focus", async ({
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(add).toBeFocused();
+});
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`workspace travels in pill order with ${reducedMotion} motion`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await observeMotion(page);
+    await page.emulateMedia({ reducedMotion });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    const wallet = nav.getByRole("link", { name: "Wallet", exact: true });
+    const start = await nav
+      .getByRole("link", { name: "Chat", exact: true })
+      .boundingBox();
+    const destination = await wallet.boundingBox();
+    await wallet.click();
+    await expect(
+      page.getByRole("heading", { name: "Your wallet" })
+    ).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(() =>
+            window.motionSamples.map((sample) => sample.name)
+          )
+      )
+      .toContain(reducedMotion === "reduce" ? "surface-in" : "page-in-right");
+    await nav.getByRole("link", { name: "Chat", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+    if (reducedMotion === "no-preference") {
+      await expect
+        .poll(
+          async () =>
+            await page.evaluate(() =>
+              window.motionSamples.map((sample) => sample.name)
+            )
+        )
+        .toContain("page-out-right");
+      const samples = await page.evaluate(() => window.motionSamples);
+      expect(
+        samples.find((sample) => sample.name === "page-in-right")?.duration
+      ).toBe(300);
+      expect(samples.some((sample) => sample.name === "page-out-left")).toBe(
+        true
+      );
+      expect(
+        samples.some(
+          (sample) =>
+            sample.slot === "navigation-pill" &&
+            sample.frames.some((frame) => frame.transform.includes("20px"))
+        )
+      ).toBe(true);
+    } else {
+      expect(
+        await page.evaluate(() =>
+          window.motionSamples.filter((sample) =>
+            sample.name.startsWith("page-")
+          )
+        )
+      ).toEqual([]);
+    }
+    if (reducedMotion === "no-preference") {
+      const frames = await page.evaluate(() =>
+        window.motionIndicatorFrames.filter((frame) => frame.path === "/wallet")
+      );
+      expect(
+        frames.some(
+          (frame) =>
+            frame.x > (start?.x ?? 0) + 2 && frame.x < (destination?.x ?? 0) - 2
+        )
+      ).toBe(true);
+    }
+    // The next keyboard activation has no snapshot to wait for.
+    await wallet.focus();
+    await page.evaluate(() => {
+      window.motionSamples = [];
+    });
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Your wallet" })
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() =>
+        window.motionSamples.filter(
+          (sample) =>
+            sample.name.startsWith("page-") || sample.name === "surface-in"
+        )
+      )
+    ).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("primary presses in place, More and Add funds spring from 0.94", async ({
+  page,
+}) => {
+  await observeMotion(page);
+  await page.goto("/wallet");
+  const add = page.getByRole("button", { name: "Add funds", exact: true });
+  await add.hover();
+  await expect(add).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+  await page.mouse.down();
+  await expect(add).toHaveCSS("transform", "matrix(0.97, 0, 0, 0.97, 0, 0)");
+  await page.mouse.up();
+  const dialog = page.getByRole("dialog", { name: "Add funds" });
+  await expect(dialog).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "dialog-content" &&
+              sample.frames.some((frame) => frame.transform.includes("0.94"))
+          )
+        )
+    )
+    .toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(add).toBeFocused();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "More places" })).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "popover-content" && sample.duration === 300
+          )
+        )
+    )
+    .toBe(true);
+});
+
+test("wallet digits roll on first value and update while the funding target stays still", async ({
+  page,
+}) => {
+  await observeMotion(page);
+  const update: WalletUpdate = {};
+  await page.routeWebSocket("**/ws/app", (socket) => {
+    const server = socket.connectToServer();
+    server.onMessage((message) => {
+      const decoded = decodeAppServerMessage(message);
+      if (
+        decoded._tag !== "Success" ||
+        decoded.success.type !== "wallet.state"
+      ) {
+        socket.send(message);
+        return;
+      }
+      const event = decoded.success;
+      update.send = (units) => {
+        socket.send(
+          encodeAppServerMessage({
+            ...event,
+            wallet: {
+              ...event.wallet,
+              pocketUsdMicros: 0,
+              totalUsdMicros: null,
+              balances: { ...event.wallet.balances, usdcUnits: units },
+            },
+          })
+        );
+      };
+      update.send("12000000");
+    });
+  });
+  await page.goto("/wallet");
+  const total = page.locator('[data-slot="wallet-total"]');
+  await expect(total).toContainText("$12.00");
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "wallet-total" && sample.duration === 600
+          )
+        )
+    )
+    .toBe(true);
+  const add = page.getByRole("button", { name: "Add funds", exact: true });
+  await add.hover();
+  await expect(add).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+  const before = await add.boundingBox();
+  await page.evaluate(() => {
+    window.motionSamples = [];
+  });
+  update.send?.("24000000");
+  await expect(total).toContainText("$24.00");
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "wallet-total" && sample.duration === 600
+          )
+        )
+    )
+    .toBe(true);
+  expect(await add.boundingBox()).toEqual(before);
+});
+
+test("stream arrivals rise and approvals spring even after typing", async ({
+  page,
+}) => {
+  await observeMotion(page);
+  const leash = await lowerApprovalThreshold(page, 0.001);
+  await page.goto("/");
+  await leash.applied;
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.keyboard.press("Enter");
+  const ticket = page.getByLabel(/^Approve .* to /u);
+  await expect(ticket).toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "motion-item" &&
+              sample.duration === 240 &&
+              sample.frames.some((frame) => frame.transform.includes("12px"))
+          )
+        )
+    )
+    .toBe(true);
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() =>
+          window.motionSamples.some(
+            (sample) =>
+              sample.slot === "motion-item" &&
+              sample.duration === 300 &&
+              sample.frames.some((frame) => frame.transform.includes("0.97"))
+          )
+        )
+    )
+    .toBe(true);
+  await ticket.getByRole("button", { name: "Not this time" }).click();
+  await expect(ticket).toHaveCount(0);
+});
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`live browse shimmer and incoming words respect ${reducedMotion} motion`, async ({
+    page,
+  }) => {
+    await observeMotion(page);
+    await page.emulateMedia({ reducedMotion });
+    // A timed UI-message stream exercises the real renderer without a live browser or model.
+    await page.addInitScript(() => {
+      const finished = Promise.withResolvers<null>();
+      window.finishMotionBrowse = () => {
+        finished.resolve(null);
+      };
+      const originalFetch = window.fetch;
+      Object.defineProperty(window, "fetch", {
+        configurable: true,
+        value: async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (new URL(url, location.href).pathname !== "/api/chat") {
+            return await originalFetch(input, init);
+          }
+          const chunks = [
+            { type: "start", messageId: "motion-fixture" },
+            { type: "start-step" },
+            {
+              type: "tool-input-available",
+              toolCallId: "motion-browse",
+              toolName: "browser_navigate",
+              input: { url: "https://example.com" },
+            },
+            { type: "text-start", id: "motion-words" },
+            {
+              type: "text-delta",
+              id: "motion-words",
+              delta: "Motion fixture: ",
+            },
+            { type: "text-delta", id: "motion-words", delta: "words arrive " },
+            {
+              type: "text-delta",
+              id: "motion-words",
+              delta: "while the page works.",
+            },
+            {
+              type: "tool-output-available",
+              toolCallId: "motion-browse",
+              output: "Opened example.com (fixture).",
+            },
+            { type: "text-end", id: "motion-words" },
+            { type: "finish-step" },
+            { type: "finish" },
+          ];
+          const encoder = new TextEncoder();
+          let index = 0;
+          return new Response(
+            new ReadableStream({
+              async pull(controller) {
+                const delay = Promise.withResolvers<null>();
+                setTimeout(() => {
+                  delay.resolve(null);
+                }, 100);
+                await delay.promise;
+                const chunk = chunks[index];
+                if (chunk?.type === "tool-output-available") {
+                  await finished.promise;
+                }
+                index += 1;
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${chunk === undefined ? "[DONE]" : JSON.stringify(chunk)}\n\n`
+                  )
+                );
+                if (chunk === undefined) {
+                  controller.close();
+                }
+              },
+            }),
+            {
+              headers: {
+                "content-type": "text/event-stream",
+                "x-vercel-ai-ui-message-stream": "v1",
+              },
+            }
+          );
+        },
+      });
+    });
+    await page.goto("/");
+    await page
+      .getByRole("textbox", { name: "Message" })
+      .fill("Show the motion fixture");
+    await page.keyboard.press("Enter");
+    const browse = page.locator('[data-tool="browse"]');
+    await expect(browse).toHaveAttribute("data-live", "true");
+    await expect
+      .poll(
+        async () =>
+          await browse.evaluate(
+            (node) => getComputedStyle(node, "::before").animationName
+          )
+      )
+      .toBe(reducedMotion === "reduce" ? "none" : "browse-shimmer");
+    await page.evaluate(() => {
+      window.finishMotionBrowse?.();
+    });
+    await expect(browse).toHaveAttribute("data-live", "false");
+    await expect(page.getByRole("log")).toContainText(
+      "words arrive while the page works."
+    );
+    const words = await page.evaluate(() =>
+      window.motionSamples.filter((sample) => sample.name === "sd-fadeIn")
+    );
+    expect(words.length > 0).toBe(reducedMotion === "no-preference");
+    expect(
+      await browse.evaluate(
+        (node) => getComputedStyle(node, "::before").animationName
+      )
+    ).toBe("none");
+  });
+}
+
+test("holding a control pauses its real entrance and release resumes it", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const selector = '[data-slot="motion-item"]';
+    const capture = (): void => {
+      const entering = document.querySelector(selector);
+      const animation = entering
+        ?.getAnimations()
+        .find(
+          (candidate) =>
+            candidate.effect instanceof KeyframeEffect &&
+            candidate.effect
+              .getKeyframes()
+              .some((frame) => frame["transform"] !== undefined)
+        );
+      if (animation === undefined) {
+        requestAnimationFrame(capture);
+        return;
+      }
+      // Slow the real entrance for a repeatable physical press, without changing its path.
+      animation.playbackRate = 0.05;
+      animation.currentTime = 100;
+    };
+    requestAnimationFrame(capture);
+  });
+  await page.goto("/wallet");
+  const add = page.getByRole("button", { name: "Add funds", exact: true });
+  await expect(add).toBeVisible();
+  const bounds = await add.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(
+    (bounds?.x ?? 0) + (bounds?.width ?? 0) / 2,
+    (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2
+  );
+  await page.mouse.down();
+  const entrance = page.locator('[data-slot="motion-item"]').first();
+  const held = await entrance.evaluate(async (node) => {
+    const animation = node
+      .getAnimations()
+      .find(
+        (candidate) =>
+          candidate.effect instanceof KeyframeEffect &&
+          candidate.effect
+            .getKeyframes()
+            .some((frame) => frame["transform"] !== undefined)
+      );
+    const before = node.getBoundingClientRect().y;
+    const started = animation?.currentTime;
+    const frames = Promise.withResolvers<null>();
+    let count = 0;
+    const tick = (): void => {
+      count += 1;
+      if (count === 8) {
+        frames.resolve(null);
+      } else {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+    await frames.promise;
+    return {
+      before,
+      after: node.getBoundingClientRect().y,
+      started,
+      ended: animation?.currentTime,
+      state: animation?.playState,
+    };
+  });
+  expect(held.state).toBe("paused");
+  expect(held.ended).toBe(held.started);
+  expect(held.after).toBe(held.before);
+  // Releasing away cancels the button's click while still resuming the entrance.
+  await page.mouse.move(1, 1);
+  await page.mouse.up();
+  await expect
+    .poll(
+      async () =>
+        await entrance.evaluate((node) =>
+          node
+            .getAnimations()
+            .some((animation) => animation.playState === "running")
+        )
+    )
+    .toBe(true);
+  await add.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Add funds" })).toBeVisible();
 });

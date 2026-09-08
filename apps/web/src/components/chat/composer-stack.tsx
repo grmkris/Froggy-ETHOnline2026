@@ -14,7 +14,7 @@ import type { SlashCommand } from "../../lib/slash";
 import { ApprovalTicket } from "../cards/approval-ticket";
 import { NoticeList } from "../cards/notice-list";
 import { Composer } from "../composer";
-import { MotionItem } from "../motion-item";
+import { MotionItem, useArrivalDelays } from "../motion-item";
 import { StopFeedback } from "../stop-feedback";
 import type { useStopRun } from "../stop-feedback";
 
@@ -38,55 +38,62 @@ export const ComposerStack = ({
   readonly onSend: (text: string) => void;
   readonly stopRun: ReturnType<typeof useStopRun>;
   readonly suggestions: readonly string[];
-}): ReactElement => (
-  <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-    <NoticeList
-      notices={[...chatNotices, ...app.notices]}
-      onDismiss={(id) => {
-        if (id === CHAT_ERROR_ID) {
-          onClearError();
-          return;
-        }
-        app.dispatch({ id, type: "dismiss" });
-      }}
-    />
-    <AnimatePresence initial={false}>
-      {app.approvals.map((request) => (
-        <MotionItem key={request.id}>
-          <ApprovalTicket
-            disabled={!app.connected}
-            onAnswer={(requestId, optionId) => {
-              app.send({
-                optionId,
-                requestId,
-                type: "approval.resolve",
-                v: 1,
-              });
-            }}
-            request={request}
-          />
-        </MotionItem>
-      ))}
-    </AnimatePresence>
-    <StopFeedback
-      state={stopRun.state}
-      onRetry={() => {
-        stopRun.stop();
-      }}
-      onDismiss={() => {
-        stopRun.clear();
-      }}
-    />
-    <Composer
-      asking={app.approvals.length > 0}
-      busy={busy}
-      disabledReason={disabledReason}
-      onCommand={onCommand}
-      onSend={onSend}
-      onStop={() => {
-        stopRun.stop();
-      }}
-      suggestions={suggestions}
-    />
-  </div>
-);
+}): ReactElement => {
+  const delays = useArrivalDelays(app.approvals.map((request) => request.id));
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <NoticeList
+        notices={[...chatNotices, ...app.notices]}
+        onDismiss={(id) => {
+          if (id === CHAT_ERROR_ID) {
+            onClearError();
+            return;
+          }
+          app.dispatch({ id, type: "dismiss" });
+        }}
+      />
+      <AnimatePresence initial={false}>
+        {app.approvals.map((request) => (
+          <MotionItem
+            delay={delays.get(request.id) ?? 0}
+            key={request.id}
+            spring
+          >
+            <ApprovalTicket
+              disabled={!app.connected}
+              onAnswer={(requestId, optionId) => {
+                app.send({
+                  optionId,
+                  requestId,
+                  type: "approval.resolve",
+                  v: 1,
+                });
+              }}
+              request={request}
+            />
+          </MotionItem>
+        ))}
+      </AnimatePresence>
+      <StopFeedback
+        state={stopRun.state}
+        onRetry={() => {
+          stopRun.stop();
+        }}
+        onDismiss={() => {
+          stopRun.clear();
+        }}
+      />
+      <Composer
+        asking={app.approvals.length > 0}
+        busy={busy}
+        disabledReason={disabledReason}
+        onCommand={onCommand}
+        onSend={onSend}
+        onStop={() => {
+          stopRun.stop();
+        }}
+        suggestions={suggestions}
+      />
+    </div>
+  );
+};

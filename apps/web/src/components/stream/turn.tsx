@@ -23,7 +23,7 @@ import type { FroggyMessage } from "../../lib/stream-model";
 import { groupParts, matchReceipts, turnCost } from "../../lib/turn-model";
 import type { ClaimedReceipts, TurnBlock } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
-import { MotionItem } from "../motion-item";
+import { MotionItem, useArrivalDelays } from "../motion-item";
 import { BrowseCard } from "./browse-card";
 import { MarkdownText } from "./markdown-text";
 import { Reasoning } from "./reasoning";
@@ -50,60 +50,67 @@ const Blocks = ({
   readonly blocks: readonly TurnBlock[];
   readonly claimed: ClaimedReceipts;
   readonly message: FroggyMessage;
-}): ReactElement => (
-  <AnimatePresence initial={false}>
-    {blocks.map((block) => {
-      const key = `${message.id}-${block.index}`;
-      switch (block.kind) {
-        case "text": {
-          return <MarkdownText key={key} live={block.live} text={block.text} />;
-        }
-        case "reasoning": {
-          return <Reasoning key={key} live={block.live} text={block.text} />;
-        }
-        case "step": {
-          // A hairline between steps; not before the first, not after the last.
-          return (
-            <Marker
-              aria-hidden
-              className="min-h-2 gap-0 before:mr-0 after:ml-0"
-              key={key}
-              variant="separator"
-            />
-          );
-        }
-        case "browse": {
-          return (
-            <MotionItem key={key}>
-              <BrowseCard calls={block.calls} />
-            </MotionItem>
-          );
-        }
-        case "tool": {
-          return (
-            <MotionItem key={key}>
-              <ToolCard
-                asking={asking}
-                call={block.call}
-                receipt={claimed.byCall.get(block.call.toolCallId) ?? null}
+}): ReactElement => {
+  const delays = useArrivalDelays(
+    blocks.map((block) => `${message.id}-${block.index}`)
+  );
+  return (
+    <AnimatePresence initial={false}>
+      {blocks.map((block) => {
+        const key = `${message.id}-${block.index}`;
+        switch (block.kind) {
+          case "text": {
+            return (
+              <MarkdownText key={key} live={block.live} text={block.text} />
+            );
+          }
+          case "reasoning": {
+            return <Reasoning key={key} live={block.live} text={block.text} />;
+          }
+          case "step": {
+            // A hairline between steps; not before the first, not after the last.
+            return (
+              <Marker
+                aria-hidden
+                className="min-h-2 gap-0 before:mr-0 after:ml-0"
+                key={key}
+                variant="separator"
               />
-            </MotionItem>
-          );
+            );
+          }
+          case "browse": {
+            return (
+              <MotionItem delay={delays.get(key) ?? 0} key={key}>
+                <BrowseCard calls={block.calls} />
+              </MotionItem>
+            );
+          }
+          case "tool": {
+            return (
+              <MotionItem delay={delays.get(key) ?? 0} key={key}>
+                <ToolCard
+                  asking={asking}
+                  call={block.call}
+                  receipt={claimed.byCall.get(block.call.toolCallId) ?? null}
+                />
+              </MotionItem>
+            );
+          }
+          case "unknown": {
+            return (
+              <p className="text-machine text-muted-foreground" key={key}>
+                · {block.type}
+              </p>
+            );
+          }
+          default: {
+            return null;
+          }
         }
-        case "unknown": {
-          return (
-            <p className="text-machine text-muted-foreground" key={key}>
-              · {block.type}
-            </p>
-          );
-        }
-        default: {
-          return null;
-        }
-      }
-    })}
-  </AnimatePresence>
-);
+      })}
+    </AnimatePresence>
+  );
+};
 
 /** "This turn: $0.0040 · 1 payment · 2 refusals", or nothing to say. */
 const TurnCostLine = ({
@@ -140,6 +147,7 @@ export const Turn = ({
   onRetry = null,
   receipts,
 }: TurnProps): ReactElement => {
+  const delays = useArrivalDelays(receipts.map((receipt) => receipt.id));
   if (message.role === "user") {
     return (
       <Message align="end" className="text-[15px] leading-relaxed">
@@ -177,7 +185,11 @@ export const Turn = ({
         {after}
         <AnimatePresence initial={false}>
           {claimed.unclaimed.map((receipt) => (
-            <MotionItem key={receipt.id}>
+            <MotionItem
+              delay={delays.get(receipt.id) ?? 0}
+              key={receipt.id}
+              spring
+            >
               <ReceiptTicket receipt={receipt} />
             </MotionItem>
           ))}

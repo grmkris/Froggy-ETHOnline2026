@@ -108,12 +108,13 @@ export const BrowseCard = ({
   return (
     <Collapsible
       className={cn(
-        "shadow-card rounded-xl text-sm ring-1 transition-colors",
+        "browse-progress shadow-card relative isolate overflow-hidden rounded-xl text-sm ring-1 transition-colors",
         "ring-drive-agent/30 bg-drive-agent-soft/50",
         live && "ring-drive-agent/60 bg-drive-agent-soft/70",
         failed && "ring-destructive/40"
       )}
       data-tool="browse"
+      data-live={live}
       onFocusCapture={() => {
         setTouched((previous) => previous ?? live);
       }}
