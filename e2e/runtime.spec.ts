@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("boots the workspace with its five places and no browser errors", async ({
+test("boots the workspace with the primary pill and no browser errors", async ({
   page,
 }) => {
   const browserErrors: string[] = [];
@@ -19,8 +19,13 @@ test("boots the workspace with its five places and no browser errors", async ({
   await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-  ).toHaveCount(5);
+  ).toHaveCount(3);
 
+  await expect(
+    page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "More" })
+  ).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 

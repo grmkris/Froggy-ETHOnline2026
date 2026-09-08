@@ -1,31 +1,22 @@
-/**
- * One place in the navigation.
- *
- * The router marks the active link with `data-status="active"` and
- * `aria-current="page"`; the colour and the edge mark both read it, so the
- * active place is never told by motion alone. A dot on Chat means a question
- * is waiting there, and the accessible name says so.
- */
-
+/** Router-owned current-page state, with a waiting badge that reserves no layout. */
 import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
 import type { NavItem } from "../../lib/nav";
 
-const EDGE = {
-  left: "after:top-2 after:bottom-2 after:left-0 after:w-0.5",
-  top: "after:top-0 after:right-3 after:left-3 after:h-0.5",
-} as const;
+export const NAV_LINK_CLASS =
+  "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring data-[status=active]:bg-card data-[status=active]:text-brand data-[status=active]:shadow-control relative flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset active:bg-muted";
 
 export const NavLink = ({
-  edge,
   item,
+  more = false,
+  onNavigate,
   waiting = 0,
 }: {
-  readonly edge: keyof typeof EDGE;
   readonly item: NavItem;
-  /** Questions waiting on this page, when it is the chat. */
+  readonly more?: boolean;
+  readonly onNavigate?: () => void;
   readonly waiting?: number;
 }): ReactElement => {
   const Icon = item.icon;
@@ -38,11 +29,10 @@ export const NavLink = ({
       activeOptions={{ exact: item.to === "/" }}
       aria-label={name}
       className={cn(
-        "text-muted-foreground hover:bg-card/70 hover:text-foreground focus-visible:ring-ring data-[status=active]:bg-card data-[status=active]:text-brand data-[status=active]:shadow-card after:bg-brand relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-medium transition-colors duration-150 outline-none after:absolute after:rounded-full after:opacity-0 after:transition-opacity after:duration-150 focus-visible:ring-2 data-[status=active]:after:opacity-100",
-        EDGE[edge],
-        edge === "left" &&
-          "lg:flex-row lg:justify-start lg:gap-3 lg:px-3 lg:py-3 lg:text-sm"
+        NAV_LINK_CLASS,
+        more && "flex-row justify-start gap-3 rounded-lg px-3 text-sm"
       )}
+      onClick={onNavigate}
       to={item.to}
     >
       <span className="relative">

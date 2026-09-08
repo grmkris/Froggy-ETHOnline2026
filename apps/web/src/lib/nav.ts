@@ -1,5 +1,5 @@
 /**
- * The five places, in the order they sit in the sidebar and the tab bar.
+ * The first three places sit in the pill; the remaining two live under More.
  *
  * Chat is the front page; the rest are where the money is, what it can buy,
  * who else may spend it, and the account itself.

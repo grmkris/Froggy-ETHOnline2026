@@ -32,7 +32,7 @@ for (const place of PLACES) {
       await page.goto(place);
       await expect(
         page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-      ).toHaveCount(5);
+      ).toHaveCount(3);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
       await expect(
         page.getByText("reconnecting…", { exact: true })

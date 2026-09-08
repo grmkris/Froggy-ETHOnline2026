@@ -1,4 +1,4 @@
-/** The small print above a page: the mark on a phone, and how the connection stands. */
+/** The workspace identity and connection status, above the content at every width. */
 
 import type { ServiceModes } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
@@ -53,31 +53,21 @@ const Flags = ({
 export const TopBar = ({
   connected,
   modes,
-  phone,
 }: {
   readonly connected: boolean;
   readonly modes: ServiceModes | null;
-  readonly phone: boolean;
 }): ReactElement | null => {
   const identity = useIdentity();
   const stubs = stubsOf(modes);
-  const flagged = !connected || identity.stubbed || stubs.length > 0;
-  if (!phone && !flagged) {
-    return null;
-  }
   return (
     <header className="bg-background sticky top-0 z-20 border-b">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-8">
-        {phone ? (
-          <div className="flex items-center gap-2">
-            <span className="bg-brand-soft grid size-8 place-items-center rounded-lg">
-              <FrogMark className="size-6" />
-            </span>
-            <span className="font-display font-semibold">Froggy</span>
-          </div>
-        ) : (
-          <span />
-        )}
+        <div className="flex items-center gap-2">
+          <span className="bg-brand-soft grid size-8 place-items-center rounded-lg">
+            <FrogMark className="size-6" />
+          </span>
+          <span className="font-display font-semibold">Froggy</span>
+        </div>
         <div className="flex flex-wrap justify-end gap-1">
           <Flags
             connected={connected}

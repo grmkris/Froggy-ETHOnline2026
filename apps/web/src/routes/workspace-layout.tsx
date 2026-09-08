@@ -169,7 +169,6 @@ export const WorkspaceLayout = (): ReactElement => {
           <AppFrame
             connected={app.connected}
             modes={app.modes}
-            phone={phone}
             waiting={app.approvals.length}
           >
             <Outlet />

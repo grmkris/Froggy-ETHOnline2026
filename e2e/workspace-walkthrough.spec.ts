@@ -45,6 +45,7 @@ for (const size of [
     ).toBeInViewport();
     await captureScreen(page, testInfo, "service-result");
 
+    await nav.getByRole("button", { name: /^More/u }).click();
     await nav.getByRole("link", { name: "Agents", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "MCP URL" })).toHaveValue(
       /\/mcp$/u
@@ -81,6 +82,7 @@ for (const size of [
       page.getByRole("heading", { name: "My research assistant" })
     ).toHaveCount(0);
 
+    await nav.getByRole("button", { name: /^More/u }).click();
     await nav.getByRole("link", { name: "Settings" }).click();
     await page.getByRole("button", { name: "Delete my data" }).click();
     await expect(page.getByRole("alertdialog")).toBeVisible();

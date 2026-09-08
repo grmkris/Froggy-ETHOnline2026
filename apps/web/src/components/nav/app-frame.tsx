@@ -1,10 +1,4 @@
-/**
- * The frame around every page: the rail on a desktop, the tab bar on a
- * phone, and the small print about the connection above the page.
- *
- * Exactly one navigation is in the document at a time, so a screen reader
- * finds one "Primary" landmark, not two with one of them hidden.
- */
+/** One workspace frame and one floating navigation, clear of the composer and safe area. */
 
 import type { ServiceModes } from "@froggy/protocol";
 import { useLocation } from "@tanstack/react-router";
@@ -13,20 +7,17 @@ import type { ReactElement, ReactNode } from "react";
 
 import { keyboardInteraction, UI_EASE } from "../../lib/motion";
 import { TopBar } from "../top-bar";
-import { SideNav } from "./side-nav";
-import { TabBar } from "./tab-bar";
+import { PillNav } from "./pill-nav";
 
 export const AppFrame = ({
   children,
   connected,
   modes,
-  phone,
   waiting,
 }: {
   readonly children: ReactNode;
   readonly connected: boolean;
   readonly modes: ServiceModes | null;
-  readonly phone: boolean;
   /** Approval questions open, shown as a dot on the chat. */
   readonly waiting: number;
 }): ReactElement => {
@@ -34,12 +25,9 @@ export const AppFrame = ({
   const reduced = useReducedMotion() === true;
   const instant = keyboardInteraction();
   return (
-    <div className="flex h-dvh">
-      {phone ? null : <SideNav waiting={waiting} />}
-      <div
-        className={`flex min-h-0 min-w-0 flex-1 flex-col ${phone ? "pb-[calc(3.5rem+env(safe-area-inset-bottom))]" : ""}`}
-      >
-        <TopBar connected={connected} modes={modes} phone={phone} />
+    <div className="flex h-dvh flex-col pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <TopBar connected={connected} modes={modes} />
         <motion.main
           animate={{ opacity: 1 }}
           className="flex min-h-0 flex-1 flex-col"
@@ -50,7 +38,7 @@ export const AppFrame = ({
           {children}
         </motion.main>
       </div>
-      {phone ? <TabBar waiting={waiting} /> : null}
+      <PillNav waiting={waiting} />
     </div>
   );
 };

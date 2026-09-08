@@ -32,3 +32,11 @@ The leash meter is absent from the current application (spending-limit UI was re
 The browser suite exercises real mounted components with explicit local stubs. New coverage checks fixed appearance targets and keyboard focus through dialogs. Review the resulting captures at phone and desktop widths in both themes; physical-device touch and a fresh-eye motion review remain useful follow-up checks.
 
 Review verdict: **Approve** after restoring an explicit keyboard focus outline on the appearance controls; the initial unlayered shadow reset had hidden the inherited focus ring. Pure fades are deliberate exceptions to transform entrances because the owner requires stationary reading material and hit targets.
+
+## Navigation decision and final browser evidence
+
+One bottom-centred pill works at both phone and desktop widths: it keeps destinations in the same place, frees the desktop content column from the rail, and stays close to the composer. Chat, Wallet and Services are the primary links; More groups Agents and Settings in a Base UI popover installed through the shadcn CLI. Links remain native links, with router current-page semantics. The active secondary page is also named by More when closed. The popover is portalled into the same navigation landmark, restores focus, and closes on route change, outside press or Escape. Its 200ms origin-aware scale/fade exits in 125ms; keyboard is instant and reduced motion fades only.
+
+Pill destinations do not slide, scale or stagger. All targets stay at least 44px; the frame reserves bottom space and safe-area clearance. The late-wallet-value test still passes without page movement, and the cross-route approval test confirms the run and waiting badge survive navigation.
+
+Final browser result: **88/88 passed** with local stubs, including all original behavioral checks plus twelve new motion/navigation checks. Existing assertions changed only for three visible links instead of five and the extra More activation. Captures under `docs/evidence/motion-navigation-2026-09-08/` show both themes at 1440px and 390px, plus the open overflow panel. Desktop and phone captures were visually reviewed; physical-device gestures were not tested.
