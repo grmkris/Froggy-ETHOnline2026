@@ -14,6 +14,7 @@ import { WalletIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { walletAmounts } from "../../lib/wallet-view";
+import { MorphText } from "../morph-text";
 import { AddFunds } from "./add-funds";
 import { WalletBreakdown } from "./wallet-breakdown";
 
@@ -41,11 +42,14 @@ export const WalletHome = ({
         <h2 className="text-muted-foreground text-sm font-medium">
           Your wallet
         </h2>
-        <p className="text-money mt-2 text-[2rem] leading-9 tabular-nums sm:text-5xl sm:leading-tight">
+        <MorphText
+          as="p"
+          className="text-money mt-2 text-[2rem] leading-9 tabular-nums sm:text-5xl sm:leading-tight"
+        >
           {totalUsdMicros === null
             ? "Total unavailable"
             : formatUsd(totalUsdMicros)}
-        </p>
+        </MorphText>
         <p className="text-muted-foreground mt-2 text-xs">
           {totalUsdMicros === null
             ? "Known balances are shown below. An unavailable balance is not zero."

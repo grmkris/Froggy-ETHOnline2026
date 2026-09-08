@@ -12,6 +12,7 @@ import { cn } from "@froggy/ui/lib/utils";
 import type { ReactElement } from "react";
 
 import { compactUsd } from "../../lib/format";
+import { MorphText } from "../morph-text";
 
 const STATUS_TONE: Record<
   GraphQueryOutput["deployments"][number]["status"],
@@ -34,9 +35,9 @@ export const GraphSummary = ({
         <p className="text-sm font-medium">No usable markets.</p>
       ) : (
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-money text-xl leading-none">
+          <MorphText className="text-money text-xl leading-none">
             {best.borrowApr.toFixed(2)}%
-          </span>
+          </MorphText>
           <span className="text-sm font-medium">
             {best.name} on {best.chain}
           </span>

@@ -24,6 +24,7 @@ import type { ToolCall } from "../../lib/tool-call";
 import { toolStatus } from "../../lib/tool-status";
 import { storyLine, storyOf } from "../../lib/tool-stories";
 import { summarize } from "../../lib/tool-summary";
+import { MorphText } from "../morph-text";
 
 /** The host of the last page opened, or the page in general. */
 const hostOfRun = (calls: readonly ToolCall[]): string => {
@@ -47,7 +48,9 @@ const Step = ({ call }: { readonly call: ToolCall }): ReactElement => {
         >
           {storyLine(story, call.input, status.live)}
         </span>
-        <span className="text-machine shrink-0 opacity-60">{status.label}</span>
+        <MorphText className="text-machine shrink-0 opacity-60">
+          {status.label}
+        </MorphText>
         <ChevronDownIcon
           aria-hidden
           className="size-3 shrink-0 opacity-50"

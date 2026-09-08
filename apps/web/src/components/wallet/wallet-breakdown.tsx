@@ -14,6 +14,7 @@ import { networkWords } from "../../lib/mandate-words";
 import { showsHeld } from "../../lib/wallet-view";
 import type { WalletAmounts } from "../../lib/wallet-view";
 import { CopyButton } from "../copy-button";
+import { MorphText } from "../morph-text";
 
 const TINYBARS_PER_HBAR = 100_000_000;
 
@@ -32,7 +33,9 @@ const Row = ({
   <div className="flex flex-col gap-1.5">
     <div className="flex items-baseline justify-between gap-3">
       <dt className="font-medium">{label}</dt>
-      <dd className="text-money tabular-nums">{value}</dd>
+      <MorphText as="dd" className="text-money tabular-nums">
+        {value}
+      </MorphText>
     </div>
     {children}
   </div>

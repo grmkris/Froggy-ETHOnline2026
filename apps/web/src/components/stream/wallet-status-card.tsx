@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 
 import { shortAddress } from "../../lib/format";
 import type { WalletStatus } from "../../lib/wallet-status";
+import { MorphText } from "../morph-text";
 
 const Row = ({
   label,
@@ -21,7 +22,9 @@ const Row = ({
 }): ReactElement => (
   <tr className="[&>td]:py-0.5 [&>td]:pr-4">
     <td className="text-muted-foreground">{label}</td>
-    <td className="text-foreground/80">{value}</td>
+    <MorphText as="td" className="text-foreground/80">
+      {value}
+    </MorphText>
   </tr>
 );
 

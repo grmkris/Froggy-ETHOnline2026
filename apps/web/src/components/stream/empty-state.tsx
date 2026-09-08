@@ -18,6 +18,7 @@ import {
 import type { ReactElement } from "react";
 
 import { walletAmounts } from "../../lib/wallet-view";
+import { MorphText } from "../morph-text";
 
 interface EmptyStateProps {
   readonly disabled: boolean;
@@ -42,11 +43,11 @@ const WalletPeek = ({
       to="/wallet"
     >
       Wallet:{" "}
-      <span className="text-money text-foreground tabular-nums">
+      <MorphText className="text-money text-foreground tabular-nums">
         {totalUsdMicros === null
           ? "balance unavailable"
           : formatUsd(totalUsdMicros)}
-      </span>
+      </MorphText>
       <ArrowUpRightIcon aria-hidden className="size-4" />
     </Link>
   );
