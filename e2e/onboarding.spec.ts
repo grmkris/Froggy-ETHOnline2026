@@ -25,7 +25,7 @@ for (const viewport of [
       wallet.getByRole("heading", { name: "Your wallet" })
     ).toBeInViewport();
     await expect(
-      wallet.getByRole("link", { name: "Connect an agent" })
+      wallet.getByRole("button", { name: "Copy for your agent" })
     ).toBeInViewport();
     // The stub knows no USDC balance: the total is unavailable, not zero.
     await expect(wallet.getByText("Total unavailable")).toBeVisible();
@@ -55,9 +55,7 @@ for (const viewport of [
   });
 }
 
-test("Connect an agent leads to the Agents page, where setup is recoverable", async ({
-  page,
-}) => {
+test("Advanced agent setup is recoverable", async ({ page }) => {
   let attempts = 0;
   await page.route("**/api/agents", async (route) => {
     if (route.request().method() !== "POST") {
@@ -74,8 +72,7 @@ test("Connect an agent leads to the Agents page, where setup is recoverable", as
     }
     await route.continue();
   });
-  await page.goto("/wallet");
-  await page.getByRole("link", { name: "Connect an agent" }).click();
+  await page.goto("/agents");
   await expect(page).toHaveURL(/\/agents$/u);
   await page.getByText("Advanced: connect with a token").click();
   await page.getByLabel("Agent name").fill("My agent");

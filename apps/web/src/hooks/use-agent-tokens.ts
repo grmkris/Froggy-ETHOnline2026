@@ -46,6 +46,7 @@ export const useAgentTokens = () => {
     },
     queryKey: ["agents"],
     refetchOnWindowFocus: "always",
+    refetchInterval: 10_000,
     retry: false,
   });
 

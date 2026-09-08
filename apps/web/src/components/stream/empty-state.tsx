@@ -11,13 +11,13 @@ import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowUpRightIcon,
-  BotIcon,
   ChartNoAxesCombinedIcon,
   SparklesIcon,
 } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { walletAmounts } from "../../lib/wallet-view";
+import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { MorphText } from "../morph-text";
 
 interface EmptyStateProps {
@@ -79,7 +79,7 @@ export const EmptyState = ({
         Research an idea, make something, or put your agent to work.
       </p>
     </div>
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       <Button
         aria-label="Buy the lending snapshot"
         className={ACTION}
@@ -110,20 +110,8 @@ export const EmptyState = ({
           </span>
         </span>
       </Link>
-      <Link
-        aria-label="Connect an agent"
-        className={cn(buttonVariants({ variant: "outline" }), ACTION)}
-        to="/agents"
-      >
-        <BotIcon aria-hidden data-icon="inline-start" />
-        <span className="flex flex-col gap-1">
-          <span>Connect an agent</span>
-          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
-            Bring your own. Set it to work.
-          </span>
-        </span>
-      </Link>
     </div>
+    <AgentOnboarding />
     <div className="flex flex-col gap-1 border-t pt-3">
       <WalletPeek wallet={wallet} />
       <p className="text-muted-foreground text-xs leading-relaxed">

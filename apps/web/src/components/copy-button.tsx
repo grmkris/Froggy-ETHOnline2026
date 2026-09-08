@@ -1,13 +1,20 @@
 import { Button } from "@froggy/ui/components/button";
+import { Textarea } from "@froggy/ui/components/textarea";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 export const CopyButton = ({
   children = "Copy",
+  confirmation,
+  fallbackLabel,
+  variant = "outline",
   label,
   text,
 }: {
   readonly children?: ReactNode;
+  readonly confirmation?: string;
+  readonly fallbackLabel?: string;
+  readonly variant?: "default" | "outline";
   readonly label: string;
   readonly text: string;
 }): ReactElement => {
@@ -69,13 +76,15 @@ export const CopyButton = ({
           }}
           size="sm"
           type="button"
-          variant="outline"
+          variant={variant}
         >
           {children}
         </Button>
         <span
           aria-hidden="true"
-          className="text-brand w-12 text-xs"
+          className={
+            confirmation === undefined ? "text-brand w-12 text-xs" : "hidden"
+          }
           style={{
             opacity: copied ? 1 : 0,
             transitionDuration:
@@ -90,6 +99,14 @@ export const CopyButton = ({
           {copied ? "Copied to clipboard." : ""}
         </output>
       </span>
+      {confirmation === undefined ? null : (
+        <output className="text-muted-foreground text-xs">
+          {copied ? confirmation : ""}
+        </output>
+      )}
+      {failed && fallbackLabel !== undefined ? (
+        <Textarea aria-label={fallbackLabel} readOnly value={text} />
+      ) : null}
       {failed ? (
         <span
           className="text-refused max-w-64 text-xs"

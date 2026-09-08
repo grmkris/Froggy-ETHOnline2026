@@ -8,14 +8,13 @@
 
 import { formatUsd } from "@froggy/domain";
 import type { WalletSummary } from "@froggy/protocol";
-import { buttonVariants } from "@froggy/ui/components/button";
-import { Link } from "@tanstack/react-router";
 import { WalletIcon } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactElement } from "react";
 import { useTextMorph } from "torph/react";
 
 import { walletAmounts } from "../../lib/wallet-view";
+import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { AddFunds } from "./add-funds";
 import { WalletBreakdown } from "./wallet-breakdown";
 
@@ -88,12 +87,7 @@ export const WalletHome = ({
       </div>
       <div className="flex flex-wrap items-start gap-2">
         <AddFunds wallet={wallet} />
-        <Link
-          className={`${buttonVariants({ variant: "outline" })} min-h-11 px-4`}
-          to="/agents"
-        >
-          Connect an agent
-        </Link>
+        <AgentOnboarding />
       </div>
       {wallet === null ? null : (
         <WalletBreakdown amounts={amounts} wallet={wallet} />
