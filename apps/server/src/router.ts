@@ -64,7 +64,7 @@ import { handleDigest, handleSchedules } from "./schedule-routes";
 import { handleServices } from "./service-routes";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
-import { GENERIC_SKILL, skillText } from "./skill";
+import { llmText, skillText } from "./skill";
 import {
   handleTaskEvents,
   handleTaskGet,
@@ -756,13 +756,16 @@ export const handleRequest = async (
     return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
   }
 
-  // The CLI an outside agent curls, and the skill that tells it to. Both
-  // public: they contain no secret until a person's settings fill one in.
+  // Public installation documents contain the configured origin, never secrets.
   if (pathname === "/froggy-cli.js" && request.method === "GET") {
     return await serveCli();
   }
-  if (pathname === "/froggy/SKILL.md" && request.method === "GET") {
-    return new Response(GENERIC_SKILL, {
+  if (
+    ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
+    request.method === "GET"
+  ) {
+    const render = pathname === "/llm.md" ? llmText : skillText;
+    return new Response(render({ url: deps.environment.appOrigin }), {
       headers: { "content-type": "text/markdown; charset=utf-8" },
     });
   }

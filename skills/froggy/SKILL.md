@@ -1,6 +1,6 @@
 ---
 name: froggy
-description: Let Froggy do paid tasks for the person you work for - a lending brief across twelve standardized markets, a browse on their own shared Chrome, or a fixed-price service - paid from their Froggy wallet under their spending rules.
+description: Connect to the person's Froggy wallet by MCP with OAuth, request paid tasks under their spending rules, and read results and receipts.
 ---
 
 # Froggy
@@ -8,6 +8,17 @@ description: Let Froggy do paid tasks for the person you work for - a lending br
 Froggy is a browser and a wallet the person you work for controls. You delegate a task; Froggy runs it on its own server and the person's own Chrome, pays for it from the person's Froggy wallet under rules you cannot change, and hands you the result with a receipt.
 
 You hold no key. You sign in with the person's Froggy account, in their browser, and hold only short-lived tokens bound to their workspace and the scopes they left on. Never print a token; never paste one anywhere but your own environment.
+
+## Install the skill
+
+Read and save [the Froggy skill](https://your-froggy.example/skill.md) as `froggy/SKILL.md` in your client's skills directory. For Claude Code:
+
+```sh
+mkdir -p ~/.claude/skills/froggy
+curl -fsSL https://your-froggy.example/skill.md -o ~/.claude/skills/froggy/SKILL.md
+```
+
+For other clients, use their skill installation mechanism. If skills are unsupported, keep this document as your Froggy instructions. Installing the skill does not connect MCP; complete the connection below too. Preserve other servers and skills already configured.
 
 ## Connect
 
@@ -21,7 +32,21 @@ For an MCP client that speaks Streamable HTTP with OAuth (Claude Code, Cursor, t
 claude mcp add --transport http froggy https://your-froggy.example/mcp
 ```
 
-Then authenticate when the client asks. A browser tab opens on Froggy; the person signs in, sees what you may do (briefs, browsing, payments, services), and clicks Allow. The client keeps its own tokens and refreshes them. The person can disconnect you on the Agents page at any moment. Tools: `froggy_services`, `froggy_service_run`, `froggy_service_status`.
+In Claude Code, open `/mcp` and authenticate Froggy. In Cursor, merge this entry into `.cursor/mcp.json` (or your user MCP configuration), then connect and authenticate in MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "froggy": { "url": "https://your-froggy.example/mcp" }
+  }
+}
+```
+
+In the MCP Inspector, select Streamable HTTP, enter `https://your-froggy.example/mcp`, and connect using OAuth. Use its local proxy; Froggy does not allow cross-origin browser calls to MCP.
+
+The person signs in in their browser, sees what you may do (briefs, browsing, payments, services), and clicks Allow. Relay the sign-in link if you cannot open their browser. Only the person can consent. The client keeps its own tokens and refreshes them. The person can disconnect you on the Agents page at any moment.
+
+After connecting, list the tools and call `froggy_services` to check access without buying anything. Tell the person what you can do and the listed prices. Setup is not permission to buy a task.
 
 ### 2. The CLI, signed in
 
@@ -53,6 +78,10 @@ It has every scope and does not expire until the person disconnects it. Keep it 
 
 ## Service marketplace and MCP
 
+- `froggy_services` takes no arguments and returns availability, prices and input limits without a purchase.
+- `froggy_service_run` takes `v: 1`, `service`, `prompt` and a stable `idempotencyKey`; it buys and starts the requested service.
+- `froggy_service_status` takes `id` and returns that service task's state, result and artifacts.
+
 - `node ~/froggy.mjs services` lists provider availability, exact customer prices and input limits.
 - `node ~/froggy.mjs service web_search "affordable train travel" --idempotency-key=trip-research-1` buys a task. Reuse the key for the same request; changed input needs a new key.
 - `node ~/froggy.mjs service-status <task id>` retrieves results and artifact download paths. Fetch artifacts with the same bearer token; never put a token in a URL.
@@ -80,6 +109,7 @@ A task ticket is not a completed result. Poll status every three seconds; preser
 - `done`: the result is in the output, with the sale id of the payment.
 - `awaiting_approval`: Froggy hit the person's approval threshold or a purchase. Tell the person to answer the ticket in Froggy (web or Telegram). Do not try another route to the same spend.
 - `failed`: the work failed after payment. It is not refunded; the output says why. Ask the person before paying again.
+- `uncertain`: payment settlement is unknown. Stop and ask for reconciliation; never buy again to find out.
 - A refusal from the wallet ("not on the allowlist", "pocket exhausted", "insufficient_scope") is the person's rule. Report it in those words and stop.
 
 ## Rules
