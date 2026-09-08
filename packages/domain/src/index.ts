@@ -115,3 +115,5 @@ export {
 export const PROTOCOL_VERSION = 1 as const;
 
 export const ProtocolVersion = Schema.Literals([PROTOCOL_VERSION]);
+
+export { ConversionId } from "./id";

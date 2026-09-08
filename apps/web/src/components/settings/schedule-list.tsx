@@ -54,6 +54,7 @@ export const ScheduleList = (): ReactElement => {
     },
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: ["schedules"] });
+      void queries.invalidateQueries({ queryKey: ["digest"] });
     },
     retry: false,
   });

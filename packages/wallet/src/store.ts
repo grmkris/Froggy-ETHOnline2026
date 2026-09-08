@@ -10,7 +10,14 @@
  * behind one interface. Nothing above this line knows which it holds.
  */
 
-import { Mandate, Receipt, Sale, Schedule, Task } from "@froggy/domain";
+import {
+  ConversionId,
+  Mandate,
+  Receipt,
+  Sale,
+  Schedule,
+  Task,
+} from "@froggy/domain";
 import type {
   AgentToken,
   AgentTokenId,
@@ -37,6 +44,7 @@ interface AgentTokenRow extends AgentToken {
 
 /** A due schedule, with whose it is: the ticker fires it on their behalf. */
 export interface DueSchedule {
+  readonly claimedAt: number;
   readonly schedule: Schedule;
   readonly userId: UserId;
 }
@@ -104,7 +112,67 @@ export interface HederaAccountRecord {
   readonly custody: HederaCustody;
 }
 
+const CustodyRecord = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literals(["sealed"]),
+    keyCiphertext: Schema.String,
+  }),
+  Schema.Struct({
+    kind: Schema.Literals(["privy"]),
+    walletId: Schema.String,
+    publicKey: Schema.String,
+  }),
+]);
+export const FundingSubmission = Schema.Struct({
+  transactionId: Schema.String,
+  tinybars: Schema.Number,
+  accountId: Schema.NullOr(Schema.String),
+  alias: Schema.NullOr(Schema.String),
+  custody: Schema.NullOr(CustodyRecord),
+});
+export type FundingSubmission = typeof FundingSubmission.Type;
+export const ConversionRecord = Schema.Struct({
+  id: ConversionId,
+  key: Schema.String,
+  usdMicros: Schema.Number,
+  evmNetwork: Schema.String,
+  hederaNetwork: Schema.String,
+  phase: Schema.Literals([
+    "usdc_pending",
+    "usdc_confirmed",
+    "hbar_pending",
+    "funded",
+    "failed",
+  ]),
+  usdcHash: Schema.NullOr(Schema.String),
+  funding: Schema.NullOr(FundingSubmission),
+  error: Schema.NullOr(Schema.String),
+  credited: Schema.Boolean,
+});
+export type ConversionRecord = typeof ConversionRecord.Type;
+export type ConversionPatch = Partial<
+  Pick<ConversionRecord, "phase" | "usdcHash" | "funding" | "error">
+>;
+export const decodeConversion = Schema.decodeUnknownSync(ConversionRecord);
+
 export interface Store {
+  readonly conversions: {
+    readonly create: (
+      userId: UserId,
+      record: ConversionRecord
+    ) => Promise<{
+      readonly created: boolean;
+      readonly record: ConversionRecord;
+    }>;
+    readonly pending: (userId: UserId) => Promise<readonly ConversionRecord[]>;
+    readonly update: (
+      id: ConversionId,
+      phase: ConversionRecord["phase"],
+      patch: ConversionPatch
+    ) => Promise<boolean>;
+    /** Mark confirmed funding credited and add to the pocket in one transaction. */
+    readonly credit: (userId: UserId, id: ConversionId) => Promise<number>;
+  };
   /**
    * Tokens handed to outside agents. `lookup` answers only for tokens not yet
    * revoked, so revocation takes effect on the next request without a cache
@@ -176,7 +244,11 @@ export interface Store {
     readonly create: (userId: UserId, schedule: Schedule) => Promise<void>;
     /** The person's active digest, if they have one. */
     readonly digestOf: (userId: UserId) => Promise<Schedule | null>;
-    readonly finish: (id: ScheduleId, patch: ScheduleFinish) => Promise<void>;
+    readonly finish: (
+      id: ScheduleId,
+      claimedAt: number,
+      patch: ScheduleFinish
+    ) => Promise<boolean>;
     /** Every schedule of theirs, newest first, whatever its status. */
     readonly list: (userId: UserId) => Promise<readonly Schedule[]>;
     /** Replace the digest: the old one is cancelled, `null` leaves none. */
@@ -365,6 +437,10 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 };
 
 export const memoryStore = (): Store => {
+  const conversions = new Map<
+    ConversionId,
+    { userId: UserId; record: ConversionRecord }
+  >();
   const mandates = new Map<UserId, Mandate>();
   const receipts = new Map<UserId, Receipt[]>();
   const schedules = new Map<ScheduleId, ScheduleRow>();
@@ -382,6 +458,58 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
+    conversions: {
+      create: async (userId, record) => {
+        await Promise.resolve();
+        const existing = [...conversions.values()].find(
+          (row) => row.userId === userId && row.record.key === record.key
+        );
+        if (existing !== undefined) {
+          return { created: false, record: existing.record };
+        }
+        conversions.set(record.id, { userId, record });
+        return { created: true, record };
+      },
+      pending: async (userId) => {
+        await Promise.resolve();
+        return [...conversions.values()]
+          .filter(
+            (row) =>
+              row.userId === userId &&
+              !row.record.credited &&
+              row.record.phase !== "failed"
+          )
+          .map((row) => row.record);
+      },
+      update: async (id, phase, patch) => {
+        await Promise.resolve();
+        const found = conversions.get(id);
+        if (found === undefined || found.record.phase !== phase) {
+          return false;
+        }
+        found.record = { ...found.record, ...patch };
+        return true;
+      },
+      credit: async (userId, id) => {
+        await Promise.resolve();
+        const found = conversions.get(id);
+        if (
+          found === undefined ||
+          found.userId !== userId ||
+          found.record.phase !== "funded"
+        ) {
+          throw new Error("Conversion funding is not confirmed.");
+        }
+        if (!found.record.credited) {
+          pockets.set(
+            userId,
+            (pockets.get(userId) ?? 0) + found.record.usdMicros
+          );
+          found.record = { ...found.record, credited: true };
+        }
+        return pockets.get(userId) ?? 0;
+      },
+    },
     oauth: {
       clients: {
         byId: async (id) => {
@@ -660,7 +788,11 @@ export const memoryStore = (): Store => {
             (row.claimedAt === null || row.claimedAt < now - staleMs)
           ) {
             schedules.set(id, { ...row, claimedAt: now });
-            due.push({ schedule: publicSchedule(row), userId: row.userId });
+            due.push({
+              claimedAt: now,
+              schedule: publicSchedule(row),
+              userId: row.userId,
+            });
           }
         }
         return due;
@@ -673,10 +805,14 @@ export const memoryStore = (): Store => {
         await Promise.resolve();
         return digestRowOf(schedules.values(), userId);
       },
-      finish: async (id, patch) => {
+      finish: async (id, claimedAt, patch) => {
         await Promise.resolve();
         const row = schedules.get(id);
-        if (row !== undefined) {
+        if (
+          row !== undefined &&
+          row.status === "active" &&
+          row.claimedAt === claimedAt
+        ) {
           schedules.set(id, {
             ...row,
             claimedAt: null,
@@ -684,7 +820,9 @@ export const memoryStore = (): Store => {
             nextRunAt: patch.nextRunAt,
             status: patch.status,
           });
+          return true;
         }
+        return false;
       },
       list: async (userId) => {
         await Promise.resolve();

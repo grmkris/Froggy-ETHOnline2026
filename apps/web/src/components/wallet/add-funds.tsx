@@ -72,8 +72,11 @@ const SendToAddress = ({
     <p className="text-machine break-all">{address}</p>
     <CopyButton label="Copy wallet address" text={address} />
     <p className="text-muted-foreground text-xs">
-      From any wallet or exchange withdrawal that supports Base. The balance
-      updates about a minute after the transfer confirms.
+      From a wallet that supports{" "}
+      {wallet === null
+        ? "this network"
+        : networkWords(wallet.balances.evmNetwork)}
+      . The balance updates about a minute after the transfer confirms.
     </p>
   </section>
 );
@@ -166,8 +169,11 @@ export const AddFunds = ({
           <DialogHeader>
             <DialogTitle>Add funds</DialogTitle>
             <DialogDescription>
-              Funds arrive as USDC on Base and pay for everything, on every
-              chain.
+              Add USDC on{" "}
+              {wallet === null
+                ? "your wallet’s network"
+                : networkWords(wallet.balances.evmNetwork)}{" "}
+              to pay for services.
             </DialogDescription>
           </DialogHeader>
           {address === null ? null : (

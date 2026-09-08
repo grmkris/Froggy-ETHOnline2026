@@ -128,3 +128,20 @@ test("an unavailable digest is not presented as off and can be reloaded", async 
   await expect(hour).toHaveValue("off");
   await expect(hour).toBeEnabled();
 });
+
+test("digest controls and scheduled work stay synchronized", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+  const hour = page.getByLabel("Daily digest hour");
+  await expect(hour).toHaveValue("off");
+  await hour.selectOption("9");
+  const cancel = page.getByRole("button", {
+    name: "Cancel Daily digest",
+    exact: true,
+  });
+  await expect(cancel).toBeVisible();
+  await cancel.click();
+  await expect(cancel).toHaveCount(0);
+  await expect(hour).toHaveValue("off");
+});

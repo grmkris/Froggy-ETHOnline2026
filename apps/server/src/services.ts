@@ -39,6 +39,7 @@ import {
 } from "@froggy/payments";
 import type {
   Erc20TransferOutcome,
+  EvmRpc,
   PrivyServer,
   SpendLedger,
   Store,
@@ -68,6 +69,7 @@ interface EvmTransfers {
     readonly to: string;
     /** USDC's smallest unit: six decimals. */
     readonly units: bigint;
+    readonly beforeBroadcast?: ((hash: string) => Promise<void>) | undefined;
   }) => Promise<Erc20TransferOutcome>;
 }
 
@@ -78,6 +80,7 @@ interface Balances {
 }
 
 export interface Services {
+  readonly evmReceipt: EvmRpc["transactionReceipt"];
   /**
    * Hedera accounts of people's own, opened at first need from the host's
    * float; null when this deployment pays every Hedera leg from the host
@@ -307,9 +310,10 @@ export const createServices = (options: ServiceOptions): Services => {
         return null;
       }
       return {
-        send: async ({ to, units }) =>
+        send: async ({ to, units, beforeBroadcast }) =>
           await sendErc20Transfer({
             amount: units,
+            beforeBroadcast,
             chainId: environment.evmChainId,
             rpc,
             signer,
@@ -319,6 +323,7 @@ export const createServices = (options: ServiceOptions): Services => {
       };
     },
     evmChainId: async () => await rpc.chainId(),
+    evmReceipt: rpc.transactionReceipt,
     graph,
     hcs,
     hederaPayerFor: async ({ openingUsdMicros, userId }) =>

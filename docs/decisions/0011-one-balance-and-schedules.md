@@ -2,6 +2,8 @@
 
 Decided 7 September 2026 by the owner after the team demo (D1 to D4 in `docs/plan/DECISIONS.md`). Lanes 1 and 4 implement them.
 
+The conversion ordering, partial-failure behavior, and schedule completion contract below are superseded by [0013](0013-reservations-and-conversion-recovery.md). The product decisions remain in place.
+
 ## The four decisions
 
 **D1, limits hidden, engine kept.** A new mandate carries the three allowlists (payee, host, network) and nothing else: no per-transaction cap, no rolling cap, no approval threshold, no expiry. `withoutLimits` strips those rules from a saved mandate on hydrate and from any `mandate.update` on the socket, so an old client cannot re-add one; `SPENDING_LIMITS=1` is the one switch that keeps them, read in `environment.ts` like every other stub or mode. `authorize` in `packages/wallet/src/policy.ts` is untouched; the approval machinery stays for the day the limits come back as advanced settings. Restraint now lives in provenance, the allowlists and Privy's policy on the agent's signer.

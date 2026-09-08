@@ -138,49 +138,63 @@ interface BalanceUpdate {
   send?: (units: string) => void;
 }
 
-test("a late balance changes the total without moving the page", async ({
-  page,
-}) => {
-  const balanceUpdate: BalanceUpdate = {};
-  await page.routeWebSocket("**/ws/app", (socket) => {
-    const server = socket.connectToServer();
-    server.onMessage((message) => {
-      const decoded = decodeAppServerMessage(message);
-      if (
-        decoded._tag !== "Success" ||
-        decoded.success.type !== "wallet.state"
-      ) {
-        socket.send(message);
-        return;
-      }
-      const event = decoded.success;
-      balanceUpdate.send = (units: string): void => {
-        socket.send(
-          encodeAppServerMessage({
-            ...event,
-            wallet: {
-              ...event.wallet,
-              pocketUsdMicros: 0,
-              totalUsdMicros: null,
-              balances: { ...event.wallet.balances, usdcUnits: units },
-            },
-          })
-        );
-      };
-      balanceUpdate.send("0");
+for (const reducedMotion of ["reduce", "no-preference"] as const) {
+  test(`rapid balance updates settle without moving the page (${reducedMotion})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => {
+      errors.push(error.message);
     });
+    const balanceUpdate: BalanceUpdate = {};
+    await page.routeWebSocket("**/ws/app", (socket) => {
+      const server = socket.connectToServer();
+      server.onMessage((message) => {
+        const decoded = decodeAppServerMessage(message);
+        if (
+          decoded._tag !== "Success" ||
+          decoded.success.type !== "wallet.state"
+        ) {
+          socket.send(message);
+          return;
+        }
+        const event = decoded.success;
+        balanceUpdate.send = (units: string): void => {
+          socket.send(
+            encodeAppServerMessage({
+              ...event,
+              wallet: {
+                ...event.wallet,
+                pocketUsdMicros: 0,
+                totalUsdMicros: null,
+                balances: { ...event.wallet.balances, usdcUnits: units },
+              },
+            })
+          );
+        };
+        balanceUpdate.send("0");
+      });
+    });
+    await page.goto("/wallet");
+    const wallet = page.getByRole("region", { name: "Wallet", exact: true });
+    // The total, the USDC row and the HBAR row all read zero; the total is first.
+    await expect(
+      wallet.getByText("$0.00", { exact: true }).first()
+    ).toBeVisible();
+    const scroll = page.locator('[data-slot="wallet-home-scroll"]');
+    const before = await scroll.evaluate((node) => node.scrollTop);
+    balanceUpdate.send?.("1000000");
+    await expect(
+      wallet.getByText("$1.00", { exact: true }).first()
+    ).toBeVisible();
+    balanceUpdate.send?.("2000000");
+    balanceUpdate.send?.("3000000");
+    await expect(
+      wallet.getByText("$3.00", { exact: true }).first()
+    ).toBeVisible();
+    await expect(wallet.getByText("$1.00", { exact: true })).toHaveCount(0);
+    expect(errors).toEqual([]);
+    expect(await scroll.evaluate((node) => node.scrollTop)).toBe(before);
   });
-  await page.goto("/wallet");
-  const wallet = page.getByRole("region", { name: "Wallet", exact: true });
-  // The total, the USDC row and the HBAR row all read zero; the total is first.
-  await expect(
-    wallet.getByText("$0.00", { exact: true }).first()
-  ).toBeVisible();
-  const scroll = page.locator('[data-slot="wallet-home-scroll"]');
-  const before = await scroll.evaluate((node) => node.scrollTop);
-  balanceUpdate.send?.("1000000");
-  await expect(
-    wallet.getByText("$1.00", { exact: true }).first()
-  ).toBeVisible();
-  expect(await scroll.evaluate((node) => node.scrollTop)).toBe(before);
-});
+}

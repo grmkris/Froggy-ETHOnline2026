@@ -56,7 +56,7 @@ import type {
   ServiceModes,
   WalletSummary,
 } from "@froggy/protocol";
-import { authorize } from "@froggy/wallet";
+import { authorize, SpendBudgetExceededError } from "@froggy/wallet";
 import type {
   AuthorizeInput,
   SpendLedger,
@@ -79,6 +79,7 @@ import type { ApprovalOutcome } from "./interactions";
 type Draft<T, K extends keyof T> = Omit<T, K> & { -readonly [P in K]?: T[P] };
 
 export interface SpendRequest {
+  readonly budgetUsdMicros?: number | undefined;
   readonly amount: Amount;
   /** The Graph answer this spend is justified by, when there is one. */
   evidence?: Evidence;
@@ -120,6 +121,8 @@ export interface SpendRequest {
      * refunded; a failure after it is only refunded when the network says so.
      */
     readonly sent?: boolean;
+    /** A receipt already obtained from the chain, when available. */
+    readonly confirmation?: "failed" | "success";
     readonly stubbed: boolean;
     readonly transactionId: string | null;
   }>;
@@ -154,6 +157,7 @@ const CONVERSION_MULTIPLE = 2;
 
 /** The two legs of a conversion, reported apart because they fail apart. */
 export interface ConversionOutcome {
+  readonly credited?: boolean;
   /**
    * What became of the HBAR once the USDC had moved: a note for the receipt,
    * the reason it did not arrive, or null on a deployment with no accounts.
@@ -202,8 +206,12 @@ export const isConversion = (receipt: Receipt): boolean =>
 
 /** The network's word on a sent payment, or `unknown` when there is no one to ask. */
 const verdictOf = async (
-  request: SpendRequest
+  request: SpendRequest,
+  outcome: Settled
 ): Promise<"failed" | "success" | "unknown"> => {
+  if (outcome.confirmation !== undefined) {
+    return outcome.confirmation;
+  }
   if (request.reconcile === undefined) {
     return "unknown";
   }
@@ -212,6 +220,35 @@ const verdictOf = async (
   } catch {
     return "unknown";
   }
+};
+
+/** Resolve accounting from a confirmed receipt or a reconciliation result. */
+const settlementStatus = async (request: SpendRequest, outcome: Settled) => {
+  // Three facts a failure can be, and only one of them gives money back:
+  // nothing sent (refund), the network says it did not go through
+  // (refund), or nobody knows (keep the reservation, say so on the receipt).
+  let status: SpendStatus = "settled";
+  let failure = outcome.ok ? undefined : (outcome.error ?? "not settled");
+  let refund = false;
+  if (!outcome.ok) {
+    if (outcome.sent === true) {
+      const verdict = await verdictOf(request, outcome);
+      if (verdict === "success") {
+        status = "settled";
+        failure = `paid, but ${failure}`;
+      } else if (verdict === "failed") {
+        status = "failed";
+        refund = true;
+      } else {
+        status = "uncertain";
+        failure = `${failure}; whether the payment landed is not yet known`;
+      }
+    } else {
+      status = "abandoned";
+      refund = true;
+    }
+  }
+  return { status, failure, refund };
 };
 
 /** No money moved. The shape a failed or abandoned settlement reports. */
@@ -286,13 +323,15 @@ export interface SessionDeps {
    * which case a short pocket is refused as it always was.
    */
   readonly convert?: {
+    readonly recover?: (userId: UserId) => Promise<string | null>;
     readonly asset: Amount["asset"];
     readonly payeeId: string;
     readonly payeeLabel: string;
     readonly perform: (
       userId: UserId,
       wallet: { readonly address: string; readonly id: string },
-      usdMicros: number
+      usdMicros: number,
+      key: string
     ) => Promise<ConversionOutcome>;
   };
   /**
@@ -996,9 +1035,9 @@ export class WorkspaceSession {
   /**
    * Make the pocket cover a Hedera spend, converting USDC when it does not.
    *
-   * Runs before the judgement and outside its lock: the two legs take
-   * seconds of Privy and Hedera time, and nothing about them changes the
-   * arithmetic the lock protects. Null means proceed. A decision means the
+   * Runs after authorization and reservation, outside the lock while the
+   * network settles. The parent is judged again before drawing its pocket.
+   * Null means proceed. A decision means the
    * spend is refused with it, and says which leg said no.
    */
   private async replenish(
@@ -1008,7 +1047,7 @@ export class WorkspaceSession {
     if (convert === undefined || this.deps.pocket === undefined) {
       return null;
     }
-    const { intent, usdMicros } = this.price(request, this.now());
+    const { intent } = this.price(request, this.now());
     if (!this.drawsFromPocket(intent)) {
       return null;
     }
@@ -1019,14 +1058,7 @@ export class WorkspaceSession {
       await inFlight;
       return await this.replenish(request);
     }
-    const pocket = this.pocketBalance ?? 0;
-    const shortfall = usdMicros - pocket;
-    if (shortfall <= 0) {
-      return null;
-    }
-    // Claimed with no `await` between the check above and here, so a second
-    // short spend joins this conversion rather than starting its own.
-    const run = this.convertFor(request, convert, usdMicros, pocket);
+    const run = this.replenishNow(request, convert);
     // The guard never rejects, or the next short spend would inherit it.
     const guard = (async () => {
       try {
@@ -1043,6 +1075,23 @@ export class WorkspaceSession {
         this.replenishing = null;
       }
     }
+  }
+
+  private async replenishNow(
+    request: SpendRequest,
+    convert: NonNullable<SessionDeps["convert"]>
+  ): Promise<PolicyDecision | null> {
+    const pending = await convert.recover?.(this.userId);
+    if (pending !== undefined && pending !== null) {
+      return conversionRefused(pending);
+    }
+    this.pocketBalance = await this.deps.store.pocket.load(this.userId);
+    const pocket = this.pocketBalance ?? 0;
+    const { usdMicros } = this.price(request, this.now());
+    if (usdMicros <= pocket) {
+      return null;
+    }
+    return await this.convertFor(request, convert, usdMicros, pocket);
   }
 
   /** How much to convert, and whether it can be: the signer, then the USDC held. */
@@ -1100,11 +1149,26 @@ export class WorkspaceSession {
         purpose: `Convert ${formatUsd(amount)} of USDC to HBAR for: ${request.purpose}`,
         runId: request.runId,
         settle: async () => {
-          const outcome = await convert.perform(this.userId, wallet, amount);
-          if (outcome.transfer.ok) {
+          const outcome = await convert.perform(
+            this.userId,
+            wallet,
+            amount,
+            `${CONVERSION_KEY_PREFIX}${request.idempotencyKey}`
+          );
+          if (
+            outcome.transfer.ok &&
+            outcome.funded !== null &&
+            "note" in outcome.funded
+          ) {
             // USDC has six decimals, so its units are USD millionths: the
             // credit is the amount, at par.
-            await this.creditPocket(amount);
+            if (outcome.credited === undefined) {
+              await this.creditPocket(amount);
+            } else {
+              this.pocketBalance = await this.deps.store.pocket.load(
+                this.userId
+              );
+            }
           }
           legs.funded = outcome.funded;
           return outcome.funded !== null && "note" in outcome.funded
@@ -1135,13 +1199,13 @@ export class WorkspaceSession {
     const notDone = result.abandoned ?? result.receipt.failure;
     if (notDone !== undefined && notDone !== null) {
       return conversionRefused(
-        `Converting ${formatUsd(amount)} of USDC to HBAR did not happen: ${notDone}. Nothing was paid.`
+        `Converting ${formatUsd(amount)} of USDC to HBAR could not complete: ${notDone}. Retry to check confirmation before spending pending funds.`
       );
     }
     const settled = legs.funded;
     if (settled !== null && "error" in settled) {
       return conversionRefused(
-        `${formatUsd(amount)} of USDC reached the treasury (transaction ${result.receipt.settlement?.transactionId ?? "unknown"}) and your balance was credited, but the HBAR did not reach your Hedera account: ${settled.error}. Try again in a minute.`
+        `${formatUsd(amount)} of USDC reached the treasury (transaction ${result.receipt.settlement?.transactionId ?? "unknown"}) but HBAR funding is not confirmed: ${settled.error}. Pending funds cannot be spent; retry to check recovery.`
       );
     }
     return null;
@@ -1156,7 +1220,8 @@ export class WorkspaceSession {
    */
   private async judge(
     request: SpendRequest,
-    approved = false
+    approved = false,
+    checkPocket = true
   ): Promise<Judged> {
     const at = this.now();
     const { intent, quote, usdMicros } = this.price(request, at);
@@ -1168,9 +1233,11 @@ export class WorkspaceSession {
       intent,
       mandate: this.mandate,
       now: at,
-      recent: recent.map((row) => ({ at: row.at, usdMicros: row.usdMicros })),
+      recent: recent
+        .filter((row) => row.idempotencyKey !== request.idempotencyKey)
+        .map((row) => ({ at: row.at, usdMicros: row.usdMicros })),
     };
-    if (this.deps.pocket !== undefined) {
+    if (checkPocket && this.deps.pocket !== undefined) {
       judgement.pocket = {
         balanceUsdMicros: this.pocketBalance ?? 0,
         networks: this.deps.pocket.networks,
@@ -1234,7 +1301,7 @@ export class WorkspaceSession {
     readonly spendId: SpendId;
   }> {
     return await this.serial(async () => {
-      const judged = await this.judge(request, approved);
+      let judged = await this.judge(request, approved, false);
       const spendId = SpendId.generate();
       if (judged.decision._tag === "ask") {
         return { judged, reservation: null, spendId };
@@ -1243,21 +1310,33 @@ export class WorkspaceSession {
         await this.refuse(request, judged, spendId);
         return { judged, reservation: null, spendId };
       }
-      const reservation = await this.deps.ledger.reserve({
-        at: judged.at,
-        id: spendId,
-        idempotencyKey: request.idempotencyKey,
-        usdMicros: judged.usdMicros,
-        userId: this.userId,
-      });
-      // Drawn down here, inside the same lock as the reservation, so two
-      // spends cannot both fit in a balance that only holds one. Given back
-      // if the payment is abandoned or fails.
-      if (reservation.created && this.drawsFromPocket(judged.intent)) {
-        this.pocketBalance = await this.deps.store.pocket.adjust(
-          this.userId,
-          0 - judged.usdMicros
+      let reservation: Awaited<ReturnType<SpendLedger["reserve"]>>;
+      try {
+        reservation = await this.deps.ledger.reserve(
+          {
+            at: judged.at,
+            id: spendId,
+            idempotencyKey: request.idempotencyKey,
+            usdMicros: judged.usdMicros,
+            userId: this.userId,
+            runId:
+              request.budgetUsdMicros === undefined ? undefined : request.runId,
+          },
+          request.budgetUsdMicros
         );
+      } catch (error) {
+        if (!(error instanceof SpendBudgetExceededError)) {
+          throw error;
+        }
+        const decision: PolicyDecision = {
+          _tag: "deny",
+          code: "run_budget_exceeded",
+          message: error.message,
+        };
+        this.deps.onPolicyDecision(decision);
+        judged = { ...judged, decision };
+        await this.refuse(request, judged, spendId);
+        return { judged, reservation: null, spendId };
       }
       return { judged, reservation, spendId };
     });
@@ -1356,32 +1435,48 @@ export class WorkspaceSession {
     this.deps.onMandate?.(this.mandate);
   }
 
+  /** The parent owns budget capacity before any conversion starts. */
+  private async fundReserved(
+    request: SpendRequest,
+    approved: boolean,
+    judged: Judged
+  ): Promise<Judged> {
+    const short = await this.replenish(request);
+    return await this.serial(async () => {
+      const checked =
+        short === null
+          ? await this.judge(request, approved)
+          : { ...judged, decision: short };
+      if (checked.usdMicros !== judged.usdMicros) {
+        return {
+          ...checked,
+          decision: {
+            _tag: "deny",
+            code: "price_changed",
+            message:
+              "The price changed while funding. Retry for a fresh quote.",
+          },
+        };
+      }
+      if (
+        checked.decision._tag === "allow" &&
+        this.drawsFromPocket(checked.intent)
+      ) {
+        this.pocketBalance = await this.deps.store.pocket.adjust(
+          this.userId,
+          0 - checked.usdMicros
+        );
+      }
+      return checked;
+    });
+  }
+
   private async pay(
     request: SpendRequest,
     publish: (outcome: Settled) => void
   ): Promise<SpendResult> {
-    const short = await this.replenish(request);
-    if (short !== null) {
-      // Published like any refusal, before the model narrates it.
-      this.deps.onPolicyDecision(short);
-      const at = this.now();
-      const { intent, quote, usdMicros } = this.price(request, at);
-      const judged: Judged = { at, decision: short, intent, quote, usdMicros };
-      const spendId = SpendId.generate();
-      await this.refuse(request, judged, spendId);
-      return this.finish({
-        abandoned: null,
-        at,
-        decision: short,
-        intent,
-        quote,
-        runId: request.runId,
-        spendId,
-        stubbed: false,
-        toolCallId: request.toolCallId,
-      });
-    }
-    let attempt = await this.judgeAndReserve(request, false);
+    let approved = false;
+    let attempt = await this.judgeAndReserve(request, approved);
     let approval: ApprovalRecord | undefined;
 
     if (attempt.judged.decision._tag === "ask") {
@@ -1392,7 +1487,8 @@ export class WorkspaceSession {
       if (resolution === "allow_once" || resolution === "allow_session") {
         // Judged again, with the answer in hand: the mandate may have changed
         // while the card was open, and the window may have filled.
-        attempt = await this.judgeAndReserve(request, true);
+        approved = true;
+        attempt = await this.judgeAndReserve(request, approved);
       } else {
         const decision = refusalFor(resolution, ruleId, asked.reason);
         this.deps.onPolicyDecision(decision);
@@ -1440,6 +1536,30 @@ export class WorkspaceSession {
       });
     }
 
+    let ready: Judged;
+    try {
+      ready = await this.fundReserved(request, approved, judged);
+    } catch (error) {
+      await this.deps.ledger.settle(row.id, "abandoned");
+      throw error;
+    }
+    if (ready.decision._tag !== "allow") {
+      await this.deps.ledger.settle(row.id, "abandoned");
+      this.deps.onPolicyDecision(ready.decision);
+      return this.finish({
+        abandoned: null,
+        approval,
+        at: ready.at,
+        decision: ready.decision,
+        intent: ready.intent,
+        quote: ready.quote,
+        runId: request.runId,
+        spendId: row.id,
+        stubbed: false,
+        toolCallId: request.toolCallId,
+      });
+    }
+
     // The last look before money leaves. A stop that landed while the
     // reservation was being written must win here, not after the call.
     let abandoned: string | null = null;
@@ -1478,30 +1598,10 @@ export class WorkspaceSession {
     }
     publish(outcome);
 
-    // Three facts a failure can be, and only one of them gives money back:
-    // nothing sent (refund), the network says it did not go through
-    // (refund), or nobody knows (keep the reservation, say so on the receipt).
-    let status: SpendStatus = "settled";
-    let failure = outcome.ok ? undefined : (outcome.error ?? "not settled");
-    let refund = false;
-    if (!outcome.ok) {
-      if (outcome.sent === true) {
-        const verdict = await verdictOf(request);
-        if (verdict === "success") {
-          status = "settled";
-          failure = `paid, but ${failure}`;
-        } else if (verdict === "failed") {
-          status = "failed";
-          refund = true;
-        } else {
-          status = "uncertain";
-          failure = `${failure}; whether the payment landed is not yet known`;
-        }
-      } else {
-        status = "abandoned";
-        refund = true;
-      }
-    }
+    const { status, failure, refund } = await settlementStatus(
+      request,
+      outcome
+    );
     await this.deps.ledger.settle(row.id, status);
     if (refund) {
       await this.refund(judged);

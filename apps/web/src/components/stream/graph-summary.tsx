@@ -36,7 +36,7 @@ export const GraphSummary = ({
       ) : (
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <MorphText className="text-money text-xl leading-none">
-            {best.borrowApr.toFixed(2)}%
+            {`${best.borrowApr.toFixed(2)}%`}
           </MorphText>
           <span className="text-sm font-medium">
             {best.name} on {best.chain}

@@ -22,6 +22,7 @@
 
 import {
   AgentTokenId,
+  ConversionId,
   DirectoryId,
   OAuthClientId,
   OAuthGrantId,
@@ -93,6 +94,7 @@ export const users = pgTable("users", {
 export const spends = pgTable(
   "spends",
   {
+    runId: typeIdColumn(RunId, "run_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -403,4 +405,19 @@ export const oauthTokens = pgTable(
     usedAt: timestamp("used_at", { withTimezone: true }),
   },
   (table) => [index("oauth_tokens_grant").on(table.grantId)]
+);
+
+/** Recovery records stay with money when a person deletes workspace data. */
+export const conversions = pgTable(
+  "conversions",
+  {
+    id: typeIdPrimaryKey(ConversionId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    key: text("key").notNull(),
+    phase: text("phase").notNull(),
+    data: jsonb("data").notNull(),
+  },
+  (table) => [uniqueIndex("conversions_user_key").on(table.userId, table.key)]
 );

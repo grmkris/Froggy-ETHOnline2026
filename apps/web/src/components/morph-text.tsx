@@ -8,13 +8,13 @@
  * `prefers-reduced-motion` on its own, in which case this is a plain element.
  */
 
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { TextMorph } from "torph/react";
 
 interface MorphTextProps {
   /** The element to render; a span unless the layout needs a block. */
   readonly as?: "dd" | "p" | "span" | "td";
-  readonly children: ReactNode;
+  readonly children: string | number;
   readonly className?: string;
 }
 

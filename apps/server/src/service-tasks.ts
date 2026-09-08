@@ -51,6 +51,7 @@ export const serviceTicket = (task: Task): ServiceTicket => {
 };
 
 interface PurchaseContext {
+  readonly budgetUsdMicros?: number | undefined;
   readonly services: Services;
   readonly session: WorkspaceSession;
   readonly agentTokenId: AgentTokenId | null;
@@ -192,6 +193,7 @@ export const purchaseService = async (
         amount,
         host: new URL(resource).host,
         idempotencyKey: `service:${task.id}`,
+        budgetUsdMicros: context.budgetUsdMicros,
         interactive: context.interactive ?? true,
         payeeId: services.oracle.payTo,
         payeeLabel: `Froggy: ${card.title}`,

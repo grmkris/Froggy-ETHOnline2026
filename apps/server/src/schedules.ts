@@ -320,13 +320,14 @@ export const createScheduleTicker = (deps: TickerDeps) => {
 
   const settle = async (
     schedule: Schedule,
+    claimedAt: number,
     outcome: FireOutcome
   ): Promise<void> => {
     const at = now();
     const due = firstDue.get(schedule.id) ?? schedule.nextRunAt ?? at;
     if (outcome === "busy" && at - due < BUSY_WINDOW_MS) {
       firstDue.set(schedule.id, due);
-      await deps.store.schedules.finish(schedule.id, {
+      await deps.store.schedules.finish(schedule.id, claimedAt, {
         nextRunAt: at + BUSY_RETRY_MS,
         status: "active",
       });
@@ -334,7 +335,7 @@ export const createScheduleTicker = (deps: TickerDeps) => {
     }
     firstDue.delete(schedule.id);
     const next = nextRunAfter(schedule.cadence, schedule.timezone, at);
-    await deps.store.schedules.finish(schedule.id, {
+    await deps.store.schedules.finish(schedule.id, claimedAt, {
       lastRunAt: at,
       nextRunAt: next,
       status: next === null ? "done" : "active",
@@ -343,7 +344,8 @@ export const createScheduleTicker = (deps: TickerDeps) => {
 
   const fireOne = async (
     userId: UserId,
-    schedule: Schedule
+    schedule: Schedule,
+    claimedAt: number
   ): Promise<ScheduleId | null> => {
     let outcome: FireOutcome = "done";
     try {
@@ -357,7 +359,7 @@ export const createScheduleTicker = (deps: TickerDeps) => {
       );
     }
     try {
-      await settle(schedule, outcome);
+      await settle(schedule, claimedAt, outcome);
     } catch (error) {
       warn(
         `schedule ${schedule.id} could not be finished:`,
@@ -381,7 +383,10 @@ export const createScheduleTicker = (deps: TickerDeps) => {
         return [];
       }
       const fired = await Promise.all(
-        due.map(async ({ schedule, userId }) => await fireOne(userId, schedule))
+        due.map(
+          async ({ schedule, userId, claimedAt }) =>
+            await fireOne(userId, schedule, claimedAt)
+        )
       );
       return fired.filter((id): id is ScheduleId => id !== null);
     },

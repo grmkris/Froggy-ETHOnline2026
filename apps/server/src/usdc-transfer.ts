@@ -17,7 +17,8 @@ export const sendUsdc = async (
   services: Services,
   wallet: { readonly address: string; readonly id: string } | null,
   to: string,
-  units: string
+  units: string,
+  beforeBroadcast?: (hash: string) => Promise<void>
 ): Promise<Settled> => {
   const network = services.environment.evmNetwork;
   const transfers = services.evmTransfersFor(wallet);
@@ -30,9 +31,19 @@ export const sendUsdc = async (
       transactionId: null,
     };
   }
+  let submittedHash: string | null = null;
   try {
-    const outcome = await transfers.send({ to, units: BigInt(units) });
-    const settled = {
+    const outcome = await transfers.send({
+      to,
+      units: BigInt(units),
+      beforeBroadcast: async (hash) => {
+        await beforeBroadcast?.(hash);
+        submittedHash = hash;
+      },
+    });
+    const settled: Settled = {
+      sent: true,
+      confirmation: outcome.status === "success" ? "success" : "failed",
       network,
       ok: outcome.status === "success",
       stubbed: false,
@@ -48,10 +59,11 @@ export const sendUsdc = async (
     ) {
       return {
         error: error.message,
+        sent: submittedHash !== null,
         network,
         ok: false,
         stubbed: false,
-        transactionId: null,
+        transactionId: submittedHash,
       };
     }
     throw error;

@@ -9,6 +9,7 @@
 
 import {
   agentTokens,
+  conversions,
   directory,
   mandates,
   oauthClients,
@@ -49,6 +50,7 @@ import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
 import {
+  decodeConversion,
   decodeMandate,
   decodeSale,
   decodeSchedule,
@@ -236,6 +238,91 @@ export const postgresStore = (sql: Sql): Store => {
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
   return {
+    conversions: {
+      create: async (userId, record) => {
+        await ensureUser(userId);
+        const [inserted] = await database
+          .insert(conversions)
+          .values({
+            id: record.id,
+            userId,
+            key: record.key,
+            phase: record.phase,
+            data: record,
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (inserted !== undefined) {
+          return { created: true, record: decodeConversion(inserted.data) };
+        }
+        const [existing] = await database
+          .select()
+          .from(conversions)
+          .where(
+            and(eq(conversions.userId, userId), eq(conversions.key, record.key))
+          )
+          .limit(1);
+        if (existing === undefined) {
+          throw new Error("Conversion record disappeared.");
+        }
+        return { created: false, record: decodeConversion(existing.data) };
+      },
+      pending: async (userId) => {
+        const rows = await database
+          .select()
+          .from(conversions)
+          .where(eq(conversions.userId, userId));
+        return rows
+          .map((row) => decodeConversion(row.data))
+          .filter((record) => !record.credited && record.phase !== "failed");
+      },
+      update: async (id, phase, patch) =>
+        await database.transaction(async (tx) => {
+          const [found] = await tx
+            .select()
+            .from(conversions)
+            .where(eq(conversions.id, id))
+            .for("update");
+          if (found === undefined || found.phase !== phase) {
+            return false;
+          }
+          const next = { ...decodeConversion(found.data), ...patch };
+          await tx
+            .update(conversions)
+            .set({ data: next, phase: next.phase })
+            .where(eq(conversions.id, id));
+          return true;
+        }),
+      credit: async (userId, id) =>
+        await database.transaction(async (tx) => {
+          const [found] = await tx
+            .select()
+            .from(conversions)
+            .where(and(eq(conversions.id, id), eq(conversions.userId, userId)))
+            .for("update");
+          if (found === undefined || found.phase !== "funded") {
+            throw new Error("Conversion funding is not confirmed.");
+          }
+          const record = decodeConversion(found.data);
+          if (!record.credited) {
+            await tx
+              .update(users)
+              .set({
+                pocketUsdMicros: raw`coalesce(${users.pocketUsdMicros}, 0) + ${record.usdMicros}`,
+              })
+              .where(eq(users.did, userId));
+            await tx
+              .update(conversions)
+              .set({ data: { ...record, credited: true } })
+              .where(eq(conversions.id, id));
+          }
+          const [owner] = await tx
+            .select({ balance: users.pocketUsdMicros })
+            .from(users)
+            .where(eq(users.did, userId));
+          return owner?.balance ?? 0;
+        }),
+    },
     oauth: {
       clients: {
         byId: async (id) => {
@@ -727,7 +814,7 @@ export const postgresStore = (sql: Sql): Store => {
           const schedule = scheduleOf(row);
           const owner = decodeUserId(row.userId);
           if (schedule !== null && Result.isSuccess(owner)) {
-            due.push({ schedule, userId: owner.success });
+            due.push({ claimedAt: now, schedule, userId: owner.success });
           }
         }
         return due;
@@ -753,7 +840,7 @@ export const postgresStore = (sql: Sql): Store => {
         const [row] = rows;
         return row === undefined ? null : scheduleOf(row);
       },
-      finish: async (id, patch) => {
+      finish: async (id, claimedAt, patch) => {
         const set: Partial<typeof schedules.$inferInsert> = {
           claimedAt: null,
           nextRunAt:
@@ -763,7 +850,18 @@ export const postgresStore = (sql: Sql): Store => {
         if (patch.lastRunAt !== undefined) {
           set.lastRunAt = new Date(patch.lastRunAt);
         }
-        await database.update(schedules).set(set).where(eq(schedules.id, id));
+        const rows = await database
+          .update(schedules)
+          .set(set)
+          .where(
+            and(
+              eq(schedules.id, id),
+              eq(schedules.status, "active"),
+              eq(schedules.claimedAt, new Date(claimedAt))
+            )
+          )
+          .returning({ id: schedules.id });
+        return rows.length > 0;
       },
       list: async (userId) => {
         const rows = await database

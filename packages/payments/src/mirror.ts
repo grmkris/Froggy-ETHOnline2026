@@ -14,7 +14,12 @@ import { Schema } from "effect";
 export type MirrorVerdict = "failed" | "success" | "unknown";
 
 const Transactions = Schema.Struct({
-  transactions: Schema.Array(Schema.Struct({ result: Schema.String })),
+  transactions: Schema.Array(
+    Schema.Struct({
+      result: Schema.String,
+      entity_id: Schema.optional(Schema.NullOr(Schema.String)),
+    })
+  ),
 });
 const decodeTransactions = Schema.decodeUnknownResult(Transactions);
 
@@ -49,9 +54,13 @@ export interface MirrorLookup {
  * network fault and an unreadable body alike: none of them says money moved,
  * and none says it did not.
  */
-export const lookupHederaTransaction = async (
+export const lookupHederaTransactionDetails = async (
   input: MirrorLookup
-): Promise<MirrorVerdict> => {
+): Promise<{
+  readonly status: MirrorVerdict;
+  readonly entityId: string | null;
+}> => {
+  const unknown = { status: "unknown", entityId: null } as const;
   const fetchImpl: MirrorFetch = input.fetch ?? fetch;
   const url = `${mirrorNodeUrlForNetwork(input.network)}/api/v1/transactions/${mirrorTransactionId(input.transactionId)}`;
   try {
@@ -59,20 +68,31 @@ export const lookupHederaTransaction = async (
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) {
-      return "unknown";
+      return unknown;
     }
     const decoded = decodeTransactions(await response.json());
     if (decoded._tag === "Failure") {
-      return "unknown";
+      return unknown;
     }
-    const [first] = decoded.success.transactions;
-    if (first === undefined) {
-      return "unknown";
+    const rows = decoded.success.transactions;
+    const first = rows.find((row) => row.result === "SUCCESS") ?? rows[0];
+    if (first === undefined || first.result === "DUPLICATE_TRANSACTION") {
+      return unknown;
     }
-    return first.result === "SUCCESS" ? "success" : "failed";
+    return {
+      status: first.result === "SUCCESS" ? "success" : "failed",
+      entityId: first.entity_id ?? null,
+    };
   } catch {
-    return "unknown";
+    return unknown;
   }
+};
+
+export const lookupHederaTransaction = async (
+  input: MirrorLookup
+): Promise<MirrorVerdict> => {
+  const result = await lookupHederaTransactionDetails(input);
+  return result.status;
 };
 
 /**

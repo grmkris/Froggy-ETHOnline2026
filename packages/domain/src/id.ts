@@ -190,3 +190,7 @@ export type OAuthClientId = typeof OAuthClientId.Type;
 /** One person's consent to one client, with its scopes. Revoked as a unit. */
 export const OAuthGrantId = makeIdSchema("oag", "OAuthGrantId");
 export type OAuthGrantId = typeof OAuthGrantId.Type;
+
+/** One durable USDC-to-HBAR conversion. */
+export const ConversionId = makeIdSchema("cnv", "ConversionId");
+export type ConversionId = typeof ConversionId.Type;

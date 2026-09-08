@@ -50,7 +50,7 @@ const signerRecording = () => {
     signTransaction: async (transaction) => {
       signed.push(transaction);
       await Promise.resolve();
-      return "0x02f8signed";
+      return "0x02f8abcd";
     },
     signTypedData: async () => {
       await Promise.resolve();
@@ -80,7 +80,7 @@ describe("sendErc20Transfer", () => {
     });
 
     expect(outcome).toEqual({ hash: "0xhash", status: "success" });
-    expect(broadcast).toEqual(["0x02f8signed"]);
+    expect(broadcast).toEqual(["0x02f8abcd"]);
     const [transaction] = signed;
     expect(transaction?.to).toBe(USDC);
     expect(transaction?.value).toBe(0n);
@@ -161,4 +161,31 @@ describe("sendErc20Transfer", () => {
     expect(refusal).toContain("Privy refused");
     expect(broadcasts).toBe(0);
   });
+});
+
+test("a rejected persistence hook stops broadcast of the signed transfer", async () => {
+  const { signer } = signerRecording();
+  let broadcasts = 0;
+  const hashes: string[] = [];
+  const failure = await sendErc20Transfer({
+    amount: 1n,
+    chainId: 84_532,
+    signer,
+    to: TREASURY,
+    token: USDC,
+    rpc: rpcWith({
+      sendRawTransaction: async () => {
+        broadcasts += 1;
+        return await Promise.resolve("0xhash");
+      },
+    }),
+    beforeBroadcast: async (hash) => {
+      hashes.push(hash);
+      await Promise.resolve();
+      throw new Error("database unavailable");
+    },
+  }).then(() => null, String);
+  expect(failure).toContain("database unavailable");
+  expect(hashes[0]).toMatch(/^0x[0-9a-f]{64}$/u);
+  expect(broadcasts).toBe(0);
 });

@@ -1,0 +1,276 @@
+{
+  "source": "The accompanying review-fixes commit, based on 89c24b11fa556621f18dd822d73085eda52fcfad.",
+  "environment": "Compiled frontend, stubbed server, synthetic identities and funds.",
+  "captures": [
+    {
+      "file": "agents-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--agents-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "agents-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--agents-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "agents-part-2-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--agents-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "agents-part-3-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--agents-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "agents-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--agents-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "agents-part-2-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--agents-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "agents-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--agents-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "agents-part-2-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--agents-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "chat-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "chat-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--holds-together-at-320px-chromium"
+    },
+    {
+      "file": "chat-part-2-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--holds-together-at-320px-chromium"
+    },
+    {
+      "file": "chat-part-3-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--holds-together-at-320px-chromium"
+    },
+    {
+      "file": "chat-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--holds-together-at-390px-chromium"
+    },
+    {
+      "file": "chat-part-2-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--holds-together-at-390px-chromium"
+    },
+    {
+      "file": "chat-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--holds-together-at-768px-chromium"
+    },
+    {
+      "file": "services-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--services-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "services-part-2-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--services-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "services-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--services-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "services-part-2-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--services-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "services-part-3-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--services-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "services-part-4-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--services-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "services-part-5-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--services-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "services-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--services-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "services-part-2-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--services-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "services-part-3-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--services-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "services-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--services-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "services-part-2-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--services-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "settings-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--settings-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "settings-part-2-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--settings-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "settings-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-part-2-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-part-3-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-part-4-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-part-5-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-part-6-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--settings-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "settings-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--settings-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "settings-part-2-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--settings-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "settings-part-3-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--settings-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "settings-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--settings-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "settings-part-2-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--settings-holds-together-at-768px-chromium"
+    },
+    {
+      "file": "wallet-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "test": "screens--wallet-holds-together-at-1440px-chromium"
+    },
+    {
+      "file": "wallet-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--wallet-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "wallet-part-2-320.png",
+      "width": 320,
+      "height": 568,
+      "test": "screens--wallet-holds-together-at-320px-chromium"
+    },
+    {
+      "file": "wallet-390.png",
+      "width": 390,
+      "height": 844,
+      "test": "screens--wallet-holds-together-at-390px-chromium"
+    },
+    {
+      "file": "wallet-768.png",
+      "width": 768,
+      "height": 1024,
+      "test": "screens--wallet-holds-together-at-768px-chromium"
+    }
+  ]
+}

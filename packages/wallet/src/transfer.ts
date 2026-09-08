@@ -15,11 +15,16 @@
  * room for a token with a fee hook.
  */
 
+import { keccak_256 } from "@noble/hashes/sha3";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+
 import { encodeTransfer } from "./erc20";
 import type { EvmRpc } from "./evm-rpc";
 import type { AgentEvmSigner } from "./evm-signer";
 
 export interface Erc20TransferInput {
+  /** Persist the hash before any signed bytes leave the process. */
+  readonly beforeBroadcast?: ((hash: string) => Promise<void>) | undefined;
   /** In the token's smallest unit. */
   readonly amount: bigint;
   readonly chainId: number;
@@ -63,6 +68,8 @@ export const sendErc20Transfer = async (
     to: input.token,
     value: 0n,
   });
+  const expectedHash = `0x${bytesToHex(keccak_256(hexToBytes(signed.slice(2))))}`;
+  await input.beforeBroadcast?.(expectedHash);
   const hash = await rpc.sendRawTransaction(signed);
   const receipt = await rpc.waitForReceipt(hash);
   return { hash, status: receipt.status };

@@ -948,7 +948,7 @@ describe("converting USDC when the pocket is short", () => {
     expect(session.pocket).toBe(0);
   });
 
-  test("keeps the credit but refuses the payment when the HBAR did not arrive", async () => {
+  test("keeps unconfirmed HBAR out of spendable credit", async () => {
     const { session } = converting(memoryStore(), 0, {
       funded: { error: "the mirror node timed out" },
     });
@@ -959,8 +959,8 @@ describe("converting USDC when the pocket is short", () => {
     expect(result.decision).toMatchObject({ code: "conversion_failed" });
     expect(
       result.decision._tag === "deny" ? result.decision.message : ""
-    ).toContain("Try again in a minute");
-    expect(session.pocket).toBe(2_000_000);
+    ).toContain("Pending funds cannot be spent");
+    expect(session.pocket).toBe(0);
   });
 
   test("two short spends at once share one conversion", async () => {
@@ -999,6 +999,44 @@ describe("converting USDC when the pocket is short", () => {
     expect(
       result.decision._tag === "deny" ? result.decision.message : ""
     ).toContain("Privy said no");
+  });
+  test("a disallowed parent never converts USDC", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    await session.hydrate();
+    const result = await session.spend(
+      request({ key: "wrong-payee", payeeId: "0.0.999" })
+    );
+    expect(result.decision).toMatchObject({ code: "payee_not_allowed" });
+    expect(performed).toEqual([]);
+  });
+  test("the same parent key can pay after pending funding is recovered", async () => {
+    const store = memoryStore();
+    const { performed, session } = converting(store, 0, {
+      funded: { error: "HBAR confirmation pending" },
+    });
+    await session.hydrate();
+    const sent = { count: 0 };
+    const payment = paying("recover-parent", "100000000", sent);
+    const first = await session.spend(payment);
+    expect(first.decision).toMatchObject({ code: "conversion_failed" });
+    expect(sent.count).toBe(0);
+    // The durable coordinator's credit is independent of the parent request.
+    await store.pocket.adjust(ALICE, 2_000_000);
+    const retried = await session.spend(payment);
+    expect(retried.decision._tag).toBe("allow");
+    expect(sent.count).toBe(1);
+    expect(performed).toEqual([2_000_000]);
+    expect(session.pocket).toBe(1_000_000);
+  });
+  test("an over-budget parent never converts USDC", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    await session.hydrate();
+    const result = await session.spend({
+      ...request({ key: "over-budget" }),
+      budgetUsdMicros: 250_000,
+    });
+    expect(result.decision).toMatchObject({ code: "run_budget_exceeded" });
+    expect(performed).toEqual([]);
   });
 });
 

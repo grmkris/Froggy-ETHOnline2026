@@ -147,6 +147,8 @@ export const DenialCode = Schema.Literals([
    * balance itself.
    */
   "conversion_failed",
+  "run_budget_exceeded",
+  "price_changed",
   /** The policy asked, and the person said no. */
   "approval_denied",
   /** The policy asked, and nobody answered in time. */

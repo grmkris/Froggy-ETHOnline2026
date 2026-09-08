@@ -52,6 +52,7 @@ export {
   hederaAccountBalance,
   lookupHederaTransaction,
   mirrorTransactionId,
+  lookupHederaTransactionDetails,
   reconcileHederaPayment,
 } from "./mirror";
 export type { MirrorFetch, MirrorLookup, MirrorVerdict } from "./mirror";

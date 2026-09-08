@@ -219,14 +219,14 @@ export const runScheduledFor = async (
       prompt: job.prompt,
       stopWhen: [
         stepCountIs(JOB_STEP_CAP),
-        // Judged between steps, so the loop stops before the next call
-        // rather than after a call that overshot. One paid request per
-        // job is the tool's rule, not a stop: stopping here would end
-        // the turn before the summary it paid for.
+        // Stop further model steps after spending the budget. The wallet
+        // separately reserves pending and detached payments against the hard
+        // run cap before any outbound call.
         () => spentIn(mine()) >= job.budgetUsdMicros,
       ],
       tools: buildTools({
         browser: workspace.browser,
+        budgetUsdMicros: job.budgetUsdMicros,
         interactive: false,
         notices: deps.notices,
         run,

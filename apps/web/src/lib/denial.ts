@@ -14,6 +14,8 @@ const CODE_WORDS: Record<DenialCode, string> = {
   approval_denied: "You said no.",
   approval_timeout: "Nobody answered in time.",
   approval_unavailable: "There was no one to ask.",
+  price_changed: "The price changed. Try again for a fresh quote.",
+  run_budget_exceeded: "This scheduled run has reached its spending budget.",
   conversion_failed:
     "Your USDC could not be turned into HBAR for this payment; the receipt says who refused.",
   expired: "The mandate has expired.",

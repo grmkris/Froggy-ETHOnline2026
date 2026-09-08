@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { UserId } from "@froggy/domain";
 import { HederaAccountError } from "@froggy/payments";
 import type { HederaHost, RateSource } from "@froggy/payments";
+import type { FundingSubmission } from "@froggy/wallet";
 import { aesGcmKeystore, memoryStore } from "@froggy/wallet";
 
 import { createHederaAccounts } from "./hedera-accounts";
@@ -240,5 +241,44 @@ describe("createHederaAccounts with Privy holding the keys", () => {
     expect(failure?.message).toContain(
       "0x451718d7197e664d8370d139fcb87abaeb303531"
     );
+  });
+});
+
+describe("funding recovery", () => {
+  it("recovers sealed custody after account creation succeeds but its response is lost", async () => {
+    const store = memoryStore();
+    const keystore = aesGcmKeystore(KEK);
+    const prepared: FundingSubmission[] = [];
+    const host: HederaHost = {
+      ...fakeHost(),
+      open: async (_tinybars, beforeBroadcast) => {
+        await beforeBroadcast?.("0.0.1@1.101", `0x${"ab".repeat(32)}`);
+        throw new Error("receipt timed out");
+      },
+    };
+    const options = { host, keys: null, keystore, rates: rates(80_000), store };
+    const failure = await failureOf(
+      createHederaAccounts(options).fund(ALICE, 500_000, async (submission) => {
+        prepared.push(submission);
+        await Promise.resolve();
+      })
+    );
+    expect(failure?.message).toContain("receipt timed out");
+    expect(await store.hedera.load(ALICE)).toBeNull();
+    const [submission] = prepared;
+    if (submission === undefined || submission.custody?.kind !== "sealed") {
+      throw new Error("Missing persisted sealed custody");
+    }
+    expect(submission.custody.keyCiphertext).not.toContain("abab");
+    const restarted = createHederaAccounts({
+      ...options,
+      transaction: async () =>
+        await Promise.resolve({ status: "success", entityId: "0.0.101" }),
+    });
+    expect(await restarted.reconcile(ALICE, submission)).toBe("success");
+    const saved = await store.hedera.load(ALICE);
+    expect(saved?.accountId).toBe("0.0.101");
+    expect(saved?.custody).toEqual(submission.custody);
+    expect(await restarted.lookup(ALICE)).toBe("0.0.101");
   });
 });

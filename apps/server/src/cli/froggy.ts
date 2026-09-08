@@ -23,7 +23,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { homedir, hostname } from "node:os";
@@ -32,7 +32,7 @@ import { createInterface } from "node:readline";
 import { createInterface as createPrompt } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { Schema } from "effect";
+import { Predicate, Schema } from "effect";
 
 const Ticket = Schema.Struct({ id: Schema.String, title: Schema.String });
 const Task = Schema.Struct({
@@ -184,12 +184,16 @@ const loadCredentials = async (): Promise<Credentials | null> => {
 
 const saveCredentials = async (credentials: Credentials): Promise<void> => {
   await mkdir(path.dirname(CREDENTIALS_PATH), { mode: 0o700, recursive: true });
-  await writeFile(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2), {
-    mode: 0o600,
-  });
-  // `mode` above applies only when the file is created; an existing file keeps
-  // whatever it had, so set it every time.
-  await chmod(CREDENTIALS_PATH, 0o600);
+  const temporary = `${CREDENTIALS_PATH}.${randomBytes(12).toString("hex")}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(credentials, null, 2), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await rename(temporary, CREDENTIALS_PATH);
+  } finally {
+    await rm(temporary, { force: true });
+  }
 };
 
 const forgetCredentials = async (): Promise<void> => {
@@ -245,6 +249,7 @@ const postForm = async (
     body: new URLSearchParams(fields).toString(),
     headers: { "content-type": "application/x-www-form-urlencoded" },
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
   });
 
 /** A new pair from the token endpoint, or the reason there is none. */
@@ -262,30 +267,76 @@ const redeem = async (
     : decoded.success;
 };
 
-/** Rotate the refresh token; null when Froggy will not, which means sign in again. */
+/** Serialize token rotation across CLI processes sharing this credential file. */
+const withCredentialLock = async <T>(work: () => Promise<T>): Promise<T> => {
+  await mkdir(path.dirname(CREDENTIALS_PATH), { mode: 0o700, recursive: true });
+  const lock = `${CREDENTIALS_PATH}.lock`;
+  const acquire = async (until: number): Promise<void> => {
+    try {
+      await mkdir(lock, { mode: 0o700 });
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        error.code !== "EEXIST"
+      ) {
+        throw error;
+      }
+      if (Date.now() >= until) {
+        throw new Error(
+          `Another CLI process holds ${lock}. If it stopped unexpectedly, remove that lock directory after confirming no Froggy command is running.`,
+          { cause: error }
+        );
+      }
+      await sleep(100);
+      await acquire(until);
+    }
+  };
+  await acquire(Date.now() + 15_000);
+  try {
+    return await work();
+  } finally {
+    await rm(lock, { recursive: true });
+  }
+};
+
+/** Reread under the lock: another command may have already rotated our token. */
 const refreshCredentials = async (
   current: Credentials
-): Promise<Credentials | null> => {
-  const issued = await redeem(current.tokenEndpoint, {
-    client_id: current.clientId,
-    grant_type: "refresh_token",
-    refresh_token: current.refreshToken,
+): Promise<Credentials | null> =>
+  await withCredentialLock(async () => {
+    const saved = await loadCredentials();
+    if (
+      saved === null ||
+      saved.url !== current.url ||
+      saved.clientId !== current.clientId
+    ) {
+      console.error("The saved sign-in changed; run the command again.");
+      return null;
+    }
+    if (saved.refreshToken !== current.refreshToken) {
+      return saved;
+    }
+    const issued = await redeem(saved.tokenEndpoint, {
+      client_id: saved.clientId,
+      grant_type: "refresh_token",
+      refresh_token: saved.refreshToken,
+    });
+    if (Predicate.isString(issued)) {
+      console.error(
+        `Could not refresh the sign-in (${issued}); run: froggy login`
+      );
+      return null;
+    }
+    const next: Credentials = {
+      ...saved,
+      accessToken: issued.access_token,
+      expiresAt: Date.now() + issued.expires_in * 1000,
+      refreshToken: issued.refresh_token,
+    };
+    await saveCredentials(next);
+    return next;
   });
-  if (!(issued instanceof Object)) {
-    console.error(
-      `Could not refresh the sign-in (${issued}); run: froggy login`
-    );
-    return null;
-  }
-  const next: Credentials = {
-    ...current,
-    accessToken: issued.access_token,
-    expiresAt: Date.now() + issued.expires_in * 1000,
-    refreshToken: issued.refresh_token,
-  };
-  await saveCredentials(next);
-  return next;
-};
 
 /** The bearer for the next request, refreshed first when it is about to expire. */
 const bearer = async (auth: Auth): Promise<string> => {
@@ -299,9 +350,10 @@ const bearer = async (auth: Auth): Promise<string> => {
   }
   if (auth.credentials.expiresAt - REFRESH_MARGIN_MS <= Date.now()) {
     const refreshed = await refreshCredentials(auth.credentials);
-    if (refreshed !== null) {
-      auth.credentials = refreshed;
+    if (refreshed === null) {
+      return fail("Sign-in refresh failed. Run: froggy login");
     }
+    auth.credentials = refreshed;
   }
   return auth.credentials.accessToken;
 };
@@ -830,6 +882,9 @@ const main = async (): Promise<void> => {
     case "tasks": {
       const response = await api(options, "/api/tasks");
       console.log(await response.text());
+      if (!response.ok) {
+        process.exitCode = 1;
+      }
       return;
     }
     default: {
@@ -845,4 +900,8 @@ const main = async (): Promise<void> => {
   }
 };
 
-await main();
+try {
+  await main();
+} catch (error) {
+  fail(error instanceof Error ? error.message : "Froggy command failed.");
+}

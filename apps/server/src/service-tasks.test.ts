@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { TaskId } from "@froggy/domain";
-import { SessionId, userId } from "@froggy/domain";
+import { RunId, SessionId, userId } from "@froggy/domain";
 import { ServiceTicket } from "@froggy/protocol";
 import { Effect, Schema } from "effect";
 
@@ -116,6 +116,35 @@ const rejectsWith = async <T>(
 };
 
 describe("service purchases", () => {
+  it("reserves scheduled service budgets before detached purchases settle", async () => {
+    const context = await fixture();
+    const runId = RunId.generate();
+    const tickets = await Promise.all(
+      ["one", "two", "three"].map(
+        async (key) =>
+          await purchaseService(
+            { ...context, runId, interactive: false, budgetUsdMicros: 250_000 },
+            { ...request(), service: "x_search", idempotencyKey: key }
+          )
+      )
+    );
+    const results = await Promise.all(
+      tickets.map(async (ticket) => await done(context, ticket.id))
+    );
+    expect(results.filter((ticket) => ticket.status === "done")).toHaveLength(
+      1
+    );
+    expect(results.filter((ticket) => ticket.status === "failed")).toHaveLength(
+      2
+    );
+    const paid = context.session.history.filter(
+      (receipt) => receipt.settlement !== undefined
+    );
+    expect(
+      paid.reduce((total, receipt) => total + receipt.intent.usdMicros, 0)
+    ).toBeLessThanOrEqual(250_000);
+  });
+
   it("claims concurrent retries before payment, returns one result and one receipt", async () => {
     const context = await fixture();
     const input = request();

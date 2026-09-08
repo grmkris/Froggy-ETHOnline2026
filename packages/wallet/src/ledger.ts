@@ -23,9 +23,16 @@
  * redeploy, and the cap is a statement about them.
  */
 
-import type { SpendId, SpendStatus, UsdMicros, UserId } from "@froggy/domain";
+import type {
+  RunId,
+  SpendId,
+  SpendStatus,
+  UsdMicros,
+  UserId,
+} from "@froggy/domain";
 
 export interface SpendRow {
+  readonly runId?: RunId | undefined;
   readonly at: number;
   readonly id: SpendId;
   readonly idempotencyKey: string;
@@ -52,6 +59,15 @@ export interface Reservation {
   readonly row: SpendRow;
 }
 
+export class SpendBudgetExceededError extends Error {
+  constructor() {
+    super(
+      "This scheduled run has no budget left for this payment, including pending payments."
+    );
+    this.name = "SpendBudgetExceededError";
+  }
+}
+
 export interface SpendLedger {
   /**
    * Record a refusal. "It did not spend" and "it was told not to" are
@@ -65,7 +81,10 @@ export interface SpendLedger {
    * Reserve capacity for a spend, or hand back the existing row when this key
    * has been seen. Only the caller that `created` the row may pay.
    */
-  readonly reserve: (row: Omit<SpendRow, "status">) => Promise<Reservation>;
+  readonly reserve: (
+    row: Omit<SpendRow, "status">,
+    budgetUsdMicros?: number
+  ) => Promise<Reservation>;
   readonly settle: (id: SpendId, status: SpendStatus) => Promise<void>;
   /** Rows inside the window that should count against a cap. */
   readonly since: (
@@ -131,7 +150,7 @@ export const memoryLedger = (): SpendLedger => {
       rows.set(refused.id, refused);
     },
 
-    reserve: async (row) =>
+    reserve: async (row, budgetUsdMicros) =>
       await serialize(row.userId, async () => {
         await Promise.resolve();
         const key = `${row.userId}:${row.idempotencyKey}`;
@@ -140,6 +159,22 @@ export const memoryLedger = (): SpendLedger => {
           const existing = rows.get(existingId);
           if (existing !== undefined) {
             return { created: false, row: existing };
+          }
+        }
+        if (budgetUsdMicros !== undefined) {
+          const used = [...rows.values()]
+            .filter(
+              (prior) =>
+                prior.userId === row.userId &&
+                prior.runId === row.runId &&
+                !NOT_COUNTED.includes(prior.status)
+            )
+            .reduce((total, prior) => total + prior.usdMicros, 0);
+          if (
+            row.runId === undefined ||
+            used + row.usdMicros > budgetUsdMicros
+          ) {
+            throw new SpendBudgetExceededError();
           }
         }
         const fresh: SpendRow = { ...row, status: "reserved" };
@@ -152,7 +187,15 @@ export const memoryLedger = (): SpendLedger => {
       await Promise.resolve();
       const row = rows.get(id);
       if (row !== undefined) {
-        row.status = status;
+        if (status === "abandoned") {
+          const key = `${row.userId}:${row.idempotencyKey}`;
+          if (byKey.get(key) === id) {
+            byKey.delete(key);
+          }
+          rows.set(id, { ...row, idempotencyKey: refusalKey(id), status });
+        } else {
+          row.status = status;
+        }
       }
     },
 

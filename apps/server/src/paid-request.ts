@@ -36,6 +36,7 @@ import type { SpendRequest, WorkspaceSession } from "./session";
 import { assetFor } from "./tools-assets";
 
 export interface PaidRequestDeps {
+  readonly budgetUsdMicros?: number | undefined;
   /** The Graph answer this purchase is justified by, when there is one. */
   readonly evidence?: Evidence | undefined;
   /** False for a job: nobody can be asked, and it pays at most once. */
@@ -302,6 +303,7 @@ export const paidRequest = async (
     host: target.host,
     idempotencyKey:
       input.idempotencyKey ?? `x402:${input.url}:${requirement.amount}`,
+    budgetUsdMicros: deps.budgetUsdMicros,
     interactive: deps.interactive,
     payeeId: requirement.payTo,
     payeeLabel: `${target.host} (x402)`,

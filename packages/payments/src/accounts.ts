@@ -21,6 +21,7 @@ import {
   PrivateKey,
   PublicKey,
   TransferTransaction,
+  TransactionId,
 } from "@hiero-ledger/sdk";
 import { mirrorNodeUrlForNetwork } from "@x402/hedera";
 import { Schema } from "effect";
@@ -52,15 +53,23 @@ export interface HederaHost {
    */
   readonly fundAlias: (
     evmAddress: string,
-    tinybars: number
+    tinybars: number,
+    beforeBroadcast?: (transactionId: string) => Promise<void>
   ) => Promise<{ readonly transactionId: string }>;
   readonly network: HederaNetwork;
   /** Creates an account under a fresh key, funded with `tinybars` from the host. */
-  readonly open: (tinybars: number) => Promise<OpenedAccount>;
+  readonly open: (
+    tinybars: number,
+    beforeBroadcast?: (
+      transactionId: string,
+      privateKey: string
+    ) => Promise<void>
+  ) => Promise<OpenedAccount>;
   /** Moves `tinybars` from the host to `accountId`. Throws when the network refuses. */
   readonly transfer: (
     accountId: string,
-    tinybars: number
+    tinybars: number,
+    beforeBroadcast?: (transactionId: string) => Promise<void>
   ) => Promise<{ readonly transactionId: string }>;
 }
 
@@ -90,26 +99,44 @@ export const hederaHost = (options: HederaHostOptions): HederaHost => {
     close: () => {
       client.close();
     },
-    fundAlias: async (evmAddress, tinybars) => {
+    fundAlias: async (evmAddress, tinybars, beforeBroadcast) => {
       const amount = Hbar.fromTinybars(tinybars);
-      const submitted = await new TransferTransaction()
+      const transactionId = TransactionId.generate(
+        AccountId.fromString(options.accountId)
+      );
+      const transaction = new TransferTransaction()
+        .setTransactionId(transactionId)
+        // Recovery must observe the same ID even if the SDK retries.
+        .setRegenerateTransactionId(false)
         .addHbarTransfer(
           AccountId.fromString(options.accountId),
           amount.negated()
         )
         .addHbarTransfer(AccountId.fromEvmAddress(0, 0, evmAddress), amount)
-        .execute(client);
+        .freezeWith(client);
+      await beforeBroadcast?.(transactionId.toString());
+      const submitted = await transaction.execute(client);
       await submitted.getReceipt(client);
       return { transactionId: submitted.transactionId.toString() };
     },
     network: options.network,
-    open: async (tinybars) => {
+    open: async (tinybars, beforeBroadcast) => {
       const key = PrivateKey.generateECDSA();
+      const transactionId = TransactionId.generate(
+        AccountId.fromString(options.accountId)
+      );
       const frozen = new AccountCreateTransaction()
+        .setTransactionId(transactionId)
+        // Recovery must observe the same ID even if the SDK retries.
+        .setRegenerateTransactionId(false)
         .setECDSAKeyWithAlias(key)
         .setInitialBalance(Hbar.fromTinybars(tinybars))
         .freezeWith(client);
       const signed = await frozen.sign(key);
+      await beforeBroadcast?.(
+        transactionId.toString(),
+        `0x${key.toStringRaw()}`
+      );
       const submitted = await signed.execute(client);
       const receipt = await submitted.getReceipt(client);
       if (receipt.accountId === null) {
@@ -123,15 +150,23 @@ export const hederaHost = (options: HederaHostOptions): HederaHost => {
         transactionId: submitted.transactionId.toString(),
       };
     },
-    transfer: async (accountId, tinybars) => {
+    transfer: async (accountId, tinybars, beforeBroadcast) => {
       const amount = Hbar.fromTinybars(tinybars);
-      const submitted = await new TransferTransaction()
+      const transactionId = TransactionId.generate(
+        AccountId.fromString(options.accountId)
+      );
+      const transaction = new TransferTransaction()
+        .setTransactionId(transactionId)
+        // Recovery must observe the same ID even if the SDK retries.
+        .setRegenerateTransactionId(false)
         .addHbarTransfer(
           AccountId.fromString(options.accountId),
           amount.negated()
         )
         .addHbarTransfer(AccountId.fromString(accountId), amount)
-        .execute(client);
+        .freezeWith(client);
+      await beforeBroadcast?.(transactionId.toString());
+      const submitted = await transaction.execute(client);
       // The receipt is where a failed transfer says so; the response only
       // says the network took the transaction.
       await submitted.getReceipt(client);

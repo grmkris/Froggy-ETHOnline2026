@@ -19,11 +19,13 @@ import {
   evmAliasOf,
   HederaAccountError,
   liveHederaPayer,
+  lookupHederaTransactionDetails,
   resolveAlias,
   signerHederaPayer,
 } from "@froggy/payments";
 import type { HederaHost, Payer, RateSource } from "@froggy/payments";
 import type {
+  FundingSubmission,
   HederaAccountRecord,
   HederaKeys,
   Keystore,
@@ -48,6 +50,7 @@ interface HederaAccountsOptions {
   /** Between attempts; shortened in tests. */
   readonly resolveWaitMs?: number;
   readonly store: Store;
+  readonly transaction?: typeof lookupHederaTransactionDetails;
 }
 
 interface Funded {
@@ -63,7 +66,15 @@ export interface HederaAccounts {
    * opening the account with that value when they have none yet: a person's
    * first top-up is what opens their account.
    */
-  readonly fund: (userId: UserId, usdMicros: number) => Promise<Funded>;
+  readonly fund: (
+    userId: UserId,
+    usdMicros: number,
+    beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
+  ) => Promise<Funded>;
+  readonly reconcile: (
+    userId: UserId,
+    submission: FundingSubmission
+  ) => Promise<"success" | "failed" | "unknown">;
   readonly lookup: (userId: UserId) => Promise<string | null>;
   /**
    * The person's own payer. Opens their account with `openingUsdMicros` of
@@ -101,13 +112,28 @@ export const createHederaAccounts = (
     return Math.ceil((usdMicros / rate.usdMicrosPerHbar) * TINYBARS_PER_HBAR);
   };
 
-  let lastOpening: Funded | null = null;
+  const lastOpening = new Map<UserId, Funded>();
 
   /** Froggy's own key, sealed at rest: the account is created for it outright. */
   const openSealed = async (
-    tinybars: number
+    tinybars: number,
+    beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
   ): Promise<{ record: HederaAccountRecord; transactionId: string }> => {
-    const created = await options.host.open(tinybars);
+    const created = await options.host.open(
+      tinybars,
+      async (transactionId, privateKey) => {
+        await beforeBroadcast?.({
+          transactionId,
+          tinybars,
+          accountId: null,
+          alias: null,
+          custody: {
+            kind: "sealed",
+            keyCiphertext: await options.keystore.seal(privateKey),
+          },
+        });
+      }
+    );
     return {
       record: {
         accountId: created.accountId,
@@ -127,13 +153,27 @@ export const createHederaAccounts = (
   const openWithPrivy = async (
     keys: HederaKeys,
     userId: UserId,
-    tinybars: number
+    tinybars: number,
+    beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
   ): Promise<{ record: HederaAccountRecord; transactionId: string }> => {
     const key = await keys.create(userId);
     const evmAddress = evmAliasOf(key.publicKey);
     const { transactionId } = await options.host.fundAlias(
       evmAddress,
-      tinybars
+      tinybars,
+      async (preparedId) => {
+        await beforeBroadcast?.({
+          transactionId: preparedId,
+          tinybars,
+          accountId: null,
+          alias: evmAddress,
+          custody: {
+            kind: "privy",
+            walletId: key.walletId,
+            publicKey: key.publicKey,
+          },
+        });
+      }
     );
     const attempts = options.resolveAttempts ?? 15;
     let accountId: string | null = null;
@@ -171,19 +211,20 @@ export const createHederaAccounts = (
 
   const open = async (
     userId: UserId,
-    usdMicros: number
+    usdMicros: number,
+    beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
   ): Promise<HederaAccountRecord> => {
     const tinybars = tinybarsFor(usdMicros) + FEE_MARGIN_TINYBARS;
     const opened =
       options.keys === null
-        ? await openSealed(tinybars)
-        : await openWithPrivy(options.keys, userId, tinybars);
+        ? await openSealed(tinybars, beforeBroadcast)
+        : await openWithPrivy(options.keys, userId, tinybars, beforeBroadcast);
     await options.store.hedera.save(userId, opened.record);
-    lastOpening = {
+    lastOpening.set(userId, {
       opened: true,
       tinybars,
       transactionId: opened.transactionId,
-    };
+    });
     return opened.record;
   };
 
@@ -213,7 +254,8 @@ export const createHederaAccounts = (
 
   const ensure = async (
     userId: UserId,
-    usdMicros: number
+    usdMicros: number,
+    beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
   ): Promise<HederaAccountRecord> => {
     const existing = await options.store.hedera.load(userId);
     if (existing !== null) {
@@ -226,7 +268,7 @@ export const createHederaAccounts = (
     }
     const pending = (async (): Promise<HederaAccountRecord> => {
       try {
-        return await open(userId, usdMicros);
+        return await open(userId, usdMicros, beforeBroadcast);
       } finally {
         opening.delete(userId);
       }
@@ -236,23 +278,58 @@ export const createHederaAccounts = (
   };
 
   return {
-    fund: async (userId, usdMicros) => {
+    fund: async (userId, usdMicros, beforeBroadcast) => {
       const record = await options.store.hedera.load(userId);
       if (record === null) {
-        await ensure(userId, usdMicros);
-        if (lastOpening === null) {
+        await ensure(userId, usdMicros, beforeBroadcast);
+        const funded = lastOpening.get(userId);
+        if (funded === undefined) {
           throw new HederaAccountError(
             "The account was opened by another request at the same moment; the top-up will show in it."
           );
         }
-        return lastOpening;
+        return funded;
       }
       const tinybars = tinybarsFor(usdMicros);
       const { transactionId } = await options.host.transfer(
         record.accountId,
-        tinybars
+        tinybars,
+        async (preparedId) => {
+          await beforeBroadcast?.({
+            transactionId: preparedId,
+            tinybars,
+            accountId: record.accountId,
+            alias: null,
+            custody: null,
+          });
+        }
       );
       return { opened: false, tinybars, transactionId };
+    },
+    reconcile: async (userId, submission) => {
+      const result = await (
+        options.transaction ?? lookupHederaTransactionDetails
+      )({
+        network: options.host.network,
+        transactionId: submission.transactionId,
+      });
+      if (result.status !== "success") {
+        return result.status;
+      }
+      if (submission.custody !== null) {
+        const accountId =
+          submission.alias === null
+            ? result.entityId
+            : await resolve(submission.alias);
+        if (accountId === null) {
+          return "unknown";
+        }
+        await options.store.hedera.save(userId, {
+          accountId,
+          custody: submission.custody,
+        });
+      }
+      return "success";
     },
     lookup: async (userId) => {
       const record = await options.store.hedera.load(userId);

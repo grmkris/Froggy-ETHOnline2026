@@ -134,6 +134,7 @@ export const graphQueryOutput = (
 });
 
 export interface ToolDeps {
+  readonly budgetUsdMicros?: number | undefined;
   /** This caller's own Chrome. One per signed-in user, never shared. */
   readonly browser: BrowserHandle;
   /**
@@ -271,6 +272,7 @@ export const buildTools = (deps: ToolDeps) => {
       transport: x402Transport(async (url, body) => {
         const outcome = await paidRequest(
           {
+            budgetUsdMicros: deps.budgetUsdMicros,
             interactive: deps.interactive ?? true,
             outbound,
             run: deps.run,
@@ -339,6 +341,7 @@ export const buildTools = (deps: ToolDeps) => {
               session,
               agentTokenId: null,
               runId: deps.run.id,
+              budgetUsdMicros: deps.budgetUsdMicros,
               interactive: deps.interactive ?? true,
             },
             input
@@ -457,6 +460,7 @@ export const buildTools = (deps: ToolDeps) => {
         const outcome = await paidRequest(
           {
             evidence: lastEvidence,
+            budgetUsdMicros: deps.budgetUsdMicros,
             interactive: deps.interactive ?? true,
             outbound,
             run: deps.run,
@@ -519,6 +523,7 @@ export const buildTools = (deps: ToolDeps) => {
           // own words. The receipt shows whichever layer said no.
           provenance: typedByPerson(to, deps.userText ?? "") ? "user" : "model",
           purpose,
+          budgetUsdMicros: deps.budgetUsdMicros,
           interactive: deps.interactive ?? true,
           runId: deps.run.id,
           signal: deps.run.signal,

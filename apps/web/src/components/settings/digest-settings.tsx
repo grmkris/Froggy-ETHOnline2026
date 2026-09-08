@@ -64,6 +64,7 @@ export const DigestSettings = (): ReactElement => {
     },
     onSuccess: (next) => {
       queries.setQueryData(["digest"], next);
+      void queries.invalidateQueries({ queryKey: ["schedules"] });
     },
   });
 

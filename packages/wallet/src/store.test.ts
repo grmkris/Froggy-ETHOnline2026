@@ -295,7 +295,7 @@ describe("memoryStore schedules", () => {
     const due = reminder(NOW);
     await store.schedules.create(ALICE, due);
     await store.schedules.claimDue(NOW, 600_000);
-    await store.schedules.finish(due.id, {
+    await store.schedules.finish(due.id, NOW, {
       nextRunAt: NOW + 60_000,
       status: "active",
     });
@@ -309,7 +309,7 @@ describe("memoryStore schedules", () => {
     expect(await store.schedules.claimDue(NOW + 60_000, 600_000)).toHaveLength(
       1
     );
-    await store.schedules.finish(due.id, {
+    await store.schedules.finish(due.id, NOW + 60_000, {
       lastRunAt: NOW + 60_000,
       nextRunAt: null,
       status: "done",

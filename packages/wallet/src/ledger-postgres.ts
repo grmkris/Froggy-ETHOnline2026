@@ -23,12 +23,12 @@
 
 import { spends, users } from "@froggy/database";
 import { spendStatus, usdMicros, userId } from "@froggy/domain";
-import type { SpendId } from "@froggy/domain";
+import type { RunId, SpendId } from "@froggy/domain";
 import { and, eq, gte, notInArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
 
-import { NOT_COUNTED, refusalKey } from "./ledger";
+import { NOT_COUNTED, refusalKey, SpendBudgetExceededError } from "./ledger";
 import type { Reservation, SpendLedger, SpendRow } from "./ledger";
 
 /** Swallow a settled rejection. Named so the intent is not a bare empty arrow. */
@@ -37,6 +37,7 @@ const noop = (): void => undefined;
 type Database = ReturnType<typeof drizzle>;
 
 interface Persisted {
+  readonly runId: RunId | null;
   readonly createdAt: Date;
   readonly id: SpendId;
   readonly idempotencyKey: string;
@@ -56,6 +57,7 @@ interface Persisted {
  */
 const toRow = (record: Persisted): SpendRow => ({
   at: record.createdAt.getTime(),
+  runId: record.runId ?? undefined,
   id: record.id,
   idempotencyKey: record.idempotencyKey,
   status: spendStatus(record.status),
@@ -109,63 +111,83 @@ export const postgresLedger = (sql: Sql): SpendLedger => {
         .onConflictDoNothing();
     },
 
-    reserve: async (row) =>
+    reserve: async (row, budgetUsdMicros) =>
       await serialize(row.userId, async () => {
-        // The user row is created here rather than at sign-in because this is
-        // the first moment anything has to be true about them: a spend needs an
-        // owner. Signing in and never spending leaves no trace, which is the
-        // right default for a table that exists to hold custody, not identity.
         await database
           .insert(users)
           .values({ did: row.userId })
           .onConflictDoNothing();
-
-        const inserted = await database
-          .insert(spends)
-          .values({
-            createdAt: new Date(row.at),
-            id: row.id,
-            idempotencyKey: row.idempotencyKey,
-            status: "reserved",
-            usdMicros: row.usdMicros,
-            userId: row.userId,
-          })
-          .onConflictDoNothing({
-            target: [spends.userId, spends.idempotencyKey],
-          })
-          .returning();
-
-        const [first] = inserted;
-        if (first !== undefined) {
-          // Our insert won the unique index. We are the one caller allowed to
-          // move money for this key, in this process or any other.
-          return { created: true, row: toRow(first) } satisfies Reservation;
-        }
-
-        // Lost the race, or this key has been seen before. Either way the
-        // winner's row is the answer, and the caller must treat a `settled`
-        // one as already paid.
-        const existing = await database
-          .select()
-          .from(spends)
-          .where(
-            and(
-              eq(spends.userId, row.userId),
-              eq(spends.idempotencyKey, row.idempotencyKey)
+        return await database.transaction(async (tx) => {
+          // All reservations for a person share this database lock, across pools.
+          await tx
+            .select({ did: users.did })
+            .from(users)
+            .where(eq(users.did, row.userId))
+            .for("update");
+          const [existing] = await tx
+            .select()
+            .from(spends)
+            .where(
+              and(
+                eq(spends.userId, row.userId),
+                eq(spends.idempotencyKey, row.idempotencyKey)
+              )
             )
-          )
-          .limit(1);
-        const [found] = existing;
-        if (found === undefined) {
-          throw new Error(
-            `Spend ${row.idempotencyKey} neither inserted nor found.`
-          );
-        }
-        return { created: false, row: toRow(found) } satisfies Reservation;
+            .limit(1);
+          if (existing !== undefined) {
+            return {
+              created: false,
+              row: toRow(existing),
+            } satisfies Reservation;
+          }
+          if (budgetUsdMicros !== undefined) {
+            if (row.runId === undefined) {
+              throw new SpendBudgetExceededError();
+            }
+            const prior = await tx
+              .select({ usdMicros: spends.usdMicros })
+              .from(spends)
+              .where(
+                and(
+                  eq(spends.userId, row.userId),
+                  eq(spends.runId, row.runId),
+                  notInArray(spends.status, [...NOT_COUNTED])
+                )
+              );
+            const used = prior.reduce(
+              (total, spend) => total + spend.usdMicros,
+              0
+            );
+            if (used + row.usdMicros > budgetUsdMicros) {
+              throw new SpendBudgetExceededError();
+            }
+          }
+          const [inserted] = await tx
+            .insert(spends)
+            .values({
+              createdAt: new Date(row.at),
+              id: row.id,
+              idempotencyKey: row.idempotencyKey,
+              runId: row.runId ?? null,
+              status: "reserved",
+              usdMicros: row.usdMicros,
+              userId: row.userId,
+            })
+            .returning();
+          if (inserted === undefined) {
+            throw new Error("Spend reservation was not written.");
+          }
+          return { created: true, row: toRow(inserted) } satisfies Reservation;
+        });
       }),
 
     settle: async (id, status) => {
-      await database.update(spends).set({ status }).where(eq(spends.id, id));
+      // An unsent attempt remains auditable but cannot block a safe retry.
+      const patch =
+        status === "abandoned"
+          ? { status, idempotencyKey: refusalKey(id) }
+          : { status };
+      await database.update(spends).set(patch).where(eq(spends.id, id));
     },
 
     since: async (owner, from) => {

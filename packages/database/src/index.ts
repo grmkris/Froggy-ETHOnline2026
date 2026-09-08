@@ -5,6 +5,7 @@ import type { Sql } from "postgres";
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
 export {
   agentTokens,
+  conversions,
   directory,
   mandates,
   oauthClients,
