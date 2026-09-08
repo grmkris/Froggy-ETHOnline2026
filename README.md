@@ -27,6 +27,8 @@ During a task, the conversation is the ledger: every receipt is filed under the 
 
 Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. The current visual implementation is recorded in [the UI plan pack](plans/README.md). Hedera payments automatically convert USDC when needed; durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
 
+[Browse the desktop and mobile screenshot tour](docs/evidence/ui-review-2026-09-07/README.md) for the five main pages, interaction states and before/after comparisons.
+
 ## Run it
 
 ```bash

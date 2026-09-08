@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Froggy · Workspace review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f5ef;
+      --ink: #203d2c;
+      --line: #d9ddd2;
+      --green: #176d36;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font:
+        15px/1.5 system-ui,
+        sans-serif;
+    }
+    header,
+    main {
+      max-width: 1500px;
+      margin: auto;
+      padding: 32px 40px;
+    }
+    header {
+      padding-top: 48px;
+    }
+    small {
+      font: 11px/1.5 monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+    h1 {
+      font:
+        500 clamp(36px, 5vw, 66px)/1.08 Georgia,
+        serif;
+      letter-spacing: -0.04em;
+      margin: 14px 0 20px;
+    }
+    header p {
+      max-width: 780px;
+      color: #526052;
+    }
+    a {
+      color: var(--green);
+      text-underline-offset: 3px;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f6f5eff5;
+      border-block: 1px solid var(--line);
+      display: flex;
+      gap: 18px;
+      align-items: end;
+      flex-wrap: wrap;
+      padding: 16px 40px;
+      backdrop-filter: blur(12px);
+    }
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    select,
+    input {
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 12px;
+      border: 1px solid #b5bfae;
+      border-radius: 9px;
+      background: white;
+      color: var(--ink);
+      min-height: 44px;
+    }
+    input {
+      min-width: 250px;
+    }
+    input:focus-visible,
+    select:focus-visible,
+    a:focus-visible {
+      outline: 3px solid #73af76;
+      outline-offset: 3px;
+    }
+    output {
+      margin-left: auto;
+      padding-bottom: 10px;
+      font-size: 12px;
+      color: #526052;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 32px;
+    }
+    article {
+      min-width: 0;
+    }
+    article.compare {
+      grid-column: 1/-1;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    h2 span {
+      font: 11px monospace;
+      color: #687464;
+      margin-left: 10px;
+    }
+    .images {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    figure {
+      margin: 0;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    figure a {
+      display: block;
+      background: #ebece5;
+      padding: 12px;
+    }
+    img {
+      display: block;
+      width: 100%;
+      height: 400px;
+      object-fit: contain;
+      object-position: top;
+    }
+    figcaption {
+      font-size: 12px;
+      padding: 10px 16px;
+      color: #526052;
+    }
+    .compare img {
+      height: 480px;
+    }
+    .empty {
+      grid-column: 1/-1;
+      padding: 70px;
+      text-align: center;
+    }
+    footer {
+      padding: 25px 40px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: #526052;
+    }
+    @media (max-width: 700px) {
+      header,
+      main {
+        padding: 24px 16px;
+      }
+      .toolbar {
+        padding: 12px 16px;
+        gap: 10px;
+      }
+      label {
+        flex: 1;
+      }
+      input {
+        min-width: 0;
+        width: 100%;
+      }
+      #grid {
+        grid-template-columns: 1fr;
+      }
+      img,
+      .compare img {
+        height: 480px;
+      }
+      .images {
+        grid-template-columns: 1fr;
+      }
+      output {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+      }
+    }
+  </style>
+  <header>
+    <small>Froggy / Workspace review / 7 September 2026</small>
+    <h1>A little more room<br />for Froggy.</h1>
+    <p>
+      A review of the recent workspace, connections, services and schedules.
+      Wider desktop layouts, a more useful mobile welcome, and fixes for
+      deletion feedback, digest failures and the service-result handoff.
+    </p>
+    <p>
+      <strong>Local Chromium captures.</strong> Workspace integrations are
+      visibly simulated. The production view shows the deployed sign-in page on
+      8 September. Scroll sections preserve the content below the fold. OAuth
+      codes and one-time connection tokens are masked.
+      <a href="../UI_REVIEW_2026-09-07.md">Read the findings</a>.
+    </p>
+  </header>
+  <div class="toolbar">
+    <label
+      >View<select id="phase">
+        <option value="after">After</option>
+        <option value="compare">Before / after</option>
+        <option value="before">Before</option>
+        <option value="production">Production sign-in</option>
+      </select></label
+    ><label
+      >Viewport<select id="width">
+        <option value="1440">Desktop · 1440px</option>
+        <option value="390">Phone · 390px</option>
+        <option value="768">Tablet · 768px</option>
+        <option value="320">Small phone · 320px</option>
+        <option value="all">All widths</option>
+      </select></label
+    ><label
+      >Screen<select id="screen">
+        <option value="main">Five main pages</option>
+        <option value="all">All pages and states</option>
+        <option value="chat">Chat</option>
+        <option value="wallet">Wallet / funding</option>
+        <option value="services">Services</option>
+        <option value="agents">Agents</option>
+        <option value="settings">Settings</option>
+        <option value="oauth">OAuth</option>
+        <option value="browser">Shared browser</option>
+        <option value="sign-in">Sign-in</option>
+      </select></label
+    ><label
+      >Find a state<input
+        id="search"
+        placeholder="Try receipt, consent, or part-2"
+        type="search" /></label
+    ><output id="count" aria-live="polite"></output>
+  </div>
+  <main><div id="grid"></div></main>
+  <footer>
+    Click any capture to open the original PNG. 1440 / 768 / 390 / 320px. This
+    review does not establish physical-device behavior or live provider
+    settlement.
+  </footer>
+  <script>
+    const items = [
+      {
+        phase: "before",
+        state: "agents",
+        width: "1440",
+        src: "before/agents-1440.png",
+      },
+      {
+        phase: "before",
+        state: "agents",
+        width: "390",
+        src: "before/agents-390.png",
+      },
+      {
+        phase: "before",
+        state: "agents",
+        width: "768",
+        src: "before/agents-768.png",
+      },
+      {
+        phase: "before",
+        state: "chat",
+        width: "1440",
+        src: "before/chat-1440.png",
+      },
+      {
+        phase: "before",
+        state: "chat",
+        width: "390",
+        src: "before/chat-390.png",
+      },
+      {
+        phase: "before",
+        state: "chat",
+        width: "768",
+        src: "before/chat-768.png",
+      },
+      {
+        phase: "before",
+        state: "services",
+        width: "1440",
+        src: "before/services-1440.png",
+      },
+      {
+        phase: "before",
+        state: "services",
+        width: "390",
+        src: "before/services-390.png",
+      },
+      {
+        phase: "before",
+        state: "services",
+        width: "768",
+        src: "before/services-768.png",
+      },
+      {
+        phase: "before",
+        state: "settings",
+        width: "1440",
+        src: "before/settings-1440.png",
+      },
+      {
+        phase: "before",
+        state: "settings",
+        width: "390",
+        src: "before/settings-390.png",
+      },
+      {
+        phase: "before",
+        state: "settings",
+        width: "768",
+        src: "before/settings-768.png",
+      },
+      {
+        phase: "before",
+        state: "wallet",
+        width: "1440",
+        src: "before/wallet-1440.png",
+      },
+      {
+        phase: "before",
+        state: "wallet",
+        width: "390",
+        src: "before/wallet-390.png",
+      },
+      {
+        phase: "before",
+        state: "wallet",
+        width: "768",
+        src: "before/wallet-768.png",
+      },
+      {
+        phase: "after",
+        state: "add-funds",
+        width: "1440",
+        src: "after/add-funds-1440.png",
+      },
+      {
+        phase: "after",
+        state: "add-funds",
+        width: "390",
+        src: "after/add-funds-390.png",
+      },
+      {
+        phase: "after",
+        state: "agent-connected",
+        width: "1440",
+        src: "after/agent-connected-1440.png",
+      },
+      {
+        phase: "after",
+        state: "agent-connected",
+        width: "390",
+        src: "after/agent-connected-390.png",
+      },
+      {
+        phase: "after",
+        state: "agent-instructions",
+        width: "1440",
+        src: "after/agent-instructions-1440.png",
+      },
+      {
+        phase: "after",
+        state: "agent-instructions",
+        width: "390",
+        src: "after/agent-instructions-390.png",
+      },
+      {
+        phase: "after",
+        state: "agent-instructions-part-2",
+        width: "390",
+        src: "after/agent-instructions-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "agent-token-form",
+        width: "1440",
+        src: "after/agent-token-form-1440.png",
+      },
+      {
+        phase: "after",
+        state: "agent-token-form",
+        width: "390",
+        src: "after/agent-token-form-390.png",
+      },
+      {
+        phase: "after",
+        state: "agents",
+        width: "1440",
+        src: "after/agents-1440.png",
+      },
+      {
+        phase: "after",
+        state: "agents",
+        width: "320",
+        src: "after/agents-320.png",
+      },
+      {
+        phase: "after",
+        state: "agents",
+        width: "390",
+        src: "after/agents-390.png",
+      },
+      {
+        phase: "after",
+        state: "agents",
+        width: "768",
+        src: "after/agents-768.png",
+      },
+      {
+        phase: "after",
+        state: "agents-part-2",
+        width: "320",
+        src: "after/agents-part-2-320.png",
+      },
+      {
+        phase: "after",
+        state: "agents-part-2",
+        width: "390",
+        src: "after/agents-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "agents-part-2",
+        width: "768",
+        src: "after/agents-part-2-768.png",
+      },
+      {
+        phase: "after",
+        state: "agents-part-3",
+        width: "320",
+        src: "after/agents-part-3-320.png",
+      },
+      {
+        phase: "after",
+        state: "browser-inline",
+        width: "1440",
+        src: "after/browser-inline-1440.png",
+      },
+      {
+        phase: "after",
+        state: "browser-inline",
+        width: "390",
+        src: "after/browser-inline-390.png",
+      },
+      {
+        phase: "after",
+        state: "browser-split",
+        width: "1400",
+        src: "after/browser-split-1400.png",
+      },
+      {
+        phase: "after",
+        state: "browser-window",
+        width: "1440",
+        src: "after/browser-window-1440.png",
+      },
+      {
+        phase: "after",
+        state: "browser-window",
+        width: "390",
+        src: "after/browser-window-390.png",
+      },
+      {
+        phase: "after",
+        state: "chat",
+        width: "1440",
+        src: "after/chat-1440.png",
+      },
+      {
+        phase: "after",
+        state: "chat",
+        width: "320",
+        src: "after/chat-320.png",
+      },
+      {
+        phase: "after",
+        state: "chat",
+        width: "390",
+        src: "after/chat-390.png",
+      },
+      {
+        phase: "after",
+        state: "chat",
+        width: "768",
+        src: "after/chat-768.png",
+      },
+      {
+        phase: "after",
+        state: "chat-approval",
+        width: "1440",
+        src: "after/chat-approval-1440.png",
+      },
+      {
+        phase: "after",
+        state: "chat-approval",
+        width: "390",
+        src: "after/chat-approval-390.png",
+      },
+      {
+        phase: "after",
+        state: "chat-completed",
+        width: "1440",
+        src: "after/chat-completed-1440.png",
+      },
+      {
+        phase: "after",
+        state: "chat-completed",
+        width: "390",
+        src: "after/chat-completed-390.png",
+      },
+      {
+        phase: "after",
+        state: "chat-part-2",
+        width: "320",
+        src: "after/chat-part-2-320.png",
+      },
+      {
+        phase: "after",
+        state: "chat-part-2",
+        width: "390",
+        src: "after/chat-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "chat-part-3",
+        width: "320",
+        src: "after/chat-part-3-320.png",
+      },
+      {
+        phase: "after",
+        state: "chat-receipt",
+        width: "1440",
+        src: "after/chat-receipt-1440.png",
+      },
+      {
+        phase: "after",
+        state: "chat-receipt",
+        width: "390",
+        src: "after/chat-receipt-390.png",
+      },
+      {
+        phase: "after",
+        state: "delete-confirmation",
+        width: "1440",
+        src: "after/delete-confirmation-1440.png",
+      },
+      {
+        phase: "after",
+        state: "delete-confirmation",
+        width: "390",
+        src: "after/delete-confirmation-390.png",
+      },
+      {
+        phase: "after",
+        state: "oauth-consent",
+        width: "1440",
+        src: "after/oauth-consent-1440.png",
+      },
+      {
+        phase: "after",
+        state: "oauth-consent",
+        width: "390",
+        src: "after/oauth-consent-390.png",
+      },
+      {
+        phase: "after",
+        state: "oauth-manual",
+        width: "1440",
+        src: "after/oauth-manual-1440.png",
+      },
+      {
+        phase: "after",
+        state: "oauth-manual",
+        width: "390",
+        src: "after/oauth-manual-390.png",
+      },
+      {
+        phase: "after",
+        state: "service-request",
+        width: "1440",
+        src: "after/service-request-1440.png",
+      },
+      {
+        phase: "after",
+        state: "service-request",
+        width: "390",
+        src: "after/service-request-390.png",
+      },
+      {
+        phase: "after",
+        state: "service-request-part-2",
+        width: "390",
+        src: "after/service-request-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "service-result",
+        width: "1440",
+        src: "after/service-result-1440.png",
+      },
+      {
+        phase: "after",
+        state: "service-result",
+        width: "390",
+        src: "after/service-result-390.png",
+      },
+      {
+        phase: "after",
+        state: "services",
+        width: "1440",
+        src: "after/services-1440.png",
+      },
+      {
+        phase: "after",
+        state: "services",
+        width: "320",
+        src: "after/services-320.png",
+      },
+      {
+        phase: "after",
+        state: "services",
+        width: "390",
+        src: "after/services-390.png",
+      },
+      {
+        phase: "after",
+        state: "services",
+        width: "768",
+        src: "after/services-768.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-2",
+        width: "1440",
+        src: "after/services-part-2-1440.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-2",
+        width: "320",
+        src: "after/services-part-2-320.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-2",
+        width: "390",
+        src: "after/services-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-2",
+        width: "768",
+        src: "after/services-part-2-768.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-3",
+        width: "320",
+        src: "after/services-part-3-320.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-3",
+        width: "390",
+        src: "after/services-part-3-390.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-4",
+        width: "320",
+        src: "after/services-part-4-320.png",
+      },
+      {
+        phase: "after",
+        state: "services-part-5",
+        width: "320",
+        src: "after/services-part-5-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings",
+        width: "1440",
+        src: "after/settings-1440.png",
+      },
+      {
+        phase: "after",
+        state: "settings",
+        width: "320",
+        src: "after/settings-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings",
+        width: "390",
+        src: "after/settings-390.png",
+      },
+      {
+        phase: "after",
+        state: "settings",
+        width: "768",
+        src: "after/settings-768.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-2",
+        width: "320",
+        src: "after/settings-part-2-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-2",
+        width: "390",
+        src: "after/settings-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-2",
+        width: "768",
+        src: "after/settings-part-2-768.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-3",
+        width: "320",
+        src: "after/settings-part-3-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-3",
+        width: "390",
+        src: "after/settings-part-3-390.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-4",
+        width: "320",
+        src: "after/settings-part-4-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings-part-5",
+        width: "320",
+        src: "after/settings-part-5-320.png",
+      },
+      {
+        phase: "after",
+        state: "settings-scheduled",
+        width: "1440",
+        src: "after/settings-scheduled-1440.png",
+      },
+      {
+        phase: "after",
+        state: "settings-scheduled",
+        width: "390",
+        src: "after/settings-scheduled-390.png",
+      },
+      {
+        phase: "after",
+        state: "settings-scheduled-part-2",
+        width: "390",
+        src: "after/settings-scheduled-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "settings-scheduled-part-3",
+        width: "390",
+        src: "after/settings-scheduled-part-3-390.png",
+      },
+      {
+        phase: "after",
+        state: "wallet",
+        width: "1440",
+        src: "after/wallet-1440.png",
+      },
+      {
+        phase: "after",
+        state: "wallet",
+        width: "320",
+        src: "after/wallet-320.png",
+      },
+      {
+        phase: "after",
+        state: "wallet",
+        width: "390",
+        src: "after/wallet-390.png",
+      },
+      {
+        phase: "after",
+        state: "wallet",
+        width: "768",
+        src: "after/wallet-768.png",
+      },
+      {
+        phase: "after",
+        state: "wallet-breakdown",
+        width: "1440",
+        src: "after/wallet-breakdown-1440.png",
+      },
+      {
+        phase: "after",
+        state: "wallet-breakdown",
+        width: "390",
+        src: "after/wallet-breakdown-390.png",
+      },
+      {
+        phase: "after",
+        state: "wallet-breakdown-part-2",
+        width: "390",
+        src: "after/wallet-breakdown-part-2-390.png",
+      },
+      {
+        phase: "after",
+        state: "wallet-part-2",
+        width: "320",
+        src: "after/wallet-part-2-320.png",
+      },
+      {
+        phase: "production",
+        state: "sign-in",
+        width: "1440",
+        src: "production-signin-1440.png",
+      },
+      {
+        phase: "production",
+        state: "sign-in",
+        width: "390",
+        src: "production-signin-390.png",
+      },
+    ];
+    const mainPages = ["chat", "wallet", "services", "agents", "settings"];
+    const controls = ["phase", "width", "screen", "search"].map((id) =>
+      document.getElementById(id)
+    );
+    const title = (s) =>
+      s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    function matches(item, screen) {
+      if (screen === "all") return true;
+      if (screen === "main") return mainPages.includes(item.state);
+      const prefixes = {
+        wallet: ["wallet", "add-funds"],
+        services: ["services", "service-"],
+        agents: ["agents", "agent-"],
+        settings: ["settings", "delete-"],
+        chat: ["chat"],
+        oauth: ["oauth"],
+        browser: ["browser"],
+        "sign-in": ["sign-in"],
+      }[screen];
+      return prefixes.some((p) => item.state.startsWith(p));
+    }
+    function render() {
+      const [phase, width, screen, search] = controls.map((e) => e.value);
+      const selected = items.filter(
+        (i) =>
+          (phase === "compare" || i.phase === phase) &&
+          (width === "all" || i.width === width) &&
+          matches(i, screen) &&
+          i.state.includes(search.toLowerCase().replace(/ /g, "-"))
+      );
+      const groups = new Map();
+      for (const item of selected) {
+        const key = item.state + "-" + item.width;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+      const grid = document.getElementById("grid");
+      grid.replaceChildren();
+      for (const [key, entries] of groups) {
+        const article = document.createElement("article");
+        if (phase === "compare") article.className = "compare";
+        const heading = document.createElement("h2");
+        heading.textContent = title(entries[0].state);
+        const size = document.createElement("span");
+        size.textContent = entries[0].width + "px";
+        heading.append(size);
+        article.append(heading);
+        const images = document.createElement("div");
+        images.className = "images";
+        entries.sort((a, b) =>
+          a.phase === "before" ? -1 : b.phase === "before" ? 1 : 0
+        );
+        for (const item of entries) {
+          const figure = document.createElement("figure");
+          const a = document.createElement("a");
+          a.href = item.src;
+          a.target = "_blank";
+          a.rel = "noopener";
+          const img = document.createElement("img");
+          img.src = item.src;
+          img.alt =
+            title(item.state) +
+            " " +
+            item.phase +
+            " at " +
+            item.width +
+            " pixels";
+          a.append(img);
+          const caption = document.createElement("figcaption");
+          caption.textContent =
+            item.phase === "before"
+              ? "Before · recent committed version"
+              : item.phase === "production"
+                ? "Production · deployed sign-in"
+                : "After · redesigned workspace";
+          figure.append(a, caption);
+          images.append(figure);
+        }
+        article.append(images);
+        grid.append(article);
+      }
+      if (groups.size === 0) {
+        const p = document.createElement("p");
+        p.className = "empty";
+        p.textContent = "No captures match these filters.";
+        grid.append(p);
+      }
+      document.getElementById("count").textContent =
+        selected.length + " captures · " + items.length + " total";
+    }
+    for (const control of controls)
+      control.addEventListener("input", () => {
+        if (control.id === "phase" && control.value === "production")
+          controls[2].value = "sign-in";
+        else if (control.id === "phase" && controls[2].value === "sign-in")
+          controls[2].value = "main";
+        render();
+      });
+    render();
+  </script>
+</html>
