@@ -26,14 +26,12 @@ export const Page = ({
   >
     <div
       className={cn(
-        "mx-auto flex w-full flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-8 sm:py-10",
+        "mx-auto flex w-full flex-col gap-[18px] px-[26px] py-[26px]",
         wide ? "max-w-6xl" : "max-w-4xl"
       )}
     >
       <header className={titleHidden ? "sr-only" : undefined}>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          {title}
-        </h1>
+        <h1 className="text-title">{title}</h1>
         {intro === undefined ? null : (
           <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
             {intro}

@@ -93,7 +93,7 @@ const ProbeCard = ({
             className="flex items-baseline gap-2"
             key={`${option.network}:${option.payTo}:${option.amount}`}
           >
-            <span className="text-money">
+            <span className="text-money text-sm tabular-nums">
               {priceLabel(option.amount, option.asset, option.network)}
             </span>
             <span className="text-machine text-muted-foreground flex-1 truncate">

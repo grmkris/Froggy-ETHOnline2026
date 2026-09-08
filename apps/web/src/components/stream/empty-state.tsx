@@ -43,7 +43,7 @@ const WalletPeek = ({
       to="/wallet"
     >
       Wallet:{" "}
-      <MorphText className="text-money text-foreground tabular-nums">
+      <MorphText className="text-money text-foreground text-sm tabular-nums">
         {totalUsdMicros === null
           ? "balance unavailable"
           : formatUsd(totalUsdMicros)}
@@ -72,7 +72,7 @@ export const EmptyState = ({
           A little help goes a long way
         </p>
       </div>
-      <h1 className="font-display max-w-lg text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl">
+      <h1 className="text-title max-w-lg text-balance">
         What would you like to do?
       </h1>
       <p className="text-muted-foreground mt-3 max-w-lg text-sm leading-relaxed">

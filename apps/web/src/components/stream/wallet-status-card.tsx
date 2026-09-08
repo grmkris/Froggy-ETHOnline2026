@@ -20,7 +20,7 @@ const Row = ({
   readonly label: string;
   readonly value: string;
 }): ReactElement => (
-  <tr className="[&>td]:py-0.5 [&>td]:pr-4">
+  <tr className="[&>td]:py-2.5 [&>td]:pr-4">
     <td className="text-muted-foreground">{label}</td>
     <MorphText as="td" className="text-foreground/80">
       {value}

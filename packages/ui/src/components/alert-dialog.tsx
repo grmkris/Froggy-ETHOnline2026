@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 transition-opacity duration-(--motion-panel) ease-(--ease-out) data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
+        "bg-overlay fixed inset-0 isolate z-50 transition-opacity duration-(--motion-panel) ease-(--ease-out) data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
         className
       )}
       {...props}
@@ -52,7 +52,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content bg-popover text-popover-foreground ring-foreground/10 fixed top-1/2 left-1/2 z-50 grid w-full origin-center -translate-x-1/2 -translate-y-1/2 scale-100 gap-4 rounded-xl p-4 ring-1 transition-[scale,opacity] duration-(--motion-panel) ease-(--ease-out) outline-none data-ending-style:opacity-0 data-starting-style:opacity-0 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs motion-safe:data-ending-style:scale-[0.97] motion-safe:data-starting-style:scale-[0.97] motion-reduce:transition-opacity data-[size=default]:sm:max-w-sm",
+          "group/alert-dialog-content bg-popover text-popover-foreground shadow-float fixed top-1/2 left-1/2 z-50 grid w-full origin-center -translate-x-1/2 -translate-y-1/2 scale-100 gap-4 rounded-xl p-4 transition-[scale,opacity] duration-(--motion-panel) ease-(--ease-out) outline-none data-ending-style:opacity-0 data-starting-style:opacity-0 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs motion-safe:data-ending-style:scale-[0.97] motion-safe:data-starting-style:scale-[0.97] motion-reduce:transition-opacity data-[size=default]:sm:max-w-sm",
           className
         )}
         {...props}
@@ -117,7 +117,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "text-base font-medium sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
+        "text-section sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
         className
       )}
       {...props}

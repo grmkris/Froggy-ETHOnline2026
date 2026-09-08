@@ -33,7 +33,7 @@ const Row = ({
   <div className="flex flex-col gap-1.5">
     <div className="flex items-baseline justify-between gap-3">
       <dt className="font-medium">{label}</dt>
-      <MorphText as="dd" className="text-money tabular-nums">
+      <MorphText as="dd" className="text-money text-sm tabular-nums">
         {value}
       </MorphText>
     </div>

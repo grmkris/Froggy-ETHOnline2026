@@ -26,7 +26,7 @@ const MintedSkill = ({
 }): ReactElement => (
   <section
     aria-label="Finish connecting your agent"
-    className="bg-muted/60 flex flex-col gap-3 rounded-xl border p-4"
+    className="bg-muted shadow-inset flex flex-col gap-3 rounded-xl p-4"
   >
     <div>
       <h3 className="font-medium">Give your agent its connection</h3>

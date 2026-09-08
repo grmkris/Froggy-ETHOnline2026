@@ -18,7 +18,7 @@ const Frame = ({
   readonly children: React.ReactNode;
 }): React.ReactElement => (
   <div className="grid min-h-dvh place-items-center px-4 py-10 sm:p-8">
-    <div className="bg-card shadow-card w-full max-w-lg rounded-3xl border p-6 sm:p-10">
+    <div className="bg-card shadow-card w-full max-w-lg rounded-3xl p-6 sm:p-10">
       {children}
     </div>
   </div>
@@ -34,7 +34,7 @@ const Wordmark = (): React.ReactElement => (
         Froggy
       </span>
     </div>
-    <h1 className="font-display max-w-xs text-4xl font-semibold tracking-tight text-balance">
+    <h1 className="text-greeting max-w-xs text-balance">
       A wallet for your agents.
     </h1>
     <p className="text-muted-foreground mt-4 text-base leading-relaxed">

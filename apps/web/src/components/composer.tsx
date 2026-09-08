@@ -116,7 +116,7 @@ export const Composer = ({
         <div className="no-scrollbar scroll-fade-x flex flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible">
           {suggestions.map((suggestion) => (
             <button
-              className="bg-card shadow-card hover:bg-accent shrink-0 rounded-full border px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors"
+              className="bg-card shadow-card hover:bg-accent shrink-0 rounded-full px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors"
               key={suggestion}
               onClick={() => {
                 submit(suggestion);
@@ -146,7 +146,7 @@ export const Composer = ({
         </div>
       )}
       {commands.length > 0 && !disabled ? (
-        <ul className="bg-card shadow-card divide-y rounded-xl border text-sm">
+        <ul className="bg-card shadow-card divide-y rounded-xl text-sm">
           {commands.map((entry) => (
             <li key={entry.name}>
               <button
@@ -169,7 +169,7 @@ export const Composer = ({
         <p className="text-refused px-2 text-xs">{hint}</p>
       )}
       <form
-        className="bg-card shadow-card focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl border p-2 focus-within:ring-3"
+        className="bg-card shadow-card focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl p-2 focus-within:ring-3"
         onSubmit={(event) => {
           event.preventDefault();
           submit(draft);

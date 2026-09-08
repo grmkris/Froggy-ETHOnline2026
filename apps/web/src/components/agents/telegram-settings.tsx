@@ -160,7 +160,7 @@ export const TelegramSettings = ({
   return (
     <section
       aria-label="Telegram connection"
-      className="space-y-3 rounded-xl border p-4 text-sm"
+      className="bg-muted shadow-inset space-y-3 rounded-xl p-4 text-sm"
     >
       <div>
         <h3 className="font-medium">Telegram</h3>

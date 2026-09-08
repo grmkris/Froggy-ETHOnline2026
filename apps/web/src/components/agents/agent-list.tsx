@@ -34,7 +34,7 @@ const AgentConnection = ({
   });
   const disconnectLabel = revoke.isError ? "Retry" : "Disconnect";
   return (
-    <li className="flex flex-col gap-2 rounded-xl border p-3">
+    <li className="bg-muted shadow-inset flex flex-col gap-2 rounded-xl p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-medium wrap-anywhere">{token.label}</h3>
@@ -91,7 +91,7 @@ export const AgentList = ({
   return (
     <section aria-label="Your agents" className="flex flex-col gap-3 text-sm">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold">Connected agents</h2>
+        <h2 className="text-section">Connected agents</h2>
         <Button
           className="min-h-11"
           disabled={agents.isFetching}
@@ -116,7 +116,7 @@ export const AgentList = ({
         </p>
       ) : null}
       {live?.length === 0 && grants?.length === 0 && !agents.isError ? (
-        <Empty className="flex-none border py-8">
+        <Empty className="flex-none py-[26px]">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <BotIcon aria-hidden />

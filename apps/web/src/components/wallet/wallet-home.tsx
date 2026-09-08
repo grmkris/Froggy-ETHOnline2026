@@ -28,7 +28,7 @@ export const WalletHome = ({
   return (
     <section
       aria-label="Wallet"
-      className="bg-card shadow-card relative flex flex-col gap-5 rounded-2xl border p-4 sm:gap-6 sm:p-8"
+      className="bg-card shadow-card relative flex flex-col gap-[18px] rounded-2xl p-[18px]"
     >
       <div>
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -42,10 +42,7 @@ export const WalletHome = ({
         <h2 className="text-muted-foreground text-sm font-medium">
           Your wallet
         </h2>
-        <MorphText
-          as="p"
-          className="text-money mt-2 text-[2rem] leading-9 tabular-nums sm:text-5xl sm:leading-tight"
-        >
+        <MorphText as="p" className="text-money mt-2 tabular-nums">
           {totalUsdMicros === null
             ? "Total unavailable"
             : formatUsd(totalUsdMicros)}

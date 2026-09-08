@@ -23,7 +23,7 @@ export const AgentsPage = (): ReactElement => {
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           <ConnectByUrlCard mcpUrl={app.mcpUrl} />
-          <details className="group rounded-2xl border px-4">
+          <details className="group bg-muted shadow-inset rounded-2xl px-4">
             <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg py-2 text-sm font-medium outline-none select-none focus-visible:ring-2">
               Advanced: connect with a token
               <ChevronDownIcon

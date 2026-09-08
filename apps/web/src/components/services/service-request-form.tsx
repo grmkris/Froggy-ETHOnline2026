@@ -45,7 +45,7 @@ export const ServiceRequestForm = ({
   return (
     <form
       aria-label={`Request ${card.title}`}
-      className="bg-card shadow-card flex flex-col gap-4 rounded-2xl border p-4 sm:p-5"
+      className="bg-card shadow-card flex flex-col gap-4 rounded-2xl p-4 sm:p-5"
       onSubmit={(event) => {
         event.preventDefault();
         if (prompt.trim() === "" || run.isPending) {

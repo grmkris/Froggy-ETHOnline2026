@@ -215,7 +215,7 @@ export const ReceiptTicket = ({
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
               <span
-                className={`text-money ${compact ? "text-lg" : "text-2xl"} leading-none`}
+                className={`text-money tabular-nums ${compact ? "text-sm" : "text-lg"} leading-none`}
               >
                 {formatUsd(receipt.intent.usdMicros)}
               </span>

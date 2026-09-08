@@ -70,7 +70,7 @@ export const GraphSummary = ({
       <table className="text-machine w-full">
         <tbody>
           {graph.deployments.map((deployment) => (
-            <tr className="[&>td]:py-0.5 [&>td]:pr-3" key={deployment.id}>
+            <tr className="[&>td]:py-2.5 [&>td]:pr-3" key={deployment.id}>
               <td className="text-foreground/80">{deployment.label}</td>
               <td className="text-muted-foreground">{deployment.chain}</td>
               <td className="text-muted-foreground tabular-nums">

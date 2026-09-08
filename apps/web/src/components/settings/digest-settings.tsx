@@ -84,7 +84,7 @@ export const DigestSettings = (): ReactElement => {
           aria-describedby={`${inputId}-help`}
           aria-invalid={save.isError}
           id={inputId}
-          className="border-input focus-visible:ring-ring min-h-11 rounded-lg border bg-transparent px-2 text-sm outline-none focus-visible:ring-2"
+          className="border-input focus-visible:ring-ring bg-muted shadow-inset min-h-11 rounded-lg px-2.5 text-sm outline-none focus-visible:ring-2"
           disabled={schedule.isPending || schedule.isError || save.isPending}
           onChange={(event) => {
             const hour =

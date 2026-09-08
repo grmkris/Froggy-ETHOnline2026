@@ -19,9 +19,9 @@ export const WalletActivity = ({
   readonly receipts: readonly Receipt[];
 }): ReactElement => (
   <section aria-label="Activity" className="flex flex-col gap-3" id="activity">
-    <h2 className="font-display text-lg font-semibold">Activity</h2>
+    <h2 className="text-section">Activity</h2>
     {receipts.length === 0 ? (
-      <Empty className="border py-10">
+      <Empty className="py-[26px]">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <ReceiptTextIcon aria-hidden />

@@ -33,7 +33,7 @@ const Steps = ({
   readonly children: ReactElement;
   readonly title: string;
 }): ReactElement => (
-  <details className="group rounded-xl border px-3">
+  <details className="group bg-muted shadow-inset rounded-xl px-3">
     <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-sm font-medium outline-none select-none focus-visible:ring-2">
       {title}
       <ChevronDownIcon aria-hidden className="size-4 group-open:rotate-180" />
