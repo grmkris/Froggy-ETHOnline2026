@@ -47,7 +47,7 @@ Sign in with Google. See your address. Tap **Add funds**, pay €10 by Apple Pay
 
 ### Flow C — Hand your own agent the wallet ← the wedge
 
-Copy the **Connect an agent** block. Paste it into Hermes, Claude Code, Kimi, OpenClaw — whatever you already run. Your agent runs `froggy ask "..."`. It gets a 402 it cannot pay, asks Froggy to sign, Froggy signs from *your* Hedera account under *your* mandate, and the answer comes back. The task and its receipt appear in your Froggy workspace.
+Copy the **Connect an agent** block. Paste it into Hermes, Claude Code, Kimi, OpenClaw — whatever you already run. Your agent runs `froggy ask "..."`. It gets a 402 it cannot pay, asks Froggy to sign, Froggy signs from _your_ Hedera account under _your_ mandate, and the answer comes back. The task and its receipt appear in your Froggy workspace.
 
 Your agent never held a key. It held a token you can revoke in one click.
 
@@ -76,7 +76,7 @@ Revised from `TARGET_GROUPS_FABLE51.md`, which had the primary and secondary tie
 | --- | --- | --- | --- |
 | **Primary** | People already running a personal agent that spends or could spend money — Claude Code, OpenClaw, Hermes, Kimi, Cursor | They have felt the fear (the $3,400 overnight proxy loop; the "$90 it can't spend without me" thread). What they lack is a cap that lives outside their own agent's config and a receipt book | r/ethdev, r/AI_Agents, r/OpenClawUseCases, r/ClaudeAI; the x402 builders Telegram (600+); X replies under agent-tooling threads |
 | **Secondary** | Analysts and tool builders on The Graph's standardized Messari data | The registry and the SKILL.md are reusable in their own agent; per-query payment without a Studio key | t.me/graphhackers, Graph Discord #mcp-servers |
-| **Counterparties** | ETHOnline peers shipping x402 sellers on Hedera | Still valuable — they are what the directory is *for* — but they are now a supply story, not the wedge. One paid settlement each, one issue each | Their GitHub repos, Hedera Discord build-support |
+| **Counterparties** | ETHOnline peers shipping x402 sellers on Hedera | Still valuable — they are what the directory is _for_ — but they are now a supply story, not the wedge. One paid settlement each, one issue each | Their GitHub repos, Hedera Discord build-support |
 | **Audience** | ETHGlobal hackers, sponsor DevRel, async judges | Reach and scoring, not usage | ETHGlobal Discord, X, Hbar Happy Hour |
 
 **The one-line recruit ask** (use this verbatim, it is the whole funnel):
@@ -98,7 +98,7 @@ Four claims in the older FABLE51 files and the earlier posts are now false. They
 | **"Try it, no signup, prefunded guest pocket, 90 seconds to first receipt"** | There is no guest path and no free money. `POCKET_STARTING_USD=0`; an account opens at the person's first top-up. Login is Google or email. **This kills the planned Tue 8 no-signup door** — the substitute is Flow C, where an outsider brings their own agent and their own €10 |
 | **"Pocket"** | The word is gone. It is a **Privy wallet** (your USDC on Base) and **service credit** (HBAR in your own Hedera account, shown in dollars) |
 
-Also: the `pay` MCP tool listed as "the first post-submission item" effectively shipped as the CLI and SKILL.md. That is a post — *the thing we said was next week is live*.
+Also: the `pay` MCP tool listed as "the first post-submission item" effectively shipped as the CLI and SKILL.md. That is a post — _the thing we said was next week is live_.
 
 ---
 
