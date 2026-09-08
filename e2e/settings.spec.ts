@@ -145,3 +145,16 @@ test("digest controls and scheduled work stay synchronized", async ({
   await expect(cancel).toHaveCount(0);
   await expect(hour).toHaveValue("off");
 });
+
+test("Send a test now runs a digest and says where it went", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Send a test now" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    /Sent\.|Not sent|Stopped early/u,
+    {
+      timeout: 60_000,
+    }
+  );
+});

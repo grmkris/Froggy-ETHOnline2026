@@ -22,6 +22,27 @@ import { useSessionToken } from "../../lib/session-token";
 
 const decodeSchedule = Schema.decodeUnknownSync(DigestSchedule);
 
+const TestReport = Schema.Struct({
+  outcome: Schema.Literals(["aborted", "finished", "skipped"]),
+  reason: Schema.NullOr(Schema.String),
+  spentUsdMicros: Schema.Finite,
+  summary: Schema.String,
+});
+const decodeTestReport = Schema.decodeUnknownSync(TestReport);
+type TestReport = typeof TestReport.Type;
+
+/** What the test run came to, in one line under the button. */
+const testWords = (report: TestReport): string => {
+  if (report.outcome === "skipped") {
+    return `Not sent: ${report.reason ?? "Froggy was busy"}. Try again in a moment.`;
+  }
+  if (report.outcome === "aborted") {
+    return `Stopped early: ${report.reason ?? "unknown reason"}. Check the chat for what was filed.`;
+  }
+  const where = "Sent. Check Telegram if it is paired, and the chat.";
+  return report.summary === "" ? where : `${where} “${report.summary}”`;
+};
+
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 const label = (hour: number): string =>
@@ -65,6 +86,19 @@ export const DigestSettings = (): ReactElement => {
     onSuccess: (next) => {
       queries.setQueryData(["digest"], next);
       void queries.invalidateQueries({ queryKey: ["schedules"] });
+    },
+  });
+
+  const test = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/digest/test", {
+        headers: await headers(),
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(`digest test: ${response.status}`);
+      }
+      return decodeTestReport(await response.json());
     },
   });
 
@@ -131,6 +165,29 @@ export const DigestSettings = (): ReactElement => {
       {current === null ? null : (
         <p className="text-machine text-muted-foreground">{timezone}</p>
       )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          className="min-h-11"
+          disabled={test.isPending}
+          onClick={() => {
+            test.mutate();
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {test.isPending ? "Sending…" : "Send a test now"}
+        </Button>
+        {test.isError ? (
+          <p className="text-refused text-xs" role="alert">
+            Couldn’t run the test. Try again.
+          </p>
+        ) : null}
+        {test.data === undefined ? null : (
+          <output className="text-muted-foreground text-xs">
+            {testWords(test.data)}
+          </output>
+        )}
+      </div>
     </Field>
   );
 };

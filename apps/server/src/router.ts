@@ -40,6 +40,8 @@ import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import type { InteractionRegistry } from "./interactions";
+import { digestJob, runScheduledFor } from "./jobs";
+import type { JobDeps, JobReport } from "./jobs";
 import { handleMcp } from "./mcp";
 import type { Notices } from "./notices";
 import {
@@ -105,6 +107,12 @@ type ResponseBody =
   | { readonly deleted: true }
   | { readonly asked: true }
   | {
+      readonly outcome: JobReport["outcome"];
+      readonly reason: string | null;
+      readonly spentUsdMicros: number;
+      readonly summary: string;
+    }
+  | {
       readonly code: string;
       readonly expiresAt: number;
       readonly link: string | null;
@@ -138,6 +146,8 @@ export interface RouterDeps {
   readonly unlocks: UnlockTokens;
   readonly grants: AgentGrants;
   readonly interactions: InteractionRegistry;
+  /** What a scheduled run needs; the digest test runs one on demand. */
+  readonly jobs: JobDeps;
   /** Where the agent's unprompted messages go. */
   readonly notices: Notices;
   readonly oracleUrl: string;
@@ -311,6 +321,22 @@ const handleScheduling = async (
 ): Promise<Response | null> => {
   if (pathname === "/api/digest") {
     return await handleDigest(deps.services.store, request, userId);
+  }
+  // "Send a test now": the same unattended turn the ticker runs at the hour,
+  // delivered the same way, so a person can see the digest land before the
+  // hour comes round. Busy is a report too, not an error.
+  if (pathname === "/api/digest/test" && request.method === "POST") {
+    const report = await runScheduledFor(
+      deps.jobs,
+      userId,
+      digestJob(deps.oracleUrl)
+    );
+    return json({
+      outcome: report.outcome,
+      reason: report.reason,
+      spentUsdMicros: report.spentUsdMicros,
+      summary: report.summary,
+    });
   }
   return await handleSchedules(deps.services.store, request, userId, pathname);
 };

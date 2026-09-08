@@ -329,6 +329,7 @@ class FroggyServer extends Context.Service<
         unlocks,
         grants,
         interactions,
+        jobs: jobDeps,
         notices,
         oracleUrl,
         pager,
