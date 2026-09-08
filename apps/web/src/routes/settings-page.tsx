@@ -16,7 +16,6 @@ import { ConnectionDetails } from "../components/settings/connection-details";
 import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
-import { IntegrationBadges } from "../components/settings/integration-badges";
 import { ScheduleList } from "../components/settings/schedule-list";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
@@ -73,17 +72,6 @@ export const SettingsPage = (): ReactElement => {
                 wallet={app.wallet}
                 webMcp={webMcp}
               />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Integrations</CardTitle>
-              <CardDescription>
-                What this deployment talks to for real, and what is stubbed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <IntegrationBadges modes={app.modes} stubbed={identity.stubbed} />
             </CardContent>
           </Card>
           <AppearanceSettings />

@@ -4,6 +4,8 @@
 
 Updated Tue 8 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 Sep decisions and current completion list; [NEXT_ITERATION.md](NEXT_ITERATION.md) retains the broader submission plan. Dated sections below are historical implementation notes.
 
+- **Tue 8 Sep, 15:05 CEST (Session F):** Kristjan asked to drop the Integrations card (live/stub badges) from Settings now that every integration is live; removed with its component. `/health` still reports the modes for operators. Also verified at 14:55: the browser consent button attached the agent signer to Kristjan's wallet at Privy (`docs/evidence/PRIVY.md`).
+
 ## Motion and navigation lane — 8 September 2026
 
 Built on Passbook/Lilypad and retained their tokens, typography and financial behaviour. Motion landed first in `00d8cfd`; the pill navigation is the next coherent commit. [Audit, decisions and review](../design/MOTION_NAVIGATION_2026-09-08.md).
