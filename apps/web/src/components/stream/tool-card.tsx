@@ -32,17 +32,17 @@ import { MoneyBody } from "./money-card";
 import { WalletStatusCard } from "./wallet-status-card";
 
 const TONE: Record<Tone, string> = {
-  money: "border-brand/30 bg-brand-soft/50",
-  page: "border-drive-agent/30 bg-drive-agent-soft/50",
-  plain: "border-border bg-card",
+  money: "ring-brand/30 bg-brand-soft/50",
+  page: "ring-drive-agent/30 bg-drive-agent-soft/50",
+  plain: "ring-border bg-card",
 };
 
-/** The phase overrides the tone's border; waiting borrows the agent's amber. */
+/** The phase overrides the tone's ring; waiting borrows the agent's amber. */
 const PHASE: Partial<Record<ToolPhase, string>> = {
-  denied: "border-refused/40",
-  failed: "border-destructive/40",
-  refused: "border-refused/40",
-  waiting: "border-drive-agent/60 bg-drive-agent-soft/70",
+  denied: "ring-refused/40",
+  failed: "ring-destructive/40",
+  refused: "ring-refused/40",
+  waiting: "ring-drive-agent/60 bg-drive-agent-soft/70",
 };
 
 const OUTCOME_TEXT: Record<Outcome, string> = {
@@ -116,10 +116,10 @@ export const ToolCard = ({
   return (
     <Collapsible
       className={cn(
-        "data-open:shadow-card rounded-xl border text-sm transition-colors",
+        "shadow-card rounded-xl text-sm ring-1 transition-colors",
         TONE[story.tone],
         PHASE[status.phase],
-        refusedReceipt && "border-refused/40 bg-card"
+        refusedReceipt && "ring-refused/40 bg-card"
       )}
       data-phase={status.phase}
       data-tool={call.name}

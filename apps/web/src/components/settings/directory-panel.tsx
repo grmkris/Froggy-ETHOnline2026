@@ -71,7 +71,7 @@ const ProbeCard = ({
 }): ReactElement => {
   if (probe.kind === "free") {
     return (
-      <p className="rounded-xl border p-3 text-sm">
+      <p className="bg-muted shadow-inset rounded-lg p-3 text-sm">
         {probe.host} answered {probe.status}, not 402. It is not asking to be
         paid.
       </p>
@@ -85,7 +85,7 @@ const ProbeCard = ({
     );
   }
   return (
-    <div className="space-y-2 rounded-xl border p-3 text-sm">
+    <div className="bg-muted shadow-inset space-y-2 rounded-lg p-3 text-sm">
       <p className="font-medium">{probe.host} asks to be paid.</p>
       <ul className="space-y-1">
         {probe.options.map((option) => (

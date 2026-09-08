@@ -15,7 +15,7 @@ const Elsewhere = ({
 }: {
   readonly onDock: () => void;
 }): ReactElement => (
-  <div className="bg-card/60 flex items-center gap-3 rounded-2xl border border-dashed p-4 text-sm">
+  <div className="bg-card/60 shadow-card flex items-center gap-3 rounded-2xl p-4 text-sm">
     <span className="flex-1">The page is open in another window.</span>
     <Button onClick={onDock} size="sm" variant="outline">
       Bring it back

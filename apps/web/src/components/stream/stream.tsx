@@ -57,7 +57,7 @@ const Earlier = ({
 }: {
   readonly receipts: readonly Receipt[];
 }): ReactElement => (
-  <details className="rounded-2xl border border-dashed p-3">
+  <details className="bg-muted shadow-inset rounded-2xl p-3">
     <summary className="text-muted-foreground cursor-pointer text-xs select-none">
       Earlier ({receipts.length} receipt{receipts.length === 1 ? "" : "s"})
     </summary>

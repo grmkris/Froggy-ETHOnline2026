@@ -52,7 +52,7 @@ export const ServiceTaskList = ({
       </output>
     ) : null}
     {tasks.data?.tasks.length === 0 ? (
-      <Empty className="flex-none border py-10">
+      <Empty className="flex-none py-[26px]">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <InboxIcon aria-hidden />

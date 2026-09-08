@@ -112,10 +112,10 @@ export const BrowseCard = ({
   return (
     <Collapsible
       className={cn(
-        "data-open:shadow-card rounded-xl border text-sm transition-colors",
-        "border-drive-agent/30 bg-drive-agent-soft/50",
-        live && "border-drive-agent/60 bg-drive-agent-soft/70",
-        failed && "border-destructive/40"
+        "shadow-card rounded-xl text-sm ring-1 transition-colors",
+        "ring-drive-agent/30 bg-drive-agent-soft/50",
+        live && "ring-drive-agent/60 bg-drive-agent-soft/70",
+        failed && "ring-destructive/40"
       )}
       data-tool="browse"
       onOpenChange={(next) => {

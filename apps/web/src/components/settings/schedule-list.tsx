@@ -75,7 +75,7 @@ export const ScheduleList = (): ReactElement => {
         </p>
       ) : null}
       {schedules.data !== undefined && active.length === 0 ? (
-        <Empty className="border">
+        <Empty>
           <EmptyHeader>
             <EmptyTitle>Nothing scheduled.</EmptyTitle>
             <EmptyDescription>
@@ -89,7 +89,7 @@ export const ScheduleList = (): ReactElement => {
         <ul className="flex flex-col gap-2">
           {active.map((schedule) => (
             <li
-              className="flex items-start justify-between gap-3 rounded-xl border p-3"
+              className="bg-muted shadow-inset flex items-start justify-between gap-3 rounded-lg p-3"
               key={schedule.id}
             >
               <div className="min-w-0">
