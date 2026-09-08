@@ -1,10 +1,14 @@
 # Status against the plan
 
+**8 September 2026 — Agent onboarding:** Home and Wallet now offer **Copy for your agent**, with manual-copy recovery, then switch to a connected-agent count. Agents is instructions, connection rows, Telegram, and collapsed advanced tokens. Public `/llm.md` and `/skill.md` share the deployment-specific installation and usage source; `/froggy/SKILL.md` remains an alias. `/agents/:id` shows scopes, dates, disconnect, and the newest 50 MCP/task/payment invocations, with task result links and signed-versus-paid amounts. Migration `0011_fixed_pretty_boy.sql` adds the metadata trail with a memory-store twin. [Install text and verification](../evidence/HERMES.md#simplified-onboarding--8-september-2026).
+
 **8 September 2026 — Motion second pass:** visible directional page slides, a spring pill indicator and menus, rising/staggered stream cards and wallet rows, spring approvals and receipts, live shimmer and word fades, 600ms torph totals, press feedback, and a whole-page appearance crossfade. Reduced motion, keyboard immediacy and held controls are covered; the full browser suite passes **96/96**. [Second-pass decisions and evidence](../design/MOTION_NAVIGATION_2026-09-08.md#second-pass--8-september-2026).
 
 Updated Tue 8 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 Sep decisions and current completion list; [NEXT_ITERATION.md](NEXT_ITERATION.md) retains the broader submission plan. Dated sections below are historical implementation notes.
 
 - **Tue 8 Sep, 15:05 CEST (Session F):** Kristjan asked to drop the Integrations card (live/stub badges) from Settings now that every integration is live; removed with its component. `/health` still reports the modes for operators. Also verified at 14:55: the browser consent button attached the agent signer to Kristjan's wallet at Privy (`docs/evidence/PRIVY.md`).
+
+- **Tue 8 Sep, 15:55 CEST (Session F):** `X_API_BEARER_TOKEN` set on the Railway app service and validated against X; after the redeploy the X search service reads configured. Also today from Session F: the Integrations card left Settings (`4c11acb`), the daily digest got "Send a test now" (`b001e24`), torph number morphing (`76a11d0`), the Add-funds dialog leads with the address (`ffca8fe`), and the pages-and-modules proposal (`docs/plan/IA_PROPOSAL_2026-09-08.md`) awaits three answers.
 
 ## Motion and navigation lane — 8 September 2026
 
