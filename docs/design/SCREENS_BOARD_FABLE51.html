@@ -1,0 +1,1597 @@
+<title>Passbook and Lilypad</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter+Tight:wght@400;500;600&display=swap">
+
+<style>
+/* ============ board chrome tokens (theme aware) ============ */
+:root {
+  --bg: #f7f8f7; --bg-2: #ffffff; --line: #dfe3df; --line-soft: #ebeeeb;
+  --tx: #141a16; --tx-2: #5d6a61; --tx-3: #8c968f; --mark: #2f6b41;
+  --shadow: 0 1px 2px rgba(20,26,22,.05), 0 12px 32px -18px rgba(20,26,22,.28);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e110f; --bg-2: #151a17; --line: #262d28; --line-soft: #1d231f;
+    --tx: #e7ece8; --tx-2: #97a29a; --tx-3: #6c7770; --mark: #6cc088;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e110f; --bg-2: #151a17; --line: #262d28; --line-soft: #1d231f;
+  --tx: #e7ece8; --tx-2: #97a29a; --tx-3: #6c7770; --mark: #6cc088;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -18px rgba(0,0,0,.8);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--tx); font: 400 15px/1.55 Archivo, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 56px 24px 96px; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.masthead { display: flex; flex-direction: column; gap: 20px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+h1 { font: 700 clamp(32px, 5vw, 46px)/1.05 Archivo, sans-serif; letter-spacing: -.03em; margin: 0; text-wrap: balance; }
+.deck { margin: 0; max-width: 64ch; color: var(--tx-2); font-size: 16.5px; line-height: 1.6; }
+.deck b { color: var(--tx); font-weight: 600; }
+.dials { display: flex; flex-wrap: wrap; gap: 8px; }
+.dial { display: inline-flex; align-items: baseline; gap: 8px; border: 1px solid var(--line); background: var(--bg-2); padding: 7px 12px; border-radius: 3px; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.dial span { color: var(--tx-3); text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; }
+.dial b { font-weight: 600; font-size: 14px; }
+.dial i { font-style: normal; color: var(--tx-3); }
+
+section { padding-top: 52px; }
+h2 { font: 700 24px/1.15 Archivo, sans-serif; letter-spacing: -.02em; margin: 0 0 6px; }
+.sub { margin: 0 0 26px; color: var(--tx-2); max-width: 68ch; }
+
+/* vocabulary table */
+.scale { width: 100%; border-collapse: collapse; font-size: 14px; }
+.scale th, .scale td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.scale th { font: 600 11px/1 "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .09em; color: var(--tx-3); border-bottom: 1px solid var(--line); }
+.scale .was { font-family: "IBM Plex Mono", monospace; color: var(--tx-2); font-size: 13px; }
+.scale .now { font-weight: 600; }
+.scale td:last-child { color: var(--tx-2); }
+.scale-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-2); }
+
+/* page switcher */
+.pagenav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 0; margin-bottom: 18px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.pagenav button { font: 500 13.5px/1 Archivo, sans-serif; letter-spacing: -.01em; color: var(--tx-2); background: var(--bg-2); border: 1px solid var(--line); border-radius: 3px; padding: 10px 14px; cursor: pointer; }
+.pagenav button[aria-selected="true"] { color: var(--bg-2); background: var(--tx); border-color: var(--tx); }
+.pagenav button:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.pageview { display: flex; flex-direction: column; gap: 20px; }
+.pageview h3 { font: 700 30px/1.1 Archivo, sans-serif; letter-spacing: -.025em; margin: 0; }
+.pageview .thesis { margin: 0; max-width: 66ch; color: var(--tx-2); font-size: 15.5px; line-height: 1.6; }
+
+.stage { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+.frame { border: 1px solid var(--line); border-radius: 5px; overflow: hidden; box-shadow: var(--shadow); background: var(--bg-2); }
+.frame-cap { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--tx-3); }
+.deskwrap { overflow-x: auto; }
+
+.ledgerline { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.ll { background: var(--bg-2); display: grid; grid-template-columns: 108px 1fr; gap: 16px; padding: 11px 16px; font-size: 13.5px; }
+.ll em { font-style: normal; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--tx-3); padding-top: 3px; }
+.ll span { color: var(--tx-2); line-height: 1.5; }
+.ll span b { color: var(--tx); font-weight: 600; }
+.ll ul { margin: 0; padding-left: 18px; color: var(--tx-2); line-height: 1.55; }
+.ll li + li { margin-top: 4px; }
+
+.tokens { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tok { background: var(--bg-2); padding: 14px 16px; }
+.tok em { font-style: normal; display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--tx-3); margin-bottom: 9px; }
+.sw { display: flex; gap: 6px; flex-wrap: wrap; }
+.sw i { width: 30px; height: 30px; border-radius: 3px; display: block; border: 1px solid rgba(0,0,0,.12); }
+.tok p { margin: 0; font-size: 13px; color: var(--tx-2); line-height: 1.5; }
+.tok .mono { font-size: 12px; }
+
+.close { margin-top: 56px; border-top: 1px solid var(--line); padding-top: 28px; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.close div h4 { font: 600 14px/1.3 Archivo, sans-serif; margin: 0 0 6px; }
+.close div p { margin: 0; font-size: 13.5px; color: var(--tx-2); line-height: 1.55; }
+
+/* =========================================================
+   The phone system. ONE component structure; Passbook (D) and
+   Lilypad (E) differ only in the variable blocks.
+   ========================================================= */
+.ios { font-family: "Inter Tight", Inter, system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 20px; letter-spacing: -.2px; background: var(--ground); color: var(--text); padding: 22px; }
+.ios h4, .ios h5 { margin: 0; font-family: inherit; letter-spacing: inherit; text-wrap: balance; }
+.ios p { margin: 0; }
+.ios button { font-family: inherit; }
+
+.ios.D {
+  --ground: #eff1ec; --card: #fcfdfb; --inner: #f3f5f0; --track: #e2e6df; --tabbar: #f7f8f5; --bezel: #131916;
+  --text: #15201a; --muted: #6b776f; --strong: #2b3b31;
+  --accent: #2f7a4c; --accent-hi: #348452; --accent-lo: #276a41; --accent-soft: #e2efe6; --on-accent: #f6fbf7;
+  --agent: #9a6314; --agent-ink: #7a4f10; --agent-soft: #f8f0e2;
+  --human: #3866d6; --human-soft: #e3eafb;
+  --refused: #b3402f; --refused-soft: #f7e4e0;
+  --r0: #e2e6df; --r1: #c6dccd; --r2: #8fc3a3; --r3: #55a072; --r4: #2f7a4c;
+  --hl: rgba(255,255,255,.95); --ring: rgba(21,32,26,.055); --sh1: rgba(21,32,26,.05); --sh2: rgba(21,32,26,.18);
+  --r-card: 20px; --r-row: 12px; --r-cta: 14px;
+  --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --eye: #f3f5f0; --pupil: #15201a; --mouth: #15201a; --knob: #ffffff;
+}
+.ios.E {
+  --ground: #0d120f; --card: #171f19; --inner: #1f2921; --track: #2a3630; --tabbar: #121814; --bezel: #050706;
+  --text: #e9f0ea; --muted: #8e9d92; --strong: #c8d5cb;
+  --accent: #4fb87a; --accent-hi: #5ecb8b; --accent-lo: #3ea468; --accent-soft: #16301f; --on-accent: #07130b;
+  --agent: #e8a33d; --agent-ink: #e8a33d; --agent-soft: #2a2113;
+  --human: #6b93f0; --human-soft: #132433;
+  --refused: #e26a5a; --refused-soft: #33201c;
+  --r0: #2a3630; --r1: #2c4b3a; --r2: #357a53; --r3: #42a06b; --r4: #4fb87a;
+  --hl: rgba(255,255,255,.07); --ring: rgba(255,255,255,.05); --sh1: rgba(0,0,0,.4); --sh2: rgba(0,0,0,.7);
+  --r-card: 22px; --r-row: 14px; --r-cta: 999px;
+  --machine: "Inter Tight", Inter, system-ui, sans-serif;
+  --eye: #0d120f; --pupil: #e9f0ea; --mouth: #0d120f; --knob: #eaf5ee;
+}
+.ios.D .only-e, .ios.E .only-d { display: none !important; }
+
+/* device */
+.ios .phone { width: 100%; max-width: 390px; margin: 0 auto; background: var(--bezel); border-radius: 54px; padding: 11px; box-shadow: 0 30px 60px -30px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.3); }
+.ios .screen { background: var(--ground); border-radius: 44px; overflow: hidden; display: flex; flex-direction: column; min-height: 780px; }
+.ios .status { display: flex; justify-content: space-between; align-items: center; padding: 18px 30px 0; font-size: 14px; font-weight: 600; letter-spacing: -.2px; }
+.ios .batt { width: 24px; height: 12px; border-radius: 4px; border: 1.5px solid var(--strong); position: relative; }
+.ios .batt::after { content: ""; position: absolute; inset: 2px 6px 2px 2px; background: var(--strong); border-radius: 1.5px; }
+.ios .page { flex: 1; padding: 22px 26px 18px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.ios .home { height: 5px; width: 134px; border-radius: 999px; background: var(--strong); opacity: .45; margin: 0 auto; }
+.ios .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; padding: 10px 12px 8px; border-top: 1px solid var(--track); background: var(--tabbar); }
+.ios .tab { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; line-height: 12px; font-weight: 500; color: var(--muted); letter-spacing: -.1px; padding-bottom: 10px; }
+.ios .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ios .tab.on { color: var(--accent); }
+
+/* desktop shell: rail, top bar, content column. The content column is the only part a screen designs. */
+.ios .desk { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 720px; background: var(--ground); }
+.ios .rail { display: flex; flex-direction: column; gap: 4px; padding: 20px 14px; border-right: 1px solid var(--track); background: var(--tabbar); }
+.ios .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; font-weight: 600; font-size: 15px; letter-spacing: -.3px; }
+.ios .nav { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: var(--r-row); color: var(--muted); font-size: 14.5px; font-weight: 500; letter-spacing: -.2px; }
+.ios .nav svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ios .nav.on { color: var(--accent); background: var(--card); box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 6px 14px -8px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .acct { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px; font-size: 14.5px; font-weight: 500; }
+.ios .main { display: flex; flex-direction: column; min-width: 0; }
+.ios .topbar { height: 56px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 26px; }
+.ios .col { display: flex; flex-direction: column; gap: 18px; padding: 8px 26px 26px; max-width: 960px; width: 100%; min-width: 0; }
+.ios .gate { min-height: 640px; display: grid; place-items: center; padding: 40px 26px; }
+
+/* surfaces: no borders anywhere */
+.ios .card { background: var(--card); border-radius: var(--r-card); box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 12px 28px -16px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .inner { background: var(--inner); border-radius: var(--r-row); }
+.ios .empty { padding: 26px 18px; border-radius: var(--r-row); background: var(--inner); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.ios .circ { width: 46px; height: 46px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; background: var(--card); color: var(--strong); cursor: pointer; flex: none; box-shadow: inset 0 1px 0 var(--hl), inset 0 -6px 10px -8px var(--sh2), 0 1px 2px var(--sh1), 0 8px 18px -10px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .circ svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ios .circ.sm { width: 38px; height: 38px; }
+.ios .circ.sm svg { width: 18px; height: 18px; }
+.ios .cta { display: block; width: 100%; height: 46px; border: 0; padding: 0; border-radius: var(--r-cta); font: 600 15px/46px "Inter Tight", Inter, system-ui, sans-serif; letter-spacing: -.2px; color: var(--on-accent); background: linear-gradient(180deg, var(--accent-hi), var(--accent-lo)); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 1px 2px rgba(0,0,0,.18), 0 10px 22px -10px var(--accent); cursor: pointer; }
+.ios .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 14px; border: 0; border-radius: var(--r-row); background: var(--card); color: var(--text); font: 500 14.5px/1 "Inter Tight", Inter, system-ui, sans-serif; letter-spacing: -.2px; cursor: pointer; white-space: nowrap; box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 6px 14px -8px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .btn svg.ic { width: 18px; height: 18px; }
+.ios .btn.primary { color: var(--on-accent); background: linear-gradient(180deg, var(--accent-hi), var(--accent-lo)); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 1px 2px rgba(0,0,0,.18), 0 8px 18px -10px var(--accent); }
+.ios .btn.quiet { background: transparent; box-shadow: none; color: var(--accent); padding: 0 6px; }
+.ios .cta:active, .ios .circ:active, .ios .btn:active { transform: translateY(1px); }
+.ios .switch { display: inline-block; width: 44px; height: 26px; border-radius: 999px; background: var(--track); position: relative; flex: none; box-shadow: inset 0 1px 2px var(--sh1); }
+.ios .switch i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--knob); box-shadow: 0 1px 2px var(--sh1), 0 2px 6px -2px var(--sh2); }
+.ios .switch.on { background: var(--accent); }
+.ios .switch.on i { left: 21px; }
+.ios .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ios .input { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: var(--r-row); background: var(--inner); color: var(--text); font-size: 15px; letter-spacing: -.2px; box-shadow: inset 0 1px 2px var(--sh1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios .composer { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 6px 6px 6px 16px; border-radius: var(--r-card); background: var(--card); box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 12px 28px -16px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--inner); color: var(--strong); display: grid; place-items: center; font-size: 13px; font-weight: 600; letter-spacing: 0; flex: none; box-shadow: inset 0 1px 0 var(--hl), 0 0 0 1px var(--ring); }
+.ios .progress { height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.ios .progress i { display: block; height: 100%; border-radius: 999px; background: var(--r3); }
+
+/* type: six steps, negative tracking on every heading */
+.ios .t-money { font-size: 32px; line-height: 36px; font-weight: 600; letter-spacing: -.9px; font-variant-numeric: tabular-nums; }
+.ios .t-greet { font-size: 26px; line-height: 30px; font-weight: 600; letter-spacing: -.9px; }
+.ios .t-title { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.7px; }
+.ios .t-sec { font-size: 19px; line-height: 24px; font-weight: 600; letter-spacing: -.6px; }
+.ios .t-body { font-size: 15px; line-height: 20px; font-weight: 400; letter-spacing: -.2px; }
+.ios .t-label { font-size: 12.5px; line-height: 16px; font-weight: 500; letter-spacing: -.1px; }
+.ios .mu { color: var(--muted); }
+.ios .num { font-variant-numeric: tabular-nums; }
+.ios .machine { font-family: var(--machine); font-size: 11.5px; line-height: 16px; letter-spacing: 0; color: var(--muted); }
+
+/* rows, chips, dots */
+.ios .rows { padding: 2px 0; }
+.ios .row { min-height: 44px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 8px 16px; position: relative; min-width: 0; }
+.ios .row > * { min-width: 0; }
+.ios .row + .row::before { content: ""; position: absolute; left: 16px; right: 0; top: 0; height: 1px; background: var(--track); }
+.ios .inner .row + .row::before { left: 0; }
+.ios .dot { width: 8px; height: 8px; border-radius: 50%; display: block; flex: none; }
+.ios .chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: var(--r-row); font-size: 12.5px; line-height: 1; font-weight: 500; letter-spacing: -.1px; white-space: nowrap; }
+.ios .pip { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; letter-spacing: 0; flex: none; }
+.ios svg.ic { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ios svg.frog { color: var(--accent); flex: none; display: block; }
+
+/* frog surfaces */
+.ios .seal { width: 84px; height: 84px; border-radius: 50%; background: var(--inner); display: grid; place-items: center; flex: none; box-shadow: inset 0 2px 5px var(--sh2), inset 0 -1px 0 var(--hl); }
+.ios .seal.sm { width: 42px; height: 42px; }
+.ios .ringed { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; box-shadow: 0 0 0 2px var(--agent); background: var(--accent-soft); }
+.ios .pad { position: absolute; left: 0; bottom: 0; width: 176px; height: 36px; border-radius: 999px; background: var(--accent-soft); box-shadow: inset 0 1px 0 var(--hl), 0 8px 18px -10px var(--sh2); }
+
+/* chat */
+.ios .thread { display: flex; flex-direction: column; gap: 10px; }
+.ios .bubble { max-width: 86%; padding: 11px 14px; border-radius: var(--r-card); font-size: 15px; line-height: 20px; letter-spacing: -.2px; }
+.ios .bubble.me { align-self: flex-end; background: var(--human-soft); color: var(--text); }
+.ios .bubble.frog { align-self: flex-start; background: var(--card); box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 8px 18px -12px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .livecard { border-radius: var(--r-card); background: var(--card); overflow: hidden; box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 12px 28px -16px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .lc-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; }
+.ios .lc-view { height: 120px; background: var(--inner); margin: 0 10px 10px; border-radius: var(--r-row); position: relative; overflow: hidden; }
+.ios .lc-view::before { content: ""; position: absolute; left: 14px; right: 45%; top: 16px; height: 10px; border-radius: 5px; background: var(--track); box-shadow: 0 22px 0 var(--track); }
+.ios .lc-view::after { content: ""; position: absolute; left: 14px; right: 14px; top: 60px; bottom: 14px; border-radius: 8px; background: var(--track); opacity: .6; }
+
+/* actions, charts, layout */
+.ios .acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ios .act { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ios .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px 0; }
+.ios .days i { display: block; width: 22px; height: 22px; border-radius: 50%; justify-self: center; }
+.ios .dow { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+.ios .bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: end; height: 72px; }
+.ios .bars i { display: block; border-radius: 999px; }
+.ios .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.ios .stack { display: flex; flex-direction: column; gap: 10px; }
+.ios .between { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ios .sechead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 0 4px 8px; }
+
+/* the system sheet */
+.ios .sheet { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ios .sheet > div > em { font-style: normal; display: block; font-size: 12.5px; line-height: 16px; font-weight: 500; color: var(--muted); margin-bottom: 8px; letter-spacing: -.1px; }
+.ios .ty { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; position: relative; }
+.ios .ty + .ty::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--track); }
+.ios .ty small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: 0; }
+.ios .shapes { display: flex; align-items: flex-end; gap: 12px; }
+.ios .shape { background: var(--card); box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 8px 18px -10px var(--sh2), 0 0 0 1px var(--ring); }
+.ios .ramp { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.ios .ramp i { display: block; height: 28px; border-radius: 8px; }
+.ios .recipe { font-family: var(--machine); font-size: 11px; line-height: 1.6; color: var(--muted); letter-spacing: 0; }
+.ios .gaps { display: flex; gap: 10px; align-items: flex-end; height: 26px; }
+.ios .gaps div { background: var(--r2); border-radius: 8px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .blink { animation: bl 5.5s infinite; transform-origin: center; }
+  @keyframes bl { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
+}
+
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Passbook and Lilypad</h1>
+    <p class="deck">Two directions, one system. Every main screen of Froggy at phone and desktop width, rewritten as a <b>consumer app that happens to run on rails the person never sees</b>: no wallets, tokens, chains or hashes anywhere. Passbook is the light cut of the ledger idea, Lilypad the dark cut of the frog-as-agent idea. They share every component; only the variables differ.</p>
+    <div class="dials">
+      <div class="dial"><span>Type</span><b>Inter Tight</b><i>six steps</i></div>
+      <div class="dial"><span>Radius</span><b>54 / 20 / 12 / 50%</b><i>Lilypad 22 / 14 / pill</i></div>
+      <div class="dial"><span>Spacing</span><b>26 / 18 / 10</b><i>margin, groups, inside</i></div>
+      <div class="dial"><span>Borders</span><b>none</b><i>highlight, shadow, ring</i></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>The words that leave</h2>
+    <p class="sub">The screens below use the right-hand column everywhere. The left-hand column is what the app says today.</p>
+    <div class="scale-wrap"><table class="scale"><thead><tr><th>Today</th><th>Now</th><th>Note</th></tr></thead><tbody><tr><td class="was">Wallet</td><td class="now">Balance</td><td>The page, and the word. &quot;Your balance&quot;, &quot;your money&quot;.</td></tr><tr><td class="was">Fund, top up</td><td class="now">Add money</td><td>Also Withdraw, which stays.</td></tr><tr><td class="was">Freeze, agent signer granted</td><td class="now">Froggy can spend, a switch</td><td>One control replaces a button and a status.</td></tr><tr><td class="was">USDC on Base, HBAR on Hedera</td><td class="now">gone</td><td>One balance in dollars. Where it sits is not the person’s problem.</td></tr><tr><td class="was">0x address, hash, hcs #, rule id</td><td class="now">Receipt 1204 · 14:12</td><td>A number and a time, like any receipt.</td></tr><tr><td class="was">Refused</td><td class="now">Declined, with a reason</td><td>&quot;Site not approved&quot;, &quot;Over today’s limit&quot;.</td></tr><tr><td class="was">Spending window</td><td class="now">This week, today</td><td>Calendar words.</td></tr><tr><td class="was">Paid endpoints, 402</td><td class="now">Sites Froggy can pay</td><td>An approved list in Settings.</td></tr><tr><td class="was">MCP URL, token, mint, revoke</td><td class="now">Connect link, connect, disconnect</td><td>No credential words on screen.</td></tr><tr><td class="was">Connection, signer, session</td><td class="now">Security</td><td>Signed-in devices and sessions.</td></tr><tr><td class="was">Integrations, stubbed, live</td><td class="now">Connected apps</td><td>Telegram only. The plumbing is not a setting.</td></tr></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>The screens</h2>
+    <p class="sub">Pick a screen. Each shows both directions on a phone, then each on a desktop with the navigation rail and top bar the app already has. The rail and the tab bar are given; every screen designs only its column.</p>
+    <div class="pagenav" role="tablist"><button type="button" role="tab" data-page="home" aria-selected="false">Home</button><button type="button" role="tab" data-page="balance" aria-selected="true">Balance</button><button type="button" role="tab" data-page="services" aria-selected="false">Services</button><button type="button" role="tab" data-page="agents" aria-selected="false">Agents</button><button type="button" role="tab" data-page="settings" aria-selected="false">Settings</button><button type="button" role="tab" data-page="signin" aria-selected="false">Sign in</button></div>
+    
+  <div class="pageview" role="tabpanel" data-page="home" hidden>
+    <h3>Home</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Home</h4><span class="ringed"><svg class="frog" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<div class="thread">
+<div class="bubble me">Find me a return flight Berlin to Lisbon, out Fri 16 Oct, back Mon 19 Oct, under <span class="num">$180.00</span>. Spend up to <span class="num">$2.00</span> on searches.</div>
+<div class="bubble frog">On it. I am checking Skyscanner first, then TAP and easyJet directly. I will stop at <span class="num">$2.00</span> and show you the three best fares.</div>
+<div class="livecard"><div class="lc-bar"><span class="t-label">skyscanner.com</span><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div><div class="lc-view" style="height:150px"></div></div>
+<div class="card rows"><div class="row"><span class="dot" style="background:var(--agent)"></span><span class="stack" style="gap:2px"><span class="t-body">Web search, 40 results</span><span class="machine mu">Receipt 1204 · 14:12</span></span><span class="t-body num">$0.80</span></div></div>
+</div>
+<div style="margin-top:auto"><div class="composer"><span class="t-body mu" style="flex:1">Ask Froggy anything</span><button class="circ sm" type="button" aria-label="Send"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg></button></div></div></div><div class="tabs"><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Home</h4><span class="ringed"><svg class="frog" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<div class="thread">
+<div class="bubble me">Find me a return flight Berlin to Lisbon, out Fri 16 Oct, back Mon 19 Oct, under <span class="num">$180.00</span>. Spend up to <span class="num">$2.00</span> on searches.</div>
+<div class="bubble frog">On it. I am checking Skyscanner first, then TAP and easyJet directly. I will stop at <span class="num">$2.00</span> and show you the three best fares.</div>
+<div class="livecard"><div class="lc-bar"><span class="t-label">skyscanner.com</span><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div><div class="lc-view" style="height:150px"></div></div>
+<div class="card rows"><div class="row"><span class="dot" style="background:var(--agent)"></span><span class="stack" style="gap:2px"><span class="t-body">Web search, 40 results</span><span class="machine mu">Receipt 1204 · 14:12</span></span><span class="t-body num">$0.80</span></div></div>
+</div>
+<div style="margin-top:auto"><div class="composer"><span class="t-body mu" style="flex:1">Ask Froggy anything</span><button class="circ sm" type="button" aria-label="Send"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg></button></div></div></div><div class="tabs"><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Home</h4><span class="ringed"><svg class="frog" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<p class="t-body mu">Good morning. Froggy is on your flight search. You can ask for something else in the meantime.</p>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:18px;min-height:500px">
+<div style="display:flex;flex-wrap:wrap;gap:8px;min-height:44px;align-items:center"><span class="chip" style="background:var(--inner);color:var(--muted)">Why was that declined?</span><span class="chip" style="background:var(--inner);color:var(--muted)">What does the snapshot say?</span><span class="chip" style="background:var(--inner);color:var(--muted)">Buy the snapshot now</span></div>
+<div class="thread">
+<div class="bubble me">Find me a return flight Berlin to Lisbon, out Fri 16 Oct, back Mon 19 Oct, under <span class="num">$180.00</span>. Spend up to <span class="num">$2.00</span> on searches.</div>
+<div class="bubble frog">On it. I am checking Skyscanner first, then TAP and easyJet directly. I will stop at <span class="num">$2.00</span> and show you the three best fares.</div>
+<div class="card rows"><div class="row"><span class="dot" style="background:var(--agent)"></span><span class="stack" style="gap:2px"><span class="t-body">Web search, 40 results</span><span class="machine mu">Receipt 1204 · 14:12</span></span><span class="t-body num">$0.80</span></div></div>
+<div class="bubble frog">Skyscanner shows three fares under <span class="num">$180.00</span>. Checking TAP directly before I send you the list.</div>
+</div>
+<div style="margin-top:auto"><div class="composer"><span class="t-body mu" style="flex:1">Ask Froggy anything</span><button class="circ sm" type="button" aria-label="Send"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg></button></div></div>
+</div>
+<div class="stack" style="gap:18px">
+<div class="livecard"><div class="lc-bar"><span class="t-label">skyscanner.com</span><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div><div class="lc-view" style="height:200px"></div></div>
+<div>
+<div class="sechead"><h5 class="t-sec">This session</h5></div>
+<div class="card rows">
+<div class="row"><span class="dot" style="background:var(--agent)"></span><span class="t-body">Spent so far</span><span class="t-body num">$0.80</span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Available</span><span class="t-body num">$128.40</span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Receipts</span><span class="between" style="gap:6px"><span class="t-body num">1</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Froggy can spend</span><span class="switch on"><i></i></span></div>
+</div>
+</div>
+</div>
+</div></main></div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Home</h4><span class="ringed"><svg class="frog" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<p class="t-body mu">Good morning. Froggy is on your flight search. You can ask for something else in the meantime.</p>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:18px;min-height:500px">
+<div style="display:flex;flex-wrap:wrap;gap:8px;min-height:44px;align-items:center"><span class="chip" style="background:var(--inner);color:var(--muted)">Why was that declined?</span><span class="chip" style="background:var(--inner);color:var(--muted)">What does the snapshot say?</span><span class="chip" style="background:var(--inner);color:var(--muted)">Buy the snapshot now</span></div>
+<div class="thread">
+<div class="bubble me">Find me a return flight Berlin to Lisbon, out Fri 16 Oct, back Mon 19 Oct, under <span class="num">$180.00</span>. Spend up to <span class="num">$2.00</span> on searches.</div>
+<div class="bubble frog">On it. I am checking Skyscanner first, then TAP and easyJet directly. I will stop at <span class="num">$2.00</span> and show you the three best fares.</div>
+<div class="card rows"><div class="row"><span class="dot" style="background:var(--agent)"></span><span class="stack" style="gap:2px"><span class="t-body">Web search, 40 results</span><span class="machine mu">Receipt 1204 · 14:12</span></span><span class="t-body num">$0.80</span></div></div>
+<div class="bubble frog">Skyscanner shows three fares under <span class="num">$180.00</span>. Checking TAP directly before I send you the list.</div>
+</div>
+<div style="margin-top:auto"><div class="composer"><span class="t-body mu" style="flex:1">Ask Froggy anything</span><button class="circ sm" type="button" aria-label="Send"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg></button></div></div>
+</div>
+<div class="stack" style="gap:18px">
+<div class="livecard"><div class="lc-bar"><span class="t-label">skyscanner.com</span><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div><div class="lc-view" style="height:200px"></div></div>
+<div>
+<div class="sechead"><h5 class="t-sec">This session</h5></div>
+<div class="card rows">
+<div class="row"><span class="dot" style="background:var(--agent)"></span><span class="t-body">Spent so far</span><span class="t-body num">$0.80</span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Available</span><span class="t-body num">$128.40</span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Receipts</span><span class="between" style="gap:6px"><span class="t-body num">1</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></div>
+<div class="row" style="grid-template-columns:1fr auto"><span class="t-body">Froggy can spend</span><span class="switch on"><i></i></span></div>
+</div>
+</div>
+</div>
+</div></main></div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The first-run hero (the &#x27;What would you like to do?&#x27; headline, three outline action tiles and the balance peek line) is replaced by the page title with the live thread and three neutral suggestion chips taken from suggestions.ts; the greeting moves into the desktop intro sentence, and the balance moves into the &#x27;This session&#x27; card on desktop as &#x27;Available&#x27;.</li><li>The live browser card keeps its place in the stream on mobile, and on desktop it becomes the fixed right column instead of an optional split pane, with the site name in the bar and a Working chip in agent amber so it reads as Froggy on the site, not the person.</li><li>Every paid step is filed into the thread as a receipt row: amber dot, plain description, &#x27;Receipt 1204 · 14:12&#x27; in machine text and the amount right, so cost is visible without leaving the chat; the suggestion chip about a decline now reads &#x27;Why was that declined?&#x27;.</li><li>&#x27;Froggy can spend&#x27; is a switch in the session card rather than a pause control, and the suggestion chips need a 44px hit area around the 24px pill when built.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>Header: both fragments now begin with &lt;h4 class=&quot;t-title&quot;&gt;Home&lt;/h4&gt; (the .t-greet headline is reserved for the sign-in screen); the &#x27;Good morning&#x27; greeting moved into the desktop intro sentence.; Desktop: the header and intro sentence were moved out of the two-column grid so the fragment begins with the header as specified; the grid now follows them.; Notes: removed banned words &#x27;Wallet:&#x27;, &#x27;freeze&#x27;, &#x27;mandate&#x27; and &#x27;refused&#x27; from the notes text, rewording to &#x27;balance peek line&#x27;, &#x27;pause control&#x27; and &#x27;the suggestion chip about a decline&#x27;.</span></div>
+    </div>
+  </div>
+  <div class="pageview" role="tabpanel" data-page="balance">
+    <h3>Balance</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Balance</h4><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<div class="card" style="padding:18px 16px 12px">
+  <span class="t-label mu">Available</span>
+  <p class="t-money num" style="margin:4px 0 14px">$128.40</p>
+  <div class="inner" style="padding:0">
+    <div class="row" style="grid-template-columns:1fr auto">
+      <span class="t-body">Froggy can spend</span>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--agent)"></span>
+      <span class="t-body">Spent this week</span>
+      <span class="t-body num">$23.85</span>
+    </div>
+  </div>
+</div>
+<div class="acts">
+  <div class="act"><button class="circ" type="button" aria-label="Add money"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="t-label">Add money</span></div>
+  <div class="act"><button class="circ" type="button" aria-label="Withdraw"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button><span class="t-label">Withdraw</span></div>
+  <div class="act"><button class="circ" type="button" aria-label="Receipts"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg></button><span class="t-label">Receipts</span></div>
+</div>
+<div class="card" style="padding:16px">
+  <div class="between" style="margin-bottom:12px">
+    <h5 class="t-sec" style="margin:0">Agent spend</h5>
+    <span class="only-d"><span class="t-label mu">4 weeks</span></span><span class="only-e"><span class="t-label mu">This week</span></span>
+  </div>
+  <div class="only-d"><div class="days"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r2)"></i><i style="background:var(--r1)"></i><i style="background:var(--r3)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r3)"></i><i style="background:var(--r2)"></i><i style="background:var(--r4)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i></div></div>
+  <div class="only-e"><div class="bars"><i style="height:46%;background:var(--r3)"></i><i style="height:30%;background:var(--r2)"></i><i style="height:100%;background:var(--r4)"></i><i style="height:18%;background:var(--r1)"></i><i style="height:34%;background:var(--r2)"></i><i style="height:6%;background:var(--r0)"></i><i style="height:6%;background:var(--r0)"></i></div></div>
+  <div class="dow" style="margin-top:8px"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+</div>
+<div class="sechead"><h5 class="t-sec">Today</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+<div class="card rows">
+  <div class="row">
+    <span class="dot" style="background:var(--agent)"></span>
+    <div><div class="t-body">Searched flights to Lisbon</div><div class="t-label mu machine">Receipt 1204 · 14:12</div></div>
+    <span class="t-body num">$0.40</span>
+  </div>
+  <div class="row">
+    <span class="dot" style="background:var(--refused)"></span>
+    <div><div class="t-body">Page on ticketflip.net</div><div class="t-label mu">Site not approved · 11:48</div></div>
+    <span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span>
+  </div>
+  <div class="row">
+    <span class="dot" style="background:var(--human)"></span>
+    <div><div class="t-body">You added money</div><div class="t-label mu machine">Receipt 1201 · 09:30</div></div>
+    <span class="t-body num" style="color:var(--accent)">+$50.00</span>
+  </div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Balance</h4><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<div class="card" style="padding:18px 16px 12px">
+  <span class="t-label mu">Available</span>
+  <p class="t-money num" style="margin:4px 0 14px">$128.40</p>
+  <div class="inner" style="padding:0">
+    <div class="row" style="grid-template-columns:1fr auto">
+      <span class="t-body">Froggy can spend</span>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--agent)"></span>
+      <span class="t-body">Spent this week</span>
+      <span class="t-body num">$23.85</span>
+    </div>
+  </div>
+</div>
+<div class="acts">
+  <div class="act"><button class="circ" type="button" aria-label="Add money"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="t-label">Add money</span></div>
+  <div class="act"><button class="circ" type="button" aria-label="Withdraw"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button><span class="t-label">Withdraw</span></div>
+  <div class="act"><button class="circ" type="button" aria-label="Receipts"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg></button><span class="t-label">Receipts</span></div>
+</div>
+<div class="card" style="padding:16px">
+  <div class="between" style="margin-bottom:12px">
+    <h5 class="t-sec" style="margin:0">Agent spend</h5>
+    <span class="only-d"><span class="t-label mu">4 weeks</span></span><span class="only-e"><span class="t-label mu">This week</span></span>
+  </div>
+  <div class="only-d"><div class="days"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r2)"></i><i style="background:var(--r1)"></i><i style="background:var(--r3)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r3)"></i><i style="background:var(--r2)"></i><i style="background:var(--r4)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i></div></div>
+  <div class="only-e"><div class="bars"><i style="height:46%;background:var(--r3)"></i><i style="height:30%;background:var(--r2)"></i><i style="height:100%;background:var(--r4)"></i><i style="height:18%;background:var(--r1)"></i><i style="height:34%;background:var(--r2)"></i><i style="height:6%;background:var(--r0)"></i><i style="height:6%;background:var(--r0)"></i></div></div>
+  <div class="dow" style="margin-top:8px"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+</div>
+<div class="sechead"><h5 class="t-sec">Today</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+<div class="card rows">
+  <div class="row">
+    <span class="dot" style="background:var(--agent)"></span>
+    <div><div class="t-body">Searched flights to Lisbon</div><div class="t-label mu machine">Receipt 1204 · 14:12</div></div>
+    <span class="t-body num">$0.40</span>
+  </div>
+  <div class="row">
+    <span class="dot" style="background:var(--refused)"></span>
+    <div><div class="t-body">Page on ticketflip.net</div><div class="t-label mu">Site not approved · 11:48</div></div>
+    <span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span>
+  </div>
+  <div class="row">
+    <span class="dot" style="background:var(--human)"></span>
+    <div><div class="t-body">You added money</div><div class="t-label mu machine">Receipt 1201 · 09:30</div></div>
+    <span class="t-body num" style="color:var(--accent)">+$50.00</span>
+  </div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Balance</h4><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<p class="t-body mu" style="margin:0">This is money Froggy can spend for you. Every payment comes back as a receipt.</p>
+<div class="grid2">
+  <div class="stack" style="gap:18px">
+    <div class="card" style="padding:18px 16px 12px">
+      <span class="t-label mu">Available</span>
+      <p class="t-money num" style="margin:4px 0 14px">$128.40</p>
+      <div class="inner" style="padding:0">
+        <div class="row" style="grid-template-columns:1fr auto">
+          <span class="t-body">Froggy can spend</span>
+          <span class="switch on"><i></i></span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--agent)"></span>
+          <span class="t-body">Spent this week</span>
+          <span class="t-body num">$23.85</span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--human)"></span>
+          <span class="t-body">You added this month</span>
+          <span class="t-body num">$150.00</span>
+        </div>
+      </div>
+    </div>
+    <div class="acts">
+      <div class="act"><button class="circ" type="button" aria-label="Add money"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="t-label">Add money</span></div>
+      <div class="act"><button class="circ" type="button" aria-label="Withdraw"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button><span class="t-label">Withdraw</span></div>
+      <div class="act"><button class="circ" type="button" aria-label="Receipts"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg></button><span class="t-label">Receipts</span></div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="between" style="margin-bottom:12px">
+        <h5 class="t-sec" style="margin:0">Agent spend</h5>
+        <span class="only-d"><span class="t-label mu">4 weeks</span></span><span class="only-e"><span class="t-label mu">This week</span></span>
+      </div>
+      <div class="only-d"><div class="days"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r2)"></i><i style="background:var(--r1)"></i><i style="background:var(--r3)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r3)"></i><i style="background:var(--r2)"></i><i style="background:var(--r4)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i></div></div>
+      <div class="only-e"><div class="bars"><i style="height:46%;background:var(--r3)"></i><i style="height:30%;background:var(--r2)"></i><i style="height:100%;background:var(--r4)"></i><i style="height:18%;background:var(--r1)"></i><i style="height:34%;background:var(--r2)"></i><i style="height:6%;background:var(--r0)"></i><i style="height:6%;background:var(--r0)"></i></div></div>
+      <div class="dow" style="margin-top:8px"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+      <div class="between" style="margin-top:12px"><span class="t-label mu">Busiest day Wed · <span class="num">$9.10</span></span><span class="t-label mu">6 jobs this week</span></div>
+    </div>
+  </div>
+  <div class="stack" style="gap:10px">
+    <div class="sechead"><h5 class="t-sec">Today</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+    <div class="card rows">
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Searched flights to Lisbon</div><div class="t-label mu machine">Receipt 1204 · 14:12</div></div>
+        <span class="t-body num">$0.40</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--refused)"></span>
+        <div><div class="t-body">Page on ticketflip.net</div><div class="t-label mu">Site not approved · 11:48</div></div>
+        <span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--human)"></span>
+        <div><div class="t-body">You added money</div><div class="t-label mu machine">Receipt 1201 · 09:30</div></div>
+        <span class="t-body num" style="color:var(--accent)">+$50.00</span>
+      </div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">Yesterday</h5></div>
+    <div class="card rows">
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Read 3 pages for your Porto summary</div><div class="t-label mu machine">Receipt 1198 · 17:05</div></div>
+        <span class="t-body num">$1.20</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Checked hotel prices in Porto</div><div class="t-label mu machine">Receipt 1195 · 10:22</div></div>
+        <span class="t-body num">$0.65</span>
+      </div>
+    </div>
+    <button class="btn quiet" type="button" style="align-self:flex-start"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg>Download statement</button>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Balance</h4><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span></div>
+<p class="t-body mu" style="margin:0">This is money Froggy can spend for you. Every payment comes back as a receipt.</p>
+<div class="grid2">
+  <div class="stack" style="gap:18px">
+    <div class="card" style="padding:18px 16px 12px">
+      <span class="t-label mu">Available</span>
+      <p class="t-money num" style="margin:4px 0 14px">$128.40</p>
+      <div class="inner" style="padding:0">
+        <div class="row" style="grid-template-columns:1fr auto">
+          <span class="t-body">Froggy can spend</span>
+          <span class="switch on"><i></i></span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--agent)"></span>
+          <span class="t-body">Spent this week</span>
+          <span class="t-body num">$23.85</span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--human)"></span>
+          <span class="t-body">You added this month</span>
+          <span class="t-body num">$150.00</span>
+        </div>
+      </div>
+    </div>
+    <div class="acts">
+      <div class="act"><button class="circ" type="button" aria-label="Add money"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="t-label">Add money</span></div>
+      <div class="act"><button class="circ" type="button" aria-label="Withdraw"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button><span class="t-label">Withdraw</span></div>
+      <div class="act"><button class="circ" type="button" aria-label="Receipts"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg></button><span class="t-label">Receipts</span></div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="between" style="margin-bottom:12px">
+        <h5 class="t-sec" style="margin:0">Agent spend</h5>
+        <span class="only-d"><span class="t-label mu">4 weeks</span></span><span class="only-e"><span class="t-label mu">This week</span></span>
+      </div>
+      <div class="only-d"><div class="days"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i><i style="background:var(--r2)"></i><i style="background:var(--r1)"></i><i style="background:var(--r3)"></i><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r1)"></i><i style="background:var(--r0)"></i><i style="background:var(--r3)"></i><i style="background:var(--r2)"></i><i style="background:var(--r4)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r0)"></i><i style="background:var(--r0)"></i></div></div>
+      <div class="only-e"><div class="bars"><i style="height:46%;background:var(--r3)"></i><i style="height:30%;background:var(--r2)"></i><i style="height:100%;background:var(--r4)"></i><i style="height:18%;background:var(--r1)"></i><i style="height:34%;background:var(--r2)"></i><i style="height:6%;background:var(--r0)"></i><i style="height:6%;background:var(--r0)"></i></div></div>
+      <div class="dow" style="margin-top:8px"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+      <div class="between" style="margin-top:12px"><span class="t-label mu">Busiest day Wed · <span class="num">$9.10</span></span><span class="t-label mu">6 jobs this week</span></div>
+    </div>
+  </div>
+  <div class="stack" style="gap:10px">
+    <div class="sechead"><h5 class="t-sec">Today</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+    <div class="card rows">
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Searched flights to Lisbon</div><div class="t-label mu machine">Receipt 1204 · 14:12</div></div>
+        <span class="t-body num">$0.40</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--refused)"></span>
+        <div><div class="t-body">Page on ticketflip.net</div><div class="t-label mu">Site not approved · 11:48</div></div>
+        <span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--human)"></span>
+        <div><div class="t-body">You added money</div><div class="t-label mu machine">Receipt 1201 · 09:30</div></div>
+        <span class="t-body num" style="color:var(--accent)">+$50.00</span>
+      </div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">Yesterday</h5></div>
+    <div class="card rows">
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Read 3 pages for your Porto summary</div><div class="t-label mu machine">Receipt 1198 · 17:05</div></div>
+        <span class="t-body num">$1.20</span>
+      </div>
+      <div class="row">
+        <span class="dot" style="background:var(--agent)"></span>
+        <div><div class="t-body">Checked hotel prices in Porto</div><div class="t-label mu machine">Receipt 1195 · 10:22</div></div>
+        <span class="t-body num">$0.65</span>
+      </div>
+    </div>
+    <button class="btn quiet" type="button" style="align-self:flex-start"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20V4Z"/><path d="M9 9h6M9 13h6"/></svg>Download statement</button>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The wallet becomes one dollar number called Balance: the USDC + HBAR label, the per-chain breakdown, addresses and the &quot;Connect an agent&quot; link leave this screen, and the actions become Add money, Withdraw and Receipts.</li><li>agentSigner turns into the &quot;Froggy can spend&quot; switch (granted is on, absent is off, pending shows the label &quot;Waiting for you&quot; in place of the switch) and windowSpentUsdMicros is shown as &quot;Spent this week&quot; with an amber dot so the person sees it is Froggy&#x27;s spending.</li><li>Activity is grouped by day as rows in one card with a dot for who acted (amber Froggy, blue you, declined in the refused colour) and a plain reason on declines, replacing the stack of receipt tickets and any policy or signer wording.</li><li>When totalUsdMicros is null show &quot;Balance unavailable right now&quot; instead of a number, and when ledgerNote is set label the spend row &quot;Spent this week, at least&quot; so an unreadable ledger never looks like zero spend.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>Passed the vocabulary, class and structure check with no corrections.</span></div>
+    </div>
+  </div>
+  <div class="pageview" role="tabpanel" data-page="services" hidden>
+    <h3>Services</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Services</h4><span class="t-label mu"><span class="num">$128.40</span> available</span></div>
+<p class="t-body mu" style="margin:-8px 0 0">Fixed prices, paid from your balance. Results are saved here.</p>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Web search</div><div class="t-label mu">Five useful pages with excerpts and links</div></div><span class="t-body num">$0.03</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Second opinion</div><div class="t-label mu">A short answer from a different AI</div></div><span class="t-body num">$0.03</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Make an image</div><div class="t-label mu">One square picture from your description, as a PNG</div></div><span class="t-body num">$0.12</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Read it aloud</div><div class="t-label mu">Up to 1,000 characters as an MP3</div></div><span class="t-body num">$0.15</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Recent posts on X</div><div class="t-label mu">Up to 20 public posts from the last 7 days, with links</div></div><span class="t-body num">$0.20</span></div>
+</div>
+<div class="sechead"><h5 class="t-sec">Your results</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+<div class="card rows">
+  <div class="row"><span class="dot" style="background:var(--agent)"></span><div><div class="t-body">Recent posts on X</div><div class="machine">Froggy · started 14:12</div></div><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div>
+  <div class="row"><span class="dot" style="background:var(--human)"></span><div><div class="t-body">Make an image</div><div class="machine">You · Receipt 1204 · 13:48</div></div><span class="between"><span class="chip" style="background:var(--accent-soft);color:var(--accent)">Ready</span><button class="circ" type="button" aria-label="Download"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button></span></div>
+  <div class="row"><span class="dot" style="background:var(--refused)"></span><div><div class="t-body">Read it aloud</div><div class="t-label mu">Over today's limit</div><div class="machine">Froggy · 11:05</div></div><span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span></div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Services</h4><span class="t-label mu"><span class="num">$128.40</span> available</span></div>
+<p class="t-body mu" style="margin:-8px 0 0">Fixed prices, paid from your balance. Results are saved here.</p>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Web search</div><div class="t-label mu">Five useful pages with excerpts and links</div></div><span class="t-body num">$0.03</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Second opinion</div><div class="t-label mu">A short answer from a different AI</div></div><span class="t-body num">$0.03</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Make an image</div><div class="t-label mu">One square picture from your description, as a PNG</div></div><span class="t-body num">$0.12</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Read it aloud</div><div class="t-label mu">Up to 1,000 characters as an MP3</div></div><span class="t-body num">$0.15</span></div>
+  <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Recent posts on X</div><div class="t-label mu">Up to 20 public posts from the last 7 days, with links</div></div><span class="t-body num">$0.20</span></div>
+</div>
+<div class="sechead"><h5 class="t-sec">Your results</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+<div class="card rows">
+  <div class="row"><span class="dot" style="background:var(--agent)"></span><div><div class="t-body">Recent posts on X</div><div class="machine">Froggy · started 14:12</div></div><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div>
+  <div class="row"><span class="dot" style="background:var(--human)"></span><div><div class="t-body">Make an image</div><div class="machine">You · Receipt 1204 · 13:48</div></div><span class="between"><span class="chip" style="background:var(--accent-soft);color:var(--accent)">Ready</span><button class="circ" type="button" aria-label="Download"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button></span></div>
+  <div class="row"><span class="dot" style="background:var(--refused)"></span><div><div class="t-body">Read it aloud</div><div class="t-label mu">Over today's limit</div><div class="machine">Froggy · 11:05</div></div><span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span></div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Services</h4><span class="t-label mu"><span class="num">$128.40</span> available</span></div>
+<p class="t-body mu" style="margin:-8px 0 0">Fixed prices, paid from your balance. Pick one, say what you want, and the result is saved here.</p>
+<div class="grid2">
+  <div class="stack">
+    <div class="sechead"><h5 class="t-sec">What Froggy can do</h5><span class="t-label mu">5 services</span></div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Web search</div><div class="t-label mu">Five useful pages with excerpts and links</div></div><span class="t-body num">$0.03</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Second opinion</div><div class="t-label mu">A short answer from a different AI</div></div><span class="t-body num">$0.03</span></div>
+      <div class="row" style="grid-template-columns:1fr auto;background:var(--inner)"><div><div class="t-body">Make an image</div><div class="t-label mu">One square picture from your description, as a PNG</div></div><span class="t-body num">$0.12</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Read it aloud</div><div class="t-label mu">Up to 1,000 characters as an MP3</div></div><span class="t-body num">$0.15</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Recent posts on X</div><div class="t-label mu">Up to 20 public posts from the last 7 days, with links</div></div><span class="t-body num">$0.20</span></div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">This week</h5></div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Spent on services</div><div class="t-label mu">4 results, 1 declined</div></div><span class="t-body num">$0.38</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Available now</div><div class="t-label mu">Add money on Balance</div></div><span class="t-body num">$128.40</span></div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="sechead"><h5 class="t-sec">Your request</h5></div>
+    <div class="card" style="padding:18px 16px 16px">
+      <div class="stack">
+        <div class="between"><h5 class="t-sec">Make an image</h5><span class="t-body num">$0.12</span></div>
+        <p class="t-body mu" style="margin:0">One square picture from your description, saved as a PNG you can download.</p>
+        <label class="field"><span class="t-label mu">Describe the picture</span><span class="input" style="min-height:84px;align-items:flex-start">A simple line drawing of a bicycle for a birthday card</span></label>
+        <p class="t-label mu" style="margin:0">Paid from your balance when it starts. A failed job is not refunded automatically.</p>
+        <div class="between"><button class="btn primary" type="button">Start for <span class="num">$0.12</span></button><span class="machine">54/2000</span></div>
+      </div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">Your results</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+    <div class="card rows">
+      <div class="row"><span class="dot" style="background:var(--agent)"></span><div><div class="t-body">Recent posts on X</div><div class="machine">Froggy · started 14:12</div></div><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div>
+      <div class="row"><span class="dot" style="background:var(--human)"></span><div><div class="t-body">Make an image</div><div class="machine">You · Receipt 1204 · 13:48</div></div><span class="between"><span class="chip" style="background:var(--accent-soft);color:var(--accent)">Ready</span><button class="circ" type="button" aria-label="Download"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button></span></div>
+      <div class="row"><span class="dot" style="background:var(--refused)"></span><div><div class="t-body">Read it aloud</div><div class="t-label mu">Over today's limit</div><div class="machine">Froggy · 11:05</div></div><span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span></div>
+    </div>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><div class="between"><h4 class="t-title">Services</h4><span class="t-label mu"><span class="num">$128.40</span> available</span></div>
+<p class="t-body mu" style="margin:-8px 0 0">Fixed prices, paid from your balance. Pick one, say what you want, and the result is saved here.</p>
+<div class="grid2">
+  <div class="stack">
+    <div class="sechead"><h5 class="t-sec">What Froggy can do</h5><span class="t-label mu">5 services</span></div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Web search</div><div class="t-label mu">Five useful pages with excerpts and links</div></div><span class="t-body num">$0.03</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Second opinion</div><div class="t-label mu">A short answer from a different AI</div></div><span class="t-body num">$0.03</span></div>
+      <div class="row" style="grid-template-columns:1fr auto;background:var(--inner)"><div><div class="t-body">Make an image</div><div class="t-label mu">One square picture from your description, as a PNG</div></div><span class="t-body num">$0.12</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Read it aloud</div><div class="t-label mu">Up to 1,000 characters as an MP3</div></div><span class="t-body num">$0.15</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Recent posts on X</div><div class="t-label mu">Up to 20 public posts from the last 7 days, with links</div></div><span class="t-body num">$0.20</span></div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">This week</h5></div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Spent on services</div><div class="t-label mu">4 results, 1 declined</div></div><span class="t-body num">$0.38</span></div>
+      <div class="row" style="grid-template-columns:1fr auto"><div><div class="t-body">Available now</div><div class="t-label mu">Add money on Balance</div></div><span class="t-body num">$128.40</span></div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="sechead"><h5 class="t-sec">Your request</h5></div>
+    <div class="card" style="padding:18px 16px 16px">
+      <div class="stack">
+        <div class="between"><h5 class="t-sec">Make an image</h5><span class="t-body num">$0.12</span></div>
+        <p class="t-body mu" style="margin:0">One square picture from your description, saved as a PNG you can download.</p>
+        <label class="field"><span class="t-label mu">Describe the picture</span><span class="input" style="min-height:84px;align-items:flex-start">A simple line drawing of a bicycle for a birthday card</span></label>
+        <p class="t-label mu" style="margin:0">Paid from your balance when it starts. A failed job is not refunded automatically.</p>
+        <div class="between"><button class="btn primary" type="button">Start for <span class="num">$0.12</span></button><span class="machine">54/2000</span></div>
+      </div>
+    </div>
+    <div class="sechead" style="margin-top:8px"><h5 class="t-sec">Your results</h5><span class="t-label" style="color:var(--accent)">See all</span></div>
+    <div class="card rows">
+      <div class="row"><span class="dot" style="background:var(--agent)"></span><div><div class="t-body">Recent posts on X</div><div class="machine">Froggy · started 14:12</div></div><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)">Working</span></div>
+      <div class="row"><span class="dot" style="background:var(--human)"></span><div><div class="t-body">Make an image</div><div class="machine">You · Receipt 1204 · 13:48</div></div><span class="between"><span class="chip" style="background:var(--accent-soft);color:var(--accent)">Ready</span><button class="circ" type="button" aria-label="Download"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button></span></div>
+      <div class="row"><span class="dot" style="background:var(--refused)"></span><div><div class="t-body">Read it aloud</div><div class="t-label mu">Over today's limit</div><div class="machine">Froggy · 11:05</div></div><span class="chip" style="background:var(--refused-soft);color:var(--refused)">Declined</span></div>
+    </div>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The five service cards in a two-up grid become one list of rows named as what the person gets (Web search, Second opinion, Make an image, Read it aloud, Recent posts on X) with the real catalog price at the right; on desktop the chosen row is highlighted and the request form sits beside the list instead of replacing it.</li><li>Your tasks becomes Your results: each row says who started it (blue dot for you, amber for Froggy), a status in the person&#x27;s words (Working, Ready, Declined with a plain reason such as Over today&#x27;s limit), the receipt number and time, and a round download button on a finished row.</li><li>Provider names, the Simulated and Configured badges, the readiness note and the technical wording about spending rules leave the person&#x27;s view; the form keeps the real price on the button (Start for $0.12, not the placeholder $0.80), the character count, and the honest line that a failed job is not refunded automatically.</li><li>First-time empty state for the results card is one line, No results yet, what you and Froggy buy here lands in this list, with a single Pick a service button.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>notes[2]: replaced the banned phrase &#x27;wallet-policy wording&#x27; with &#x27;technical wording about spending rules&#x27;.</span></div>
+    </div>
+  </div>
+  <div class="pageview" role="tabpanel" data-page="agents" hidden>
+    <h3>Agents</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><h4 class="t-title">Agents</h4>
+<div class="stack">
+  <div class="sechead"><h5 class="t-sec">Your agents</h5></div>
+  <div class="card rows">
+    <div class="row">
+      <span class="dot" style="background:var(--agent)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Claude on your Mac</span>
+        <span class="t-label mu machine">Connected 4 days ago · spent <span class="num">$23.85</span> this week</span>
+        <span class="t-label mu">Can search the web, read pages and run small jobs</span>
+      </div>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--muted)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Cursor on your laptop</span>
+        <span class="t-label mu machine">Added today · not used yet</span>
+        <span class="t-label mu">Can search the web and read pages</span>
+      </div>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--accent)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Telegram</span>
+        <span class="t-label mu machine">Paired 12 days ago</span>
+      </div>
+      <span style="display:flex;align-items:center;gap:6px">
+        <span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </span>
+    </div>
+  </div>
+</div>
+<div class="stack">
+  <div class="sechead"><h5 class="t-sec">Connect an agent</h5></div>
+  <div class="card" style="padding:16px">
+    <p class="t-body" style="margin:0 0 12px">Any assistant can use this link to ask Froggy for paid work. The first time it does, you sign in to say yes.</p>
+    <div style="display:flex;align-items:flex-end;gap:10px">
+      <label class="field" style="flex:1;min-width:0"><span class="t-label mu">Connect link</span><span class="input">froggy.app/connect/jonas</span></label>
+      <button class="btn" type="button" style="margin-bottom:2px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy link</button>
+    </div>
+    <div class="inner stack" style="padding:12px;margin-top:12px;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">1</span><span class="t-body">Copy the link</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">2</span><span class="t-body">Paste it into your assistant's settings</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">3</span><span class="t-body">Sign in when it asks. It then appears under Your agents</span></div>
+    </div>
+  </div>
+</div>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:1fr auto">
+    <span class="t-body">Advanced options</span>
+    <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  </div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><h4 class="t-title">Agents</h4>
+<div class="stack">
+  <div class="sechead"><h5 class="t-sec">Your agents</h5></div>
+  <div class="card rows">
+    <div class="row">
+      <span class="dot" style="background:var(--agent)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Claude on your Mac</span>
+        <span class="t-label mu machine">Connected 4 days ago · spent <span class="num">$23.85</span> this week</span>
+        <span class="t-label mu">Can search the web, read pages and run small jobs</span>
+      </div>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--muted)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Cursor on your laptop</span>
+        <span class="t-label mu machine">Added today · not used yet</span>
+        <span class="t-label mu">Can search the web and read pages</span>
+      </div>
+      <span class="switch on"><i></i></span>
+    </div>
+    <div class="row">
+      <span class="dot" style="background:var(--accent)"></span>
+      <div class="stack" style="gap:2px;min-width:0">
+        <span class="t-body">Telegram</span>
+        <span class="t-label mu machine">Paired 12 days ago</span>
+      </div>
+      <span style="display:flex;align-items:center;gap:6px">
+        <span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </span>
+    </div>
+  </div>
+</div>
+<div class="stack">
+  <div class="sechead"><h5 class="t-sec">Connect an agent</h5></div>
+  <div class="card" style="padding:16px">
+    <p class="t-body" style="margin:0 0 12px">Any assistant can use this link to ask Froggy for paid work. The first time it does, you sign in to say yes.</p>
+    <div style="display:flex;align-items:flex-end;gap:10px">
+      <label class="field" style="flex:1;min-width:0"><span class="t-label mu">Connect link</span><span class="input">froggy.app/connect/jonas</span></label>
+      <button class="btn" type="button" style="margin-bottom:2px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy link</button>
+    </div>
+    <div class="inner stack" style="padding:12px;margin-top:12px;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">1</span><span class="t-body">Copy the link</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">2</span><span class="t-body">Paste it into your assistant's settings</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><span class="pip">3</span><span class="t-body">Sign in when it asks. It then appears under Your agents</span></div>
+    </div>
+  </div>
+</div>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:1fr auto">
+    <span class="t-body">Advanced options</span>
+    <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  </div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><h4 class="t-title">Agents</h4>
+<p class="t-body mu" style="margin:-8px 0 0">Assistants you connect here can ask Froggy for paid work from your balance. Turn any of them off whenever you like.</p>
+<div class="grid2">
+  <div class="stack" style="gap:18px">
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Connect an agent</h5></div>
+      <div class="card" style="padding:16px">
+        <p class="t-body" style="margin:0 0 12px">Any assistant can use this link to ask Froggy for paid work. The first time it does, you sign in to say yes.</p>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <label class="field" style="flex:1;min-width:0"><span class="t-label mu">Connect link</span><span class="input">froggy.app/connect/jonas</span></label>
+          <button class="btn" type="button" style="margin-bottom:2px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy link</button>
+        </div>
+        <div class="inner stack" style="padding:12px;margin-top:12px;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">1</span><span class="t-body">Copy the link</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">2</span><span class="t-body">Paste it into your assistant's settings</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">3</span><span class="t-body">Sign in when it asks. It then appears under Your agents</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto">
+        <span class="t-body">Advanced options</span>
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="stack" style="gap:18px">
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Your agents</h5></div>
+      <div class="card rows">
+        <div class="row">
+          <span class="dot" style="background:var(--agent)"></span>
+          <div class="stack" style="gap:2px;min-width:0">
+            <span class="t-body">Claude on your Mac</span>
+            <span class="t-label mu machine">Connected 4 days ago · spent <span class="num">$23.85</span> this week</span>
+            <span class="t-label mu">Can search the web, read pages and run small jobs</span>
+          </div>
+          <span class="switch on"><i></i></span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--muted)"></span>
+          <div class="stack" style="gap:2px;min-width:0">
+            <span class="t-body">Cursor on your laptop</span>
+            <span class="t-label mu machine">Added today · not used yet</span>
+            <span class="t-label mu">Can search the web and read pages</span>
+          </div>
+          <span class="switch on"><i></i></span>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+      <div class="card" style="padding:16px">
+        <div class="between">
+          <span style="display:flex;align-items:center;gap:10px"><span class="dot" style="background:var(--accent)"></span><span class="t-body">Telegram</span></span>
+          <span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+        </div>
+        <p class="t-body mu" style="margin:10px 0 0">Ask Froggy from your phone and answer its questions there. The same limits apply as here.</p>
+        <div class="between" style="margin-top:12px">
+          <span class="t-label mu machine">Paired 12 days ago</span>
+          <button class="btn quiet" type="button">Unpair</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><h4 class="t-title">Agents</h4>
+<p class="t-body mu" style="margin:-8px 0 0">Assistants you connect here can ask Froggy for paid work from your balance. Turn any of them off whenever you like.</p>
+<div class="grid2">
+  <div class="stack" style="gap:18px">
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Connect an agent</h5></div>
+      <div class="card" style="padding:16px">
+        <p class="t-body" style="margin:0 0 12px">Any assistant can use this link to ask Froggy for paid work. The first time it does, you sign in to say yes.</p>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <label class="field" style="flex:1;min-width:0"><span class="t-label mu">Connect link</span><span class="input">froggy.app/connect/jonas</span></label>
+          <button class="btn" type="button" style="margin-bottom:2px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy link</button>
+        </div>
+        <div class="inner stack" style="padding:12px;margin-top:12px;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">1</span><span class="t-body">Copy the link</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">2</span><span class="t-body">Paste it into your assistant's settings</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="pip">3</span><span class="t-body">Sign in when it asks. It then appears under Your agents</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card rows">
+      <div class="row" style="grid-template-columns:1fr auto">
+        <span class="t-body">Advanced options</span>
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="stack" style="gap:18px">
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Your agents</h5></div>
+      <div class="card rows">
+        <div class="row">
+          <span class="dot" style="background:var(--agent)"></span>
+          <div class="stack" style="gap:2px;min-width:0">
+            <span class="t-body">Claude on your Mac</span>
+            <span class="t-label mu machine">Connected 4 days ago · spent <span class="num">$23.85</span> this week</span>
+            <span class="t-label mu">Can search the web, read pages and run small jobs</span>
+          </div>
+          <span class="switch on"><i></i></span>
+        </div>
+        <div class="row">
+          <span class="dot" style="background:var(--muted)"></span>
+          <div class="stack" style="gap:2px;min-width:0">
+            <span class="t-body">Cursor on your laptop</span>
+            <span class="t-label mu machine">Added today · not used yet</span>
+            <span class="t-label mu">Can search the web and read pages</span>
+          </div>
+          <span class="switch on"><i></i></span>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+      <div class="card" style="padding:16px">
+        <div class="between">
+          <span style="display:flex;align-items:center;gap:10px"><span class="dot" style="background:var(--accent)"></span><span class="t-body">Telegram</span></span>
+          <span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+        </div>
+        <p class="t-body mu" style="margin:10px 0 0">Ask Froggy from your phone and answer its questions there. The same limits apply as here.</p>
+        <div class="between" style="margin-top:12px">
+          <span class="t-label mu machine">Paired 12 days ago</span>
+          <button class="btn quiet" type="button">Unpair</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></main></div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The Connect by URL card becomes one connect card: a readable link, a Copy link button and three numbered steps, since the agent signs in with the person&#x27;s account in the browser and no credential changes hands; the per-client snippets for Claude Code and Cursor and the credential path for assistants that cannot sign in move behind Advanced options.</li><li>Connected agents are rows in one card: an amber dot for an agent that has done work, a machine line with when it connected and what it spent this week, and a switch (it can spend) as the everyday control, with Disconnect inside the row&#x27;s detail; a connection with no use yet (lastUsedAt null) reads Added today, not used yet with a muted dot, and each row also says in plain words what its grant lets it do.</li><li>Telegram is a row with a Paired chip on mobile and a card under Connected apps on desktop with a quiet Unpair; the pairing code flow appears only while it is not paired.</li><li>First-time empty state for Your agents: a .empty with the line No agents yet. Copy the connect link and paste it into your assistant, and a Copy link button.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>Removed the intro sentence under the mobile title; the header rule only allows an intro sentence on desktop.; Added the plain-words capability line (Can search the web, read pages...) to the two agent rows on mobile, matching desktop and keeping mobile content in the 620 to 780px range after the intro was removed.; Notes: replaced the word token with credential (twice) so the banned term does not travel with the draft, and dropped the on desktop qualifier now that both fragments show the capability line.</span></div>
+    </div>
+  </div>
+  <div class="pageview" role="tabpanel" data-page="settings" hidden>
+    <h3>Settings</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Settings</h4><span class="avatar">J</span></div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Reminders</h5></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Daily summary</span><span class="machine mu">Every day at 8:00</span></div>
+<span class="switch on"><i></i></span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Weekly spending recap</span><span class="machine mu">Mondays at 9:00</span></div>
+<span class="switch"><i></i></span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Sites Froggy can pay</h5><span class="t-label" style="color:var(--refused)">1 declined this week</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<span class="t-body">skyscanner.com</span>
+<span class="machine mu">Since 2 Sep</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<span class="t-body">ft.com</span>
+<span class="machine mu">Since 4 Sep</span>
+</div>
+<div class="row" style="color:var(--accent)">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+<span class="t-body">Add a site</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Security</h5><span class="t-label mu">2 signed-in devices</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">This Mac</span>
+<span class="machine mu">now</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">iPhone</span>
+<span class="machine mu">2 hours ago</span>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<span class="t-body" style="color:var(--accent)">Sign out everywhere</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg>
+<span class="t-body">Telegram</span>
+<span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Account</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 8l9 6 9-6"/></svg>
+<span class="t-body" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jonas@example.com</span>
+<button class="btn" type="button">Sign out</button>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<button class="btn quiet" type="button" style="justify-self:start;color:var(--refused)">Delete account</button>
+</div>
+</div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="between"><h4 class="t-title">Settings</h4><span class="avatar">J</span></div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Reminders</h5></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Daily summary</span><span class="machine mu">Every day at 8:00</span></div>
+<span class="switch on"><i></i></span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Weekly spending recap</span><span class="machine mu">Mondays at 9:00</span></div>
+<span class="switch"><i></i></span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Sites Froggy can pay</h5><span class="t-label" style="color:var(--refused)">1 declined this week</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<span class="t-body">skyscanner.com</span>
+<span class="machine mu">Since 2 Sep</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<span class="t-body">ft.com</span>
+<span class="machine mu">Since 4 Sep</span>
+</div>
+<div class="row" style="color:var(--accent)">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+<span class="t-body">Add a site</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Security</h5><span class="t-label mu">2 signed-in devices</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">This Mac</span>
+<span class="machine mu">now</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">iPhone</span>
+<span class="machine mu">2 hours ago</span>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<span class="t-body" style="color:var(--accent)">Sign out everywhere</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg>
+<span class="t-body">Telegram</span>
+<span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Account</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 8l9 6 9-6"/></svg>
+<span class="t-body" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jonas@example.com</span>
+<button class="btn" type="button">Sign out</button>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<button class="btn quiet" type="button" style="justify-self:start;color:var(--refused)">Delete account</button>
+</div>
+</div>
+</div></div><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</span><span class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</span><span class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</span></div><div class="home" style="margin-bottom:10px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><h4 class="t-title">Settings</h4>
+<p class="t-body mu">Reminders, the sites Froggy can pay, and where you are signed in.</p>
+
+<div class="grid2">
+<div class="stack" style="gap:18px">
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Reminders</h5><span class="t-label mu">Sent to Telegram and the chat</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Daily summary</span><span class="machine mu">Every day at 8:00</span></div>
+<span class="switch on"><i></i></span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Weekly spending recap</span><span class="machine mu">Mondays at 9:00</span></div>
+<span class="switch"><i></i></span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Scheduled</h5></div>
+<div class="empty">
+<p class="t-body mu">Nothing scheduled yet, ask Froggy in the chat to remind you of something or to run a job later.</p>
+<button class="btn" type="button">Open chat</button>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Sites Froggy can pay</h5><span class="t-label mu">2 approved</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">skyscanner.com</span><span class="machine mu">Since 2 Sep · paid 12 times</span></div>
+<span class="t-label num mu">$0.50 each</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">ft.com</span><span class="machine mu">Since 4 Sep · paid 9 times</span></div>
+<span class="t-label num mu">$0.40 each</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--refused)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">eurail.com</span><span class="machine" style="color:var(--refused)">Receipt 1198 · Mon 14:12 · Site not approved</span></div>
+<button class="btn" type="button">Allow</button>
+</div>
+<div class="row" style="color:var(--accent)">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+<span class="t-body">Add a site</span>
+</div>
+</div>
+</div>
+
+</div>
+<div class="stack" style="gap:18px">
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Security</h5><span class="t-label mu">2 signed-in devices</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">This Mac</span>
+<span class="machine mu">now</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">iPhone</span>
+<span class="machine mu">2 hours ago</span>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<span class="t-body" style="color:var(--accent)">Sign out everywhere</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Telegram</span><span class="machine mu">Since 3 Sep</span></div>
+<span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Account</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 8l9 6 9-6"/></svg>
+<span class="t-body" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jonas@example.com</span>
+<button class="btn" type="button">Sign out</button>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<button class="btn quiet" type="button" style="justify-self:start;color:var(--refused)">Delete account</button>
+</div>
+</div>
+</div>
+
+</div>
+</div></main></div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="desk"><aside class="rail"><div class="brand"><span class="seal sm"><svg class="frog" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></span>Froggy</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9Z"/></svg>Home</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3.5"/><path d="M3 10.5h18"/></svg>Balance</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>Services</div><div class="nav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="2.8"/><circle cx="15.5" cy="8" r="2.8"/><path d="M4.5 15c0-3.3 3.4-5.8 7.5-5.8s7.5 2.5 7.5 5.8-3.4 5.8-7.5 5.8S4.5 18.3 4.5 15Z"/></svg>Agents</div><div class="nav on"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/></svg>Settings</div><div class="acct"><span class="avatar">J</span>Jonas</div></aside><div class="main"><div class="topbar"><span class="chip" style="background:var(--agent-soft);color:var(--agent-ink)"><span class="dot" style="background:var(--agent)"></span>Froggy can spend</span><span class="avatar">J</span></div><main class="col"><h4 class="t-title">Settings</h4>
+<p class="t-body mu">Reminders, the sites Froggy can pay, and where you are signed in.</p>
+
+<div class="grid2">
+<div class="stack" style="gap:18px">
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Reminders</h5><span class="t-label mu">Sent to Telegram and the chat</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Daily summary</span><span class="machine mu">Every day at 8:00</span></div>
+<span class="switch on"><i></i></span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Weekly spending recap</span><span class="machine mu">Mondays at 9:00</span></div>
+<span class="switch"><i></i></span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Scheduled</h5></div>
+<div class="empty">
+<p class="t-body mu">Nothing scheduled yet, ask Froggy in the chat to remind you of something or to run a job later.</p>
+<button class="btn" type="button">Open chat</button>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Sites Froggy can pay</h5><span class="t-label mu">2 approved</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">skyscanner.com</span><span class="machine mu">Since 2 Sep · paid 12 times</span></div>
+<span class="t-label num mu">$0.50 each</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--agent)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">ft.com</span><span class="machine mu">Since 4 Sep · paid 9 times</span></div>
+<span class="t-label num mu">$0.40 each</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--refused)"></span>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">eurail.com</span><span class="machine" style="color:var(--refused)">Receipt 1198 · Mon 14:12 · Site not approved</span></div>
+<button class="btn" type="button">Allow</button>
+</div>
+<div class="row" style="color:var(--accent)">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+<span class="t-body">Add a site</span>
+</div>
+</div>
+</div>
+
+</div>
+<div class="stack" style="gap:18px">
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Security</h5><span class="t-label mu">2 signed-in devices</span></div>
+<div class="card rows">
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">This Mac</span>
+<span class="machine mu">now</span>
+</div>
+<div class="row">
+<span class="dot" style="background:var(--human)"></span>
+<span class="t-body">iPhone</span>
+<span class="machine mu">2 hours ago</span>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<span class="t-body" style="color:var(--accent)">Sign out everywhere</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Connected apps</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-4 16-4-6-8-2Z"/></svg>
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t-body">Telegram</span><span class="machine mu">Since 3 Sep</span></div>
+<span class="chip" style="background:var(--accent-soft);color:var(--accent)">Paired</span>
+</div>
+</div>
+</div>
+
+<div class="stack">
+<div class="sechead"><h5 class="t-sec">Account</h5></div>
+<div class="card rows">
+<div class="row">
+<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 8l9 6 9-6"/></svg>
+<span class="t-body" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jonas@example.com</span>
+<button class="btn" type="button">Sign out</button>
+</div>
+<div class="row" style="grid-template-columns:1fr auto">
+<button class="btn quiet" type="button" style="justify-self:start;color:var(--refused)">Delete account</button>
+</div>
+</div>
+</div>
+
+</div>
+</div></main></div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The Connection card (signer, agent standing, session, WebMCP, policy) and the Integrations badges are gone entirely; in their place Security lists the person&#x27;s signed-in devices with a Sign out everywhere row, and Telegram moves under Connected apps with a Paired chip.</li><li>Paid endpoints becomes Sites Froggy can pay: each approved site is one row with an amber dot, when it was approved, how often Froggy paid it and what it costs; a decline because a site was not on the list shows as a declined row with its receipt number and an Allow button that runs today&#x27;s probe-and-add in one step; the site field sits behind Add a site instead of at the top of the card.</li><li>The daily digest hour picker becomes a Daily summary switch with the time as a reference line (tapping the row changes the hour), the weekly recap is new and off by default, and what the person asked Froggy to do later keeps its own Scheduled section whose empty state points to the chat; on mobile it sits below Reminders when something is scheduled.</li><li>Delete my data is renamed Delete account and demoted to a quiet decline-coloured action under Sign out; it keeps the existing confirm dialog.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>notes[1]: replaced &quot;refused row&quot; with &quot;declined row&quot; and &quot;the URL field&quot; with &quot;the site field&quot; to keep the notes on the product vocabulary.; notes[3]: replaced &quot;refused-coloured&quot; with &quot;decline-coloured&quot;.</span></div>
+    </div>
+  </div>
+  <div class="pageview" role="tabpanel" data-page="signin" hidden>
+    <h3>Sign in</h3>
+    <div class="stage">
+      <div class="frame"><div class="frame-cap"><span>Passbook · phone</span><span>390</span></div><div class="spec ios D"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="stack">
+  <div class="seal"><svg class="frog" width="48" height="48" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></div>
+  <div class="t-label mu" style="margin-top:6px">Froggy</div>
+  <h4 class="t-greet" style="margin:0">Give your agents an allowance.</h4>
+  <p class="t-body mu" style="margin:0">Add money, and Froggy pays for the work you ask for, one receipt at a time.</p>
+</div>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--human)"></span>
+    <div>
+      <div class="t-label mu">You</div>
+      <div class="t-body">Add money, set a limit, pause spending whenever you like.</div>
+    </div>
+  </div>
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--agent)"></span>
+    <div>
+      <div class="t-label mu">Your agents</div>
+      <div class="t-body">Search the web, read pages and run small jobs, paid from your balance.</div>
+    </div>
+  </div>
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--accent)"></span>
+    <div>
+      <div class="t-label mu">Receipts</div>
+      <div class="t-body">Every payment comes back with a number, a time and what it was for.</div>
+    </div>
+  </div>
+</div>
+<div style="margin-top:auto">
+  <button class="cta" type="button">Sign in with email or Google</button>
+</div></div><div class="home" style="margin:0 auto 12px"></div></div></div></div></div>
+      <div class="frame"><div class="frame-cap"><span>Lilypad · phone</span><span>390</span></div><div class="spec ios E"><div class="phone"><div class="screen"><div class="status"><span>9:41</span><span class="batt"></span></div><div class="page"><div class="stack">
+  <div class="seal"><svg class="frog" width="48" height="48" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></div>
+  <div class="t-label mu" style="margin-top:6px">Froggy</div>
+  <h4 class="t-greet" style="margin:0">Give your agents an allowance.</h4>
+  <p class="t-body mu" style="margin:0">Add money, and Froggy pays for the work you ask for, one receipt at a time.</p>
+</div>
+<div class="card rows">
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--human)"></span>
+    <div>
+      <div class="t-label mu">You</div>
+      <div class="t-body">Add money, set a limit, pause spending whenever you like.</div>
+    </div>
+  </div>
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--agent)"></span>
+    <div>
+      <div class="t-label mu">Your agents</div>
+      <div class="t-body">Search the web, read pages and run small jobs, paid from your balance.</div>
+    </div>
+  </div>
+  <div class="row" style="grid-template-columns:auto 1fr">
+    <span class="dot" style="background:var(--accent)"></span>
+    <div>
+      <div class="t-label mu">Receipts</div>
+      <div class="t-body">Every payment comes back with a number, a time and what it was for.</div>
+    </div>
+  </div>
+</div>
+<div style="margin-top:auto">
+  <button class="cta" type="button">Sign in with email or Google</button>
+</div></div><div class="home" style="margin:0 auto 12px"></div></div></div></div></div>
+    </div>
+    <div class="frame"><div class="frame-cap"><span>Passbook · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios D" style="padding:0"><div class="gate"><div style="display:grid;grid-template-columns:1fr 400px;gap:40px;align-items:center;max-width:880px;width:100%;margin:0 auto">
+  <div class="stack">
+    <div style="color:var(--accent);line-height:0;margin-bottom:10px"><svg class="frog" width="124" height="124" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></div>
+    <div class="t-label mu">Froggy</div>
+    <h4 class="t-greet" style="margin:0;max-width:380px">Give your agents an allowance.</h4>
+    <p class="t-body mu" style="margin:0;max-width:400px">Add money, and Froggy pays for the work you ask for, one receipt at a time.</p>
+  </div>
+  <div class="card" style="padding:22px">
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--human)"></span>
+      <div>
+        <div class="t-label mu">You</div>
+        <div class="t-body">Add money, set a limit, pause spending whenever you like.</div>
+      </div>
+    </div>
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--agent)"></span>
+      <div>
+        <div class="t-label mu">Your agents</div>
+        <div class="t-body">Search the web, read pages and run small jobs, paid from your balance.</div>
+      </div>
+    </div>
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--accent)"></span>
+      <div>
+        <div class="t-label mu">Receipts</div>
+        <div class="t-body">Every payment comes back with a number, a time and what it was for.</div>
+      </div>
+    </div>
+    <button class="cta" type="button" style="margin-top:18px">Sign in with email or Google</button>
+  </div>
+</div></div></div></div></div>
+    <div class="frame"><div class="frame-cap"><span>Lilypad · desktop</span><span>1120 shown, same column to 1440</span></div><div class="deskwrap"><div class="spec ios E" style="padding:0"><div class="gate"><div style="display:grid;grid-template-columns:1fr 400px;gap:40px;align-items:center;max-width:880px;width:100%;margin:0 auto">
+  <div class="stack">
+    <div style="color:var(--accent);line-height:0;margin-bottom:10px"><svg class="frog" width="124" height="124" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="11" r="5" fill="currentColor"/><circle cx="22" cy="11" r="5" fill="currentColor"/><path d="M4 19c0-5.5 5.4-9 12-9s12 3.5 12 9-5.4 9-12 9S4 24.5 4 19Z" fill="currentColor"/><circle cx="10" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="22" cy="11" r="3.2" style="fill:var(--eye)"/><circle cx="10.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><circle cx="22.6" cy="11.4" r="1.6" style="fill:var(--pupil)"/><path d="M10 21.5c2 2 10 2 12 0" stroke-width="1.6" stroke-linecap="round" fill="none" style="stroke:var(--mouth)"/></svg></div>
+    <div class="t-label mu">Froggy</div>
+    <h4 class="t-greet" style="margin:0;max-width:380px">Give your agents an allowance.</h4>
+    <p class="t-body mu" style="margin:0;max-width:400px">Add money, and Froggy pays for the work you ask for, one receipt at a time.</p>
+  </div>
+  <div class="card" style="padding:22px">
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--human)"></span>
+      <div>
+        <div class="t-label mu">You</div>
+        <div class="t-body">Add money, set a limit, pause spending whenever you like.</div>
+      </div>
+    </div>
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--agent)"></span>
+      <div>
+        <div class="t-label mu">Your agents</div>
+        <div class="t-body">Search the web, read pages and run small jobs, paid from your balance.</div>
+      </div>
+    </div>
+    <div class="row" style="grid-template-columns:auto 1fr;padding:12px 0">
+      <span class="dot" style="background:var(--accent)"></span>
+      <div>
+        <div class="t-label mu">Receipts</div>
+        <div class="t-body">Every payment comes back with a number, a time and what it was for.</div>
+      </div>
+    </div>
+    <button class="cta" type="button" style="margin-top:18px">Sign in with email or Google</button>
+  </div>
+</div></div></div></div></div>
+    <div class="ledgerline">
+      <div class="ll"><em>What changed</em><ul><li>The headline drops the word wallet: &quot;Give your agents an allowance.&quot; replaces &quot;A wallet for your agents.&quot; and the sentence under it now says what happens to the money instead of &quot;Fund tasks and follow the work&quot;.</li><li>The Fund / Control / Follow beats become three rows for You, Your agents and Receipts, each with a blue, amber or green dot, so the split of who does what is visible before the person signs in.</li><li>The tagline under the button (&quot;Bring your own agent, or start a task with Froggy&quot;) goes away; the button stands alone at the bottom on mobile and inside the card on desktop, and the headline sits with the frog hero on the left at desktop widths.</li><li>Loading and failed states keep this layout: loading shows skeleton lines where the three rows are, and failed swaps the button for &quot;Try again&quot; with a one-line declined-coloured message above it.</li></ul></div>
+      <div class="ll"><em>Checked</em><span>Passed the vocabulary, class and structure check with no corrections.</span></div>
+    </div>
+  </div>
+  </section>
+
+  <section>
+    <h2>The system</h2>
+    <p class="sub">The sheet both directions are built from. Type ladder at real size, the radius hierarchy, the five-step ramp and the card recipe.</p>
+    <div class="tokens" style="margin-bottom:20px">
+      <div class="tok"><em>Passbook palette</em><div class="sw"><i style="background:#eff1ec"></i><i style="background:#fcfdfb"></i><i style="background:#2f7a4c"></i><i style="background:#9a6314"></i><i style="background:#3866d6"></i><i style="background:#15201a"></i></div></div>
+      <div class="tok"><em>Lilypad palette</em><div class="sw"><i style="background:#0d120f"></i><i style="background:#171f19"></i><i style="background:#4fb87a"></i><i style="background:#e8a33d"></i><i style="background:#6b93f0"></i><i style="background:#e9f0ea"></i></div></div>
+      <div class="tok"><em>Type</em><p><b>Inter Tight for everything</b>, every heading tracked -0.6 to -0.9. Passbook keeps IBM Plex Mono for receipt numbers and times; Lilypad has no mono.</p></div>
+      <div class="tok"><em>Who is doing what</em><p>Amber is an agent, blue is the person, the red is a decline. Every list carries one of them.</p></div>
+    </div>
+    <div class="frame" style="margin-top:0">
+      <div class="frame-cap"><span>The system</span><span>Same sheet drives Lilypad</span></div>
+      <div class="spec ios D">
+        <div class="sheet">
+          <div>
+            <em>Type · Inter Tight, six steps</em>
+            <div class="card" style="padding:6px 16px">
+              <div class="ty"><span class="t-money">$128.40</span><small>32/36 · 600 · -0.9</small></div>
+              <div class="ty"><span class="t-greet">Good morning</span><small>26/30 · 600 · -0.9</small></div>
+              <div class="ty"><span class="t-title">Wallet</span><small>22/28 · 600 · -0.7</small></div>
+              <div class="ty"><span class="t-sec">Today</span><small>19/24 · 600 · -0.6</small></div>
+              <div class="ty"><span class="t-body">Leaves a receipt.</span><small>15/20 · 400 · -0.2</small></div>
+              <div class="ty"><span class="t-label mu">Agent may spend</span><small>12.5/16 · 500 · -0.1</small></div>
+            </div>
+          </div>
+          <div>
+            <em>Radius · one hierarchy</em>
+            <div class="shapes">
+              <div class="shape" style="width:72px;height:52px;border-radius:var(--r-card)"></div>
+              <div class="shape" style="width:72px;height:36px;border-radius:var(--r-row)"></div>
+              <div class="shape" style="width:46px;height:46px;border-radius:50%"></div>
+            </div>
+            <p class="t-label mu" style="margin-top:10px">20 card · 12 row and chip · 50% control · 54 is the device itself.</p>
+            <em style="margin-top:18px">Spacing · 26 / 18 / 10</em>
+            <div class="gaps"><div style="width:26px;height:26px"></div><div style="width:18px;height:18px"></div><div style="width:10px;height:10px"></div></div>
+            <p class="t-label mu" style="margin-top:10px">Page margin, between groups, inside a component.</p>
+          </div>
+          <div>
+            <em>Ramp · track to deep green</em>
+            <div class="ramp"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r3)"></i><i style="background:var(--r4)"></i></div>
+            <p class="t-label mu" style="margin-top:10px">Five steps. Charts, spend grids and progress all draw from this, never from the accent directly.</p>
+            <em style="margin-top:18px">Card · no border</em>
+            <div class="card" style="padding:12px 14px"><p class="recipe">inset 0 1px 0 highlight<br>0 1px 2px shadow-1<br>0 12px 28px -16px shadow-2<br>0 0 0 1px ring</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+    <div class="frame" style="margin-top:0">
+      <div class="frame-cap"><span>The system</span><span>Passbook's sheet, dark variables</span></div>
+      <div class="spec ios E">
+        <div class="sheet">
+          <div>
+            <em>Type · Inter Tight, six steps</em>
+            <div class="card" style="padding:6px 16px">
+              <div class="ty"><span class="t-money">$128.40</span><small>32/36 · 600 · -0.9</small></div>
+              <div class="ty"><span class="t-greet">Good morning</span><small>26/30 · 600 · -0.9</small></div>
+              <div class="ty"><span class="t-title">Wallet</span><small>22/28 · 600 · -0.7</small></div>
+              <div class="ty"><span class="t-sec">Today</span><small>19/24 · 600 · -0.6</small></div>
+              <div class="ty"><span class="t-body">Leaves a receipt.</span><small>15/20 · 400 · -0.2</small></div>
+              <div class="ty"><span class="t-label mu">Froggy is driving</span><small>12.5/16 · 500 · -0.1</small></div>
+            </div>
+          </div>
+          <div>
+            <em>Radius · one hierarchy</em>
+            <div class="shapes">
+              <div class="shape" style="width:72px;height:52px;border-radius:var(--r-card)"></div>
+              <div class="shape" style="width:72px;height:36px;border-radius:var(--r-row)"></div>
+              <div class="shape" style="width:46px;height:46px;border-radius:50%"></div>
+            </div>
+            <p class="t-label mu" style="margin-top:10px">22 card · 14 row and chip · pill and circle controls · 54 is the device itself.</p>
+            <em style="margin-top:18px">Spacing · 26 / 18 / 10</em>
+            <div class="gaps"><div style="width:26px;height:26px"></div><div style="width:18px;height:18px"></div><div style="width:10px;height:10px"></div></div>
+            <p class="t-label mu" style="margin-top:10px">Unchanged from Passbook. Density is what keeps a dark screen calm.</p>
+          </div>
+          <div>
+            <em>Ramp · track to bright green</em>
+            <div class="ramp"><i style="background:var(--r0)"></i><i style="background:var(--r1)"></i><i style="background:var(--r2)"></i><i style="background:var(--r3)"></i><i style="background:var(--r4)"></i></div>
+            <p class="t-label mu" style="margin-top:10px">The bottom step is the divider colour, so a quiet day and a hairline read as the same material.</p>
+            <em style="margin-top:18px">Card · no border</em>
+            <div class="card" style="padding:12px 14px"><p class="recipe">inset 0 1px 0 white 7%<br>0 1px 2px black 40%<br>0 12px 28px -16px black 70%<br>0 0 0 1px white 5%</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <div class="close">
+    <div><h4>My recommendation</h4><p>Passbook. It is the light cut, it needs no dark inversion of the design system, and the consumer rewrite lands hardest on paper: a receipt book people already trust. Lilypad is the demo cut, and because it shares every component it can be added later as the phone theme without redesigning anything.</p></div>
+    <div><h4>What the rewrite changed</h4><p>Wallet became Balance with one switch that says whether Froggy can spend. Chains, addresses and hashes are gone from every screen. Settings regrouped into Reminders, Sites Froggy can pay, Security, Connected apps and Account. Agents connect with a link, not a token.</p></div>
+    <div><h4>What happens after you pick</h4><p>The chosen variables and the vocabulary table go into the design system README, the Balance and Home screens get built in Claude Design against them, and the team implements from real component code.</p></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.pagenav [role="tab"]');
+  var views = document.querySelectorAll('.pageview');
+  function show(key) {
+    tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.page === key)); });
+    views.forEach(function (v) { v.hidden = v.dataset.page !== key; });
+    try { localStorage.setItem('froggy-board-page', key); } catch (e) {}
+  }
+  tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.page); }); });
+  var saved = null;
+  try { saved = localStorage.getItem('froggy-board-page'); } catch (e) {}
+  if (saved && document.querySelector('.pageview[data-page="' + saved + '"]')) show(saved);
+})();
+</script>
