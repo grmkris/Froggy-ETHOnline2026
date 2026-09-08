@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 /**
  * Who has the page, said one way everywhere.
  *
- * Amber and breathing while the agent drives, blue and still while the person
+ * Amber while the agent drives, blue and still while the person
  * does. The ring is the only signal:
  * no banner, no toast, so a glance at any surface — the inline card, the split
  * pane, the popped-out window — answers the same question the same way.
@@ -37,7 +37,7 @@ function DrivingRing({
   return (
     <div
       className={cn(
-        "rounded-[calc(var(--radius-lg)+2px)] transition-shadow duration-300",
+        "rounded-[calc(var(--radius-lg)+2px)]",
         RING[mode],
         className
       )}
@@ -56,12 +56,7 @@ function DrivingDot({
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        "inline-block size-2 rounded-full",
-        DOT[mode],
-        mode === "agent" && "motion-safe:animate-pulse",
-        className
-      )}
+      className={cn("inline-block size-2 rounded-full", DOT[mode], className)}
       data-slot="driving-dot"
       {...props}
     />

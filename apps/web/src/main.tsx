@@ -6,11 +6,13 @@ import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { initializeMotionInput } from "./lib/motion";
 import { IdentityProvider } from "./lib/privy";
 import { initializeTheme } from "./lib/theme";
 import { router } from "./router";
 
 initializeTheme();
+initializeMotionInput();
 
 const root = document.querySelector("#root");
 if (!root) {

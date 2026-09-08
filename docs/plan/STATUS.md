@@ -2,6 +2,12 @@
 
 Updated Mon 7 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 Sep decisions and current completion list; [NEXT_ITERATION.md](NEXT_ITERATION.md) retains the broader submission plan. Dated sections below are historical implementation notes.
 
+## Motion and navigation lane — 8 September 2026
+
+Motion pass on top of Passbook/Lilypad: 125ms route and stream fades with stable targets, inert exiting approvals, 200ms torph figures, a 200ms appearance indicator behind fixed buttons, interruptible dialogs, and quieter browse status. Keyboard actions are immediate; reduced motion removes movement. Repeated word animation, tool shimmer, shadow breathing and unused rise-in were removed. [Audit and scope](../design/MOTION_NAVIGATION_2026-09-08.md).
+
+Motion verification: `heavy bun run check:fast` and `heavy bun run check` passed; all 79 browser tests passed on the explicit local stubs. Review caught and corrected an appearance focus-outline override, with a focused browser assertion. Navigation follows as a separate coherent commit. The leash meter does not exist in this checkout; spending-limit UI remains removed. No onchain spend, Privy-policy change or Railway-variable change is part of this lane.
+
 ## Restyle lane — 8 September 2026: Passbook and Lilypad
 
 Implemented the component styling from [the FABLE51 handoff](../design/SCREENS_HANDOFF_FABLE51.md), after reading the wallet brief and design-sync conventions and opening the HTML board in Chromium. Both directions use the existing component tree. Passbook is the default light palette; Lilypad applies through the existing `.dark` class. Inter Tight replaces the two previous sans faces; `text-machine` / `font-mono` use IBM Plex Mono in Passbook and Inter Tight in Lilypad.

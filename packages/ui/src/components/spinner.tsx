@@ -17,7 +17,7 @@ function Spinner({
       className={cn("inline-flex", className)}
       {...props}
     >
-      <Loader2Icon aria-hidden className="size-4 animate-spin" />
+      <Loader2Icon aria-hidden className="size-4 motion-safe:animate-spin" />
     </output>
   );
 }

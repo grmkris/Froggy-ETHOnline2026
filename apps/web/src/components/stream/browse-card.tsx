@@ -24,7 +24,7 @@ import type { ToolCall } from "../../lib/tool-call";
 import { toolStatus } from "../../lib/tool-status";
 import { storyLine, storyOf } from "../../lib/tool-stories";
 import { summarize } from "../../lib/tool-summary";
-import { MorphText } from "../morph-text";
+import { MotionItem } from "../motion-item";
 
 /** The host of the last page opened, or the page in general. */
 const hostOfRun = (calls: readonly ToolCall[]): string => {
@@ -43,14 +43,10 @@ const Step = ({ call }: { readonly call: ToolCall }): ReactElement => {
     <Collapsible className="rounded-lg">
       <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-xs select-none [&[data-panel-open]_[data-slot=chevron]]:rotate-180">
         <IconOf aria-hidden className="size-3.5 shrink-0 opacity-70" />
-        <span
-          className={cn("min-w-0 flex-1 truncate", status.live && "shimmer")}
-        >
+        <span className="min-w-0 flex-1 truncate">
           {storyLine(story, call.input, status.live)}
         </span>
-        <MorphText className="text-machine shrink-0 opacity-60">
-          {status.label}
-        </MorphText>
+        <span className="text-machine shrink-0 opacity-60">{status.label}</span>
         <ChevronDownIcon
           aria-hidden
           className="size-3 shrink-0 opacity-50"
@@ -118,6 +114,9 @@ export const BrowseCard = ({
         failed && "ring-destructive/40"
       )}
       data-tool="browse"
+      onFocusCapture={() => {
+        setTouched((previous) => previous ?? live);
+      }}
       onOpenChange={(next) => {
         setTouched(next);
       }}
@@ -129,16 +128,20 @@ export const BrowseCard = ({
         ) : (
           <GlobeIcon aria-hidden className="size-4 shrink-0 opacity-70" />
         )}
-        <span className={cn("min-w-0 flex-1 truncate", live && "shimmer")}>
+        <span className="min-w-0 flex-1 truncate">
           {heading}
           <span className="text-muted-foreground">
             {" "}
             · {calls.length} step{calls.length === 1 ? "" : "s"}
           </span>
         </span>
-        <span className="text-machine shrink-0 opacity-60">
+        <MotionItem
+          inline
+          className="text-machine w-16 shrink-0 text-right opacity-60"
+          key={statusWord(live, failed)}
+        >
           {statusWord(live, failed)}
-        </span>
+        </MotionItem>
         <ChevronDownIcon
           aria-hidden
           className="size-3.5 shrink-0 opacity-50"

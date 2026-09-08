@@ -4,7 +4,7 @@
  * answered from wherever the person is looking.
  */
 
-import { motion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import type { ReactElement } from "react";
 
 import type { AppStream } from "../../hooks/use-app-socket";
@@ -14,6 +14,7 @@ import type { SlashCommand } from "../../lib/slash";
 import { ApprovalTicket } from "../cards/approval-ticket";
 import { NoticeList } from "../cards/notice-list";
 import { Composer } from "../composer";
+import { MotionItem } from "../motion-item";
 import { StopFeedback } from "../stop-feedback";
 import type { useStopRun } from "../stop-feedback";
 
@@ -49,27 +50,24 @@ export const ComposerStack = ({
         app.dispatch({ id, type: "dismiss" });
       }}
     />
-    {app.approvals.map((request) => (
-      <motion.div
-        animate={{ opacity: 1 }}
-        initial={{ opacity: 0 }}
-        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-        key={request.id}
-      >
-        <ApprovalTicket
-          disabled={!app.connected}
-          onAnswer={(requestId, optionId) => {
-            app.send({
-              optionId,
-              requestId,
-              type: "approval.resolve",
-              v: 1,
-            });
-          }}
-          request={request}
-        />
-      </motion.div>
-    ))}
+    <AnimatePresence initial={false}>
+      {app.approvals.map((request) => (
+        <MotionItem key={request.id}>
+          <ApprovalTicket
+            disabled={!app.connected}
+            onAnswer={(requestId, optionId) => {
+              app.send({
+                optionId,
+                requestId,
+                type: "approval.resolve",
+                v: 1,
+              });
+            }}
+            request={request}
+          />
+        </MotionItem>
+      ))}
+    </AnimatePresence>
     <StopFeedback
       state={stopRun.state}
       onRetry={() => {

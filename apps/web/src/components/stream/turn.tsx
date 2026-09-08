@@ -16,12 +16,14 @@ import {
   MessageAvatar,
   MessageContent,
 } from "@froggy/ui/components/message";
+import { AnimatePresence } from "motion/react";
 import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
 import { groupParts, matchReceipts, turnCost } from "../../lib/turn-model";
 import type { ClaimedReceipts, TurnBlock } from "../../lib/turn-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { MotionItem } from "../motion-item";
 import { BrowseCard } from "./browse-card";
 import { MarkdownText } from "./markdown-text";
 import { Reasoning } from "./reasoning";
@@ -49,7 +51,7 @@ const Blocks = ({
   readonly claimed: ClaimedReceipts;
   readonly message: FroggyMessage;
 }): ReactElement => (
-  <>
+  <AnimatePresence initial={false}>
     {blocks.map((block) => {
       const key = `${message.id}-${block.index}`;
       switch (block.kind) {
@@ -71,16 +73,21 @@ const Blocks = ({
           );
         }
         case "browse": {
-          return <BrowseCard calls={block.calls} key={key} />;
+          return (
+            <MotionItem key={key}>
+              <BrowseCard calls={block.calls} />
+            </MotionItem>
+          );
         }
         case "tool": {
           return (
-            <ToolCard
-              asking={asking}
-              call={block.call}
-              key={key}
-              receipt={claimed.byCall.get(block.call.toolCallId) ?? null}
-            />
+            <MotionItem key={key}>
+              <ToolCard
+                asking={asking}
+                call={block.call}
+                receipt={claimed.byCall.get(block.call.toolCallId) ?? null}
+              />
+            </MotionItem>
           );
         }
         case "unknown": {
@@ -95,7 +102,7 @@ const Blocks = ({
         }
       }
     })}
-  </>
+  </AnimatePresence>
 );
 
 /** "This turn: $0.0040 · 1 payment · 2 refusals", or nothing to say. */
@@ -168,9 +175,13 @@ export const Turn = ({
           message={message}
         />
         {after}
-        {claimed.unclaimed.map((receipt) => (
-          <ReceiptTicket key={receipt.id} receipt={receipt} />
-        ))}
+        <AnimatePresence initial={false}>
+          {claimed.unclaimed.map((receipt) => (
+            <MotionItem key={receipt.id}>
+              <ReceiptTicket receipt={receipt} />
+            </MotionItem>
+          ))}
+        </AnimatePresence>
         {live ? null : <TurnCostLine receipts={receipts} />}
         {live ? null : (
           <TurnActions onRetry={paid ? null : onRetry} text={textOf(message)} />

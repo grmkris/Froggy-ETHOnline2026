@@ -25,6 +25,8 @@ export const MorphText = ({
 }: MorphTextProps): ReactElement => (
   <TextMorph
     as={as}
+    duration={200}
+    ease="cubic-bezier(0.23, 1, 0.32, 1)"
     numbers
     respectReducedMotion
     {...(className === undefined ? {} : { className })}

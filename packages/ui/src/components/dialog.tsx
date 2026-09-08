@@ -29,7 +29,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 bg-overlay fixed inset-0 isolate z-50 duration-100 supports-backdrop-filter:backdrop-blur-xs motion-reduce:animate-none",
+        "bg-overlay fixed inset-0 isolate z-50 transition-opacity duration-(--motion-panel) ease-(--ease-out) data-ending-style:opacity-0 data-ending-style:duration-(--motion-feedback) data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs motion-reduce:duration-(--motion-feedback)",
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "bg-popover text-popover-foreground shadow-float data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 text-sm duration-100 outline-none motion-reduce:animate-none sm:max-w-sm",
+          "bg-popover text-popover-foreground shadow-float fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 text-sm transition-[transform,opacity] duration-(--motion-panel) ease-(--ease-out) outline-none data-ending-style:opacity-0 data-ending-style:duration-(--motion-feedback) data-starting-style:opacity-0 motion-safe:data-ending-style:transform-[scale(0.97)] motion-safe:data-starting-style:transform-[scale(0.97)] motion-reduce:transition-opacity motion-reduce:duration-(--motion-feedback) sm:max-w-sm",
           className
         )}
         {...props}

@@ -24,10 +24,12 @@ import {
   MessageScrollerViewport,
 } from "@froggy/ui/components/message-scroller";
 import { ArrowDownIcon } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import type { ReactElement } from "react";
 
 import type { StreamItem } from "../../lib/stream-model";
 import { ReceiptTicket } from "../cards/receipt-ticket";
+import { MotionItem } from "../motion-item";
 import { MarkerRow } from "./marker-row";
 import { Turn } from "./turn";
 
@@ -72,8 +74,7 @@ const Earlier = ({
 /**
  * The gap between a question and the first word of the answer.
  *
- * A shimmer rather than a spinner: it is text that is not here yet, and the
- * utility already honours reduced motion. No `role`: a status region would
+ * A quiet placeholder while text is not here yet. No `role`: a status region would
  * announce every turn, and the e2e reads `role="status"` as the drawer's
  * "Saved".
  */
@@ -82,7 +83,7 @@ const ThinkingMarker = (): ReactElement => (
     <MarkerIcon>
       <FrogMark />
     </MarkerIcon>
-    <MarkerContent className="shimmer">Thinking…</MarkerContent>
+    <MarkerContent>Thinking…</MarkerContent>
   </Marker>
 );
 
@@ -119,52 +120,62 @@ export const Stream = ({
                 {liveCard}
               </MessageScrollerItem>
             ) : null}
-            {items.map((item) => {
-              if (item.kind === "earlier") {
-                return (
-                  <MessageScrollerItem key="earlier" messageId="earlier">
-                    <Earlier receipts={item.receipts} />
-                  </MessageScrollerItem>
-                );
-              }
-              if (item.kind === "marker") {
+            <AnimatePresence initial={false}>
+              {items.map((item) => {
+                if (item.kind === "earlier") {
+                  return (
+                    <MessageScrollerItem key="earlier" messageId="earlier">
+                      <MotionItem>
+                        <Earlier receipts={item.receipts} />
+                      </MotionItem>
+                    </MessageScrollerItem>
+                  );
+                }
+                if (item.kind === "marker") {
+                  return (
+                    <MessageScrollerItem
+                      key={item.event.id}
+                      messageId={item.event.id}
+                    >
+                      <MotionItem>
+                        <MarkerRow event={item.event} />
+                      </MotionItem>
+                    </MessageScrollerItem>
+                  );
+                }
                 return (
                   <MessageScrollerItem
-                    key={item.event.id}
-                    messageId={item.event.id}
+                    key={item.message.id}
+                    messageId={item.message.id}
+                    // The person's message is what a new turn anchors to.
+                    scrollAnchor={item.message.role === "user"}
                   >
-                    <MarkerRow event={item.event} />
+                    <MotionItem>
+                      <Turn
+                        after={item.message.id === liveAfter ? liveCard : null}
+                        asking={asking}
+                        message={item.message}
+                        onRetry={
+                          item.message.id === retryId
+                            ? () => {
+                                onRetry(item.message.id);
+                              }
+                            : null
+                        }
+                        receipts={item.receipts}
+                      />
+                    </MotionItem>
                   </MessageScrollerItem>
                 );
-              }
-              return (
-                <MessageScrollerItem
-                  key={item.message.id}
-                  messageId={item.message.id}
-                  // The person's message is what a new turn anchors to.
-                  scrollAnchor={item.message.role === "user"}
-                >
-                  <Turn
-                    after={item.message.id === liveAfter ? liveCard : null}
-                    asking={asking}
-                    message={item.message}
-                    onRetry={
-                      item.message.id === retryId
-                        ? () => {
-                            onRetry(item.message.id);
-                          }
-                        : null
-                    }
-                    receipts={item.receipts}
-                  />
+              })}
+              {thinking ? (
+                <MessageScrollerItem key="thinking" messageId="thinking">
+                  <MotionItem>
+                    <ThinkingMarker />
+                  </MotionItem>
                 </MessageScrollerItem>
-              );
-            })}
-            {thinking ? (
-              <MessageScrollerItem messageId="thinking">
-                <ThinkingMarker />
-              </MessageScrollerItem>
-            ) : null}
+              ) : null}
+            </AnimatePresence>
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton

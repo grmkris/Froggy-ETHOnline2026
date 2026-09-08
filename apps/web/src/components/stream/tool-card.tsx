@@ -126,9 +126,7 @@ export const ToolCard = ({
     >
       <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left select-none [&[data-panel-open]_[data-slot=chevron]]:rotate-180">
         <IconOf aria-hidden className="size-4 shrink-0 opacity-70" />
-        <span
-          className={cn("min-w-0 flex-1 truncate", status.live && "shimmer")}
-        >
+        <span className="min-w-0 flex-1 truncate">
           {storyLine(story, call.input, status.live)}
         </span>
         <span className="text-machine shrink-0 opacity-60">{status.label}</span>
