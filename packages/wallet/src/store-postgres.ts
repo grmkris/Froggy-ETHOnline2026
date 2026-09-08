@@ -8,6 +8,7 @@
  */
 
 import {
+  agentInvocations,
   agentTokens,
   conversions,
   directory,
@@ -22,7 +23,12 @@ import {
   telegramPairings,
   users,
 } from "@froggy/database";
-import { DirectoryId, decodeUserId, OAuthScope } from "@froggy/domain";
+import {
+  AgentInvocation,
+  DirectoryId,
+  decodeUserId,
+  OAuthScope,
+} from "@froggy/domain";
 import type {
   AgentToken,
   DirectoryEntry,
@@ -238,6 +244,45 @@ export const postgresStore = (sql: Sql): Store => {
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
   return {
+    invocations: {
+      append: async (userId, invocation) => {
+        const decoded = Schema.decodeUnknownSync(AgentInvocation)(invocation);
+        await ensureUser(userId);
+        await database
+          .insert(agentInvocations)
+          .values({ ...decoded, userId, at: new Date(decoded.at) });
+      },
+      finish: async (userId, id, patch) => {
+        await database
+          .update(agentInvocations)
+          .set(patch)
+          .where(
+            and(
+              eq(agentInvocations.userId, userId),
+              eq(agentInvocations.id, id)
+            )
+          );
+      },
+      list: async (userId, connectionId) => {
+        const rows = await database
+          .select()
+          .from(agentInvocations)
+          .where(
+            and(
+              eq(agentInvocations.userId, userId),
+              eq(agentInvocations.connectionId, connectionId)
+            )
+          )
+          .orderBy(desc(agentInvocations.at), desc(agentInvocations.id))
+          .limit(50);
+        return rows.map((row) =>
+          Schema.decodeUnknownSync(AgentInvocation)({
+            ...row,
+            at: row.at.getTime(),
+          })
+        );
+      },
+    },
     conversions: {
       create: async (userId, record) => {
         await ensureUser(userId);
@@ -901,6 +946,9 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await database
+        .delete(agentInvocations)
+        .where(eq(agentInvocations.userId, userId));
       await database.delete(tasks).where(eq(tasks.userId, userId));
       await database
         .delete(oauthTokens)

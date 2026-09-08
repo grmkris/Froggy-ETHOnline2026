@@ -194,3 +194,7 @@ export type OAuthGrantId = typeof OAuthGrantId.Type;
 /** One durable USDC-to-HBAR conversion. */
 export const ConversionId = makeIdSchema("cnv", "ConversionId");
 export type ConversionId = typeof ConversionId.Type;
+
+/** One MCP tool call or HTTP task/payment request from a connected agent. */
+export const AgentInvocationId = makeIdSchema("aiv", "AgentInvocationId");
+export type AgentInvocationId = typeof AgentInvocationId.Type;

@@ -62,6 +62,7 @@ export {
   ServiceCatalog,
   ServiceResult,
   ServiceTicket,
+  TaskDetail,
 } from "./services";
 export {
   ScheduleList,
@@ -69,3 +70,5 @@ export {
   ScheduleRequestBody,
   ScheduleWhen,
 } from "./schedules";
+
+export { AgentConnection, AgentDetail, AgentInvocationView } from "./agents";

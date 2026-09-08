@@ -4,6 +4,7 @@ import type { Sql } from "postgres";
 
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
 export {
+  agentInvocations,
   agentTokens,
   conversions,
   directory,

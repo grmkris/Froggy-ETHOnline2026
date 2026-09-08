@@ -1,6 +1,7 @@
 /** The agent tokens: the list, minting one, revoking one. One cache for both panels. */
 
-import { OAuthGrant } from "@froggy/domain";
+import { AgentToken, OAuthGrant } from "@froggy/domain";
+import { AgentDetail } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { useCallback } from "react";
@@ -8,14 +9,7 @@ import { useCallback } from "react";
 import { setMintedSkill } from "../lib/minted-skill-store";
 import { useSessionToken } from "../lib/session-token";
 
-export const AgentToken = Schema.Struct({
-  createdAt: Schema.Int,
-  id: Schema.String,
-  label: Schema.String,
-  lastUsedAt: Schema.NullOr(Schema.Int),
-  revokedAt: Schema.NullOr(Schema.Int),
-});
-export type AgentToken = typeof AgentToken.Type;
+export type { AgentToken } from "@froggy/domain";
 const Listed = Schema.Struct({
   agents: Schema.Array(AgentToken),
   grants: Schema.Array(OAuthGrant),
@@ -79,10 +73,36 @@ export const useAgentTokens = () => {
       if (!response.ok) {
         throw new Error(`agents: ${response.status}`);
       }
-      await queries.invalidateQueries({ queryKey: ["agents"] });
+      await Promise.all([
+        queries.invalidateQueries({ queryKey: ["agents"] }),
+        queries.invalidateQueries({ queryKey: ["agent-detail"] }),
+      ]);
     },
     [headers, queries]
   );
 
   return { agents, mint, revoke };
+};
+
+export const useAgentDetail = (id: string) => {
+  const { getToken } = useSessionToken();
+  return useQuery({
+    queryKey: ["agent-detail", id],
+    queryFn: async () => {
+      const token = await getToken();
+      const response = await fetch(`/api/agents/${encodeURIComponent(id)}`, {
+        headers: { authorization: `Bearer ${token ?? ""}` },
+      });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? "Agent not found."
+            : "Couldn’t load this agent."
+        );
+      }
+      return Schema.decodeUnknownSync(AgentDetail)(await response.json());
+    },
+    refetchInterval: 10_000,
+    retry: false,
+  });
 };

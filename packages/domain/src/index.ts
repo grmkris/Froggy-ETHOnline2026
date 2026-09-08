@@ -42,6 +42,7 @@ export { Task, TaskKind, TaskStatus } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
+  AgentInvocationId,
   AgentTokenId,
   ApprovalId,
   DirectoryId,
@@ -117,3 +118,5 @@ export const PROTOCOL_VERSION = 1 as const;
 export const ProtocolVersion = Schema.Literals([PROTOCOL_VERSION]);
 
 export { ConversionId } from "./id";
+
+export { AgentConnectionId, AgentInvocation } from "./agent-invocation";

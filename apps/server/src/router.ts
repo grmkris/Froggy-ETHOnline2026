@@ -11,8 +11,12 @@
  * separately readable: one is about acquiring Chrome and a socket, the other is
  * about answering questions.
  */
-
-import { AgentTokenId, OAuthGrantId } from "@froggy/domain";
+import {
+  AgentConnectionId,
+  AgentTokenId,
+  OAuthGrantId,
+  TaskId,
+} from "@froggy/domain";
 import type {
   AgentToken,
   DirectoryEntry,
@@ -20,8 +24,14 @@ import type {
   UserId,
 } from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
+import type { AgentDetail } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import {
+  agentDetail,
+  trackAgentInvocation,
+  trackAgentRequest,
+} from "./agent-invocations";
 import {
   agentMayCall,
   looksLikeAgentSecret,
@@ -97,6 +107,7 @@ const TASKS_PATH = "/api/tasks";
 
 /** Every JSON response this server sends. Named so the shapes stay enumerable. */
 type ResponseBody =
+  | AgentDetail
   | { readonly error: string }
   | {
       readonly hederaAccounts: "host" | "own";
@@ -379,6 +390,7 @@ const callerOf = async (
     return {
       caller: {
         agentTokenId: agent.token.id,
+        grantId: null,
         scopes: null,
         userId: agent.userId,
       },
@@ -399,10 +411,27 @@ const callerOf = async (
     const scopes = new Set(resolved.grant.scopes);
     const needed = requiredScope(pathname, request.method);
     if (needed !== null && !scopes.has(needed)) {
-      return insufficientScope(needed);
+      return await trackAgentRequest(
+        deps.services,
+        {
+          agentTokenId: null,
+          grantId: resolved.grant.id,
+          scopes,
+          userId: resolved.userId,
+        },
+        needed === "pay" ? "pay" : "task",
+        needed === "pay" ? "wallet.pay" : "services.run",
+        "POST",
+        async () => await Promise.resolve(insufficientScope(needed))
+      );
     }
     return {
-      caller: { agentTokenId: null, scopes, userId: resolved.userId },
+      caller: {
+        agentTokenId: null,
+        grantId: resolved.grant.id,
+        scopes,
+        userId: resolved.userId,
+      },
     };
   }
   const person = await authenticate(deps.services, token);
@@ -411,7 +440,9 @@ const callerOf = async (
   }
   // Fire-and-forget, once per user. Nothing here waits on Privy.
   deps.grants.note(person, token);
-  return { caller: { agentTokenId: null, scopes: null, userId: person } };
+  return {
+    caller: { agentTokenId: null, grantId: null, scopes: null, userId: person },
+  };
 };
 
 /**
@@ -476,15 +507,45 @@ const handleTasks = async (
     return await handleTaskPost(taskDeps, request, workspace, caller);
   }
   if (pathname === TASKS_PATH && request.method === "GET") {
-    return await handleTaskList(taskDeps, workspace, userId);
+    return await trackAgentRequest(
+      deps.services,
+      caller,
+      "task",
+      "tasks.list",
+      "GET",
+      async () => await handleTaskList(taskDeps, workspace, userId)
+    );
   }
   const events = TASK_EVENTS.exec(pathname)?.groups?.["id"];
   if (events !== undefined && request.method === "GET") {
-    return await handleTaskEvents(taskDeps, workspace, userId, events);
+    return await trackAgentInvocation(
+      deps.services,
+      caller,
+      "task",
+      "tasks.events",
+      async (invocation) => {
+        const response = await handleTaskEvents(
+          taskDeps,
+          workspace,
+          userId,
+          events
+        );
+        invocation.outcome = response.ok ? "ok" : "error";
+        invocation.taskId = response.ok && TaskId.is(events) ? events : null;
+        return response;
+      }
+    );
   }
   const one = TASK_ONE.exec(pathname)?.groups?.["id"];
   if (one !== undefined && request.method === "GET") {
-    return await handleTaskGet(taskDeps, workspace, userId, one);
+    return await trackAgentRequest(
+      deps.services,
+      caller,
+      "task",
+      "tasks.get",
+      "GET",
+      async () => await handleTaskGet(taskDeps, workspace, userId, one)
+    );
   }
   if (pathname === "/api/wallet/pay" && request.method === "POST") {
     return await handleWalletPay(taskDeps, request, workspace, caller);
@@ -537,6 +598,22 @@ const handleAgents = async (
       },
       201
     );
+  }
+  if (pathname.startsWith("/api/agents/") && request.method === "GET") {
+    const decoded = Schema.decodeUnknownResult(AgentConnectionId)(
+      pathname.slice("/api/agents/".length)
+    );
+    if (decoded._tag === "Failure") {
+      return json({ error: "No such agent." }, 404);
+    }
+    const detail = await agentDetail(
+      deps.services.store,
+      userId,
+      decoded.success
+    );
+    return detail === null
+      ? json({ error: "No such agent." }, 404)
+      : json(detail);
   }
   // Disconnect, by id prefix: a legacy token or an OAuth grant, one button.
   if (pathname.startsWith("/api/agents/") && request.method === "DELETE") {

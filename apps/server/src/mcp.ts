@@ -4,6 +4,7 @@ import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import { ServiceRequest } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { trackAgentInvocation } from "./agent-invocations";
 import { boundedBytes, serviceCatalog } from "./service-providers";
 import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
@@ -91,66 +92,101 @@ const invokeTool = async (
   session: WorkspaceSession,
   caller: TaskCaller,
   call: typeof Call.Type
-): Promise<ToolResult> => {
-  // Every froggy_* tool is the catalog: a grant without `services` can list
-  // the tools and call none of them, and is told which scope to come back with.
-  if (caller.scopes !== null && !caller.scopes.has("services")) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: 'This connection lacks the "services" scope. Reconnect Froggy and allow it.',
-        },
-      ],
-      isError: true,
-    };
-  }
-  try {
-    let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
-    switch (call.name) {
-      case "froggy_services": {
-        result = { v: 1, services: serviceCatalog(services) };
-        break;
+): Promise<ToolResult> =>
+  await trackAgentInvocation(
+    services,
+    caller,
+    "mcp",
+    call.name,
+    async (invocation) => {
+      // Every froggy_* tool is the catalog: a grant without `services` can list
+      // the tools and call none of them, and is told which scope to come back with.
+      if (caller.scopes !== null && !caller.scopes.has("services")) {
+        invocation.outcome = "insufficient_scope";
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'This connection lacks the "services" scope. Reconnect Froggy and allow it.',
+            },
+          ],
+          isError: true,
+        };
       }
-      case "froggy_service_run": {
-        result = await purchaseService(
-          { services, session, agentTokenId: caller.agentTokenId },
-          Schema.decodeUnknownSync(ServiceRequest)(call.arguments)
-        );
-        break;
-      }
-      case "froggy_service_status": {
-        const input = Schema.decodeUnknownSync(StatusInput)(call.arguments);
-        const task = await services.store.tasks.byId(caller.userId, input.id);
-        if (!task || task.kind !== "service") {
-          throw new Error("No such service task.");
+      try {
+        let result:
+          | ServiceTicket
+          | { v: number; services: readonly ServiceCard[] };
+        switch (call.name) {
+          case "froggy_services": {
+            result = { v: 1, services: serviceCatalog(services) };
+            break;
+          }
+          case "froggy_service_run": {
+            result = await purchaseService(
+              {
+                services,
+                session,
+                agentTokenId: caller.agentTokenId,
+                onCreated: (id) => {
+                  invocation.taskId = id;
+                  invocation.outcome = "accepted";
+                },
+              },
+              Schema.decodeUnknownSync(ServiceRequest)(call.arguments)
+            );
+            break;
+          }
+          case "froggy_service_status": {
+            const input = Schema.decodeUnknownSync(StatusInput)(call.arguments);
+            const task = await services.store.tasks.byId(
+              caller.userId,
+              input.id
+            );
+            if (!task || task.kind !== "service") {
+              throw new Error("No such service task.");
+            }
+            result = serviceTicket(task);
+            break;
+          }
+          default: {
+            throw new Error("Unknown tool");
+          }
         }
-        result = serviceTicket(task);
-        break;
-      }
-      default: {
-        throw new Error("Unknown tool");
+        if ("id" in result) {
+          invocation.taskId = result.id;
+          invocation.stubbed = result.stubbed;
+          if (call.name === "froggy_service_run") {
+            if (invocation.outcome !== "accepted") {
+              invocation.outcome = "replayed";
+            }
+          } else {
+            invocation.outcome = result.status;
+          }
+        } else {
+          invocation.outcome = "ok";
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+          isError: false,
+        };
+      } catch (error) {
+        invocation.outcome = "error";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                error instanceof Error
+                  ? error.message.slice(0, 1000)
+                  : "Tool failed.",
+            },
+          ],
+          isError: true,
+        };
       }
     }
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }],
-      isError: false,
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            error instanceof Error
-              ? error.message.slice(0, 1000)
-              : "Tool failed.",
-        },
-      ],
-      isError: true,
-    };
-  }
-};
+  );
 
 export const handleMcp = async (
   services: Services,

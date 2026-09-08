@@ -91,6 +91,16 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await page.emulateMedia({ reducedMotion });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");
+    // Measure the theme change after the asynchronous settings layout has settled.
+    await expect(
+      page.getByText("the agent has no signer", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText("Nothing scheduled.", { exact: true })
+    ).toBeVisible();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
     const appearance = page.getByRole("group", {
       name: "Appearance",
       exact: true,

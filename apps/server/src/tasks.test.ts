@@ -4,6 +4,8 @@ import type { BrowserHandle } from "@froggy/browser";
 import { SaleId, SessionId, userId } from "@froggy/domain";
 import { Effect, Schema } from "effect";
 
+import { agentDetail } from "./agent-invocations";
+import { mintAgentToken } from "./agents";
 import { ModelBudget } from "./budget";
 import { loadEnvironment } from "./environment";
 import { InteractionRegistry } from "./interactions";
@@ -160,7 +162,18 @@ const settle = async (): Promise<void> => {
 
 describe("a paid brief, from 402 to result", () => {
   it("quotes the task in HBAR, signs a payment under the mandate, records the sale, runs and answers by id", async () => {
-    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
+    const { token } = await mintAgentToken(
+      services.store,
+      ALICE,
+      "Task agent",
+      Date.now()
+    );
+    const caller = {
+      agentTokenId: token.id,
+      grantId: null,
+      scopes: null,
+      userId: ALICE,
+    };
     const quoted = await handleTaskPost(
       deps,
       post({ kind: "brief", symbol: "USDC" }),
@@ -223,10 +236,29 @@ describe("a paid brief, from 402 to result", () => {
     );
     expect(replayed.status).toBe(200);
     expect(taskOf(await replayed.json()).task.id).toBe(created.id);
+    const history = await agentDetail(services.store, ALICE, token.id);
+    expect(history?.invocations).toHaveLength(4);
+    expect(history?.invocations.map((row) => row.outcome)).toEqual([
+      "replayed",
+      "accepted",
+      "signed",
+      "payment_required",
+    ]);
+    expect(history?.invocations[0]?.usdMicros).toBeNull();
+    expect(history?.invocations[1]?.usdMicros).toBe(
+      TASK_PRICE_USD_MICROS.brief
+    );
+    expect(history?.invocations[2]?.usdMicros).toBeGreaterThan(0);
+    expect(JSON.stringify(history)).not.toContain(header);
   });
 
   it("returns the earlier task for a repeated idempotency key before asking for money", async () => {
-    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
+    const caller = {
+      agentTokenId: null,
+      grantId: null,
+      scopes: null,
+      userId: ALICE,
+    };
     const first = await handleTaskPost(
       deps,
       post({ idempotencyKey: "hermes-brief-1", kind: "brief", symbol: "USDC" }),
@@ -270,7 +302,12 @@ describe("a paid brief, from 402 to result", () => {
   });
 
   it("claims concurrent paid retries before settling and rejects changed input", async () => {
-    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
+    const caller = {
+      agentTokenId: null,
+      grantId: null,
+      scopes: null,
+      userId: ALICE,
+    };
     const body = {
       idempotencyKey: "concurrent-legacy-task",
       kind: "brief",
@@ -334,7 +371,12 @@ describe("a paid brief, from 402 to result", () => {
     expect(conflict.status).toBe(409);
   });
   it("refuses a malformed task and an unknown id", async () => {
-    const caller = { agentTokenId: null, scopes: null, userId: ALICE };
+    const caller = {
+      agentTokenId: null,
+      grantId: null,
+      scopes: null,
+      userId: ALICE,
+    };
     const bad = await handleTaskPost(
       deps,
       post({ kind: "brief" }),

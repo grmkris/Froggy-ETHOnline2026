@@ -4,6 +4,7 @@ import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import { ServiceRequest, ServiceResult } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { trackAgentInvocation } from "./agent-invocations";
 import { boundedBytes, serviceCatalog } from "./service-providers";
 import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
@@ -47,31 +48,53 @@ export const handleServices = async (
     return json({ v: 1, services: serviceCatalog(services) });
   }
   if (path === "/api/services/run" && request.method === "POST") {
-    try {
-      const input: unknown = JSON.parse(
-        new TextDecoder().decode(
-          await boundedBytes(new Response(request.body), 16_000)
-        )
-      );
-      return json(
-        await purchaseService(
-          { services, session, agentTokenId: caller.agentTokenId },
-          Schema.decodeUnknownSync(ServiceRequest)(input)
-        ),
-        202
-      );
-    } catch (error) {
-      return json(
-        {
-          v: 1,
-          error:
-            error instanceof Error
-              ? error.message.slice(0, 1000)
-              : "Invalid request.",
-        },
-        400
-      );
-    }
+    return await trackAgentInvocation(
+      services,
+      caller,
+      "task",
+      "services.run",
+      async (invocation) => {
+        try {
+          const input: unknown = JSON.parse(
+            new TextDecoder().decode(
+              await boundedBytes(new Response(request.body), 16_000)
+            )
+          );
+          const decoded = Schema.decodeUnknownSync(ServiceRequest)(input);
+          invocation.name = decoded.service;
+          const ticket = await purchaseService(
+            {
+              services,
+              session,
+              agentTokenId: caller.agentTokenId,
+              onCreated: (id) => {
+                invocation.taskId = id;
+                invocation.outcome = "accepted";
+              },
+            },
+            decoded
+          );
+          invocation.taskId = ticket.id;
+          invocation.stubbed = ticket.stubbed;
+          if (invocation.outcome !== "accepted") {
+            invocation.outcome = "replayed";
+          }
+          return json(ticket, 202);
+        } catch (error) {
+          invocation.outcome = "error";
+          return json(
+            {
+              v: 1,
+              error:
+                error instanceof Error
+                  ? error.message.slice(0, 1000)
+                  : "Invalid request.",
+            },
+            400
+          );
+        }
+      }
+    );
   }
   if (path === "/api/services/tasks" && request.method === "GET") {
     const tasks = await services.store.tasks.list(caller.userId, 50);

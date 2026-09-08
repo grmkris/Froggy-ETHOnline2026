@@ -1,10 +1,17 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { TaskId } from "@froggy/domain";
-import { RunId, SessionId, userId } from "@froggy/domain";
+import {
+  AgentTokenId,
+  OAuthGrantId,
+  RunId,
+  SessionId,
+  userId,
+} from "@froggy/domain";
 import { ServiceTicket } from "@froggy/protocol";
 import { Effect, Schema } from "effect";
 
+import { trackAgentInvocation } from "./agent-invocations";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { handleMcp } from "./mcp";
@@ -90,7 +97,7 @@ const rpc = (
     jsonrpc: string;
     id?: number;
     method: string;
-    params?: { name: string; arguments: ReturnType<typeof request> };
+    params?: { name: string; arguments?: ReturnType<typeof request> };
   },
   origin?: string
 ) =>
@@ -268,7 +275,7 @@ describe("service purchases", () => {
     const response = await handleServices(
       context.services,
       context.session,
-      { userId: other, agentTokenId: null, scopes: null },
+      { userId: other, agentTokenId: null, grantId: null, scopes: null },
       new Request(`https://froggy.example/api/services/tasks/${ticket.id}`)
     );
     expect(response.status).toBe(404);
@@ -297,7 +304,12 @@ describe("service purchases", () => {
     const own = await handleServices(
       context.services,
       context.session,
-      { userId: context.session.userId, agentTokenId: null, scopes: null },
+      {
+        userId: context.session.userId,
+        agentTokenId: null,
+        grantId: null,
+        scopes: null,
+      },
       new Request(url)
     );
     expect(own.status).toBe(200);
@@ -311,6 +323,7 @@ describe("service purchases", () => {
       {
         userId: userId("did:privy:other-artifact-owner"),
         agentTokenId: null,
+        grantId: null,
         scopes: null,
       },
       new Request(url)
@@ -319,16 +332,97 @@ describe("service purchases", () => {
     const listed = await handleServices(
       context.services,
       context.session,
-      { userId: context.session.userId, agentTokenId: null, scopes: null },
+      {
+        userId: context.session.userId,
+        agentTokenId: null,
+        grantId: null,
+        scopes: null,
+      },
       new Request("https://froggy.example/api/services/tasks")
     );
     expect(await listed.text()).not.toContain("iVBORw0KGgo");
   });
+  it("records a scope-refused MCP call under the OAuth grant without buying", async () => {
+    const context = await fixture();
+    const grantId = OAuthGrantId.generate();
+    const caller = {
+      userId: context.session.userId,
+      agentTokenId: null,
+      grantId,
+      scopes: new Set(["brief"] as const),
+    };
+    const response = await handleMcp(
+      context.services,
+      context.session,
+      caller,
+      rpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "froggy_services" },
+      })
+    );
+    expect(await response.text()).toContain("scope");
+    const rows = await context.services.store.invocations.list(
+      caller.userId,
+      grantId
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.outcome).toBe("insufficient_scope");
+    expect(rows[0]?.usdMicros).toBeNull();
+    expect(context.session.history).toHaveLength(0);
+  });
+
+  it("a history completion failure keeps the successful result and the durable started row", async () => {
+    const context = await fixture();
+    const agentTokenId = AgentTokenId.generate();
+    const caller = {
+      userId: context.session.userId,
+      agentTokenId,
+      grantId: null,
+      scopes: null,
+    };
+    const services = {
+      ...context.services,
+      store: {
+        ...context.services.store,
+        invocations: {
+          ...context.services.store.invocations,
+          finish: async () => {
+            await Promise.reject(new Error("database unavailable"));
+          },
+        },
+      },
+    };
+    const result = await trackAgentInvocation(
+      services,
+      caller,
+      "mcp",
+      "froggy_services",
+      async (summary) => {
+        const rows = await context.services.store.invocations.list(
+          caller.userId,
+          agentTokenId
+        );
+        expect(rows[0]?.outcome).toBe("started");
+        summary.outcome = "ok";
+        return "successful result";
+      }
+    );
+    expect(result).toBe("successful result");
+    const rows = await context.services.store.invocations.list(
+      caller.userId,
+      agentTokenId
+    );
+    expect(rows[0]?.outcome).toBe("started");
+  });
+
   it("MCP lists tools, rejects hostile origins and ignores notification purchases", async () => {
     const context = await fixture();
     const caller = {
       userId: context.session.userId,
       agentTokenId: null,
+      grantId: null,
       scopes: null,
     };
     const list = await handleMcp(

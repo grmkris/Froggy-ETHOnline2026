@@ -57,6 +57,8 @@ interface PurchaseContext {
   readonly agentTokenId: AgentTokenId | null;
   readonly runId?: RunIdValue;
   readonly interactive?: boolean;
+  /** Called only by the request that created the task, never an idempotent replay. */
+  readonly onCreated?: (id: TaskId) => void;
 }
 
 const errorText = (error: Error): string => error.message.slice(0, 1000);
@@ -163,6 +165,7 @@ export const purchaseService = async (
     }
     throw error;
   }
+  context.onCreated?.(task.id);
   detached(`service ${task.id}`, async () => {
     let sent = false;
     let settled = false;

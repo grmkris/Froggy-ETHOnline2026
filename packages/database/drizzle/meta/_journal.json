@@ -78,6 +78,13 @@
       "when": 1788868966079,
       "tag": "0010_demonic_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788873867760,
+      "tag": "0011_fixed_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

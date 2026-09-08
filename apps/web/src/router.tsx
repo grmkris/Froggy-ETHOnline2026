@@ -1,3 +1,4 @@
+import { TaskId } from "@froggy/domain";
 import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
@@ -48,6 +49,7 @@ const walletRoute = page(
 /** The chosen service, when the URL names one; anything else is no choice. */
 const ServicesSearch = Schema.Struct({
   service: Schema.optional(ServiceName),
+  task: Schema.optional(TaskId),
 });
 const decodeServicesSearch = Schema.decodeUnknownResult(ServicesSearch);
 type ServicesSearch = typeof ServicesSearch.Type;
@@ -55,6 +57,7 @@ type ServicesSearch = typeof ServicesSearch.Type;
 /** What the router hands over: whatever the URL held under that key. */
 interface ServicesSearchInput {
   readonly service?: unknown;
+  readonly task?: unknown;
 }
 
 /** Only a known service survives; anything else is no choice. */
@@ -76,6 +79,11 @@ const agentsRoute = page(
   "/agents",
   async () => await import("./routes/agents-page"),
   "AgentsPage"
+);
+const agentDetailRoute = page(
+  "/agents/$id",
+  async () => await import("./routes/agent-detail-page"),
+  "AgentDetailPage"
 );
 const settingsRoute = page(
   "/settings",
@@ -119,6 +127,7 @@ const routeTree = rootRoute.addChildren([
     walletRoute,
     servicesRoute,
     agentsRoute,
+    agentDetailRoute,
     settingsRoute,
   ]),
   browserRoute,

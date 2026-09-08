@@ -21,6 +21,7 @@
  */
 
 import {
+  AgentInvocationId,
   AgentTokenId,
   ConversionId,
   DirectoryId,
@@ -34,6 +35,7 @@ import {
   SpendId,
   TaskId,
 } from "@froggy/domain";
+import type { AgentConnectionId } from "@froggy/domain";
 import {
   bigint,
   boolean,
@@ -420,4 +422,31 @@ export const conversions = pgTable(
     data: jsonb("data").notNull(),
   },
   (table) => [uniqueIndex("conversions_user_key").on(table.userId, table.key)]
+);
+
+/** A bounded metadata trail, retained when an agent is disconnected. */
+export const agentInvocations = pgTable(
+  "agent_invocations",
+  {
+    id: typeIdPrimaryKey(AgentInvocationId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    connectionId: text("connection_id").$type<AgentConnectionId>().notNull(),
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    outcome: text("outcome").notNull(),
+    usdMicros: bigint("usd_micros", { mode: "number" }),
+    taskId: typeIdColumn(TaskId, "task_id"),
+    stubbed: boolean("stubbed").notNull(),
+  },
+  (table) => [
+    index("agent_invocations_owner_connection_at").on(
+      table.userId,
+      table.connectionId,
+      table.at,
+      table.id
+    ),
+  ]
 );

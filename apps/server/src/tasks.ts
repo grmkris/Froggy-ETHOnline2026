@@ -15,6 +15,7 @@
 
 import { RunId, SaleId, TaskId, usdMicros } from "@froggy/domain";
 import type {
+  OAuthGrantId,
   OAuthScope,
   Receipt,
   Task,
@@ -34,6 +35,8 @@ import type { PaymentChallenge } from "@froggy/payments";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
 
+import { trackAgentRequest } from "./agent-invocations";
+import type { InvocationSummary } from "./agent-invocations";
 import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
@@ -96,6 +99,7 @@ export interface TaskDeps {
 }
 
 export interface TaskCaller {
+  readonly grantId: OAuthGrantId | null;
   readonly agentTokenId: Task["agentTokenId"];
   /** An OAuth grant's scopes; null for a person or a legacy `fgy_` token, which may do everything an agent may. */
   readonly scopes: ReadonlySet<OAuthScope> | null;
@@ -138,7 +142,10 @@ type TaskResponse =
   | { readonly tasks: readonly TaskView[] };
 
 const json = (body: TaskResponse, status = 200): Response =>
-  Response.json(body, { headers: { "cache-control": "no-store" }, status });
+  Response.json(
+    { v: 1, ...body },
+    { headers: { "cache-control": "no-store" }, status }
+  );
 
 /** The proof's fingerprint, the same way the oracle keys its book. */
 const paymentHash = (paymentHeader: string): string =>
@@ -384,11 +391,12 @@ const claimTask = async (
   }
 };
 
-export const handleTaskPost = async (
+const performTaskPost = async (
   deps: TaskDeps,
   request: Request,
   workspace: Workspace,
-  caller: TaskCaller
+  caller: TaskCaller,
+  invocation: InvocationSummary
 ): Promise<Response> => {
   const now = deps.now ?? Date.now;
   const { store } = deps.services;
@@ -404,6 +412,7 @@ export const handleTaskPost = async (
     );
   }
   const body = decoded.success;
+  invocation.name = body.kind;
   // A grant buys only the kinds the person left on; the scope is the kind.
   if (caller.scopes !== null && !caller.scopes.has(body.kind)) {
     return insufficientScope(body.kind);
@@ -466,6 +475,7 @@ export const handleTaskPost = async (
     return existing;
   }
 
+  invocation.taskId = task.id;
   let settled: Awaited<ReturnType<Services["oracle"]["settle"]>>;
   try {
     settled = await deps.services.oracle.settle(payment, requirements);
@@ -518,6 +528,22 @@ export const handleTaskPost = async (
   execute(deps, workspace, paidTask);
   return json({ task: taskView(paidTask, deps, workspace) }, 202);
 };
+
+export const handleTaskPost = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Workspace,
+  caller: TaskCaller
+): Promise<Response> =>
+  await trackAgentRequest(
+    deps.services,
+    caller,
+    "task",
+    "tasks.create",
+    "POST",
+    async (invocation) =>
+      await performTaskPost(deps, request, workspace, caller, invocation)
+  );
 
 export const handleTaskGet = async (
   deps: TaskDeps,
@@ -608,7 +634,7 @@ const trustedTaskOffer = (
   );
 };
 
-export const handleWalletPay = async (
+const performWalletPay = async (
   deps: TaskDeps,
   request: Request,
   workspace: Workspace,
@@ -714,3 +740,18 @@ export const handleWalletPay = async (
     throw error;
   }
 };
+
+export const handleWalletPay = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Workspace,
+  caller: TaskCaller
+): Promise<Response> =>
+  await trackAgentRequest(
+    deps.services,
+    caller,
+    "pay",
+    "wallet.pay",
+    "POST",
+    async () => await performWalletPay(deps, request, workspace, caller)
+  );

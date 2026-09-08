@@ -151,10 +151,29 @@ test("an MCP client signs in through the consent page and is held to its scopes"
     page.getByRole("heading", { name: "E2E MCP client" })
   ).toBeVisible();
   await expect(page.getByText("Permissions: brief, services")).toBeVisible();
+  await request.post("/mcp", {
+    headers: agent,
+    data: {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "froggy_services" },
+    },
+  });
+  await page.getByRole("link", { name: /E2E MCP client/u }).click();
+  await expect(page).toHaveURL(new RegExp(`/agents/${grant?.id}$`, "u"));
+  await expect(
+    page.getByRole("region", { name: "Agent connection" })
+  ).toContainText("brief, services");
+  const history = page.getByRole("region", { name: "Invocation history" });
+  await expect(history.getByRole("listitem")).toHaveCount(2);
+  await expect(history).toContainText("froggy_services");
+  await expect(history).toContainText("insufficient scope");
   await page.getByRole("button", { name: "Disconnect E2E MCP client" }).click();
   await expect(
-    page.getByRole("heading", { name: "E2E MCP client" })
-  ).toHaveCount(0);
+    page.getByText(/Disconnected .* History is kept\./u)
+  ).toBeVisible();
+  await expect(history.getByRole("listitem")).toHaveCount(2);
 
   const after = await request.post("/mcp", {
     data: { id: 2, jsonrpc: "2.0", method: "tools/list" },

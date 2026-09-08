@@ -48,3 +48,11 @@ A client with no browser of its own (Hermes in a sandbox, a CLI over SSH) does n
 `Access-Control-Allow-Origin: *` is set on the metadata, registration, token and revocation endpoints and nowhere else; those are read from other origins by design and carry no cookie. `/mcp` itself has no CORS headers and keeps the origin check the bearer endpoint had, so a browser-based MCP client on another origin cannot reach it this week. That is recorded rather than solved: the clients this lane serves run outside a browser.
 
 The five-page workspace now lists and revokes OAuth grants on `/agents`. Local verification and pending live checks are recorded in `docs/evidence/HERMES.md`. Recording the grant on the task row and real-client verification on the deployed URL remain follow-up work.
+
+## 8 September 2026 — installation documents and invocation history
+
+`/llm.md`, `/skill.md`, and the legacy `/froggy/SKILL.md` now render the deployment origin from one source. The first is installation and usage prose; the latter two include skill frontmatter. The UI copies a short instruction to read `/llm.md`, with OAuth consent still performed by the person.
+
+Migration `0011_fixed_pretty_boy.sql` adds `agent_invocations`: a TypeID, user, grant-or-token connection id, kind, bounded name, timestamp, outcome, optional USD amount and task id, and the stub marker. The grant id now travels with `TaskCaller`; history links OAuth requests to tasks without changing the legacy task row. This resolves the request-attribution follow-up above. The memory and Postgres stores share append, finish, owner-scoped newest-50 reads, and forget semantics.
+
+Writes begin before execution. Completion failures leave an explicitly incomplete row while preserving the original response. History stores no arguments or tool output. The owner-only detail API joins current task status and confirmed sale amounts on reads; a replay or status poll does not become another payment, and a signed payment header is never labelled settled. Revocation retains this history. Weekly totals and historical-call backfill are not inferred from a last-used timestamp.

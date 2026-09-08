@@ -3,7 +3,8 @@
  * one cache and one way of failing.
  */
 
-import { ServiceCatalog, ServiceTicket } from "@froggy/protocol";
+import type { TaskId } from "@froggy/domain";
+import { ServiceCatalog, ServiceTicket, TaskDetail } from "@froggy/protocol";
 import type { ServiceName } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
@@ -31,7 +32,7 @@ export interface RunInput {
   readonly service: ServiceName;
 }
 
-export const useServiceApi = () => {
+export const useServiceApi = (taskId?: TaskId) => {
   const { getToken } = useSessionToken();
   const queries = useQueryClient();
 
@@ -78,6 +79,20 @@ export const useServiceApi = () => {
     retry: false,
   });
 
+  const selectedTask = useQuery({
+    enabled: taskId !== undefined,
+    queryKey: ["service-task", taskId],
+    queryFn: async () => {
+      const response = await api(`/api/tasks/${taskId}`);
+      return Schema.decodeUnknownSync(TaskDetail)(await response.json());
+    },
+    refetchInterval: (query) =>
+      query.state.data !== undefined && isSettling(query.state.data.task.status)
+        ? SETTLING_POLL_MS
+        : false,
+    retry: false,
+  });
+
   const run = useMutation({
     mutationFn: async (input: RunInput) => {
       const response = await api("/api/services/run", {
@@ -107,7 +122,7 @@ export const useServiceApi = () => {
     [api]
   );
 
-  return { api, catalog, download, run, tasks };
+  return { api, catalog, download, run, tasks, selectedTask };
 };
 
 export type ServiceApi = ReturnType<typeof useServiceApi>;

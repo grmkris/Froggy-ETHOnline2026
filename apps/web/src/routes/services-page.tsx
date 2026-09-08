@@ -4,7 +4,9 @@
  * can point at one.
  */
 
-import type { ServiceName } from "@froggy/protocol";
+import { formatUsd } from "@froggy/domain";
+import type { ServiceName, TaskDetail } from "@froggy/protocol";
+import { Badge } from "@froggy/ui/components/badge";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
@@ -12,12 +14,51 @@ import type { ReactElement } from "react";
 import { Page } from "../components/nav/page";
 import { ServiceCatalog } from "../components/services/service-catalog";
 import { ServiceRequestForm } from "../components/services/service-request-form";
+import { ServiceTaskCard } from "../components/services/service-task-card";
 import { ServiceTaskList } from "../components/services/service-task-list";
 import { useServiceApi } from "../hooks/use-service-api";
 
+const DelegatedTaskResult = ({
+  task,
+}: {
+  readonly task: Exclude<TaskDetail["task"], { kind: "service" }>;
+}): ReactElement => (
+  <div className="bg-card shadow-card flex flex-col gap-3 rounded-2xl p-5">
+    <div className="flex flex-wrap items-center gap-2">
+      <h3 className="font-medium">
+        {task.kind === "brief" ? "Lending brief" : "Browser task"}
+      </h3>
+      <Badge variant="secondary">{task.status.replaceAll("_", " ")}</Badge>
+      {task.kind === "brief" && task.result?.stubbed === true ? (
+        <Badge variant="outline">Simulated</Badge>
+      ) : null}
+      {task.saleId === null ? null : (
+        <span className="text-money text-sm">
+          {formatUsd(task.priceUsdMicros)} paid
+        </span>
+      )}
+    </div>
+    {task.error === null ? null : <p role="alert">{task.error}</p>}
+    {task.result === null ? null : (
+      <div className="flex flex-col gap-2 text-sm whitespace-pre-wrap">
+        {task.kind === "brief" ? (
+          <>
+            <p>{task.result.cheapestBorrow}</p>
+            <p>{task.result.bestSupply}</p>
+          </>
+        ) : (
+          <p>{task.result.text}</p>
+        )}
+      </div>
+    )}
+  </div>
+);
+
 export const ServicesPage = (): ReactElement => {
-  const { catalog, download, run, tasks } = useServiceApi();
   const search = useSearch({ from: "/workspace/services" });
+  const { catalog, download, run, tasks, selectedTask } = useServiceApi(
+    search.task
+  );
   const navigate = useNavigate();
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const focusTasks = useRef(false);
@@ -42,12 +83,39 @@ export const ServicesPage = (): ReactElement => {
       ? null
       : (catalog.data?.services.find((card) => card.name === search.service) ??
         null);
+  const chosenTask = selectedTask.data?.task;
+  let taskResult: ReactElement | null = null;
+  if (chosenTask !== undefined) {
+    taskResult =
+      chosenTask.kind === "service" ? (
+        <ServiceTaskCard
+          catalog={catalog.data?.services ?? []}
+          download={download}
+          task={chosenTask.result}
+        />
+      ) : (
+        <DelegatedTaskResult task={chosenTask} />
+      );
+  }
   return (
     <Page
       intro="Fixed prices, paid from your wallet, with a result you can come back to."
       title="Services"
       wide
     >
+      {search.task === undefined ? null : (
+        <section
+          aria-label="Selected service task"
+          className="flex flex-col gap-3"
+        >
+          <h2 className="text-section">Task {search.task}</h2>
+          {selectedTask.isPending ? <p>Loading task…</p> : null}
+          {selectedTask.isError ? (
+            <p role="alert">Couldn’t load this task.</p>
+          ) : null}
+          {taskResult}
+        </section>
+      )}
       <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {chosen === null ? (

@@ -1,4 +1,5 @@
 import { Skeleton } from "@froggy/ui/components/skeleton";
+import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
 import { useAgentTokens } from "../../hooks/use-agent-tokens";
@@ -39,15 +40,16 @@ export const AgentOnboarding = (): ReactElement => {
   }
   const [single] = connected;
   return (
-    <a
+    <Link
       className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm outline-none focus-visible:ring-2"
-      href={
+      to={
         connected.length === 1 && single !== undefined
-          ? `/agents/${single.id}`
+          ? "/agents/$id"
           : "/agents"
       }
+      params={{ id: single?.id ?? "" }}
     >
       {connected.length} {connected.length === 1 ? "agent" : "agents"} connected
-    </a>
+    </Link>
   );
 };

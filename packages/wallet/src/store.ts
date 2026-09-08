@@ -11,6 +11,7 @@
  */
 
 import {
+  AgentInvocation,
   ConversionId,
   Mandate,
   Receipt,
@@ -19,6 +20,8 @@ import {
   Task,
 } from "@froggy/domain";
 import type {
+  AgentConnectionId,
+  AgentInvocationId,
   AgentToken,
   AgentTokenId,
   DirectoryEntry,
@@ -156,6 +159,25 @@ export type ConversionPatch = Partial<
 export const decodeConversion = Schema.decodeUnknownSync(ConversionRecord);
 
 export interface Store {
+  readonly invocations: {
+    readonly append: (
+      userId: UserId,
+      invocation: AgentInvocation
+    ) => Promise<void>;
+    readonly finish: (
+      userId: UserId,
+      id: AgentInvocationId,
+      patch: Pick<
+        AgentInvocation,
+        "name" | "outcome" | "usdMicros" | "taskId" | "stubbed"
+      >
+    ) => Promise<void>;
+    /** Newest 50, scoped to both the person and this grant or token. */
+    readonly list: (
+      userId: UserId,
+      connectionId: AgentConnectionId
+    ) => Promise<readonly AgentInvocation[]>;
+  };
   readonly conversions: {
     readonly create: (
       userId: UserId,
@@ -437,6 +459,10 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 };
 
 export const memoryStore = (): Store => {
+  const invocations = new Map<
+    AgentInvocationId,
+    { userId: UserId; invocation: AgentInvocation }
+  >();
   const conversions = new Map<
     ConversionId,
     { userId: UserId; record: ConversionRecord }
@@ -458,6 +484,40 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
+    invocations: {
+      append: async (userId, invocation) => {
+        await Promise.resolve();
+        invocations.set(invocation.id, {
+          userId,
+          invocation: Schema.decodeUnknownSync(AgentInvocation)(invocation),
+        });
+      },
+      finish: async (userId, id, patch) => {
+        await Promise.resolve();
+        const row = invocations.get(id);
+        if (row?.userId === userId) {
+          invocations.set(id, {
+            userId,
+            invocation: Schema.decodeUnknownSync(AgentInvocation)({
+              ...row.invocation,
+              ...patch,
+            }),
+          });
+        }
+      },
+      list: async (userId, connectionId) => {
+        await Promise.resolve();
+        return [...invocations.values()]
+          .filter(
+            (row) =>
+              row.userId === userId &&
+              row.invocation.connectionId === connectionId
+          )
+          .map((row) => row.invocation)
+          .toSorted((a, b) => b.at - a.at || b.id.localeCompare(a.id))
+          .slice(0, 50);
+      },
+    },
     conversions: {
       create: async (userId, record) => {
         await Promise.resolve();
@@ -861,6 +921,11 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await Promise.resolve();
+      for (const [id, row] of invocations) {
+        if (row.userId === userId) {
+          invocations.delete(id);
+        }
+      }
       for (const [id, row] of tokens) {
         if (row.userId === userId) {
           tokens.delete(id);

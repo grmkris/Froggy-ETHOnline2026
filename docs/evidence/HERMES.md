@@ -2,6 +2,44 @@
 
 7 September 2026. OAuth recovered from the unfinished Claude worktree and integrated with the five-page workspace and schedules. [ADR 0012](../decisions/0012-mcp-oauth-authorization-server.md) describes the authorization server; [iteration 3](../plan/ITERATION_3.md) records the remaining release work.
 
+## Simplified onboarding — 8 September 2026
+
+The first action on Home (before a conversation) and Wallet is **Copy for your agent**. It copies this prompt, using the deployment's own origin:
+
+```text
+Read https://app-production-58dd.up.railway.app/llm.md and follow it to connect yourself to my Froggy wallet as an MCP server; then tell me what you can do.
+```
+
+A confirmation says “Copied. Paste this into your agent’s chat.” If the clipboard is denied, the same text appears in a read-only field for manual copying. Once any OAuth grant or legacy token is unrevoked, those surfaces show **1 agent connected** (linking directly to that connection) or **N agents connected** (linking to Agents). The Agents page keeps the copy action for connecting another agent; Telegram is unchanged, and the token path remains collapsed at the bottom.
+
+`GET /llm.md` is the install-and-use document. `GET /skill.md` wraps the same text in skill frontmatter. Both are public `text/markdown`, rendered by `apps/server/src/skill.ts` with `APP_ORIGIN`; `/froggy/SKILL.md` aliases the current skill. The repository copy at `skills/froggy/SKILL.md` is generated from that source with the generic origin.
+
+For Claude Code, the document tells the agent to save the skill and configure remote MCP:
+
+```sh
+mkdir -p ~/.claude/skills/froggy
+curl -fsSL https://app-production-58dd.up.railway.app/skill.md -o ~/.claude/skills/froggy/SKILL.md
+claude mcp add --transport http froggy https://app-production-58dd.up.railway.app/mcp
+```
+
+It then tells the person to authenticate from `/mcp`. Cursor receives a `mcpServers.froggy.url` entry; Inspector uses Streamable HTTP with OAuth through its local proxy. The fallback is:
+
+```sh
+curl -fsSL https://app-production-58dd.up.railway.app/froggy-cli.js -o ~/froggy.mjs
+node ~/froggy.mjs login --url=https://app-production-58dd.up.railway.app --manual
+node ~/froggy.mjs help
+```
+
+The agent verifies access with `froggy_services`, reports capabilities and listed prices, and buys nothing as part of setup. The usage document describes all three MCP tools, idempotency, polling, approvals, refusals, failed work and uncertain payments. Client syntax was checked against the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp), [Cursor MCP configuration](https://prod.cursor.com/docs/mcp), and [Inspector documentation](https://github.com/modelcontextprotocol/inspector).
+
+Each `/agents/:id` resolves only for its owner. It shows scopes, connection and use dates, Disconnect, and the newest 50 invocation rows. Calls to `/mcp` and `/api/mcp`, HTTP task purchases and reads (including polling and event-stream requests), service purchases, and wallet signing requests share the grant/token identity. Scope refusals and errors are recorded too. The ten-column `agent_invocations` table stores no arguments, result bodies or secrets. A row is started before execution, then completed; a failed completion write retains the started row without turning a successful purchase into a retry. Disconnect retains history; deleting account data removes it. Task payment amounts are read from settled sales, retries show no new payment, and signed headers explicitly say settlement is not confirmed. Simulated activity remains labelled. Task links open the selected service, brief or browse result.
+
+History starts with this change: earlier calls cannot be reconstructed from `lastUsedAt`. No per-agent weekly aggregate existed, so the rows do not invent one. Real-user production MCP consent and Hermes-environment verification remain in the live checklist below.
+
+Local verification: the Drizzle migration applied to an isolated Postgres 17 database. The shared memory/Postgres suite passed all eight contracts, including newest-50 ordering, owner isolation, persistence after disconnect, and account-data deletion. The focused server suites passed 16 tests, including signed versus settled amounts, OAuth scope refusals, and a failed history-completion write. The complete browser suite passed **107/107** with `FROGGY_E2E_PORT=3800 bun run e2e --workers=2 --timeout=90000`. The longer per-test budget accommodates the shared machine: the preceding default-budget run passed 105 tests and exhausted 30 seconds near the end of the deletion and appearance walkthroughs. Assertion timeouts and behavior checks were unchanged. The new copy, connection-count, history, OAuth retention, payment-state and task-link interactions are covered; the detail page was visually inspected at 1440 and 320 pixels.
+
+`heavy bun run check`, standalone `bun run knip`, and `heavy bun run build` passed. Final verification used an isolated checkout containing this lane's exact candidate, so another lane's unfinished Markdown files in the shared tree were neither reformatted nor staged. Existing browser assertions were updated for the simpler onboarding and retained detail history after disconnect. The appearance-position test now waits for settings and fonts before measuring, retaining its exact position assertions.
+
 ## Local behavior
 
 The browser checks boot Froggy with explicit stubs. They cover registration, browser consent, the manual authorization page, code exchange with PKCE, MCP tool discovery, scope refusal, listing the connection and disconnecting through Agents. Page errors and narrow-screen overflow are checked. Legacy-token setup shows the token separately from the skill and preserves it when navigating away and back.

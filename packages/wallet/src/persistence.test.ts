@@ -1,6 +1,9 @@
 import { afterAll, describe, expect, test } from "bun:test";
 
 import {
+  AgentInvocationId,
+  AgentTokenId,
+  OAuthGrantId,
   ConversionId,
   RunId,
   ScheduleId,
@@ -8,7 +11,7 @@ import {
   usdMicros,
   userId,
 } from "@froggy/domain";
-import type { Schedule } from "@froggy/domain";
+import type { AgentInvocation, Schedule } from "@froggy/domain";
 import postgres from "postgres";
 
 import { memoryLedger, SpendBudgetExceededError } from "./ledger";
@@ -26,6 +29,76 @@ interface Backend {
 }
 const suite = (name: string, make: () => Backend): void => {
   describe(name, () => {
+    test("agent invocation history is owner-scoped, newest 50, and survives disconnect", async () => {
+      const { store, other } = make();
+      const owner = userId(`did:privy:history-${crypto.randomUUID()}`);
+      const stranger = userId(`did:privy:other-history-${crypto.randomUUID()}`);
+      const connectionId = AgentTokenId.generate();
+      const grantId = OAuthGrantId.generate();
+      const at = Date.now();
+      await store.agents.create(owner, {
+        id: connectionId,
+        label: "History",
+        createdAt: at,
+        lastUsedAt: null,
+        revokedAt: null,
+        secretHash: crypto.randomUUID(),
+      });
+      const rows: AgentInvocation[] = Array.from(
+        { length: 55 },
+        (_, index) => ({
+          id: AgentInvocationId.generate(),
+          connectionId,
+          kind: "mcp",
+          name: "froggy_services",
+          at: at + index,
+          outcome: "started",
+          usdMicros: null,
+          taskId: null,
+          stubbed: true,
+        })
+      );
+      await Promise.all(
+        rows.map(async (row) => {
+          await store.invocations.append(owner, row);
+        })
+      );
+      const last = rows.at(-1);
+      if (last === undefined) {
+        throw new Error("Missing fixture");
+      }
+      await store.invocations.append(owner, {
+        ...last,
+        id: AgentInvocationId.generate(),
+        connectionId: grantId,
+      });
+      await other.invocations.finish(stranger, last.id, {
+        name: last.name,
+        outcome: "wrong owner",
+        usdMicros: 100,
+        taskId: null,
+        stubbed: true,
+      });
+      const before = await other.invocations.list(owner, connectionId);
+      expect(before).toHaveLength(50);
+      expect(before[0]).toEqual(last);
+      expect(before.at(-1)?.at).toBe(at + 5);
+      expect(await other.invocations.list(stranger, connectionId)).toEqual([]);
+      expect(await other.invocations.list(owner, grantId)).toHaveLength(1);
+      await other.invocations.finish(owner, last.id, {
+        name: last.name,
+        outcome: "ok",
+        usdMicros: null,
+        taskId: null,
+        stubbed: true,
+      });
+      await store.agents.revoke(owner, connectionId);
+      const after = await other.invocations.list(owner, connectionId);
+      expect(after[0]?.outcome).toBe("ok");
+      await store.forget(owner);
+      expect(await other.invocations.list(owner, connectionId)).toEqual([]);
+      expect(await other.invocations.list(owner, grantId)).toEqual([]);
+    });
     test("completion cannot undo cancellation or overwrite a newer claim", async () => {
       const { store, other } = make();
       const owner = userId(`did:privy:claim-${crypto.randomUUID()}`);

@@ -78,3 +78,40 @@ export const ServiceTicket = Schema.Struct({
   ),
 });
 export type ServiceTicket = typeof ServiceTicket.Type;
+
+const taskDetailFields = {
+  id: TaskId,
+  status: TaskStatus,
+  priceUsdMicros: UsdMicros,
+  saleId: Schema.NullOr(SaleId),
+  error: Schema.NullOr(Schema.String),
+};
+
+/** The task selected from an agent's history, including CLI briefs and browses. */
+export const TaskDetail = Schema.Struct({
+  v: Schema.Literals([1]),
+  task: Schema.Union([
+    Schema.Struct({
+      ...taskDetailFields,
+      kind: Schema.Literals(["service"]),
+      result: ServiceTicket,
+    }),
+    Schema.Struct({
+      ...taskDetailFields,
+      kind: Schema.Literals(["brief"]),
+      result: Schema.NullOr(
+        Schema.Struct({
+          cheapestBorrow: Schema.String,
+          bestSupply: Schema.String,
+          stubbed: Schema.Boolean,
+        })
+      ),
+    }),
+    Schema.Struct({
+      ...taskDetailFields,
+      kind: Schema.Literals(["browse"]),
+      result: Schema.NullOr(Schema.Struct({ text: Schema.String })),
+    }),
+  ]),
+});
+export type TaskDetail = typeof TaskDetail.Type;

@@ -28,7 +28,9 @@ export const PillNav = ({
   const pathname = useLocation({ select: (location) => location.pathname });
   const [openPath, setOpenPath] = useState<string | null>(null);
   const open = openPath === pathname;
-  const currentMore = MORE.find((item) => item.to === pathname);
+  const currentMore = MORE.find(
+    (item) => item.to === pathname || pathname.startsWith(`${item.to}/`)
+  );
   return (
     <nav
       aria-label="Primary"
