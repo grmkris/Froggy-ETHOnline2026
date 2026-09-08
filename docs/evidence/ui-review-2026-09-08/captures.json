@@ -1,0 +1,1861 @@
+{
+  "capturedAt": "2026-09-08T09:51:22.576Z",
+  "sourceCommit": "3108bcf6fc9d7fa2c895ff3974ae68cf2fe5e3e9",
+  "browser": "Chromium",
+  "environment": "Local test identities; stub providers; simulated money",
+  "command": "FROGGY_E2E_PORT=3700 bun run e2e --workers=2 --config=/tmp/froggy-ui-review-2026-09-08/playwright.config.ts",
+  "tests": {
+    "startTime": "2026-09-08T09:51:22.576Z",
+    "duration": 414483.03699999995,
+    "expected": 131,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "counts": {
+    "passbook": 115,
+    "lilypad": 115
+  },
+  "captures": [
+    {
+      "theme": "passbook",
+      "state": "add-funds",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/add-funds-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/add-funds-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "add-funds",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/add-funds-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/add-funds-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "add-funds",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/add-funds-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/add-funds-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "add-funds",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/add-funds-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/add-funds-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-connected",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/agent-connected-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/agent-connected-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-connected",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/agent-connected-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/agent-connected-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-connected",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agent-connected-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/agent-connected-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-connected",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agent-connected-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/agent-connected-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-instructions",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/agent-instructions-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/agent-instructions-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-instructions",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/agent-instructions-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/agent-instructions-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-instructions",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agent-instructions-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/agent-instructions-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-instructions",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agent-instructions-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/agent-instructions-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-instructions-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agent-instructions-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/agent-instructions-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-instructions-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agent-instructions-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/agent-instructions-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-token-form",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/agent-token-form-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/agent-token-form-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-token-form",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/agent-token-form-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/agent-token-form-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agent-token-form",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agent-token-form-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/agent-token-form-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agent-token-form",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agent-token-form-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/agent-token-form-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/agents-1440.png",
+      "source": "screens--agents-holds-together-at-1440px-passbook/agents-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/agents-1440.png",
+      "source": "screens--agents-holds-together-at-1440px-lilypad/agents-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/agents-768.png",
+      "source": "screens--agents-holds-together-at-768px-passbook/agents-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/agents-768.png",
+      "source": "screens--agents-holds-together-at-768px-lilypad/agents-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agents-390.png",
+      "source": "screens--agents-holds-together-at-390px-passbook/agents-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agents-390.png",
+      "source": "screens--agents-holds-together-at-390px-lilypad/agents-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/agents-320.png",
+      "source": "screens--agents-holds-together-at-320px-passbook/agents-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/agents-320.png",
+      "source": "screens--agents-holds-together-at-320px-lilypad/agents-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/agents-part-2-768.png",
+      "source": "screens--agents-holds-together-at-768px-passbook/agents-part-2-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/agents-part-2-768.png",
+      "source": "screens--agents-holds-together-at-768px-lilypad/agents-part-2-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/agents-part-2-390.png",
+      "source": "screens--agents-holds-together-at-390px-passbook/agents-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/agents-part-2-390.png",
+      "source": "screens--agents-holds-together-at-390px-lilypad/agents-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/agents-part-2-320.png",
+      "source": "screens--agents-holds-together-at-320px-passbook/agents-part-2-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/agents-part-2-320.png",
+      "source": "screens--agents-holds-together-at-320px-lilypad/agents-part-2-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "agents-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/agents-part-3-320.png",
+      "source": "screens--agents-holds-together-at-320px-passbook/agents-part-3-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "agents-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/agents-part-3-320.png",
+      "source": "screens--agents-holds-together-at-320px-lilypad/agents-part-3-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "browser-inline",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/browser-inline-1440.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-passbook/browser-inline-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "browser-inline",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/browser-inline-1440.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-lilypad/browser-inline-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "browser-inline",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/browser-inline-390.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-passbook/browser-inline-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "browser-inline",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/browser-inline-390.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-lilypad/browser-inline-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "browser-split",
+      "width": "1400",
+      "height": 860,
+      "src": "passbook/browser-split-1400.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-passbook/browser-split-1400.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "browser-split",
+      "width": "1400",
+      "height": 860,
+      "src": "lilypad/browser-split-1400.png",
+      "source": "pop-out-the-page-can-go-to-a-split-pane-and-back-lilypad/browser-split-1400.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "browser-window",
+      "width": "1440",
+      "height": 982,
+      "src": "passbook/browser-window-1440.png",
+      "source": "pop-out-the-page-can-go-to-its-own-window-and-the-tab-knows-passbook/browser-window-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "browser-window",
+      "width": "1440",
+      "height": 982,
+      "src": "lilypad/browser-window-1440.png",
+      "source": "pop-out-the-page-can-go-to-its-own-window-and-the-tab-knows-lilypad/browser-window-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "browser-window",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/browser-window-390.png",
+      "source": "pop-out-the-page-can-go-to-its-own-window-and-the-tab-knows-passbook/browser-window-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "browser-window",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/browser-window-390.png",
+      "source": "pop-out-the-page-can-go-to-its-own-window-and-the-tab-knows-lilypad/browser-window-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/chat-1440.png",
+      "source": "screens--holds-together-at-1440px-passbook/chat-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/chat-1440.png",
+      "source": "screens--holds-together-at-1440px-lilypad/chat-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/chat-768.png",
+      "source": "screens--holds-together-at-768px-passbook/chat-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/chat-768.png",
+      "source": "screens--holds-together-at-768px-lilypad/chat-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/chat-390.png",
+      "source": "screens--holds-together-at-390px-passbook/chat-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/chat-390.png",
+      "source": "screens--holds-together-at-390px-lilypad/chat-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/chat-320.png",
+      "source": "screens--holds-together-at-320px-passbook/chat-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/chat-320.png",
+      "source": "screens--holds-together-at-320px-lilypad/chat-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-approval",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/chat-approval-1440.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-passbook/chat-approval-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-approval",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/chat-approval-1440.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-lilypad/chat-approval-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-approval",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/chat-approval-390.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-passbook/chat-approval-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-approval",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/chat-approval-390.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-lilypad/chat-approval-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-completed",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/chat-completed-1440.png",
+      "source": "stream-a-turn-streams-into-32b62-down-with-no-browser-errors-passbook/chat-completed-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-completed",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/chat-completed-1440.png",
+      "source": "stream-a-turn-streams-into-32b62-down-with-no-browser-errors-lilypad/chat-completed-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-completed",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/chat-completed-390.png",
+      "source": "stream-a-turn-streams-into-32b62-down-with-no-browser-errors-passbook/chat-completed-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-completed",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/chat-completed-390.png",
+      "source": "stream-a-turn-streams-into-32b62-down-with-no-browser-errors-lilypad/chat-completed-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/chat-part-2-390.png",
+      "source": "screens--holds-together-at-390px-passbook/chat-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/chat-part-2-390.png",
+      "source": "screens--holds-together-at-390px-lilypad/chat-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/chat-part-2-320.png",
+      "source": "screens--holds-together-at-320px-passbook/chat-part-2-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/chat-part-2-320.png",
+      "source": "screens--holds-together-at-320px-lilypad/chat-part-2-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/chat-part-3-320.png",
+      "source": "screens--holds-together-at-320px-passbook/chat-part-3-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/chat-part-3-320.png",
+      "source": "screens--holds-together-at-320px-lilypad/chat-part-3-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-receipt",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/chat-receipt-1440.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-passbook/chat-receipt-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-receipt",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/chat-receipt-1440.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-lilypad/chat-receipt-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "chat-receipt",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/chat-receipt-390.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-passbook/chat-receipt-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "chat-receipt",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/chat-receipt-390.png",
+      "source": "approval-a-spend-over-the--2d9ae-he-answer-is-on-the-receipt-lilypad/chat-receipt-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-add-funds",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/component-add-funds-1440.png",
+      "source": "themes-passbook-components-fit-at-1440px-with-reduced-motion-passbook/passbook-add-funds-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-add-funds",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/component-add-funds-1440.png",
+      "source": "themes-lilypad-components-fit-at-1440px-with-reduced-motion-passbook/lilypad-add-funds-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-add-funds",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/component-add-funds-768.png",
+      "source": "themes-passbook-components-fit-at-768px-with-reduced-motion-passbook/passbook-add-funds-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-add-funds",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/component-add-funds-768.png",
+      "source": "themes-lilypad-components-fit-at-768px-with-reduced-motion-passbook/lilypad-add-funds-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-add-funds",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/component-add-funds-390.png",
+      "source": "themes-passbook-components-fit-at-390px-with-reduced-motion-passbook/passbook-add-funds-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-add-funds",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/component-add-funds-390.png",
+      "source": "themes-lilypad-components-fit-at-390px-with-reduced-motion-passbook/lilypad-add-funds-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-add-funds",
+      "width": "320",
+      "height": 900,
+      "src": "passbook/component-add-funds-320.png",
+      "source": "themes-passbook-components-fit-at-320px-with-reduced-motion-passbook/passbook-add-funds-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-add-funds",
+      "width": "320",
+      "height": 900,
+      "src": "lilypad/component-add-funds-320.png",
+      "source": "themes-lilypad-components-fit-at-320px-with-reduced-motion-passbook/lilypad-add-funds-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-confirmation",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/component-confirmation-1440.png",
+      "source": "themes-passbook-components-fit-at-1440px-with-reduced-motion-passbook/passbook-confirmation-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-confirmation",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/component-confirmation-1440.png",
+      "source": "themes-lilypad-components-fit-at-1440px-with-reduced-motion-passbook/lilypad-confirmation-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-confirmation",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/component-confirmation-768.png",
+      "source": "themes-passbook-components-fit-at-768px-with-reduced-motion-passbook/passbook-confirmation-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-confirmation",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/component-confirmation-768.png",
+      "source": "themes-lilypad-components-fit-at-768px-with-reduced-motion-passbook/lilypad-confirmation-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-confirmation",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/component-confirmation-390.png",
+      "source": "themes-passbook-components-fit-at-390px-with-reduced-motion-passbook/passbook-confirmation-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-confirmation",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/component-confirmation-390.png",
+      "source": "themes-lilypad-components-fit-at-390px-with-reduced-motion-passbook/lilypad-confirmation-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-confirmation",
+      "width": "320",
+      "height": 900,
+      "src": "passbook/component-confirmation-320.png",
+      "source": "themes-passbook-components-fit-at-320px-with-reduced-motion-passbook/passbook-confirmation-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-confirmation",
+      "width": "320",
+      "height": 900,
+      "src": "lilypad/component-confirmation-320.png",
+      "source": "themes-lilypad-components-fit-at-320px-with-reduced-motion-passbook/lilypad-confirmation-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-settings",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/component-settings-1440.png",
+      "source": "themes-passbook-components-fit-at-1440px-with-reduced-motion-passbook/passbook-settings-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-settings",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/component-settings-1440.png",
+      "source": "themes-lilypad-components-fit-at-1440px-with-reduced-motion-passbook/lilypad-settings-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-settings",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/component-settings-768.png",
+      "source": "themes-passbook-components-fit-at-768px-with-reduced-motion-passbook/passbook-settings-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-settings",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/component-settings-768.png",
+      "source": "themes-lilypad-components-fit-at-768px-with-reduced-motion-passbook/lilypad-settings-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-settings",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/component-settings-390.png",
+      "source": "themes-passbook-components-fit-at-390px-with-reduced-motion-passbook/passbook-settings-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-settings",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/component-settings-390.png",
+      "source": "themes-lilypad-components-fit-at-390px-with-reduced-motion-passbook/lilypad-settings-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-settings",
+      "width": "320",
+      "height": 900,
+      "src": "passbook/component-settings-320.png",
+      "source": "themes-passbook-components-fit-at-320px-with-reduced-motion-passbook/passbook-settings-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-settings",
+      "width": "320",
+      "height": 900,
+      "src": "lilypad/component-settings-320.png",
+      "source": "themes-lilypad-components-fit-at-320px-with-reduced-motion-passbook/lilypad-settings-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-wallet",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/component-wallet-1440.png",
+      "source": "themes-passbook-components-fit-at-1440px-with-reduced-motion-passbook/passbook-wallet-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-wallet",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/component-wallet-1440.png",
+      "source": "themes-lilypad-components-fit-at-1440px-with-reduced-motion-passbook/lilypad-wallet-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-wallet",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/component-wallet-768.png",
+      "source": "themes-passbook-components-fit-at-768px-with-reduced-motion-passbook/passbook-wallet-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-wallet",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/component-wallet-768.png",
+      "source": "themes-lilypad-components-fit-at-768px-with-reduced-motion-passbook/lilypad-wallet-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-wallet",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/component-wallet-390.png",
+      "source": "themes-passbook-components-fit-at-390px-with-reduced-motion-passbook/passbook-wallet-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-wallet",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/component-wallet-390.png",
+      "source": "themes-lilypad-components-fit-at-390px-with-reduced-motion-passbook/lilypad-wallet-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "component-wallet",
+      "width": "320",
+      "height": 900,
+      "src": "passbook/component-wallet-320.png",
+      "source": "themes-passbook-components-fit-at-320px-with-reduced-motion-passbook/passbook-wallet-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "component-wallet",
+      "width": "320",
+      "height": 900,
+      "src": "lilypad/component-wallet-320.png",
+      "source": "themes-lilypad-components-fit-at-320px-with-reduced-motion-passbook/lilypad-wallet-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "delete-confirmation",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/delete-confirmation-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/delete-confirmation-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "delete-confirmation",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/delete-confirmation-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/delete-confirmation-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "delete-confirmation",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/delete-confirmation-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/delete-confirmation-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "delete-confirmation",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/delete-confirmation-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/delete-confirmation-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-more",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/navigation-more-1440.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-1440px-passbook/passbook-more-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-more",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/navigation-more-1440.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-1440px-passbook/lilypad-more-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-more",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/navigation-more-768.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-768px-passbook/passbook-more-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-more",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/navigation-more-768.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-768px-passbook/lilypad-more-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-more",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/navigation-more-390.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-390px-passbook/passbook-more-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-more",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/navigation-more-390.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-390px-passbook/lilypad-more-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-more",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/navigation-more-320.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-320px-passbook/passbook-more-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-more",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/navigation-more-320.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-320px-passbook/lilypad-more-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-pill",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/navigation-pill-1440.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-1440px-passbook/passbook-pill-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-pill",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/navigation-pill-1440.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-1440px-passbook/lilypad-pill-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-pill",
+      "width": "768",
+      "height": 900,
+      "src": "passbook/navigation-pill-768.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-768px-passbook/passbook-pill-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-pill",
+      "width": "768",
+      "height": 900,
+      "src": "lilypad/navigation-pill-768.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-768px-passbook/lilypad-pill-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-pill",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/navigation-pill-390.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-390px-passbook/passbook-pill-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-pill",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/navigation-pill-390.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-390px-passbook/lilypad-pill-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "navigation-pill",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/navigation-pill-320.png",
+      "source": "navigation-passbook-pill-reaches-every-page-at-320px-passbook/passbook-pill-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "navigation-pill",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/navigation-pill-320.png",
+      "source": "navigation-lilypad-pill-reaches-every-page-at-320px-passbook/lilypad-pill-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "oauth-consent",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/oauth-consent-1440.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-passbook/oauth-consent-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "oauth-consent",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/oauth-consent-1440.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-lilypad/oauth-consent-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "oauth-consent",
+      "width": "390",
+      "height": 900,
+      "src": "passbook/oauth-consent-390.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-passbook/oauth-consent-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "oauth-consent",
+      "width": "390",
+      "height": 900,
+      "src": "lilypad/oauth-consent-390.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-lilypad/oauth-consent-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "oauth-manual",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/oauth-manual-1440.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-passbook/oauth-manual-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "oauth-manual",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/oauth-manual-1440.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-lilypad/oauth-manual-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "oauth-manual",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/oauth-manual-390.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-passbook/oauth-manual-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "oauth-manual",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/oauth-manual-390.png",
+      "source": "oauth-an-MCP-client-signs--6d622-e-and-is-held-to-its-scopes-lilypad/oauth-manual-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-recovered",
+      "width": "1280",
+      "height": 720,
+      "src": "passbook/service-recovered-1280.png",
+      "source": "services-buy-a-demo-servic-604e0-ver-its-result-after-reload-passbook/services-desktop.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-recovered",
+      "width": "1280",
+      "height": 720,
+      "src": "lilypad/service-recovered-1280.png",
+      "source": "services-buy-a-demo-servic-604e0-ver-its-result-after-reload-lilypad/services-desktop.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-recovered",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/service-recovered-390.png",
+      "source": "services-buy-a-demo-servic-604e0-ver-its-result-after-reload-passbook/services-mobile.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-recovered",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/service-recovered-390.png",
+      "source": "services-buy-a-demo-servic-604e0-ver-its-result-after-reload-lilypad/services-mobile.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-request",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/service-request-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/service-request-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-request",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/service-request-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/service-request-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-request",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/service-request-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/service-request-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-request",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/service-request-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/service-request-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-request-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/service-request-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/service-request-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-request-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/service-request-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/service-request-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-result",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/service-result-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/service-result-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-result",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/service-result-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/service-result-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "service-result",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/service-result-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/service-result-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "service-result",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/service-result-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/service-result-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/services-1440.png",
+      "source": "screens--services-holds-together-at-1440px-passbook/services-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/services-1440.png",
+      "source": "screens--services-holds-together-at-1440px-lilypad/services-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/services-768.png",
+      "source": "screens--services-holds-together-at-768px-passbook/services-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/services-768.png",
+      "source": "screens--services-holds-together-at-768px-lilypad/services-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/services-390.png",
+      "source": "screens--services-holds-together-at-390px-passbook/services-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/services-390.png",
+      "source": "screens--services-holds-together-at-390px-lilypad/services-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/services-320.png",
+      "source": "screens--services-holds-together-at-320px-passbook/services-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/services-320.png",
+      "source": "screens--services-holds-together-at-320px-lilypad/services-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-2",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/services-part-2-1440.png",
+      "source": "screens--services-holds-together-at-1440px-passbook/services-part-2-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-2",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/services-part-2-1440.png",
+      "source": "screens--services-holds-together-at-1440px-lilypad/services-part-2-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/services-part-2-768.png",
+      "source": "screens--services-holds-together-at-768px-passbook/services-part-2-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/services-part-2-768.png",
+      "source": "screens--services-holds-together-at-768px-lilypad/services-part-2-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/services-part-2-390.png",
+      "source": "screens--services-holds-together-at-390px-passbook/services-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/services-part-2-390.png",
+      "source": "screens--services-holds-together-at-390px-lilypad/services-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/services-part-2-320.png",
+      "source": "screens--services-holds-together-at-320px-passbook/services-part-2-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/services-part-2-320.png",
+      "source": "screens--services-holds-together-at-320px-lilypad/services-part-2-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/services-part-3-390.png",
+      "source": "screens--services-holds-together-at-390px-passbook/services-part-3-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/services-part-3-390.png",
+      "source": "screens--services-holds-together-at-390px-lilypad/services-part-3-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/services-part-3-320.png",
+      "source": "screens--services-holds-together-at-320px-passbook/services-part-3-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/services-part-3-320.png",
+      "source": "screens--services-holds-together-at-320px-lilypad/services-part-3-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-4",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/services-part-4-320.png",
+      "source": "screens--services-holds-together-at-320px-passbook/services-part-4-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-4",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/services-part-4-320.png",
+      "source": "screens--services-holds-together-at-320px-lilypad/services-part-4-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "services-part-5",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/services-part-5-320.png",
+      "source": "screens--services-holds-together-at-320px-passbook/services-part-5-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "services-part-5",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/services-part-5-320.png",
+      "source": "screens--services-holds-together-at-320px-lilypad/services-part-5-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/settings-1440.png",
+      "source": "screens--settings-holds-together-at-1440px-passbook/settings-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/settings-1440.png",
+      "source": "screens--settings-holds-together-at-1440px-lilypad/settings-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/settings-768.png",
+      "source": "screens--settings-holds-together-at-768px-passbook/settings-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/settings-768.png",
+      "source": "screens--settings-holds-together-at-768px-lilypad/settings-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-390.png",
+      "source": "screens--settings-holds-together-at-390px-passbook/settings-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-390.png",
+      "source": "screens--settings-holds-together-at-390px-lilypad/settings-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-2",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/settings-part-2-1440.png",
+      "source": "screens--settings-holds-together-at-1440px-passbook/settings-part-2-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-2",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/settings-part-2-1440.png",
+      "source": "screens--settings-holds-together-at-1440px-lilypad/settings-part-2-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/settings-part-2-768.png",
+      "source": "screens--settings-holds-together-at-768px-passbook/settings-part-2-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-2",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/settings-part-2-768.png",
+      "source": "screens--settings-holds-together-at-768px-lilypad/settings-part-2-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-part-2-390.png",
+      "source": "screens--settings-holds-together-at-390px-passbook/settings-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-part-2-390.png",
+      "source": "screens--settings-holds-together-at-390px-lilypad/settings-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-part-2-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-part-2-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-part-2-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-part-2-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-part-3-390.png",
+      "source": "screens--settings-holds-together-at-390px-passbook/settings-part-3-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-part-3-390.png",
+      "source": "screens--settings-holds-together-at-390px-lilypad/settings-part-3-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-part-3-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-part-3-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-3",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-part-3-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-part-3-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-4",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-part-4-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-part-4-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-4",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-part-4-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-part-4-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-5",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-part-5-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-part-5-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-5",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-part-5-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-part-5-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-part-6",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/settings-part-6-320.png",
+      "source": "screens--settings-holds-together-at-320px-passbook/settings-part-6-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-part-6",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/settings-part-6-320.png",
+      "source": "screens--settings-holds-together-at-320px-lilypad/settings-part-6-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-scheduled",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/settings-scheduled-1440.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-passbook/settings-scheduled-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-scheduled",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/settings-scheduled-1440.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-lilypad/settings-scheduled-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-scheduled",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-scheduled-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-passbook/settings-scheduled-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-scheduled",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-scheduled-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-lilypad/settings-scheduled-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-scheduled-part-2",
+      "width": "1440",
+      "height": 900,
+      "src": "passbook/settings-scheduled-part-2-1440.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-passbook/settings-scheduled-part-2-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-scheduled-part-2",
+      "width": "1440",
+      "height": 900,
+      "src": "lilypad/settings-scheduled-part-2-1440.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-lilypad/settings-scheduled-part-2-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-scheduled-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-scheduled-part-2-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-passbook/settings-scheduled-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-scheduled-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-scheduled-part-2-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-lilypad/settings-scheduled-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "settings-scheduled-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/settings-scheduled-part-3-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-passbook/settings-scheduled-part-3-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "settings-scheduled-part-3",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/settings-scheduled-part-3-390.png",
+      "source": "schedules-scheduled-remind-7d1c9-listed-and-can-be-cancelled-lilypad/settings-scheduled-part-3-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "telegram-linking",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/telegram-linking-390.png",
+      "source": "telegram-Telegram-linking--40cda-irms-the-real-pairing-state-passbook/telegram-linking.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "telegram-linking",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/telegram-linking-390.png",
+      "source": "telegram-Telegram-linking--40cda-irms-the-real-pairing-state-lilypad/telegram-linking.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/wallet-1440.png",
+      "source": "screens--wallet-holds-together-at-1440px-passbook/wallet-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/wallet-1440.png",
+      "source": "screens--wallet-holds-together-at-1440px-lilypad/wallet-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/wallet-768.png",
+      "source": "screens--wallet-holds-together-at-768px-passbook/wallet-768.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/wallet-768.png",
+      "source": "screens--wallet-holds-together-at-768px-lilypad/wallet-768.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/wallet-390.png",
+      "source": "screens--wallet-holds-together-at-390px-passbook/wallet-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/wallet-390.png",
+      "source": "screens--wallet-holds-together-at-390px-lilypad/wallet-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/wallet-320.png",
+      "source": "screens--wallet-holds-together-at-320px-passbook/wallet-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/wallet-320.png",
+      "source": "screens--wallet-holds-together-at-320px-lilypad/wallet-320.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-breakdown",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/wallet-breakdown-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-passbook/wallet-breakdown-1440.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-breakdown",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/wallet-breakdown-1440.png",
+      "source": "workspace-walkthrough-walk-6e792-s-and-agent-setup-at-1440px-lilypad/wallet-breakdown-1440.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-breakdown",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/wallet-breakdown-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/wallet-breakdown-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-breakdown",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/wallet-breakdown-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/wallet-breakdown-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-breakdown-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/wallet-breakdown-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-passbook/wallet-breakdown-part-2-390.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-breakdown-part-2",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/wallet-breakdown-part-2-390.png",
+      "source": "workspace-walkthrough-walk-fa342-es-and-agent-setup-at-390px-lilypad/wallet-breakdown-part-2-390.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-onboarding",
+      "width": "1440",
+      "height": 1000,
+      "src": "passbook/wallet-onboarding-1440.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-1440px-passbook/wallet.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-onboarding",
+      "width": "1440",
+      "height": 1000,
+      "src": "lilypad/wallet-onboarding-1440.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-1440px-lilypad/wallet.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-onboarding",
+      "width": "768",
+      "height": 1024,
+      "src": "passbook/wallet-onboarding-768.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-768px-passbook/wallet.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-onboarding",
+      "width": "768",
+      "height": 1024,
+      "src": "lilypad/wallet-onboarding-768.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-768px-lilypad/wallet.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-onboarding",
+      "width": "390",
+      "height": 844,
+      "src": "passbook/wallet-onboarding-390.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-390px-passbook/wallet.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-onboarding",
+      "width": "390",
+      "height": 844,
+      "src": "lilypad/wallet-onboarding-390.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-390px-lilypad/wallet.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-onboarding",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/wallet-onboarding-320.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-320px-passbook/wallet.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-onboarding",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/wallet-onboarding-320.png",
+      "source": "onboarding-the-wallet-reads-as-one-balance-at-320px-lilypad/wallet.png"
+    },
+    {
+      "theme": "passbook",
+      "state": "wallet-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "passbook/wallet-part-2-320.png",
+      "source": "screens--wallet-holds-together-at-320px-passbook/wallet-part-2-320.png"
+    },
+    {
+      "theme": "lilypad",
+      "state": "wallet-part-2",
+      "width": "320",
+      "height": 568,
+      "src": "lilypad/wallet-part-2-320.png",
+      "source": "screens--wallet-holds-together-at-320px-lilypad/wallet-part-2-320.png"
+    }
+  ]
+}
