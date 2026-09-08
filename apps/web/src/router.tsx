@@ -8,6 +8,8 @@ import {
 import { Schema } from "effect";
 
 import { AppShell } from "./components/app-shell";
+import { keyboardInteraction } from "./lib/motion";
+import { NAV_ITEMS } from "./lib/nav";
 import { WorkspaceLayout } from "./routes/workspace-layout";
 
 const rootRoute = createRootRoute({ component: AppShell });
@@ -124,7 +126,24 @@ const routeTree = rootRoute.addChildren([
   oauthManualRoute,
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({
+  routeTree,
+  defaultViewTransition: {
+    types: ({ fromLocation, toLocation, pathChanged }) => {
+      if (!pathChanged || keyboardInteraction()) {
+        return false;
+      }
+      const from = NAV_ITEMS.findIndex(
+        (item) => item.to === fromLocation?.pathname
+      );
+      const to = NAV_ITEMS.findIndex((item) => item.to === toLocation.pathname);
+      if (from === -1 || to === -1) {
+        return false;
+      }
+      return [to > from ? "workspace-forward" : "workspace-back"];
+    },
+  },
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

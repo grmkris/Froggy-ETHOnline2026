@@ -1075,3 +1075,227 @@ button:not(:disabled),
     box-shadow: none;
   }
 }
+
+/* Route snapshots are visual only: there is still one live route and one canvas. */
+:root:active-view-transition-type(workspace-forward),
+:root:active-view-transition-type(workspace-back) {
+  view-transition-name: none;
+  [data-slot="workspace-page"] {
+    view-transition-name: workspace-page;
+  }
+}
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(workspace-page) {
+  animation: none;
+  overflow: clip;
+}
+::view-transition-old(workspace-page),
+::view-transition-new(workspace-page) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+:root:active-view-transition-type(workspace-forward) {
+  &::view-transition-old(workspace-page) {
+    animation-name: page-out-left;
+  }
+  &::view-transition-new(workspace-page) {
+    animation-name: page-in-right;
+  }
+}
+:root:active-view-transition-type(workspace-back) {
+  &::view-transition-old(workspace-page) {
+    animation-name: page-out-right;
+  }
+  &::view-transition-new(workspace-page) {
+    animation-name: page-in-left;
+  }
+}
+@keyframes page-in-right {
+  from {
+    transform: translateX(56px);
+    opacity: 0;
+  }
+}
+@keyframes page-in-left {
+  from {
+    transform: translateX(-56px);
+    opacity: 0;
+  }
+}
+@keyframes page-out-left {
+  to {
+    transform: translateX(-56px);
+    opacity: 0;
+  }
+}
+@keyframes page-out-right {
+  to {
+    transform: translateX(56px);
+    opacity: 0;
+  }
+}
+@keyframes surface-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes surface-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+:root:active-view-transition-type(appearance) {
+  &::view-transition-group(root) {
+    animation: none;
+  }
+  &::view-transition-old(root) {
+    animation: surface-out 250ms var(--ease-out) both;
+  }
+  &::view-transition-new(root) {
+    animation: surface-in 250ms var(--ease-out) both;
+  }
+  &::view-transition-image-pair(root) {
+    isolation: isolate;
+  }
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
+    mix-blend-mode: normal;
+  }
+}
+
+/* Base UI owns focus and interruption; Motion's spring supplies the easing. */
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"],
+[data-slot="popover-content"] {
+  transition:
+    transform var(--motion-spring, 300ms var(--ease-out)),
+    opacity 200ms var(--ease-out);
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: scale(0.94);
+  }
+  &[data-ending-style] {
+    transition-duration: 125ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:active-view-transition-type(workspace-forward),
+  :root:active-view-transition-type(workspace-back) {
+    &::view-transition-old(workspace-page) {
+      animation: surface-out 125ms var(--ease-out) both;
+    }
+    &::view-transition-new(workspace-page) {
+      animation: surface-in 125ms var(--ease-out) both;
+    }
+  }
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="popover-content"] {
+    transition: opacity 125ms var(--ease-out);
+    &[data-starting-style],
+    &[data-ending-style] {
+      transform: none;
+    }
+  }
+}
+
+/* A translated sheen and an opacity pulse leave the live card's geometry still. */
+.browse-progress[data-live="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    color-mix(in oklch, var(--drive-agent) 12%, transparent) 50%,
+    transparent 75%
+  );
+  animation: browse-shimmer 2400ms linear infinite;
+}
+.browse-progress[data-live="true"] [data-slot="driving-dot"] {
+  animation: live-pulse 1800ms ease-in-out infinite;
+}
+@keyframes browse-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes live-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Press in place; the spring returns from the current presentation on release. */
+.press-feedback {
+  position: relative;
+  transition: transform var(--motion-press, 240ms var(--ease-out));
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 0ms;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .press-feedback.action-primary {
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: var(--shadow-float);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms var(--ease-out);
+    }
+    &:hover:not(:active):not(:disabled) {
+      transform: translateY(-1px);
+    }
+    &:hover::after {
+      opacity: 0.45;
+    }
+    &:active::after {
+      opacity: 0;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .browse-progress[data-live="true"]::before {
+    animation: none;
+    opacity: 0;
+  }
+  .browse-progress[data-live="true"] [data-slot="driving-dot"] {
+    animation: none;
+  }
+  .press-feedback,
+  .press-feedback:active,
+  .press-feedback.action-primary:hover:not(:active):not(:disabled) {
+    transform: none;
+    transition: none;
+  }
+  .press-feedback.action-primary::after {
+    transition: none;
+  }
+}
+
+/* Torph measures once per value; its root size tween must not reflow controls. */
+[torph-root] {
+  width: auto !important;
+  height: auto !important;
+  will-change: auto;
+}

@@ -1,12 +1,30 @@
 /** Router-owned current-page state, with a waiting badge that reserves no layout. */
 import { cn } from "@froggy/ui/lib/utils";
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactElement } from "react";
 
+import { keyboardInteraction, UI_SPRING } from "../../lib/motion";
 import type { NavItem } from "../../lib/nav";
 
 export const NAV_LINK_CLASS =
-  "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring data-[status=active]:bg-card data-[status=active]:text-brand data-[status=active]:shadow-control relative flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset active:bg-muted";
+  "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring data-[status=active]:text-brand relative isolate flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset active:bg-muted";
+
+/** The surface travels; the link and its focus ring never do. */
+export const NavIndicator = (): ReactElement => {
+  const reduced = useReducedMotion() === true;
+  return (
+    <motion.span
+      aria-hidden
+      className="bg-card shadow-control pointer-events-none absolute inset-0 -z-10 rounded-full"
+      data-slot="navigation-indicator"
+      layoutId="navigation-active"
+      transition={
+        reduced || keyboardInteraction() ? { duration: 0 } : UI_SPRING
+      }
+    />
+  );
+};
 
 export const NavLink = ({
   item,
@@ -19,6 +37,7 @@ export const NavLink = ({
   readonly onNavigate?: () => void;
   readonly waiting?: number;
 }): ReactElement => {
+  const pathname = useLocation({ select: (location) => location.pathname });
   const Icon = item.icon;
   const name =
     waiting > 0
@@ -30,11 +49,13 @@ export const NavLink = ({
       aria-label={name}
       className={cn(
         NAV_LINK_CLASS,
-        more && "flex-row justify-start gap-3 rounded-lg px-3 text-sm"
+        more &&
+          "data-[status=active]:bg-card data-[status=active]:shadow-control flex-row justify-start gap-3 rounded-lg px-3 text-sm"
       )}
       onClick={onNavigate}
       to={item.to}
     >
+      {!more && pathname === item.to ? <NavIndicator /> : null}
       <span className="relative">
         <Icon aria-hidden className="size-5" />
         {waiting > 0 ? (

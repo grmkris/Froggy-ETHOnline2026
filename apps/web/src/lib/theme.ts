@@ -1,6 +1,8 @@
 /** Appearance is local to this browser; a URL preview never overwrites it. */
 import { useSyncExternalStore } from "react";
 
+import { keyboardInteraction } from "./motion";
+
 const STORAGE_KEY = "froggy-theme";
 type Theme = "passbook" | "lilypad" | "system";
 
@@ -75,7 +77,12 @@ const setTheme = (value: string | null | undefined): void => {
   const url = new URL(window.location.href);
   url.searchParams.delete("theme");
   window.history.replaceState(window.history.state, "", url);
-  applyTheme();
+  // A browser snapshot crossfades the entire palette without remounting forms.
+  if ("startViewTransition" in document && !keyboardInteraction()) {
+    document.startViewTransition({ update: applyTheme, types: ["appearance"] });
+  } else {
+    applyTheme();
+  }
 };
 
 export const useTheme = () => ({
