@@ -36,6 +36,60 @@ const observeMotion = async (page: Page): Promise<void> => {
     window.motionSamples = [];
     window.motionIndicatorFrames = [];
     const seen = new WeakSet<Animation>();
+    /**
+     * Record an animation the moment it exists.
+     *
+     * Polling alone loses animations the app finishes early: a focusin while
+     * the last input was the keyboard calls `finish()` on anything containing
+     * the focused element, so a ticket that springs in after typing can be
+     * over before the next frame callback runs. Reading the keyframes at
+     * creation is what the assertions want anyway, since they check the
+     * specification rather than a sampled value.
+     */
+    const record = (animation: Animation): void => {
+      const { effect } = animation;
+      if (
+        seen.has(animation) ||
+        !(effect instanceof KeyframeEffect) ||
+        !(effect.target instanceof HTMLElement)
+      ) {
+        return;
+      }
+      seen.add(animation);
+      const timing = effect.getTiming();
+      if (window.motionSamples.length < 300) {
+        window.motionSamples.push({
+          slot:
+            effect.target.dataset["slot"] ??
+            effect.target.closest<HTMLElement>("[data-slot=wallet-total]")
+              ?.dataset["slot"] ??
+            "",
+          name:
+            animation instanceof CSSAnimation
+              ? animation.animationName
+              : (effect.pseudoElement ?? ""),
+          duration: Number(timing.duration),
+          delay: timing.delay ?? 0,
+          frames: effect.getKeyframes().map((frame) => ({
+            transform: String(frame["transform"] ?? "none"),
+            opacity: String(frame["opacity"] ?? ""),
+          })),
+        });
+      }
+    };
+    // Patching the prototype is the only hook that sees an animation before
+    // the app can finish it. Referencing the method unbound is exactly what a
+    // wrapper needs, and `this` is forwarded on every call.
+    // oxlint-disable-next-line typescript/unbound-method
+    const started = Element.prototype.animate;
+    Element.prototype.animate = function animate(
+      this: Element,
+      ...args: Parameters<Element["animate"]>
+    ): Animation {
+      const animation = started.call(this, ...args);
+      record(animation);
+      return animation;
+    };
     const sample = (): void => {
       const indicator = document.querySelector(
         '[data-slot="navigation-indicator"]'
@@ -46,36 +100,10 @@ const observeMotion = async (page: Page): Promise<void> => {
           x: indicator.getBoundingClientRect().x,
         });
       }
+      // CSS animations are not created through `Element.animate`, so the
+      // poll still catches those.
       for (const animation of document.getAnimations()) {
-        const { effect } = animation;
-        if (
-          seen.has(animation) ||
-          !(effect instanceof KeyframeEffect) ||
-          !(effect.target instanceof HTMLElement)
-        ) {
-          continue;
-        }
-        seen.add(animation);
-        const timing = effect.getTiming();
-        if (window.motionSamples.length < 300) {
-          window.motionSamples.push({
-            slot:
-              effect.target.dataset["slot"] ??
-              effect.target.closest<HTMLElement>("[data-slot=wallet-total]")
-                ?.dataset["slot"] ??
-              "",
-            name:
-              animation instanceof CSSAnimation
-                ? animation.animationName
-                : (effect.pseudoElement ?? ""),
-            duration: Number(timing.duration),
-            delay: timing.delay ?? 0,
-            frames: effect.getKeyframes().map((frame) => ({
-              transform: String(frame["transform"] ?? "none"),
-              opacity: String(frame["opacity"] ?? ""),
-            })),
-          });
-        }
+        record(animation);
       }
       requestAnimationFrame(sample);
     };
