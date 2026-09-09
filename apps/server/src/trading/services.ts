@@ -272,8 +272,8 @@ export const runTradingService = async (
         watch: Schema.decodeUnknownSync(LaunchWatchTicket)(watch),
         stubbed: watch.stubbed,
         limitations: [
-          "Recent-listing snapshots have no replay cursor and cannot establish complete coverage.",
-          "Listing source is provider metadata; launch-program membership is unverified.",
+          "Native Pons logs use confirmed block cursors with bounded backfill; provider listing snapshots have no replay cursor. Neither guarantees complete coverage.",
+          "Native Pons factory logs establish observed membership, rechecked before signing. Other listing sources are unverified provider metadata.",
           "Capacity expires without renewal. Poll failures consume capacity. No trading authority is created.",
         ],
       };

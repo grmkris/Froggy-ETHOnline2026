@@ -465,7 +465,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/services?service=watch_launches");
   await page
-    .getByRole("form", { name: "Request Watch new listings" })
+    .getByRole("form", { name: "Request Watch token listings" })
     .getByLabel("Network", { exact: true })
     .selectOption("eip155:4663");
   await page.getByLabel("Duration (minutes)").fill("5");
@@ -473,7 +473,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
   await expect(
     page.getByRole("region", { name: "Listing watches", exact: true })
   ).toContainText("5-minute listing watch");
-  await page.goto("/wallet");
+  await page.goto("/services");
   const rules = page.getByRole("region", {
     name: "Trading rules",
     exact: true,

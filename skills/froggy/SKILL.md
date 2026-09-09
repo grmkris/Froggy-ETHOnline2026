@@ -85,7 +85,8 @@ It has every scope and does not expire until the person disconnects it. Keep it 
 
 - `froggy_trade_capabilities` lists execution routes, owner wallets and live, simulated or unavailable status. Discovery coverage is separate from execution coverage.
 - `froggy_trade_prepare` takes `v: 1`, `input` and an `idempotencyKey`. It creates an immutable, independently simulated proposal. It does not sign or approve a transaction.
-- `froggy_trade_simulate` and `froggy_trade_status` take the trade `id`. Ask the person to review and approve each transaction on Froggy's Wallet page, then check status. Agents cannot answer approvals or change trading rules.
+- `froggy_trade_simulate` and `froggy_trade_status` take the trade `id`. Ask the person to review and approve each transaction in the Trading desk on Froggy's Services page, then check status. Agents cannot answer approvals or change trading rules.
+- `froggy_trade_execute` takes `tradeId` and an existing human-issued `ruleId`. It rechecks the rule, simulation and available capital before signing. No tool can create, widen or revoke authority.
 - `froggy_positions` takes `network` and returns the owner's supported balances, reservations and vault redemption limits. Unknown yield or unavailable withdrawals are explicit.
 - After a withdrawal completes, a new swap can name its `sourceTradeId`. Use only confirmed, unallocated proceeds; the swap requires a separate approval. A pending or failed withdrawal cannot fund another trade.
 
