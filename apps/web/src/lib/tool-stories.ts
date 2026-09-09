@@ -39,6 +39,12 @@ const amount = (input: ToolInput): string =>
   input.amountUsd === undefined ? "some USDC" : `${input.amountUsd} USDC`;
 
 const STORIES = {
+  trade_execute: {
+    icon: WalletIcon,
+    doing: () => "Checking your trading rule and submitting the trade",
+    sentence: () => "Requested execution under your trading rule",
+    tone: "money",
+  },
   services_list: {
     icon: SearchIcon,
     sentence: () => "Checked available services",
