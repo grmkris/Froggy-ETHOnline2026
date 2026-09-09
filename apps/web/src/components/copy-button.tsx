@@ -1,4 +1,5 @@
 import { Button } from "@froggy/ui/components/button";
+import { Spinner } from "@froggy/ui/components/spinner";
 import { Textarea } from "@froggy/ui/components/textarea";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -7,6 +8,7 @@ export const CopyButton = ({
   children = "Copy",
   confirmation,
   fallbackLabel,
+  hint,
   variant = "outline",
   label,
   text,
@@ -14,6 +16,7 @@ export const CopyButton = ({
   readonly children?: ReactNode;
   readonly confirmation?: string;
   readonly fallbackLabel?: string;
+  readonly hint?: string;
   readonly variant?: "default" | "outline";
   readonly label: string;
   readonly text: string;
@@ -67,9 +70,10 @@ export const CopyButton = ({
     <span className="inline-flex max-w-full flex-col gap-1">
       <span className="inline-flex items-center gap-2">
         <Button
+          aria-busy={pending}
           aria-describedby={failed ? errorId : undefined}
           aria-label={label}
-          className="min-h-11"
+          className="relative min-h-11"
           disabled={pending}
           onClick={(event) => {
             void copy(event.detail > 0);
@@ -78,7 +82,12 @@ export const CopyButton = ({
           type="button"
           variant={variant}
         >
-          {children}
+          <span className={pending ? "invisible" : undefined}>{children}</span>
+          {pending ? (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Spinner label="Copying to clipboard" />
+            </span>
+          ) : null}
         </Button>
         <span
           aria-hidden="true"
@@ -99,9 +108,9 @@ export const CopyButton = ({
           {copied ? "Copied to clipboard." : ""}
         </output>
       </span>
-      {confirmation === undefined ? null : (
-        <output className="text-muted-foreground text-xs">
-          {copied ? confirmation : ""}
+      {confirmation === undefined && hint === undefined ? null : (
+        <output className="text-muted-foreground min-h-8 max-w-72 text-xs">
+          {copied ? confirmation : hint}
         </output>
       )}
       {failed && fallbackLabel !== undefined ? (

@@ -206,3 +206,95 @@ export const privyAgentSigner = (
     },
   };
 };
+
+/** One human-approved payment; the coordinator binds the request before this is created. */
+export const privyOwnerSigner = (
+  client: PrivyClient,
+  input: { readonly accessToken: string; readonly wallet: UserWallet }
+): AgentTypedDataSigner => {
+  const { wallet } = input;
+  let ownerToken: string | null = input.accessToken;
+  return {
+    address: wallet.address,
+    signTypedData: async (typedData) => {
+      if (ownerToken === null) {
+        throw new PrivySignerRefusedError(
+          "This owner signer has already been used."
+        );
+      }
+      const accessToken = ownerToken;
+      ownerToken = null;
+      try {
+        const signed = await client
+          .wallets()
+          .ethereum()
+          .signTypedData(wallet.id, {
+            authorization_context: { user_jwts: [accessToken] },
+            params: {
+              typed_data: {
+                domain: domainOf(typedData.domain),
+                message: jsonRecord(typedData.message),
+                primary_type: typedData.primaryType,
+                types: typesOf(typedData.types),
+              },
+            },
+          });
+        return signed.signature;
+      } catch (error) {
+        if (error instanceof APIError) {
+          throw new PrivySignerRefusedError(
+            `Privy refused the owner's payment: ${error.message}`
+          );
+        }
+        throw error;
+      }
+    },
+  };
+};
+
+/** Created after an exact human trade approval; consumed before contacting Privy. */
+export const privyOwnerTransactionSigner = (
+  client: PrivyClient,
+  input: { readonly accessToken: string; readonly wallet: UserWallet }
+): Pick<AgentEvmSigner, "address" | "signTransaction"> => {
+  let token: string | null = input.accessToken;
+  return {
+    address: input.wallet.address,
+    signTransaction: async (transaction) => {
+      if (token === null) {
+        throw new PrivySignerRefusedError(
+          "This owner trade signer has already been used."
+        );
+      }
+      const accessToken = token;
+      token = null;
+      try {
+        const result = await client
+          .wallets()
+          .ethereum()
+          .signTransaction(input.wallet.id, {
+            authorization_context: { user_jwts: [accessToken] },
+            params: {
+              transaction: {
+                chain_id: transaction.chainId,
+                data: transaction.data,
+                gas_limit: hex(transaction.gasLimit),
+                max_fee_per_gas: hex(transaction.maxFeePerGas),
+                max_priority_fee_per_gas: hex(transaction.maxPriorityFeePerGas),
+                nonce: transaction.nonce,
+                to: transaction.to,
+                type: 2,
+                value: hex(transaction.value),
+              },
+            },
+          });
+        return result.signed_transaction;
+      } catch {
+        // SDK errors may echo authorization or transaction details.
+        throw new PrivySignerRefusedError(
+          "Privy did not return the owner's signed trade transaction."
+        );
+      }
+    },
+  };
+};

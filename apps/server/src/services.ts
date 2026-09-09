@@ -1,3 +1,7 @@
+import { cloudApi, CloudBrowser, StubCloudBrowser } from "@froggy/browser";
+import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
+import { KNOWN_ASSETS } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 /**
  * The composition root's composition root.
  *
@@ -13,9 +17,6 @@
  * process, it is `workspaces.ts` that owns it. This file owns everything a
  * user does not have their own copy of.
  */
-
-import { KNOWN_ASSETS } from "@froggy/domain";
-import type { UserId } from "@froggy/domain";
 import type { GraphClient } from "@froggy/graph";
 import { liveGraphClient, stubGraphClient } from "@froggy/graph";
 import type {
@@ -62,6 +63,16 @@ import postgres from "postgres";
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
+import { Purchases } from "./purchases";
+import { liveBirdeye, stubBirdeye } from "./trading/birdeye";
+import { TradeCoordinator } from "./trading/coordinator";
+import { tradeEvmClient } from "./trading/evm-chain";
+import { executionProviders } from "./trading/execution-providers";
+import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
+import { LaunchCoordinator } from "./trading/launches";
+import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
+import type { TradingProviders } from "./trading/services";
+import { liveUniswap, stubUniswap } from "./trading/uniswap";
 
 /** A USDC transfer on the configured Base from one person's wallet, signed under the policy. */
 interface EvmTransfers {
@@ -80,6 +91,13 @@ interface Balances {
 }
 
 export interface Services {
+  readonly createBrowser?:
+    | ((options: BrowserSessionOptions, userId: UserId) => BrowserHandle)
+    | undefined;
+  readonly launches: LaunchCoordinator;
+  readonly trading: TradingProviders;
+  readonly purchases: Purchases;
+  readonly trades: TradeCoordinator;
   readonly evmReceipt: EvmRpc["transactionReceipt"];
   /**
    * Hedera accounts of people's own, opened at first need from the host's
@@ -145,6 +163,23 @@ export interface ServiceOptions {
 
 export const createServices = (options: ServiceOptions): Services => {
   const { environment } = options;
+  const trading: TradingProviders = {
+    market:
+      environment.modes.birdeye === "live"
+        ? liveBirdeye({ apiKey: environment.trading.birdeyeApiKey })
+        : stubBirdeye(),
+    rpc:
+      environment.modes.quicknode === "live"
+        ? liveTradingRpc({ endpoints: environment.trading.rpcEndpoints })
+        : stubTradingRpc(),
+    quotes:
+      environment.modes.uniswap === "live"
+        ? liveUniswap({
+            apiKey: environment.trading.uniswapApiKey,
+            chains: environment.trading.uniswapChains,
+          })
+        : stubUniswap(),
+  };
 
   const graph =
     environment.modes.graph === "live"
@@ -284,7 +319,35 @@ export const createServices = (options: ServiceOptions): Services => {
       : evmPayer({ network: environment.evmNetwork, signer });
   };
 
-  return {
+  const trades = new TradeCoordinator({
+    store: store.trading,
+    watches: store.launches,
+    privy,
+    backend: executionProviders(
+      environment.trading,
+      environment.modes.privy === "live"
+    ),
+    now: Date.now,
+  });
+
+  const ponsRpc = environment.trading.rpcEndpoints["eip155:4663"];
+  const ponsReader =
+    ponsRpc === undefined
+      ? stubPonsLaunchReader(Date.now)
+      : ponsLaunchReader(tradeEvmClient({ endpoint: ponsRpc }), Date.now);
+  const adapters: Omit<Services, "purchases" | "createBrowser"> = {
+    launches: new LaunchCoordinator({
+      store: store.launches,
+      chainReaders: new Map([[ponsReader.network, ponsReader]]),
+      market: trading.market,
+      providerStubbed: environment.modes.birdeye === "stub",
+      now: Date.now,
+      revokeRules: async (owner, id) => {
+        await trades.revokeWatchRules(owner, id);
+      },
+    }),
+    trades,
+    trading,
     accounts,
     balances,
     environment,
@@ -341,5 +404,31 @@ export const createServices = (options: ServiceOptions): Services => {
     },
     store,
     treasuryPayer: treasuryPayer(),
+  };
+  return {
+    ...adapters,
+    createBrowser:
+      environment.browserProvider === "cloud"
+        ? (browserOptions, userId) => {
+            if (environment.browserUseApiKey === null) {
+              return new StubCloudBrowser(browserOptions);
+            }
+            return new CloudBrowser({
+              ...browserOptions,
+              api: cloudApi({
+                apiKey: environment.browserUseApiKey,
+                country: environment.browserCountry,
+              }),
+              userKey: new Bun.CryptoHasher("sha256")
+                .update(userId)
+                .digest("hex"),
+              load: async () => await store.browsers.load(userId),
+              save: async (record) => {
+                await store.browsers.save(userId, record);
+              },
+            });
+          }
+        : undefined,
+    purchases: new Purchases(adapters),
   };
 };

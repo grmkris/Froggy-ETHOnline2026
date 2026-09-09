@@ -5,7 +5,9 @@ import { ServiceRequest, ServiceResult } from "@froggy/protocol";
 import { Schema } from "effect";
 
 import { trackAgentInvocation } from "./agent-invocations";
-import { boundedBytes, serviceCatalog } from "./service-providers";
+import { handleLaunchWatches } from "./launch-routes";
+import { boundedBytes } from "./outbound";
+import { serviceCatalog } from "./service-providers";
 import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
@@ -44,6 +46,12 @@ export const handleServices = async (
   request: Request
 ): Promise<Response> => {
   const path = new URL(request.url).pathname;
+  if (
+    path === "/api/services/watches" ||
+    path.startsWith("/api/services/watches/")
+  ) {
+    return await handleLaunchWatches(services, caller, request);
+  }
   if (path === "/api/services" && request.method === "GET") {
     return json({ v: 1, services: serviceCatalog(services) });
   }
@@ -67,6 +75,7 @@ export const handleServices = async (
               services,
               session,
               agentTokenId: caller.agentTokenId,
+              connectionId: caller.grantId ?? caller.agentTokenId,
               onCreated: (id) => {
                 invocation.taskId = id;
                 invocation.outcome = "accepted";

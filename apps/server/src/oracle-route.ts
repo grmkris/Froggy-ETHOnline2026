@@ -142,6 +142,29 @@ const saleView = (sale: Sale) => ({
 const answerFromBook = (sale: Sale): Response => {
   const headers = settlementHeaders(sale);
   switch (sale.status) {
+    case "pending":
+    case "uncertain": {
+      return Response.json(
+        {
+          error:
+            sale.error ??
+            "Settlement is pending or uncertain. Do not pay again.",
+          saleId: sale.id,
+          status: sale.status,
+        },
+        { headers, status: 409 }
+      );
+    }
+    case "rejected": {
+      return Response.json(
+        {
+          error: sale.error ?? "The payment was rejected.",
+          saleId: sale.id,
+          status: sale.status,
+        },
+        { headers, status: 402 }
+      );
+    }
     case "delivered": {
       const stored = decodeOracleAnswer(sale.result);
       if (stored._tag === "Failure") {

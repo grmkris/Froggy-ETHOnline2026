@@ -11,7 +11,14 @@
  * should be reachable from.
  */
 
-import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
+import type { BrowserPaymentId } from "@froggy/domain";
+import type {
+  BrowserClientMessage,
+  BrowserPaymentReplay,
+  BrowserPaymentRequest,
+  BrowserPaymentResult,
+  BrowserState,
+} from "@froggy/protocol";
 
 import { Arbitrator } from "./arbitration";
 import type { WaitReason } from "./arbitration";
@@ -20,6 +27,7 @@ import { chromeArgv, detectChrome } from "./chrome-detect";
 import { BrowserStartError, looksLikeCrash } from "./errors";
 import type { BrowserHandle } from "./handle";
 import { dispatchInput } from "./input";
+import { browserPaymentRefused } from "./payment-navigation";
 import { watchPopupTargets } from "./popups";
 import { clearStaleProfileLock } from "./profile";
 import { Screencast } from "./screencast";
@@ -49,7 +57,9 @@ export interface BrowserSessionOptions {
   readonly createView?: (options: {
     readonly chromePath: string;
     readonly profileDirectory: string;
-  }) => TabView;
+  }) => TabView | Promise<TabView>;
+  /** Cloud CDP owns native popup attachment and the hosted viewer. */
+  readonly externalBrowser?: boolean;
   readonly onStateChange?: (state: BrowserState) => void;
   readonly viewport?: Viewport;
 }
@@ -81,6 +91,9 @@ export class BrowserSession implements BrowserHandle {
   private readonly screencast: Screencast;
   private readonly tabs: TabRegistry;
   private readonly snapshots = new SnapshotCapture();
+  private readonly paymentListeners = new Set<
+    (request: BrowserPaymentRequest) => void
+  >();
   private readonly seenPopupTargets = new Set<string>();
   private readonly detachPopupWatchers: (() => void)[] = [];
   private status: BrowserState["status"] = "idle";
@@ -98,7 +111,12 @@ export class BrowserSession implements BrowserHandle {
     this.arbiter = new Arbitrator({ onStateChange: publish });
     this.tabs = new TabRegistry({
       blockPrivateNetwork: options.blockPrivateNetwork ?? true,
-      createView: () => this.createView(),
+      createView: async () => await this.createView(),
+      onPayment: (request) => {
+        for (const listener of this.paymentListeners) {
+          listener(request);
+        }
+      },
       onStateChange: () => {
         publish();
         void this.screencast.sync();
@@ -198,10 +216,12 @@ export class BrowserSession implements BrowserHandle {
    */
   async takePage(): Promise<void> {
     this.arbiter.noteHumanInput();
+    void this.tabs.cancelPayment();
     await bestEffort(this.tabs.activeTab?.cdp.send("Page.stopLoading"));
   }
 
   noteHumanInput(): void {
+    this.tabs.cancelReplays();
     this.arbiter.noteHumanInput();
   }
 
@@ -212,7 +232,7 @@ export class BrowserSession implements BrowserHandle {
       case "input.text": {
         // Credit the human first, so the mode has already flipped by the time
         // the page reacts and the badge never lags the pointer.
-        this.arbiter.noteHumanInput();
+        this.noteHumanInput();
         const tab = this.tabs.activeTab;
         if (tab !== null) {
           await this.guard(dispatchInput(tab.cdp, message));
@@ -224,11 +244,12 @@ export class BrowserSession implements BrowserHandle {
         return;
       }
       case "browser.navigate": {
-        this.arbiter.noteHumanInput();
+        this.noteHumanInput();
         await this.navigate(message.url);
         return;
       }
       case "browser.activate-tab": {
+        void this.tabs.cancelPayment();
         this.tabs.activateTab(message.tabId);
         return;
       }
@@ -238,6 +259,10 @@ export class BrowserSession implements BrowserHandle {
       }
       case "browser.take": {
         await this.takePage();
+        break;
+      }
+      case "browser.resume": {
+        // Persistent ownership is implemented by CloudBrowser. Local arbitration expires.
         break;
       }
       case "ping": {
@@ -260,12 +285,16 @@ export class BrowserSession implements BrowserHandle {
   // -- agent-facing surface ------------------------------------------------
 
   async navigate(url: string): Promise<void> {
-    await this.start(url);
+    await this.start();
     const tab = this.tabs.activeTab;
     if (tab === null) {
       throw new BrowserStartError("No tab to navigate.");
     }
     await this.guard(tab.view.navigate(url));
+    tab.url = tab.view.url;
+    tab.title = tab.view.title;
+    tab.loading = tab.view.loading;
+    this.options.onStateChange?.(this.state());
   }
 
   async agentNavigate(url: string): Promise<WaitReason> {
@@ -313,8 +342,41 @@ export class BrowserSession implements BrowserHandle {
     });
   }
 
+  subscribePayments(
+    listener: (request: BrowserPaymentRequest) => void
+  ): () => void {
+    this.paymentListeners.add(listener);
+    return () => {
+      this.paymentListeners.delete(listener);
+    };
+  }
+
+  async pendingPayment(): Promise<BrowserPaymentRequest | null> {
+    return await this.tabs.pendingPayment();
+  }
+
+  async replayPayment(
+    payment: BrowserPaymentReplay
+  ): Promise<BrowserPaymentResult> {
+    if (this.status !== "running") {
+      return browserPaymentRefused("The browser tab is no longer open.");
+    }
+    const { value } = await this.arbiter.withAgentControl(
+      async () => await this.tabs.replayPayment(payment)
+    );
+    return value;
+  }
+
+  async cancelPayment(id: BrowserPaymentId): Promise<void> {
+    await this.tabs.cancelPayment(id);
+  }
+
   async openTab(url?: string): Promise<Tab> {
     return await this.tabs.openTab(url);
+  }
+
+  async adoptTab(view: TabView): Promise<void> {
+    await this.tabs.adoptTab(view);
   }
 
   // -- internals -----------------------------------------------------------
@@ -383,7 +445,7 @@ export class BrowserSession implements BrowserHandle {
     };
   }
 
-  private createView(): TabView {
+  private createView(): TabView | Promise<TabView> {
     const { chromePath } = this;
     if (chromePath === null) {
       throw new BrowserStartError("Chrome has not been located yet.");
@@ -420,7 +482,10 @@ export class BrowserSession implements BrowserHandle {
     // "closed the pipe". The profile is on a persistent volume so that logins
     // survive a redeploy, which means a killed container hands its lock to the
     // next one — without this the browser works exactly once per volume.
-    const lock = clearStaleProfileLock(this.options.profileDirectory);
+    const lock =
+      this.options.externalBrowser === true
+        ? { heldBy: null }
+        : clearStaleProfileLock(this.options.profileDirectory);
     if (lock.heldBy !== null) {
       this.status = "crashed";
       this.error = `Another Chrome is using this profile (${lock.heldBy}).`;
@@ -430,14 +495,16 @@ export class BrowserSession implements BrowserHandle {
 
     try {
       const tab = await this.tabs.openTab(url);
-      this.detachPopupWatchers.push(
-        watchPopupTargets(tab.cdp, {
-          adopt: async (popupUrl) => {
-            await this.tabs.openTab(popupUrl);
-          },
-          seen: this.seenPopupTargets,
-        })
-      );
+      if (this.options.externalBrowser !== true) {
+        this.detachPopupWatchers.push(
+          watchPopupTargets(tab.cdp, {
+            adopt: async (popupUrl) => {
+              await this.tabs.openTab(popupUrl);
+            },
+            seen: this.seenPopupTargets,
+          })
+        );
+      }
       this.status = "running";
       this.options.onStateChange?.(this.state());
       await this.screencast.sync();

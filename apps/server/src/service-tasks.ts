@@ -2,6 +2,7 @@
 import { RunId, SaleId, TaskId } from "@froggy/domain";
 import type {
   AgentTokenId,
+  AgentConnectionId,
   Amount,
   Receipt,
   RunId as RunIdValue,
@@ -17,6 +18,7 @@ import { runServiceProvider, serviceCatalog } from "./service-providers";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { assetFor } from "./tools-assets";
+import { preflightTrading, serviceRequestText } from "./trading/services";
 
 export const serviceTicket = (task: Task): ServiceTicket => {
   const request = Schema.decodeUnknownSync(ServiceRequest)(task.input);
@@ -25,14 +27,14 @@ export const serviceTicket = (task: Task): ServiceTicket => {
   const stale =
     ["quoted", "paid", "running", "awaiting_approval"].includes(task.status) &&
     Date.now() - task.updatedAt > 15 * 60 * 1000;
-  return {
+  const ticket: ServiceTicket = {
     v: 1,
     id: task.id,
     runId: task.runId,
     saleId: task.saleId,
     upstreamTransactionId: result?.upstreamTransactionId ?? null,
     service: request.service,
-    prompt: request.prompt,
+    prompt: serviceRequestText(request),
     status: stale ? "uncertain" : task.status,
     priceUsdMicros: task.priceUsdMicros,
     error: stale
@@ -40,7 +42,7 @@ export const serviceTicket = (task: Task): ServiceTicket => {
       : task.error,
     text: result?.text ?? "",
     sources: result?.sources ?? [],
-    stubbed: result?.stubbed ?? task.input["demo"] === true,
+    stubbed: (result?.stubbed ?? false) || task.input["demo"] === true,
     artifact: result?.artifact
       ? {
           mime: result.artifact.mime,
@@ -48,6 +50,10 @@ export const serviceTicket = (task: Task): ServiceTicket => {
         }
       : null,
   };
+  if (result?.data !== undefined) {
+    return { ...ticket, data: result.data };
+  }
+  return ticket;
 };
 
 interface PurchaseContext {
@@ -55,6 +61,7 @@ interface PurchaseContext {
   readonly services: Services;
   readonly session: WorkspaceSession;
   readonly agentTokenId: AgentTokenId | null;
+  readonly connectionId?: AgentConnectionId | null;
   readonly runId?: RunIdValue;
   readonly interactive?: boolean;
   /** Called only by the request that created the task, never an idempotent replay. */
@@ -62,6 +69,11 @@ interface PurchaseContext {
 }
 
 const errorText = (error: Error): string => error.message.slice(0, 1000);
+const requestEquals = Schema.toEquivalence(ServiceRequest);
+const sameRequest = (task: Task, request: ServiceRequest): boolean => {
+  const decoded = Schema.decodeUnknownResult(ServiceRequest)(task.input);
+  return decoded._tag === "Success" && requestEquals(decoded.success, request);
+};
 
 interface PaymentProof {
   hash: string;
@@ -97,16 +109,13 @@ export const purchaseService = async (
   const request = Schema.decodeUnknownSync(ServiceRequest)(input);
   const { services, session } = context;
   const { store } = services;
+  const connectionId = context.connectionId ?? context.agentTokenId;
   const earlier = await store.tasks.byIdempotencyKey(
     session.userId,
     request.idempotencyKey
   );
   const replay = (task: Task): ServiceTicket => {
-    if (
-      task.kind !== "service" ||
-      task.input["service"] !== request.service ||
-      task.input["prompt"] !== request.prompt
-    ) {
+    if (task.kind !== "service" || !sameRequest(task, request)) {
       throw new Error(
         "Idempotency key already belongs to a different request."
       );
@@ -121,13 +130,19 @@ export const purchaseService = async (
   );
   if (
     !card ||
-    request.prompt.trim() === "" ||
-    request.prompt.length > card.maxInput
+    ("prompt" in request &&
+      (request.prompt.trim() === "" || request.prompt.length > card.maxInput))
   ) {
     throw new Error("Service input is empty or too long.");
   }
   if (card.status === "unavailable") {
     throw new Error(card.note);
+  }
+  if ("input" in request) {
+    preflightTrading(services, request);
+  }
+  if (request.service === "watch_launches") {
+    await services.launches.preflight(session.userId);
   }
   const rate = services.rates.current(Date.now());
   if (!rate || rate.usdMicrosPerHbar <= 0) {
@@ -214,7 +229,7 @@ export const purchaseService = async (
               ok: false,
               sent: false,
               network: requirement.network,
-              stubbed: signed.stubbed,
+              stubbed: signed.stubbed || card.status === "demo",
               transactionId: null,
               error: signed.error ?? "Wallet did not sign.",
             };
@@ -230,13 +245,18 @@ export const purchaseService = async (
               requirement
             );
             settled = payment.ok;
-            return { ...payment, network: requirement.network, sent: true };
+            return {
+              ...payment,
+              stubbed: payment.stubbed || card.status === "demo",
+              network: requirement.network,
+              sent: true,
+            };
           } catch (error) {
             return {
               ok: false,
               sent: true,
               network: requirement.network,
-              stubbed: signed.stubbed,
+              stubbed: signed.stubbed || card.status === "demo",
               transactionId: null,
               error: errorText(
                 error instanceof Error ? error : new Error("Service failed.")
@@ -281,7 +301,17 @@ export const purchaseService = async (
         updatedAt: Date.now(),
       });
       recordSaleAudit(services, outcome.receipt, amount, task.id);
-      const result = await runServiceProvider(services, request);
+      const result = await runServiceProvider(
+        services,
+        request,
+        {},
+        {
+          owner: session.userId,
+          connectionId,
+          sourceTaskId: task.id,
+          paymentStubbed: outcome.receipt.stubbed,
+        }
+      );
       await store.tasks.update(session.userId, task.id, {
         status: "done",
         result,

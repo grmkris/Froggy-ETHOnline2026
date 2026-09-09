@@ -1,10 +1,17 @@
 import { describe, expect, it } from "bun:test";
 
-import { describeCheapestBorrow, describeDeployments } from "@froggy/graph";
+import { describeCheapestBorrow } from "@froggy/graph";
 import type { GraphSnapshot } from "@froggy/graph";
-import { decodeGraphQueryOutput } from "@froggy/protocol";
+import { decodeGraphQueryOutput, ServiceRequest } from "@froggy/protocol";
+import { Schema } from "effect";
 
-import { cap, graphQueryOutput, typedByPerson } from "./tools";
+import { std } from "./std";
+import {
+  cap,
+  graphQueryOutput,
+  typedByPerson,
+  ServiceToolInput,
+} from "./tools";
 
 describe("cap", () => {
   it("leaves short output alone", () => {
@@ -99,11 +106,11 @@ const snapshot: GraphSnapshot = {
 };
 
 describe("graphQueryOutput", () => {
-  it("hands the model the prose it always read", () => {
+  it("includes deployment diagnostics once in the model prose", () => {
     const output = graphQueryOutput(snapshot, "usdc");
 
     expect(output.text).toBe(
-      `${describeCheapestBorrow(snapshot)}\n\n${describeDeployments(snapshot)}\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]`
+      `${describeCheapestBorrow(snapshot)}\n\n[STUB: recorded fixture, not a live Graph provider. Say so if you cite it.]`
     );
   });
 
@@ -122,5 +129,27 @@ describe("graphQueryOutput", () => {
     expect(decodeGraphQueryOutput(structuredClone(output))._tag).toBe(
       "Success"
     );
+  });
+});
+
+describe("service tool input", () => {
+  it("accepts the requested service without asking the model for a wire version", () => {
+    const input = Schema.decodeUnknownSync(ServiceToolInput)({
+      service: "x_search",
+      prompt: "Hunter Biden meme coin launch",
+      idempotencyKey: "research-request-1",
+      v: "1",
+    });
+    expect(input).toEqual({
+      service: "x_search",
+      prompt: "Hunter Biden meme coin launch",
+      idempotencyKey: "research-request-1",
+    });
+    const wire = Schema.decodeUnknownSync(ServiceRequest)({ ...input, v: 1 });
+    expect(wire.v).toBe(1);
+    const schema = std(ServiceToolInput)["~standard"].jsonSchema.input({
+      target: "draft-2020-12",
+    });
+    expect(JSON.stringify(schema)).not.toContain('"v"');
   });
 });

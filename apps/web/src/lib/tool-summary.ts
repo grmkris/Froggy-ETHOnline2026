@@ -10,7 +10,7 @@
  * of wording there fails a test here rather than silently blanking a card.
  */
 
-import { formatUsd } from "@froggy/domain";
+import { formatUsd, Purchase } from "@froggy/domain";
 import { ServiceCatalog, ServiceTicket } from "@froggy/protocol";
 import type { GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
@@ -139,15 +139,93 @@ const graphSummaryOf = (graph: GraphQueryOutput): ToolSummary => {
       );
 };
 
+const PurchaseOutput = Schema.Struct({
+  v: Schema.Literals([1]),
+  id: Purchase.fields.id,
+  status: Purchase.fields.status,
+  payment: Schema.Struct({ state: Purchase.fields.payment.fields.state }),
+  delivery: Schema.Struct({ state: Purchase.fields.delivery.fields.state }),
+  error: Purchase.fields.error,
+  stubbed: Purchase.fields.stubbed,
+});
+const decodePurchaseOutput = Schema.decodeUnknownResult(
+  Schema.fromJsonString(PurchaseOutput)
+);
+
+export const urlPurchaseOf = (
+  text: string
+): typeof PurchaseOutput.Type | null => {
+  const decoded = decodePurchaseOutput(text);
+  return decoded._tag === "Success" ? decoded.success : null;
+};
+
+const purchaseSummary = (purchase: typeof PurchaseOutput.Type): ToolSummary => {
+  const { payment, delivery, status, error, stubbed } = purchase;
+  if (payment.state === "uncertain" || status === "uncertain") {
+    return summary(
+      "Payment uncertain",
+      "info",
+      "Check the saved purchase in Services before buying again.",
+      stubbed
+    );
+  }
+  if (payment.state === "settled") {
+    const paid = stubbed ? "Simulated payment" : "Paid";
+    const result =
+      delivery.state === "delivered"
+        ? "result delivered"
+        : "delivery incomplete";
+    return summary(
+      `${paid} · ${result}`,
+      "ok",
+      "The saved response is in Services.",
+      stubbed
+    );
+  }
+  if (
+    status === "declined" ||
+    status === "cancelled" ||
+    status === "expired" ||
+    status === "failed"
+  ) {
+    return summary(`Purchase ${status}`, "refused", error, stubbed);
+  }
+  if (delivery.state === "delivered" && payment.state === "none") {
+    return summary(
+      "Delivered without payment",
+      "info",
+      "The saved response is in Services.",
+      stubbed
+    );
+  }
+  return summary(
+    "Purchase still pending",
+    "info",
+    "Check its status in Services.",
+    stubbed
+  );
+};
+
 /**
  * The unlocked page's link is a one-time token for the shared browser. It is
  * never repeated here, or as an anchor anywhere in this UI.
  */
-const fetchSummary = (text: string): ToolSummary =>
-  spendOutcome(text) ??
-  (text.includes("[Paid. The unlocked page")
-    ? summary("Paid. The unlocked page went to the shared browser", "ok")
-    : summary("Answered without asking to be paid", "info"));
+const fetchSummary = (text: string): ToolSummary => {
+  const purchase = urlPurchaseOf(text);
+  if (purchase !== null) {
+    return purchaseSummary(purchase);
+  }
+  const refusal = after(text, "Purchase refused:") ?? after(text, "Refused:");
+  if (refusal !== null) {
+    return summary("Purchase refused", "refused", refusal);
+  }
+  return (
+    spendOutcome(text) ??
+    (text.includes("[Paid. The unlocked page")
+      ? summary("Paid. The unlocked page went to the shared browser", "ok")
+      : summary("Answered without asking to be paid", "info"))
+  );
+};
 
 const SENT =
   /^Sent (?<amount>[\d.]+) USDC to \S+ on Base Sepolia\. Transaction \S+\.$/u;

@@ -29,6 +29,12 @@ export {
   TabSummary,
 } from "./browser";
 export {
+  BROWSER_PAYMENT_BODY_LIMIT,
+  BROWSER_PAYMENT_CHALLENGE_LIMIT,
+  BROWSER_PAYMENT_URL_LIMIT,
+  BrowserPaymentReplay,
+  BrowserPaymentRequest,
+  BrowserPaymentResult,
   decodeWorkerCommand,
   decodeWorkerEvent,
   WaitReason,
@@ -56,6 +62,8 @@ export {
 export type { DecodedFrame } from "./frames";
 
 export {
+  PromptServiceName,
+  PromptServiceRequest,
   ServiceName,
   ServiceRequest,
   ServiceCard,
@@ -72,3 +80,66 @@ export {
 } from "./schedules";
 
 export { AgentConnection, AgentDetail, AgentInvocationView } from "./agents";
+
+export {
+  PurchaseAnswer,
+  PurchaseList,
+  PurchaseRequest,
+  PurchaseTicket,
+  PurchaseWallets,
+} from "./purchases";
+
+export {
+  EvmTradingNetwork,
+  SolanaTradingAddress,
+  TradingNetwork,
+  TradingUnits,
+  TradingAddress,
+} from "./trading";
+export {
+  MarketSearchInput,
+  MarketSearchResult,
+  TokenInspectInput,
+  TokenInspectResult,
+} from "./trading-market";
+export { SwapQuoteInput, SwapQuoteResult } from "./trading-quote";
+export { RpcReadInput, RpcReadResult } from "./trading-rpc";
+export {
+  LaunchWatchRequest,
+  MarketSearchRequest,
+  TokenInspectRequest,
+  RpcReadRequest,
+  SwapQuoteRequest,
+  TradingServiceName,
+  TradingServiceRequest,
+  TradingResult,
+} from "./trading-services";
+
+export {
+  TradeAnswer,
+  TradeExecute,
+  TradeCapabilities,
+  TradeList,
+  TradePrepare,
+  TradeRuleRequest,
+  TradeRuleList,
+  TradeStopRequest,
+  TradeTicket,
+  publicTrade,
+} from "./trade-execution";
+
+export {
+  TradePosition,
+  TradePositions,
+  TradePositionsInput,
+} from "./trade-positions";
+
+export {
+  BrowseBudget,
+  BrowseQuote,
+  BrowseQuoteResponse,
+  BrowseChallenge,
+} from "./browse";
+
+export { LaunchWatchTicket, LaunchWatchResult } from "./trading-launches";
+export { HistoryBusiness, HistoryDetail, HistoryUpdate } from "./history";

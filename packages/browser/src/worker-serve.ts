@@ -58,6 +58,10 @@ export const serveWorker = (options: ServeWorkerOptions): WorkerServer => {
     transport.send({ state, type: "state", v: 1 });
   });
 
+  const unwatchPayments = session.subscribePayments((payment) => {
+    transport.send({ payment, type: "payment.required", v: 1 });
+  });
+
   let inFlight = 0;
   let unwatch: (() => void) | null = null;
   const forwarder: FrameSubscriber = {
@@ -111,6 +115,22 @@ export const serveWorker = (options: ServeWorkerOptions): WorkerServer => {
         await session.agentType(command.text);
         return { kind: "done" };
       }
+      case "payment.pending": {
+        return {
+          kind: "payment.pending",
+          payment: await session.pendingPayment(),
+        };
+      }
+      case "payment.replay": {
+        return {
+          kind: "payment.result",
+          result: await session.replayPayment(command.payment),
+        };
+      }
+      case "payment.cancel": {
+        await session.cancelPayment(command.paymentId);
+        return { kind: "done" };
+      }
       case "take": {
         await session.takePage();
         return { kind: "done" };
@@ -129,6 +149,7 @@ export const serveWorker = (options: ServeWorkerOptions): WorkerServer => {
   };
 
   const stop = async (graceful: boolean): Promise<void> => {
+    unwatchPayments();
     watch(false);
     if (graceful) {
       await session.shutdown();

@@ -17,15 +17,15 @@
 
 import type { Receipt, Schedule, ScheduleId, UserId } from "@froggy/domain";
 import type { AppServerMessage, RunSurface } from "@froggy/protocol";
-import { stepCountIs, streamText } from "ai";
+import { HistoryConflictError } from "@froggy/wallet";
 
-import { createModel } from "./model";
 import type { Notices } from "./notices";
 import type { ChatRunRegistry } from "./runs";
 import { describeCadence, formatLocal } from "./schedules";
 import type { Services } from "./services";
 import { isConversion } from "./session";
-import { buildTools } from "./tools";
+import type { buildTools } from "./tools";
+import { recordTurn, sseOf, startTurn } from "./turn";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
@@ -189,7 +189,62 @@ export const runScheduledFor = async (
     };
   }
 
-  const run = deps.runs.start(session.id);
+  let turn: Awaited<ReturnType<typeof startTurn>>;
+  try {
+    turn = await startTurn(
+      {
+        browser: workspace.browser,
+        notices: deps.notices,
+        oracleUrl: deps.oracleUrl,
+        runs: deps.runs,
+        services: deps.services,
+        session,
+        unlocks: deps.unlocks,
+        workspaces: deps.workspaces,
+        stepCap: JOB_STEP_CAP,
+        activeTools: job.tools,
+        interactive: false,
+        budgetUsdMicros: job.budgetUsdMicros,
+        instructions: job.instructions,
+        shouldStop: () => {
+          const active = deps.runs.get(session.id);
+          return (
+            active !== null &&
+            spentIn(
+              session.history.filter((receipt) => receipt.runId === active.id)
+            ) >= job.budgetUsdMicros
+          );
+        },
+      },
+      {
+        sessionId: session.id,
+        source: "schedule",
+        messages: [
+          {
+            id: `job-${crypto.randomUUID()}`,
+            role: "user",
+            parts: [{ type: "text", text: job.prompt }],
+          },
+        ],
+      }
+    );
+  } catch (error) {
+    return {
+      at: now(),
+      outcome: error instanceof HistoryConflictError ? "skipped" : "aborted",
+      receipts: [],
+      reason:
+        error instanceof Error
+          ? error.message
+          : "Could not start scheduled work",
+      scheduleId: job.scheduleId,
+      spentUsdMicros: 0,
+      summary: "",
+      title: job.title,
+      userId,
+    };
+  }
+  const { run } = turn;
   deps.publishApp(userId, {
     runId: run.id,
     surface: job.surface,
@@ -206,37 +261,9 @@ export const runScheduledFor = async (
   let outcome: JobReport["outcome"] = "finished";
   let reason: string | null = null;
   try {
-    // Streamed rather than generated in one call, because the scripted model
-    // that runs without a key only speaks the streaming half of the SDK, and
-    // a job must run exactly as a chat turn does or its evidence means less.
-    const result = streamText({
-      abortSignal: run.signal,
-      activeTools: [...job.tools],
-      instructions: job.instructions,
-      model: createModel(deps.services.environment, {
-        oracleUrl: deps.oracleUrl,
-      }),
-      prompt: job.prompt,
-      stopWhen: [
-        stepCountIs(JOB_STEP_CAP),
-        // Stop further model steps after spending the budget. The wallet
-        // separately reserves pending and detached payments against the hard
-        // run cap before any outbound call.
-        () => spentIn(mine()) >= job.budgetUsdMicros,
-      ],
-      tools: buildTools({
-        browser: workspace.browser,
-        budgetUsdMicros: job.budgetUsdMicros,
-        interactive: false,
-        notices: deps.notices,
-        run,
-        services: deps.services,
-        session,
-        unlocks: deps.unlocks,
-        workspaces: deps.workspaces,
-      }),
-    });
-    summary = await result.text;
+    recordTurn(deps, session.id, run, sseOf(turn));
+    summary = await turn.result.text;
+    await turn.saved;
   } catch (error) {
     outcome = "aborted";
     const message = error instanceof Error ? error.message : "unknown error";

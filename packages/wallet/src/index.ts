@@ -34,6 +34,7 @@ export type {
   OAuthTokenKind,
   OAuthTokenRow,
   Store,
+  PurchasePatch,
 } from "./store";
 export { postgresStore } from "./store-postgres";
 export { authorize } from "./policy";
@@ -46,3 +47,28 @@ export type {
   PrivyServer,
   WalletAddresses,
 } from "./privy";
+
+export type { OwnerPaymentRequest, PaymentWallets } from "./owner-payments";
+
+export {
+  executeTradeStep,
+  reconcileTradeStep,
+  recoverTrade,
+} from "./trade-execution";
+export type { TradeSettlement, TradeSubmission } from "./trade-execution";
+export type { TradeAuthority, TradeClaimRequest } from "./trading-authority";
+export type { TradeBook, TradingStore } from "./trading-store";
+
+export type { LaunchBook, LaunchStore } from "./launch-store";
+export {
+  HistoryConflictError,
+  historyCursor,
+  historyText,
+} from "./history-store";
+export type {
+  HistoryStore,
+  HistoryTransaction,
+  HistoryFilter,
+} from "./history-store";
+
+export type { TelegramCacheMessage } from "./history-store";

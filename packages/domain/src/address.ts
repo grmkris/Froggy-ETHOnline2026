@@ -82,6 +82,11 @@ export type Payee = typeof Payee.Type;
  * EVM addresses are case-insensitive (EIP-55 checksums are a display concern),
  * and an allowlist that misses because the model echoed a checksummed address
  * back in lowercase would be a rule that fails open in appearance and closed in
- * practice — confusing in exactly the wrong direction.
+ * practice — confusing in exactly the wrong direction. Solana identifiers
+ * remain case-sensitive; lowercasing Base58 changes the destination.
  */
-export const normalizePayeeId = (id: string): string => id.trim().toLowerCase();
+const isEvmAddress = Schema.is(EvmAddress);
+export const normalizePayeeId = (id: string): string => {
+  const trimmed = id.trim();
+  return isEvmAddress(trimmed) ? trimmed.toLowerCase() : trimmed;
+};

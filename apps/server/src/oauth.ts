@@ -35,7 +35,7 @@ import type { OAuthTokenRow, Store } from "@froggy/wallet";
 import { Result, Schema } from "effect";
 
 import { detached } from "./detached";
-import { boundedBytes } from "./service-providers";
+import { boundedBytes } from "./outbound";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const ACCESS_TTL_MS = 60 * 60 * 1000;

@@ -60,18 +60,34 @@ const settled = async (): Promise<void> => {
   await Promise.resolve();
 };
 
-const createFakeBrowser = (options: BrowserSessionOptions): FakeBrowser => {
+const createFakeBrowser = (
+  options: BrowserSessionOptions,
+  cloud = false
+): FakeBrowser => {
   const started: (string | undefined)[] = [];
   let status: BrowserState["status"] = "idle";
-  const state = (): BrowserState => ({
-    activeTabId: null,
-    error: null,
-    interaction: "idle",
-    queue: null,
-    status,
-    tabs: [],
-    viewport: { height: 800, width: 1280 },
-  });
+  const state = (): BrowserState => {
+    const base: BrowserState = {
+      activeTabId: null,
+      error: null,
+      interaction: "idle",
+      queue: null,
+      status,
+      tabs: [],
+      viewport: { height: 800, width: 1280 },
+    };
+    return cloud
+      ? {
+          ...base,
+          cloud: {
+            control: "human",
+            viewerReady: true,
+            expiresAt: null,
+            stubbed: true,
+          },
+        }
+      : base;
+  };
   const run = (): void => {
     status = "running";
     options.onStateChange?.(state());
@@ -90,6 +106,25 @@ const createFakeBrowser = (options: BrowserSessionOptions): FakeBrowser => {
       return { snapshot: { text: "", title: "", url: "" }, wait: "skipped" };
     },
     agentType: settled,
+    cancelPayment: settled,
+    pendingPayment: async () => {
+      await settled();
+      return null;
+    },
+    replayPayment: async () => {
+      await settled();
+      return {
+        body: "",
+        error: "No browser in this test.",
+        paymentResponse: null,
+        sent: false,
+        status: null,
+        url: "",
+      };
+    },
+    subscribePayments: () => () => {
+      // No payment observations in registry tests.
+    },
     close: async () => {
       await settled();
       status = "idle";
@@ -120,6 +155,7 @@ const noop = (): void => {
 };
 
 interface RegistryOptions {
+  readonly cloud?: boolean;
   readonly demoUserId?: typeof JUDGE | null;
   readonly maxBrowsers?: number;
   readonly reservedBrowsers?: number;
@@ -135,7 +171,7 @@ const createRegistry = (options: RegistryOptions = {}) => {
     blockPrivateNetwork: true,
     browserIdleMs: 10_000,
     createBrowser: (browserOptions: BrowserSessionOptions) => {
-      const browser = createFakeBrowser(browserOptions);
+      const browser = createFakeBrowser(browserOptions, options.cloud);
       browsers.set(browserOptions.profileDirectory, browser);
       profiles.push(browserOptions.profileDirectory);
       return browser;
@@ -340,4 +376,23 @@ describe("Workspaces", () => {
     expect(workspaces.runningBrowsers).toBe(0);
     expect(workspaces.stateOf(ALICE).status).toBe("idle");
   });
+});
+
+test("Cloud idle closes a watched browser unless the person extends its lease", async () => {
+  const { advance, browserOf, workspaces } = createRegistry({ cloud: true });
+  workspaces.admitBrowser(ALICE);
+  browserOf(ALICE).run();
+  workspaces.watch(ALICE);
+  const initial = workspaces.stateOf(ALICE).cloud?.idleExpiresAt;
+  advance(9000);
+  workspaces.touch(ALICE);
+  expect(workspaces.stateOf(ALICE).cloud?.idleExpiresAt).toBe(
+    (initial ?? 0) + 9000
+  );
+  advance(9000);
+  await workspaces.sweepIdle();
+  expect(workspaces.runningBrowsers).toBe(1);
+  advance(2000);
+  await workspaces.sweepIdle();
+  expect(workspaces.runningBrowsers).toBe(0);
 });

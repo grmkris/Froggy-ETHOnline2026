@@ -7,7 +7,8 @@ import { Effect, Redacted } from "effect";
 
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
-import { boundedBytes, runServiceProvider } from "./service-providers";
+import { boundedBytes } from "./outbound";
+import { runServiceProvider } from "./service-providers";
 import { createServices } from "./services";
 
 let environment: Environment;

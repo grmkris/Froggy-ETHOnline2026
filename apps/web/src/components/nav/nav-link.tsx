@@ -38,6 +38,7 @@ export const NavLink = ({
   readonly waiting?: number;
 }): ReactElement => {
   const pathname = useLocation({ select: (location) => location.pathname });
+  const chatActive = item.to === "/" && pathname.startsWith("/chat/");
   const Icon = item.icon;
   const name =
     waiting > 0
@@ -47,6 +48,8 @@ export const NavLink = ({
     <Link
       activeOptions={{ exact: item.to === "/" }}
       aria-label={name}
+      aria-current={chatActive ? "page" : undefined}
+      data-status={chatActive ? "active" : undefined}
       className={cn(
         NAV_LINK_CLASS,
         more &&
@@ -55,7 +58,7 @@ export const NavLink = ({
       onClick={onNavigate}
       to={item.to}
     >
-      {!more && pathname === item.to ? <NavIndicator /> : null}
+      {!more && (pathname === item.to || chatActive) ? <NavIndicator /> : null}
       <span className="relative">
         <Icon aria-hidden className="size-5" />
         {waiting > 0 ? (

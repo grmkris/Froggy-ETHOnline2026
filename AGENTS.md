@@ -11,6 +11,7 @@ Froggy: a web workspace where a human and an AI share **one Chrome**, and a Priv
 1. Read the nearest nested `AGENTS.md` for the area you touch.
 2. Load the matching repository skill from `.agents/skills/` — `froggy-leash` for anything that moves money, `froggy-browser` for the shared Chrome, `froggy-verification` before declaring anything done.
 3. Use the installed library documentation and types as the API source of truth. Effect 4 is pinned to an RC, so read `node_modules/effect/AGENTS.md` before Effect work.
+4. When asked to retrieve recent Froggy conversations or agent activity, start with [the conversation retrieval runbook](docs/CONVERSATION_RETRIEVAL.md). It records the verified production access paths and transcript-retention limits.
 
 User instructions override repository skills. Skills inform implementation; they do not expand authorization.
 

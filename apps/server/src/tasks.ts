@@ -37,6 +37,11 @@ import { Schema } from "effect";
 
 import { trackAgentRequest } from "./agent-invocations";
 import type { InvocationSummary } from "./agent-invocations";
+import {
+  handleBrowseQuote,
+  QuotedBrowseInput,
+  storedBrowseQuote,
+} from "./browse-quotes";
 import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
@@ -71,6 +76,7 @@ const TaskBody = Schema.Union([
     kind: Schema.Literals(["brief"]),
     symbol: Schema.String,
   }),
+  QuotedBrowseInput,
   Schema.Struct({
     idempotencyKey: Schema.optional(Schema.String),
     instruction: Schema.String,
@@ -80,7 +86,20 @@ const TaskBody = Schema.Union([
 type TaskBody = typeof TaskBody.Type;
 const decodeTaskBody = Schema.decodeUnknownResult(TaskBody);
 
-const PayBody = Schema.Struct({ challenge: Schema.Unknown });
+const decodeTaskRequest = async (request: Request) => {
+  const raw: unknown = await request.json().catch(() => null);
+  const record = Schema.decodeUnknownResult(
+    Schema.Record(Schema.String, Schema.Unknown)
+  )(raw);
+  return record._tag === "Success" && Object.hasOwn(record.success, "budgetUsd")
+    ? Schema.decodeUnknownResult(QuotedBrowseInput)(raw)
+    : decodeTaskBody(raw);
+};
+
+const PayBody = Schema.Struct({
+  challenge: Schema.Unknown,
+  quoteTaskId: Schema.optional(TaskId),
+});
 const decodePayBody = Schema.decodeUnknownResult(PayBody);
 
 export interface TaskDeps {
@@ -117,7 +136,7 @@ interface TaskApproval {
 }
 
 /** A task as a caller sees it. Approval and receipts are joined at read time. */
-interface TaskView {
+export interface TaskView {
   readonly approval: readonly TaskApproval[];
   readonly createdAt: number;
   readonly error: string | null;
@@ -260,49 +279,223 @@ const runBrief = async (
   });
 };
 
+const BrowseProgress = Schema.Struct({
+  spentUsdMicros: Schema.Int,
+  steps: Schema.Int,
+  activeMs: Schema.Int,
+  summary: Schema.String,
+});
+const activeBrowses = new Map<string, { paused: boolean }>();
+
+/** Mark the reason before aborting, so takeover keeps the purchased allowance. */
+export const pauseBrowseTask = (sessionId: string): boolean => {
+  const active = activeBrowses.get(sessionId);
+  if (!active) {
+    return false;
+  }
+  active.paused = true;
+  return true;
+};
+
+const browseExecution = (deps: TaskDeps, task: Task) => {
+  const saved = "quote" in task.input ? storedBrowseQuote(task) : null;
+  const allowance = saved?.quote.modelAllowanceUsdMicros ?? 250_000;
+  const executionMs = saved?.quote.executionMs ?? 5 * 60_000;
+  const stepLimit =
+    saved === null
+      ? BROWSE_STEP_CAP
+      : Math.floor(task.priceUsdMicros / 500_000) * BROWSE_STEP_CAP;
+  const { environment } = deps.services;
+  const stubbed = environment.modes.model === "stub";
+  const rates = Schema.decodeUnknownResult(
+    Schema.Struct({ input: Schema.Finite, output: Schema.Finite })
+  )(task.input["modelRates"]);
+  const inputRate =
+    rates._tag === "Success"
+      ? rates.success.input
+      : environment.browserModelInputRate;
+  const outputRate =
+    rates._tag === "Success"
+      ? rates.success.output
+      : environment.browserModelOutputRate;
+  if (!stubbed && (!(inputRate > 0) || !(outputRate > 0))) {
+    throw new Error(
+      "Paid browsing requires configured model token rates. No model call was made."
+    );
+  }
+  return { allowance, executionMs, stepLimit, stubbed, inputRate, outputRate };
+};
+
 const runBrowse = async (
   deps: TaskDeps,
   workspace: Workspace,
   task: Task,
   instruction: string
-): Promise<void> => {
+): Promise<boolean> => {
   const now = deps.now ?? Date.now;
   const { session } = workspace;
   const { userId } = session;
+  const startedAt = now();
+  const priorWaitingMs = deps.interactions.waitingMs(userId);
+  const recovered = Schema.decodeUnknownResult(
+    Schema.Struct({ progress: BrowseProgress })
+  )(task.result);
+  let progress =
+    recovered._tag === "Success"
+      ? recovered.success.progress
+      : { spentUsdMicros: 0, steps: 0, activeMs: 0, summary: "" };
+  const priorActiveMs = progress.activeMs;
+  const activeMs = (): number =>
+    priorActiveMs +
+    Math.max(
+      0,
+      now() - startedAt - (deps.interactions.waitingMs(userId) - priorWaitingMs)
+    );
+  const { allowance, executionMs, stepLimit, stubbed, inputRate, outputRate } =
+    browseExecution(deps, task);
+  if (
+    progress.activeMs >= executionMs ||
+    progress.steps >= stepLimit ||
+    progress.spentUsdMicros >= allowance
+  ) {
+    throw new Error(
+      "The purchased browsing allowance is exhausted. Request a new quote to continue."
+    );
+  }
+  const active = { paused: false };
+  activeBrowses.set(session.id, active);
+  let reserved = 0;
+  const save = async (): Promise<void> => {
+    progress = {
+      ...progress,
+      activeMs: activeMs(),
+    };
+    await deps.services.store.tasks.update(userId, task.id, {
+      result: { progress, stubbed },
+      updatedAt: now(),
+    });
+  };
   const message: UIMessage = {
-    id: `task-${task.id}`,
+    id: `task-${task.id}-${crypto.randomUUID()}`,
     parts: [{ text: instruction, type: "text" }],
     role: "user",
   };
-  const turn = await startTurn(
-    {
-      browser: workspace.browser,
-      budget: deps.budget,
-      notices: deps.notices,
-      oracleUrl: deps.oracleUrl,
-      runs: deps.runs,
-      services: deps.services,
-      session,
-      stepCap: BROWSE_STEP_CAP,
-      unlocks: deps.unlocks,
-      workspaces: deps.workspaces,
-    },
-    { messages: [message], sessionId: session.id }
-  );
-  await deps.services.store.tasks.update(userId, task.id, {
-    runId: turn.run.id,
-    status: "running",
-    updatedAt: now(),
-  });
-  // Recorded so the web client can replay the run and the receipts are
-  // filed under it, exactly as a chat turn would be.
-  recordTurn(deps, session.id, turn.run, sseOf(turn));
-  const text = await turn.result.text;
-  await deps.services.store.tasks.update(userId, task.id, {
-    result: { text },
-    status: "done",
-    updatedAt: now(),
-  });
+  try {
+    const turn = await startTurn(
+      {
+        browser: workspace.browser,
+        budget: deps.budget,
+        notices: deps.notices,
+        oracleUrl: deps.oracleUrl,
+        runs: deps.runs,
+        services: deps.services,
+        session,
+        stepCap: stepLimit - progress.steps,
+        unlocks: deps.unlocks,
+        workspaces: deps.workspaces,
+        paidBrowse: {
+          beforeStep: async (promptBytes) => {
+            if (active.paused) {
+              throw new Error("Paused for human control.");
+            }
+            if (activeMs() >= executionMs || progress.steps >= stepLimit) {
+              throw new Error("The browsing execution allowance is exhausted.");
+            }
+            reserved = stubbed
+              ? 0
+              : Math.ceil(promptBytes * inputRate + 2048 * outputRate);
+            if (progress.spentUsdMicros + reserved > allowance) {
+              throw new Error(
+                "The remaining model allowance cannot cover another step. Request a new quote to continue."
+              );
+            }
+            progress = {
+              ...progress,
+              spentUsdMicros: progress.spentUsdMicros + reserved,
+              steps: progress.steps + 1,
+            };
+            await save();
+          },
+          afterStep: async (usage) => {
+            if (
+              usage.inputTokens !== undefined &&
+              usage.outputTokens !== undefined
+            ) {
+              const spent = stubbed
+                ? 0
+                : Math.ceil(
+                    usage.inputTokens * inputRate +
+                      usage.outputTokens * outputRate
+                  );
+              progress = {
+                ...progress,
+                spentUsdMicros: progress.spentUsdMicros - reserved + spent,
+              };
+            }
+            reserved = 0;
+            await save();
+          },
+        },
+      },
+      {
+        messages: [message],
+        externalThreadId: task.id,
+        sessionId: session.id,
+        source: "agent",
+      }
+    );
+    const timer = setInterval(() => {
+      if (activeMs() >= executionMs) {
+        turn.run.abort();
+      }
+    }, 250);
+    try {
+      await deps.services.store.tasks.update(userId, task.id, {
+        runId: turn.run.id,
+        status: "running",
+        updatedAt: now(),
+      });
+      recordTurn(deps, session.id, turn.run, sseOf(turn));
+      const summary = await turn.result.text;
+      const finishReason = await turn.result.finishReason;
+      progress = {
+        ...progress,
+        summary: summary.slice(0, 16_000),
+      };
+      if (finishReason === "error") {
+        throw new Error(
+          "The browsing model failed before completing the task."
+        );
+      }
+      await save();
+      if (turn.run.signal.aborted && !active.paused) {
+        throw new Error(
+          "Browsing stopped. Its paid allowance was not refunded."
+        );
+      }
+      await deps.services.store.tasks.update(userId, task.id, {
+        result: { text: progress.summary, progress, stubbed },
+        status: active.paused ? "paused" : "done",
+        updatedAt: now(),
+      });
+      return !active.paused;
+    } finally {
+      clearInterval(timer);
+    }
+  } catch (error) {
+    await save();
+    if (active.paused) {
+      await deps.services.store.tasks.update(userId, task.id, {
+        status: "paused",
+        error: null,
+        updatedAt: now(),
+      });
+      return false;
+    }
+    throw error;
+  } finally {
+    activeBrowses.delete(session.id);
+  }
 };
 
 /** Why a task failed, for the caller: the budget in its own words, else the error's. */
@@ -317,9 +510,18 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
   const { userId } = workspace.session;
   detached(`task ${task.id}`, async () => {
     try {
-      await (task.kind === "brief"
-        ? runBrief(deps, workspace, task, String(task.input["symbol"]))
-        : runBrowse(deps, workspace, task, String(task.input["instruction"])));
+      if (task.kind === "brief") {
+        await runBrief(deps, workspace, task, String(task.input["symbol"]));
+      } else if (
+        !(await runBrowse(
+          deps,
+          workspace,
+          task,
+          String(task.input["instruction"])
+        ))
+      ) {
+        return;
+      }
       if (task.saleId !== null) {
         await deps.services.store.sales.update(task.saleId, {
           deliveredAt: now(),
@@ -345,6 +547,42 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
       }
     }
   });
+};
+
+export const resumeBrowseTask = async (
+  deps: TaskDeps,
+  userId: UserId
+): Promise<void> => {
+  const workspace = await deps.workspaces.hydrate(userId);
+  if (
+    deps.runs.get(workspace.session.id) !== null ||
+    activeBrowses.has(workspace.session.id)
+  ) {
+    throw new Error(
+      "The previous run is still stopping. Try Resume again shortly."
+    );
+  }
+  const tasks = await deps.services.store.tasks.list(userId, 100);
+  const task = tasks.find(
+    (entry) =>
+      entry.kind === "browse" &&
+      entry.saleId !== null &&
+      (entry.status === "paused" ||
+        entry.status === "running" ||
+        entry.status === "paid")
+  );
+  if (!task) {
+    return;
+  }
+  if (
+    !(await deps.services.store.tasks.claim(userId, task.id, task.status, {
+      status: "paid",
+      updatedAt: (deps.now ?? Date.now)(),
+    }))
+  ) {
+    return;
+  }
+  execute(deps, workspace, { ...task, status: "paid" });
 };
 
 const inputOf = (body: TaskBody): Task["input"] =>
@@ -391,32 +629,17 @@ const claimTask = async (
   }
 };
 
-const performTaskPost = async (
+const postLegacyTask = async (
   deps: TaskDeps,
   request: Request,
   workspace: Workspace,
   caller: TaskCaller,
-  invocation: InvocationSummary
+  invocation: InvocationSummary,
+  body: TaskBody
 ): Promise<Response> => {
   const now = deps.now ?? Date.now;
   const { store } = deps.services;
   const { userId } = caller;
-  const decoded = decodeTaskBody(await request.json().catch(() => null));
-  if (decoded._tag === "Failure") {
-    return json(
-      {
-        error:
-          'Malformed task. Send {"kind":"brief","symbol":"USDC"} or {"kind":"browse","instruction":"..."}.',
-      },
-      400
-    );
-  }
-  const body = decoded.success;
-  invocation.name = body.kind;
-  // A grant buys only the kinds the person left on; the scope is the kind.
-  if (caller.scopes !== null && !caller.scopes.has(body.kind)) {
-    return insufficientScope(body.kind);
-  }
   const key =
     request.headers.get("idempotency-key") ?? body.idempotencyKey ?? null;
   if (key !== null) {
@@ -529,6 +752,52 @@ const performTaskPost = async (
   return json({ task: taskView(paidTask, deps, workspace) }, 202);
 };
 
+const performTaskPost = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Workspace,
+  caller: TaskCaller,
+  invocation: InvocationSummary
+): Promise<Response> => {
+  const decoded = await decodeTaskRequest(request);
+  if (decoded._tag === "Failure") {
+    return json(
+      {
+        error:
+          'Malformed task. Send {"kind":"brief","symbol":"USDC"} or {"kind":"browse","instruction":"..."}.',
+      },
+      400
+    );
+  }
+  const body = decoded.success;
+  invocation.name = body.kind;
+  // A grant buys only the kinds the person left on; the scope is the kind.
+  if (caller.scopes !== null && !caller.scopes.has(body.kind)) {
+    return insufficientScope(body.kind);
+  }
+  if (body.kind === "browse" && "budgetUsd" in body) {
+    return await handleBrowseQuote(
+      deps,
+      request,
+      workspace,
+      caller,
+      body,
+      (task) => {
+        execute(deps, workspace, task);
+      },
+      (task) => taskView(task, deps, workspace)
+    );
+  }
+  return await postLegacyTask(
+    deps,
+    request,
+    workspace,
+    caller,
+    invocation,
+    body
+  );
+};
+
 export const handleTaskPost = async (
   deps: TaskDeps,
   request: Request,
@@ -564,8 +833,18 @@ export const handleTaskGet = async (
 export const handleTaskList = async (
   deps: TaskDeps,
   workspace: Workspace,
-  userId: UserId
+  userId: UserId,
+  idempotencyKey: string | null = null
 ): Promise<Response> => {
+  if (idempotencyKey !== null) {
+    const task = await deps.services.store.tasks.byIdempotencyKey(
+      userId,
+      idempotencyKey
+    );
+    return json({
+      tasks: task === null ? [] : [taskView(task, deps, workspace)],
+    });
+  }
   const tasks = await deps.services.store.tasks.list(userId, 50);
   return json({ tasks: tasks.map((task) => taskView(task, deps, workspace)) });
 };
@@ -634,6 +913,39 @@ const trustedTaskOffer = (
   );
 };
 
+const validateQuotePayment = async (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  quoteTaskId: TaskId | undefined,
+  challenge: Extract<
+    ReturnType<typeof decodePaymentChallenge>,
+    { _tag: "Success" }
+  >
+): Promise<Response | null> => {
+  if (quoteTaskId !== undefined) {
+    const quoted = await deps.services.store.tasks.byId(
+      caller.userId,
+      quoteTaskId
+    );
+    if (quoted === null || quoted.status !== "quoted") {
+      return json({ error: "That quote is not payable." }, 409);
+    }
+    const saved = storedBrowseQuote(quoted);
+    const decodedSaved = decodePaymentChallenge(saved.challenge);
+    if (
+      saved.quote.expiresAt <= (deps.now ?? Date.now)() ||
+      decodedSaved._tag === "Failure" ||
+      JSON.stringify(decodedSaved.success) !== JSON.stringify(challenge.success)
+    ) {
+      return json(
+        { error: "Payment must match the unexpired task quote." },
+        409
+      );
+    }
+  }
+  return null;
+};
+
 const performWalletPay = async (
   deps: TaskDeps,
   request: Request,
@@ -647,6 +959,15 @@ const performWalletPay = async (
   const challenge = decodePaymentChallenge(body.success.challenge);
   if (challenge._tag === "Failure") {
     return json({ error: "That is not an x402 challenge." }, 400);
+  }
+  const invalidQuote = await validateQuotePayment(
+    deps,
+    caller,
+    body.success.quoteTaskId,
+    challenge
+  );
+  if (invalidQuote !== null) {
+    return invalidQuote;
   }
   const requirement = offerFor(deps, challenge.success);
   if (requirement === null) {
@@ -681,7 +1002,10 @@ const performWalletPay = async (
   const spend: SpendRequest = {
     amount,
     host: new URL(deps.tasksUrl).host,
-    idempotencyKey: `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`,
+    idempotencyKey:
+      body.success.quoteTaskId === undefined
+        ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
+        : `pay:quote:${body.success.quoteTaskId}`,
     interactive: true,
     payeeId: requirement.payTo,
     payeeLabel: `${requirement.payTo} (x402, signed for an agent)`,
@@ -727,6 +1051,16 @@ const performWalletPay = async (
           receipt: result.receipt,
         },
         402
+      );
+    }
+    if (body.success.quoteTaskId !== undefined) {
+      await deps.services.store.tasks.update(
+        caller.userId,
+        body.success.quoteTaskId,
+        {
+          result: { paymentProofHash: paymentHash(header) },
+          updatedAt: (deps.now ?? Date.now)(),
+        }
       );
     }
     return json({ header, receipt: result.receipt });

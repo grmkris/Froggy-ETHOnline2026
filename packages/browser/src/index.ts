@@ -24,3 +24,7 @@ export { clearStaleProfileLock } from "./profile";
 export type { StaleLockResult } from "./profile";
 export { PAGE_CONTENT_FENCE } from "./snapshot";
 export type { Snapshot } from "./snapshot";
+
+export { CloudBrowser, StubCloudBrowser } from "./cloud";
+export type { CloudBrowserRecord, CloudBrowserOptions } from "./cloud";
+export { cloudApi, CloudApiError } from "./cloud-api";

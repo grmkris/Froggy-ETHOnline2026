@@ -6,6 +6,8 @@ import type { DriveMode } from "@froggy/ui/components/driving-ring";
 import { GlobeIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { RecentConversations } from "./recent-conversations";
+
 export const ChatToolbar = ({
   drive,
   onShowBrowser,
@@ -19,8 +21,9 @@ export const ChatToolbar = ({
       className="flex items-center gap-1.5 text-xs whitespace-nowrap"
     >
       <DrivingDot mode={drive} />
-      {DRIVE_LABEL[drive]}
+      <span className="sr-only sm:not-sr-only">{DRIVE_LABEL[drive]}</span>
     </span>
+    <RecentConversations />
     <Button
       aria-label="Show the browser"
       className="size-11"

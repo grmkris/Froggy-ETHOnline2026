@@ -28,6 +28,14 @@ interface ScopeCopy {
 
 const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   [
+    "history",
+    {
+      title: "Read this connection’s activity",
+      detail:
+        "Inspect its recorded calls and results. Your private web and Telegram chats stay private.",
+    },
+  ],
+  [
     "brief",
     { detail: "$0.05 each, from The Graph.", title: "Buy lending briefs" },
   ],

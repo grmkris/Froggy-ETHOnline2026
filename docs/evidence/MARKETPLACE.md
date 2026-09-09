@@ -14,9 +14,9 @@ The workspace's **Services** page contains the catalog, fixed prices, a request 
 
 Prices above are Froggy's fixed task prices. Supplier limits are ceilings, not claims about what every request costs. The existing Graph brief and shared browser task remain available through the existing task API and CLI.
 
-## Current production state — 7 September 2026
+## Current production state — 8 September 2026
 
-OAuth is deployed at `/mcp`; discovery and invalid-token refusal passed against production. The reviewed treasury rules and supplier payees are configured for You.com and BlockRun. X still needs `X_API_BEARER_TOKEN`, and paid delivery evidence for all five services remains pending. The dated release sections below preserve the sequence of checks and activation; they do not replace this current state. See [external-client verification](HERMES.md) and the [owner acceptance checklist](../plan/OWNER_ACCEPTANCE.md).
+OAuth is deployed at `/mcp`; discovery and invalid-token refusal passed against production. The reviewed treasury rules and supplier payees are configured for You.com and BlockRun. The X credential was configured and validated with a recent-search request on 8 September; paid delivery evidence through Froggy remains pending for all five services. The dated release sections below preserve the sequence of checks and activation; they do not replace this current state. See [external-client verification](HERMES.md) and the [owner acceptance checklist](../plan/OWNER_ACCEPTANCE.md).
 
 ## Configuration for the production owner
 
@@ -93,7 +93,7 @@ Done by the agent session under the owner's 7 Sep decision that activation is a 
 
 - **Treasury policy `wdct7xe9re788wr3htum96pw`** now holds five rules: the three it had (`bridge-eth-to-hedera-via-stargate`, `graph-x402-usdc-base-mainnet`, `swap-eth-to-usdc-uniswap-base`) plus `you-search-x402-base` and `blockrun-services-x402-base` from `docs/privy-service-supplier-rules.json`, merged with `PRIVY_POLICY_ID=wdct7xe9re788wr3htum96pw bun run privy:policy merge docs/privy-service-supplier-rules.json` (the new `merge` verb keeps every live rule and appends only the named ones that are missing; Privy refuses a live rule's `id` on a PATCH, so ids are stripped and nothing else is touched). Read back with `show`; the policy has no owner, so the app secret was enough.
 - **Railway, service `app`:** `SERVICE_SUPPLIER_PAYEES=api.you.com=0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f,blockrun.ai=0xe9030014F5DAe217d0A152f02A043567b16c1aBf` set. Boot validates both hosts and addresses.
-- **`X_API_BEARER_TOKEN`: set on Railway on Tue 8 Sep 15:55 CEST** (Kristjan handed the app bearer to Session F; it is stored URL-encoded exactly as X's portal shows it, because the server sends it verbatim and X refuses the decoded form; validated with one recent-search request that returned ten results; a copy sits in the build box's `~/.config/froggy-mainnet.env`). **Still the owner's:** one small purchase per provider from a funded person on the live URL, with the customer's Hedera settlement and the supplier's Base transfer recorded below. Until the token is set, `x_search` reads unavailable and the other four read configured.
+- **`X_API_BEARER_TOKEN`: set on Railway on Tue 8 Sep 15:55 CEST** (Kristjan handed the app bearer to Session F; it is stored URL-encoded exactly as X's portal shows it, because the server sends it verbatim and X refuses the decoded form; validated with one recent-search request that returned ten results; a copy sits in the build box's `~/.config/froggy-mainnet.env`). **Still the owner's:** one small purchase per provider from a funded person on the live URL, with the customer's Hedera settlement and the supplier's Base transfer recorded below. With the token now set, all five services have the required provider configuration; configured status is not paid-delivery proof.
 
 | Provider | Task id | Customer settlement (HashScan) | Supplier settlement (Basescan) | Artifact |
 | --- | --- | --- | --- | --- |

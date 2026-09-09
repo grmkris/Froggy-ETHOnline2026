@@ -21,6 +21,8 @@ import { X402_VERSION } from "./types";
 import type { PaymentAttempt, PaymentChallenge, Payer } from "./types";
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
+const MAX_TIMEOUT_SECONDS = 3600;
+const MAX_UINT256 = 2n ** 256n - 1n;
 
 export type EvmNetwork = "eip155:8453" | "eip155:84532";
 
@@ -41,6 +43,21 @@ export const isEvmNetwork = (value: string): value is EvmNetwork =>
 /** A `0x` address, checked once at the boundary rather than trusted. */
 const isHexAddress = (value: string): value is `0x${string}` =>
   /^0x[\da-f]{40}$/iu.test(value);
+
+const Eip3009Requirement = Schema.Struct({
+  amount: Schema.String.check(Schema.isPattern(/^[1-9]\d{0,77}$/u)),
+  asset: Schema.String.check(Schema.isPattern(/^0x[\da-f]{40}$/iu)),
+  extra: Schema.Struct({
+    assetTransferMethod: Schema.optional(Schema.Literal("eip3009")),
+    name: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128)),
+    version: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64)),
+  }),
+  maxTimeoutSeconds: Schema.Int.check(
+    Schema.isBetween({ minimum: 1, maximum: MAX_TIMEOUT_SECONDS })
+  ),
+  payTo: Schema.String.check(Schema.isPattern(/^0x[\da-f]{40}$/iu)),
+});
+const isEip3009Requirement = Schema.is(Eip3009Requirement);
 
 /** A value inside EIP-712 typed data. Bigints included: the scheme hands them over raw. */
 export type TypedDataValue =
@@ -72,7 +89,7 @@ export type TypedDataField = typeof TypedDataFieldSchema.Type;
 const TypedDataSchema = Schema.Struct({
   domain: Schema.Record(Schema.String, TypedDataValueSchema),
   message: Schema.Record(Schema.String, TypedDataValueSchema),
-  primaryType: Schema.String,
+  primaryType: Schema.Literal("TransferWithAuthorization"),
   types: Schema.Record(Schema.String, Schema.Array(TypedDataFieldSchema)),
 });
 export type TypedData = typeof TypedDataSchema.Type;
@@ -80,7 +97,11 @@ export type TypedData = typeof TypedDataSchema.Type;
 const decodeTypedData = Schema.decodeUnknownResult(TypedDataSchema);
 
 /** A signature is `0x` and hex; checked, not asserted. */
-const isHexSignature = Schema.is(Schema.TemplateLiteral(["0x", Schema.String]));
+const isHexSignature = Schema.is(
+  Schema.TemplateLiteral(["0x", Schema.String]).check(
+    Schema.isPattern(/^0x(?:[\da-f]{2})+$/iu)
+  )
+);
 
 /**
  * Whoever can sign EIP-712 typed data for an address. Deliberately the
@@ -162,6 +183,20 @@ export const evmPayer = (options: EvmPayerOptions): Payer => {
           error: `The 402 offered no ${options.network} exact requirement this wallet can pay.`,
           header: null,
           requirements: null,
+          stubbed: false,
+        } satisfies PaymentAttempt;
+      }
+      // The SDK also implements Permit2. Its capabilities do not widen the
+      // spending authority this adapter exposes to the caller's signer.
+      if (
+        !isEip3009Requirement(requirements) ||
+        BigInt(requirements.amount) > MAX_UINT256
+      ) {
+        return {
+          error:
+            "The offer must use EIP-3009, valid EVM addresses, a positive uint256 amount, an EIP-712 name and version, and a timeout of 1–3600 seconds.",
+          header: null,
+          requirements,
           stubbed: false,
         } satisfies PaymentAttempt;
       }

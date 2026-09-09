@@ -25,7 +25,9 @@ export const assetFor = (
   const known = Object.values(KNOWN_ASSETS).find(
     (asset) =>
       asset.network === network &&
-      asset.id.toLowerCase() === requirement.asset.toLowerCase()
+      (network.startsWith("eip155:")
+        ? asset.id.toLowerCase() === requirement.asset.toLowerCase()
+        : asset.id === requirement.asset)
   );
   if (known !== undefined) {
     return { asset: known, units: requirement.amount };

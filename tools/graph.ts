@@ -108,6 +108,7 @@ export const nodes: readonly Node[] = [
     mayUse: [
       "effect",
       "@privy-io/node",
+      "@solana/kit",
       "drizzle-orm",
       "postgres",
       "@noble/hashes",
@@ -124,6 +125,8 @@ export const nodes: readonly Node[] = [
       "@x402/core",
       "@x402/evm",
       "@x402/hedera",
+      "@x402/svm",
+      "@solana/kit",
       "effect",
     ],
   },

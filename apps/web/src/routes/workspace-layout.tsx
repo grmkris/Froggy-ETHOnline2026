@@ -1,3 +1,4 @@
+import { Outlet } from "@tanstack/react-router";
 /**
  * The workspace: everything that must outlive a page change.
  *
@@ -6,31 +7,32 @@
  * a person can leave the chat mid-turn for their wallet and come back to a
  * turn that never stopped.
  */
-
-import { useChat } from "@ai-sdk/react";
-import { Outlet } from "@tanstack/react-router";
-import { DefaultChatTransport } from "ai";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Announcer } from "../components/announcer";
 import { useSplitWidth } from "../components/browser/browser-split-pane";
 import { AppFrame } from "../components/nav/app-frame";
+import { PurchaseApprovals } from "../components/purchases/purchase-approvals";
 import { useStopRun } from "../components/stop-feedback";
+import { TradeNotice } from "../components/trading/trade-panel";
 import { useAppSocket } from "../hooks/use-app-socket";
 import { useBrowserSocket } from "../hooks/use-browser-socket";
 import { useMediaQuery } from "../hooks/use-media-query";
+import { usePersistentChat } from "../hooks/use-persistent-chat";
 import { usePopOut } from "../hooks/use-pop-out";
+import { usePurchases } from "../hooks/use-purchases";
 import { useReceipts } from "../hooks/use-receipts";
+import { useTrades } from "../hooks/use-trades";
 import { useWebMcp } from "../hooks/use-webmcp";
 import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { ChatContext } from "../lib/chat-context";
 import type { ChatSurface } from "../lib/chat-context";
 import { CHAT_ERROR_ID, chatErrorText } from "../lib/chat-error";
+import { HistoryContext, useWorkspaceHistory } from "../lib/history-client";
 import { SessionIdsContext } from "../lib/session-ids";
 import { useSessionToken } from "../lib/session-token";
-import type { FroggyMessage } from "../lib/stream-model";
 import { WorkspaceContext } from "../lib/workspace-context";
 import type { Workspace } from "../lib/workspace-context";
 
@@ -44,29 +46,27 @@ export const WorkspaceLayout = (): ReactElement => {
   );
 
   const popOut = usePopOut();
+  const [browserRequested, setBrowserRequested] = useState(false);
+  const showBrowser = useCallback(() => {
+    setBrowserRequested(true);
+  }, []);
   const phone = useMediaQuery("(max-width: 767px)");
   const split = useSplitWidth();
   const app = useAppSocket();
+  const purchases = usePurchases(app.sessionId);
+  const trades = useTrades(app.sessionId);
+  const pendingPurchases =
+    purchases.purchases.data?.purchases.filter(
+      (purchase) => purchase.status === "awaiting_approval"
+    ).length ?? 0;
   // While a window holds the page this tab has no screencast of its own.
   const browser = useBrowserSocket(painter, popOut.mode !== "window");
   const { getToken } = useSessionToken();
-  useReceipts(app.sessionId, app.dispatch);
+  const receiptHistory = useReceipts(app.sessionId, app.dispatch);
 
-  // `headers` is resolved per request rather than captured once, so a turn
-  // started an hour into a session sends the refreshed token instead of the
-  // one that happened to be current when this component mounted.
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport<FroggyMessage>({
-        api: "/api/chat",
-        headers: async () => {
-          const token = await getToken();
-          return token === null ? {} : { authorization: `Bearer ${token}` };
-        },
-      }),
-    [getToken]
-  );
-  const chat = useChat<FroggyMessage>({ resume: true, transport });
+  const history = useWorkspaceHistory(app);
+  const persistent = usePersistentChat(history);
+  const { chat } = persistent;
   const stopRun = useStopRun(chat.stop);
   const busy = chat.status === "streaming" || chat.status === "submitted";
   // A refused turn — the day's model budget spent, a malformed request — comes
@@ -89,13 +89,13 @@ export const WorkspaceLayout = (): ReactElement => {
     [chat.error]
   );
   const { clear: clearStop } = stopRun;
-  const { sendMessage } = chat;
+  const { send: sendPersistent } = persistent;
   const send = useCallback(
-    (text: string): void => {
+    (text: string, includeOtherThreads?: boolean): void => {
       clearStop();
-      void sendMessage({ metadata: { at: Date.now() }, text });
+      sendPersistent(text, includeOtherThreads);
     },
-    [clearStop, sendMessage]
+    [clearStop, sendPersistent]
   );
 
   // The wallet as tools for this browser's own agent, through the same leash.
@@ -127,12 +127,21 @@ export const WorkspaceLayout = (): ReactElement => {
     [app.agentSignerId, app.hcsTopicId, app.policyId]
   );
   const workspace = useMemo(
-    (): Workspace => ({ app, deleteMyData, webMcp }),
-    [app, deleteMyData, webMcp]
+    (): Workspace => ({
+      app,
+      deleteMyData,
+      pendingPurchases,
+      receiptHistory,
+      webMcp,
+    }),
+    [app, deleteMyData, pendingPurchases, receiptHistory, webMcp]
   );
   const surface = useMemo(
     (): ChatSurface => ({
+      ...persistent,
       browser,
+      browserRequested,
+      showBrowser,
       busy,
       chat,
       chatNotices,
@@ -144,7 +153,10 @@ export const WorkspaceLayout = (): ReactElement => {
       stopRun,
     }),
     [
+      persistent,
       browser,
+      browserRequested,
+      showBrowser,
       busy,
       chat,
       chatNotices,
@@ -160,20 +172,24 @@ export const WorkspaceLayout = (): ReactElement => {
   return (
     <SessionIdsContext.Provider value={sessionIds}>
       <WorkspaceContext.Provider value={workspace}>
-        <ChatContext.Provider value={surface}>
-          <Announcer
-            approvals={app.approvals}
-            mandate={app.mandate}
-            receipts={app.receipts}
-          />
-          <AppFrame
-            connected={app.connected}
-            modes={app.modes}
-            waiting={app.approvals.length}
-          >
-            <Outlet />
-          </AppFrame>
-        </ChatContext.Provider>
+        <HistoryContext.Provider value={history}>
+          <ChatContext.Provider value={surface}>
+            <Announcer
+              approvals={app.approvals}
+              mandate={app.mandate}
+              receipts={app.receipts}
+            />
+            <AppFrame
+              connected={app.connected}
+              modes={app.modes}
+              waiting={app.approvals.length + pendingPurchases}
+            >
+              <PurchaseApprovals api={purchases} />
+              <TradeNotice api={trades} />
+              <Outlet />
+            </AppFrame>
+          </ChatContext.Provider>
+        </HistoryContext.Provider>
       </WorkspaceContext.Provider>
     </SessionIdsContext.Provider>
   );

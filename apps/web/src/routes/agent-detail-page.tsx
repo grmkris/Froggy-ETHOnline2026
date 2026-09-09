@@ -72,6 +72,15 @@ const InvocationRow = ({
         )}
       </p>
     )}
+    {invocation.executionId === null ? null : (
+      <Link
+        className="text-sm underline"
+        to="/activity"
+        search={{ record: invocation.executionId }}
+      >
+        Inspect call
+      </Link>
+    )}
   </li>
 );
 

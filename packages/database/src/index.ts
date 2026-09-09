@@ -4,6 +4,14 @@ import type { Sql } from "postgres";
 
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
 export {
+  browserProfiles,
+  conversations,
+  historyMessages,
+  historyRuns,
+  historyExecutions,
+  historyArtifacts,
+  historyOwners,
+  historyEvents,
   agentInvocations,
   agentTokens,
   conversions,
@@ -12,11 +20,15 @@ export {
   oauthClients,
   oauthGrants,
   oauthTokens,
+  purchases,
   receipts,
   sales,
   schedules,
   spends,
   tasks,
+  launchWatches,
+  trades,
+  tradeRules,
   telegramPairings,
   users,
 } from "./schema";

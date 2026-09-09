@@ -30,7 +30,7 @@ const DIRECTIVES = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://crypto.link.com",
-  "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://crypto.link.com",
+  "frame-src https://auth.privy.io https://live.browser-use.com https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://crypto.link.com",
   "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https://api.stripe.com https://crypto.link.com https://api.moonpay.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

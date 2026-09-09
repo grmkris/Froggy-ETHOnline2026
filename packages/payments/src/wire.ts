@@ -1,12 +1,9 @@
 /**
- * x402 on the wire, both dialects.
+ * Bounded x402 v2 messages, with legacy header aliases.
  *
- * Version 1 carried the challenge in the 402 body and the payment in
- * `X-PAYMENT`; version 2 moved them to `PAYMENT-REQUIRED` and
- * `PAYMENT-SIGNATURE`, base64 JSON either way. Sellers in the wild speak one
- * or the other — The Graph's gateway is v2 with an empty body — so the buyer
- * reads both and the seller writes both. Nothing here is trusted beyond its
- * shape; every challenge is decoded before a payer sees it.
+ * A v2 challenge may arrive in `PAYMENT-REQUIRED` or as a JSON body. Older
+ * header names are accepted, but this does not implement v1's different
+ * requirements and payload shape. Every challenge is decoded before signing.
  */
 
 import type { PaymentRequired } from "@x402/core/types";
@@ -14,13 +11,46 @@ import { Schema } from "effect";
 
 import { PaymentChallenge } from "./types";
 
+const MAX_CHALLENGE_BYTES = 65_536;
+const MAX_CHALLENGE_HEADER_LENGTH = Math.ceil(MAX_CHALLENGE_BYTES / 3) * 4;
+const isChallengeHeader = Schema.is(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_CHALLENGE_HEADER_LENGTH),
+    Schema.isPattern(
+      /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
+    )
+  )
+);
+const WireChallenge = Schema.Struct({
+  ...PaymentChallenge.fields,
+  accepts: PaymentChallenge.fields.accepts.check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(16)
+  ),
+  x402Version: Schema.Literal(2),
+});
+
 /** JSON text straight into the challenge, so nothing untyped sits in between. */
 const decodeChallengeText = Schema.decodeUnknownResult(
-  Schema.fromJsonString(PaymentChallenge)
+  Schema.fromJsonString(WireChallenge)
 );
 
-const base64Text = (value: string): string =>
-  Buffer.from(value, "base64").toString("utf-8");
+const challengeBody = async (response: Response): Promise<string | null> => {
+  if (response.body === null) {
+    return null;
+  }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let text = "";
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.byteLength;
+    if (size > MAX_CHALLENGE_BYTES) {
+      return null;
+    }
+    text += decoder.decode(chunk, { stream: true });
+  }
+  return text + decoder.decode();
+};
 
 /**
  * The challenge a 402 carries: the v2 header when present, else the body.
@@ -29,13 +59,30 @@ const base64Text = (value: string): string =>
 export const challengeFrom = async (
   response: Response
 ): Promise<PaymentChallenge | null> => {
-  const header = response.headers.get("payment-required");
-  const text =
-    header === null
-      ? await response.text().catch(() => "")
-      : base64Text(header);
-  const decoded = decodeChallengeText(text);
-  return decoded._tag === "Failure" ? null : decoded.success;
+  try {
+    const header = response.headers.get("payment-required");
+    let text: string | null;
+    if (header === null) {
+      text = await challengeBody(response);
+    } else {
+      await response.body?.cancel();
+      if (!isChallengeHeader(header)) {
+        return null;
+      }
+      const bytes = Buffer.from(header, "base64");
+      if (bytes.byteLength > MAX_CHALLENGE_BYTES) {
+        return null;
+      }
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    }
+    if (text === null) {
+      return null;
+    }
+    const decoded = decodeChallengeText(text);
+    return decoded._tag === "Failure" ? null : decoded.success;
+  } catch {
+    return null;
+  }
 };
 
 /** The payment under both names, so either kind of seller reads it. */

@@ -123,3 +123,37 @@ describe("InteractionRegistry", () => {
     expect(await b).toMatchObject({ kind: "answered" });
   });
 });
+
+test("approval waiting excludes overlap and stays isolated by owner", async () => {
+  let now = 1000;
+  const interactions = new InteractionRegistry({
+    now: () => now,
+    onRequest: () => {
+      /* The clock is the observed result. */
+    },
+    onResolved: () => {
+      /* No event sink needed. */
+    },
+  });
+  const controller = new AbortController();
+  const first = interactions.park({
+    userId: ALICE,
+    request: request("wait-1", 100_000),
+    signal: controller.signal,
+  });
+  now += 100;
+  const second = interactions.park({
+    userId: ALICE,
+    request: request("wait-2", 100_000),
+    signal: controller.signal,
+  });
+  now += 100;
+  expect(interactions.waitingMs(ALICE)).toBe(200);
+  expect(interactions.waitingMs(BOB)).toBe(0);
+  interactions.resolve(ALICE, "wait-1", "no");
+  now += 100;
+  interactions.resolve(ALICE, "wait-2", "no");
+  await Promise.all([first, second]);
+  now += 1000;
+  expect(interactions.waitingMs(ALICE)).toBe(300);
+});

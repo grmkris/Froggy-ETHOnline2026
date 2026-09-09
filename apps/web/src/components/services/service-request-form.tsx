@@ -5,6 +5,7 @@
 
 import { formatUsd } from "@froggy/domain";
 import type { ServiceCard } from "@froggy/protocol";
+import { PromptServiceRequest } from "@froggy/protocol";
 import {
   Alert,
   AlertDescription,
@@ -19,6 +20,7 @@ import {
 } from "@froggy/ui/components/field";
 import { Spinner } from "@froggy/ui/components/spinner";
 import { Textarea } from "@froggy/ui/components/textarea";
+import { Schema } from "effect";
 import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -52,7 +54,12 @@ export const ServiceRequestForm = ({
           return;
         }
         run.mutate(
-          { idempotencyKey: key, prompt, service: card.name },
+          Schema.decodeUnknownSync(PromptServiceRequest)({
+            v: 1,
+            idempotencyKey: key,
+            prompt,
+            service: card.name,
+          }),
           {
             onSuccess: () => {
               setPrompt("");

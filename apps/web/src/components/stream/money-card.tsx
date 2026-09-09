@@ -9,12 +9,14 @@
  */
 
 import type { Receipt } from "@froggy/domain";
-import { Button } from "@froggy/ui/components/button";
+import { Button, buttonVariants } from "@froggy/ui/components/button";
+import { Link } from "@tanstack/react-router";
 import { GlobeIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { scrollToLive } from "../../lib/scroll-to-live";
 import type { ToolCall } from "../../lib/tool-call";
+import { urlPurchaseOf } from "../../lib/tool-summary";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 
 /** Receipts filed after this instant arrived while the person watched. */
@@ -27,11 +29,22 @@ export const MoneyBody = ({
   readonly call: ToolCall;
   readonly receipt: Receipt;
 }): ReactElement => {
+  const fetched = call.name === "x402_fetch" && call.output !== null;
+  const purchase =
+    fetched && call.output !== null ? urlPurchaseOf(call.output) : null;
   const unlockedPage =
-    call.name === "x402_fetch" && receipt.settlement !== undefined;
+    fetched && call.output?.includes("[Paid. The unlocked page");
   return (
     <div className="space-y-2 px-2 pb-2">
       <ReceiptTicket fresh={receipt.at >= LOADED_AT} receipt={receipt} />
+      {purchase === null ? null : (
+        <Link
+          className={buttonVariants({ size: "sm", variant: "outline" })}
+          to="/services"
+        >
+          View saved result
+        </Link>
+      )}
       {unlockedPage ? (
         <Button
           className="rounded-full"

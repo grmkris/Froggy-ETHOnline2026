@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@froggy/ui/components/dialog";
+import { Skeleton } from "@froggy/ui/components/skeleton";
 import { CreditCardIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -176,10 +177,24 @@ export const AddFunds = ({
               to pay for services.
             </DialogDescription>
           </DialogHeader>
+          {wallet === null ? (
+            <output
+              aria-label="Loading funding details"
+              className="flex flex-col gap-3 py-2"
+            >
+              <Skeleton aria-hidden className="h-4 w-36" />
+              <Skeleton aria-hidden className="h-10 w-full" />
+              <span className="text-muted-foreground text-sm">
+                Loading your wallet address and network…
+              </span>
+            </output>
+          ) : null}
           {address === null ? null : (
             <SendToAddress address={address} wallet={wallet} />
           )}
-          <PayByCard address={address} wallet={wallet} />
+          {wallet === null ? null : (
+            <PayByCard address={address} wallet={wallet} />
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -21,7 +21,17 @@ export const ServiceTaskResult = ({
   return (
     <div className="flex flex-col gap-3">
       {task.text === "" ? null : (
-        <p className="text-sm whitespace-pre-wrap">{task.text}</p>
+        <p className="text-sm break-words whitespace-pre-wrap">{task.text}</p>
+      )}
+      {task.data === undefined ? null : (
+        <details className="min-w-0 text-xs">
+          <summary className="text-muted-foreground min-h-11 cursor-pointer py-3">
+            Structured provider data
+          </summary>
+          <pre className="bg-muted text-machine max-h-96 overflow-auto rounded-lg p-3 break-all whitespace-pre-wrap">
+            {JSON.stringify(task.data, null, 2)}
+          </pre>
+        </details>
       )}
       {task.sources.length === 0 ? null : (
         <ul className="flex flex-col gap-2 text-sm">

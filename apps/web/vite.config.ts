@@ -17,6 +17,7 @@ export default defineConfig({
       // consent and manual pages under `/oauth/` are the client's routes.
       "/.well-known": { changeOrigin: true, target: API_TARGET },
       "/api": { changeOrigin: true, target: API_TARGET },
+      "/demo/x402": { changeOrigin: true, target: API_TARGET },
       "/froggy-cli.js": { changeOrigin: true, target: API_TARGET },
       "/froggy/SKILL.md": { changeOrigin: true, target: API_TARGET },
       "/llm.md": { changeOrigin: true, target: API_TARGET },

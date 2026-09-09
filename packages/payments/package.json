@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@hiero-ledger/sdk": "2.85.0",
+    "@solana/kit": "5.5.1",
     "@x402/core": "2.25.0",
     "@x402/evm": "2.25.0",
     "@x402/hedera": "2.25.0",
+    "@x402/svm": "2.25.0",
     "effect": "4.0.0-rc.112"
   },
   "devDependencies": {

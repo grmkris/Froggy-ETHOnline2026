@@ -1,7 +1,22 @@
 import { describe, expect, it } from "bun:test";
 
-import { MandateId, RuleId, SessionId, usdMicros } from "@froggy/domain";
-import type { Mandate, Payee, Provenance, SpendIntent } from "@froggy/domain";
+import {
+  ApprovalId,
+  KNOWN_ASSETS,
+  MandateId,
+  PurchaseId,
+  RuleId,
+  RunId,
+  SessionId,
+  usdMicros,
+} from "@froggy/domain";
+import type {
+  Mandate,
+  Payee,
+  Provenance,
+  Purchase,
+  SpendIntent,
+} from "@froggy/domain";
 
 import { authorize } from "./policy";
 import type { AuthorizeInput, LedgerEntry } from "./policy";
@@ -354,5 +369,249 @@ describe("authorize", () => {
         decide([threshold(), { ...base, id: rule(), notAfter: NOW - 1 }])._tag
       ).toBe("ask");
     });
+  });
+});
+
+const grantedPurchase = (): Purchase => {
+  const approvalId = ApprovalId.generate();
+  return {
+    id: PurchaseId.generate(),
+    createdAt: NOW,
+    updatedAt: NOW,
+    idempotencyKey: "one-purchase",
+    source: "chat",
+    connectionId: null,
+    runId: RunId.generate(),
+    toolCallId: null,
+    browserPaymentId: null,
+    request: {
+      method: "GET",
+      url: "https://merchant.example/quote",
+      body: null,
+    },
+    requestFingerprint: "request-v1",
+    purpose: "Live price data",
+    maxUsdMicros: micros(100_000),
+    budgetUsdMicros: micros(1_000_000),
+    preferredNetwork: null,
+    contactApprovedAt: null,
+    status: "paying",
+    quote: {
+      amount: {
+        asset: KNOWN_ASSETS["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:usdc"],
+        units: "10000",
+      },
+      payTo: "H32YnqbzL62YkHMSCzfKcLry9yuipwwx1EMztiCSPhjb",
+      origin: "https://merchant.example",
+      scheme: "exact",
+      extra: {},
+      maxTimeoutSeconds: 60,
+      usdMicros: micros(10_000),
+      fingerprint: "quote-v1",
+    },
+    approvalId,
+    expiresAt: NOW + 60_000,
+    grant: {
+      source: "human",
+      ruleId: rule(),
+      approvalId,
+      directoryId: null,
+      grantedAt: NOW,
+      expiresAt: NOW + 60_000,
+      requestFingerprint: "request-v1",
+      quoteFingerprint: "quote-v1",
+    },
+    payment: {
+      state: "none",
+      proofHash: null,
+      transactionId: null,
+      sentAt: null,
+    },
+    delivery: {
+      state: "pending",
+      status: null,
+      contentType: null,
+      body: null,
+      bodyHash: null,
+    },
+    receiptId: null,
+    error: null,
+    stubbed: false,
+  };
+};
+
+const purchaseInput = (
+  purchase: Purchase,
+  rules: Mandate["rules"] = []
+): AuthorizeInput => {
+  const { quote } = purchase;
+  if (quote === null) {
+    throw new Error("Missing purchase fixture quote.");
+  }
+  return {
+    purchase,
+    mandate: mandate(rules),
+    now: NOW,
+    recent: [],
+    intent: intent({
+      amount: quote.amount,
+      host: "merchant.example",
+      idempotencyKey: `purchase:${purchase.id}`,
+      payee: payee({ id: quote.payTo }),
+      usdMicros: quote.usdMicros,
+      purchase: {
+        id: purchase.id,
+        requestFingerprint: purchase.requestFingerprint,
+        quoteFingerprint: quote.fingerprint,
+      },
+    }),
+  };
+};
+
+describe("exact purchase grants", () => {
+  it("allows the named merchant and network without widening the mandate", () => {
+    const purchase = grantedPurchase();
+    const input = purchaseInput(purchase, [
+      { _tag: "network_allowlist", id: rule(), networks: ["hedera:testnet"] },
+      { _tag: "host_allowlist", id: rule(), hosts: ["original.example"] },
+      { _tag: "payee_allowlist", id: rule(), payeeIds: ["0.0.5005"] },
+      { _tag: "approval_threshold", id: rule(), overUsdMicros: micros(1) },
+    ]);
+    expect(authorize(input)._tag).toBe("allow");
+    expect(input.mandate.rules[0]).toMatchObject({
+      networks: ["hedera:testnet"],
+    });
+    expect(authorize({ ...input, purchase: null })).toMatchObject({
+      code: "approval_denied",
+    });
+  });
+
+  it("rejects mismatched request, quote, destination, amount, host, or signing state", () => {
+    const input = purchaseInput(grantedPurchase());
+    const context = input.intent.purchase;
+    if (
+      context === undefined ||
+      input.purchase === undefined ||
+      input.purchase === null
+    ) {
+      throw new Error("Missing purchase fixture context.");
+    }
+    const changed: AuthorizeInput[] = [
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          purchase: { ...context, id: PurchaseId.generate() },
+        },
+      },
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          purchase: { ...context, requestFingerprint: "different-request" },
+        },
+      },
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          purchase: { ...context, quoteFingerprint: "different-quote" },
+        },
+      },
+      { ...input, intent: { ...input.intent, idempotencyKey: "another-key" } },
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          payee: {
+            ...input.intent.payee,
+            id: input.intent.payee.id.toLowerCase(),
+          },
+        },
+      },
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          amount: { ...input.intent.amount, units: "10001" },
+        },
+      },
+      {
+        ...input,
+        intent: {
+          ...input.intent,
+          amount: {
+            ...input.intent.amount,
+            asset: { ...input.intent.amount.asset, decimals: 9 },
+          },
+        },
+      },
+      { ...input, intent: { ...input.intent, host: "other.example" } },
+      {
+        ...input,
+        purchase: { ...input.purchase, status: "awaiting_approval" },
+      },
+      {
+        ...input,
+        purchase: { ...input.purchase, approvalId: ApprovalId.generate() },
+      },
+      { ...input, purchase: { ...input.purchase, expiresAt: NOW - 1 } },
+      { ...input, now: NOW + 60_001 },
+    ];
+    for (const candidate of changed) {
+      expect(authorize(candidate)).toMatchObject({
+        _tag: "deny",
+        code: "approval_denied",
+      });
+    }
+  });
+
+  it("cannot override provenance, expiry, transaction caps, rolling caps, or pocket funds", () => {
+    const purchase = grantedPurchase();
+    const input = purchaseInput(purchase);
+    expect(
+      authorize({
+        ...input,
+        intent: {
+          ...input.intent,
+          payee: { ...input.intent.payee, provenance: "page" },
+        },
+      })
+    ).toMatchObject({ code: "untrusted_provenance" });
+    expect(
+      authorize(
+        purchaseInput(purchase, [
+          { _tag: "expiry", id: rule(), notAfter: NOW - 1 },
+        ])
+      )
+    ).toMatchObject({ code: "expired" });
+    expect(
+      authorize(
+        purchaseInput(purchase, [
+          { _tag: "per_tx_cap", id: rule(), maxUsdMicros: micros(9999) },
+        ])
+      )
+    ).toMatchObject({ code: "per_tx_cap_exceeded" });
+    expect(
+      authorize(
+        purchaseInput(purchase, [
+          {
+            _tag: "window_cap",
+            id: rule(),
+            maxUsdMicros: micros(9999),
+            windowMs: 60_000,
+          },
+        ])
+      )
+    ).toMatchObject({ code: "window_cap_exceeded" });
+    expect(
+      authorize({
+        ...input,
+        pocket: {
+          balanceUsdMicros: 0,
+          networks: [input.intent.amount.asset.network],
+        },
+      })
+    ).toMatchObject({ code: "pocket_exhausted" });
   });
 });

@@ -1,5 +1,7 @@
 # docs
 
+- [Persistent conversations and activity plan](plan/CONVERSATIONS_AND_ACTIVITY.md), [TanStack research](research/persistence-2026-09-08.md), and [current conversation retrieval](CONVERSATION_RETRIEVAL.md).
+
 - [Current release status](plan/STATUS.md), [mainnet verification](evidence/MAINNET_RELEASE.md), and [marketplace activation handoff](evidence/MARKETPLACE.md).
 
 - [Wallet UI plan and implementation](../plans/README.md) — chosen visual direction, implemented changes, browser evidence, and remaining funding work.

@@ -16,6 +16,7 @@ import { Schema } from "effect";
 import { Payee } from "./address";
 import { MandateId, RuleId, SessionId } from "./id";
 import { Amount, Network, usd, UsdMicros } from "./money";
+import { PurchaseIntent } from "./purchase";
 
 /** The most a single spend may be worth. */
 export const PerTxCap = Schema.TaggedStruct("per_tx_cap", {
@@ -109,6 +110,7 @@ export type Mandate = typeof Mandate.Type;
 
 /** What the agent is asking to do, before anyone has agreed to it. */
 export const SpendIntent = Schema.Struct({
+  purchase: Schema.optional(PurchaseIntent),
   amount: Amount,
   /**
    * Set for a 402. The host is what the allowlist matches, so it is carried

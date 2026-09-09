@@ -9,6 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "demo": "bun tools/demo.ts",
     "dev:web": "turbo run dev --filter=@froggy/web",
     "dev:server": "turbo run dev --filter=@froggy/server",
     "e2e": "playwright test",

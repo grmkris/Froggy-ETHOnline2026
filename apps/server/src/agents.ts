@@ -82,7 +82,21 @@ export const looksLikeAgentSecret = (bearer: string): boolean =>
  * What a token may reach. Everything else on `/api` is a person's: the
  * mandate, the directory, the digest, Telegram, deleting the account.
  */
+const agentMayPurchase = (pathname: string, method: string): boolean =>
+  (pathname === "/api/purchases" && (method === "GET" || method === "POST")) ||
+  (/^\/api\/purchases\/pur_[a-z0-9]+$/u.test(pathname) && method === "GET");
+
+const agentMayTrade = (pathname: string, method: string): boolean =>
+  (["/api/trades/capabilities", "/api/trades/positions"].includes(pathname) &&
+    method === "GET") ||
+  (pathname === "/api/trades" && (method === "GET" || method === "POST")) ||
+  (/^\/api\/trades\/trd_[a-z0-9]+$/u.test(pathname) && method === "GET") ||
+  (/^\/api\/trades\/trd_[a-z0-9]+\/simulate$/u.test(pathname) &&
+    method === "POST");
+
 export const agentMayCall = (pathname: string, method: string): boolean =>
+  agentMayPurchase(pathname, method) ||
+  agentMayTrade(pathname, method) ||
   (pathname.startsWith("/api/tasks") &&
     (method === "GET" || method === "POST")) ||
   ((pathname === "/api/services" ||
@@ -104,6 +118,12 @@ export const requiredScope = (
   pathname: string,
   method: string
 ): OAuthScope | null => {
+  if (pathname.startsWith("/api/trades")) {
+    return "pay";
+  }
+  if (pathname.startsWith("/api/purchases")) {
+    return "pay";
+  }
   if (pathname === "/api/wallet/pay" && method === "POST") {
     return "pay";
   }

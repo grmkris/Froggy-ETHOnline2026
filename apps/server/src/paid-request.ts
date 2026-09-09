@@ -336,7 +336,7 @@ export const paidRequest = async (
     settle: async () => {
       let attempt: PaymentAttempt;
       try {
-        attempt = await payer.pay(challenge);
+        attempt = await payer.pay({ ...challenge, accepts: [requirement] });
       } catch (error) {
         // The signer said no — Privy, naming its policy — and that is the
         // leash working. It goes on the receipt in those words.

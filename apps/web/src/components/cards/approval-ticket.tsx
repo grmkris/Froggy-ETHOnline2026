@@ -74,11 +74,13 @@ export const ApprovalTicket = ({
             <p className="text-drive-agent-foreground text-xs font-semibold tracking-wide uppercase">
               Your call
             </p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-money text-3xl leading-none">
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-money shrink-0 text-3xl leading-none whitespace-nowrap">
                 {request.amountLabel}
               </span>
-              <span className="text-sm">to {request.payeeLabel}</span>
+              <span className="min-w-0 text-sm break-all">
+                to {request.payeeLabel}
+              </span>
             </div>
             <p className="mt-1.5 text-sm">{request.detail}</p>
           </div>

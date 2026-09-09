@@ -12,9 +12,13 @@
  * concurrent browsers counts workers with a process behind them.
  */
 
+import type { BrowserPaymentId } from "@froggy/domain";
 import { decodeWorkerEvent } from "@froggy/protocol";
 import type {
   BrowserClientMessage,
+  BrowserPaymentReplay,
+  BrowserPaymentRequest,
+  BrowserPaymentResult,
   BrowserState,
   WorkerCommand,
   WorkerReply,
@@ -25,6 +29,7 @@ import type { WaitReason } from "./arbitration";
 import { bestEffort } from "./best-effort";
 import { BrowserSessionClosedError } from "./errors";
 import type { BrowserHandle } from "./handle";
+import { browserPaymentRefused } from "./payment-navigation";
 import type { FrameSubscriber } from "./screencast";
 import type { Viewport } from "./session";
 import type { Snapshot } from "./snapshot";
@@ -79,6 +84,9 @@ const startsBrowser = (message: BrowserClientMessage): boolean =>
 export class RemoteBrowser implements BrowserHandle {
   private readonly options: RemoteBrowserOptions;
   private readonly subscribers = new Set<FrameSubscriber>();
+  private readonly paymentListeners = new Set<
+    (request: BrowserPaymentRequest) => void
+  >();
   private readonly pending = new Map<number, Pending>();
   private link: WorkerLink | null = null;
   private starting: Promise<WorkerLink> | null = null;
@@ -167,6 +175,42 @@ export class RemoteBrowser implements BrowserHandle {
 
   async agentType(text: string): Promise<void> {
     await this.call({ text, type: "agent.type" });
+  }
+
+  subscribePayments(
+    listener: (request: BrowserPaymentRequest) => void
+  ): () => void {
+    this.paymentListeners.add(listener);
+    return () => {
+      this.paymentListeners.delete(listener);
+    };
+  }
+
+  async pendingPayment(): Promise<BrowserPaymentRequest | null> {
+    if (this.link === null) {
+      return null;
+    }
+    const reply = await this.request(this.link, { type: "payment.pending" });
+    return reply.kind === "payment.pending" ? reply.payment : null;
+  }
+
+  async replayPayment(
+    payment: BrowserPaymentReplay
+  ): Promise<BrowserPaymentResult> {
+    if (this.link === null) {
+      return browserPaymentRefused("The browser tab is no longer open.");
+    }
+    const reply = await this.call({ payment, type: "payment.replay" }, 60_000);
+    if (reply.kind !== "payment.result") {
+      throw new Error("The browser worker did not report the payment result.");
+    }
+    return reply.result;
+  }
+
+  async cancelPayment(id: BrowserPaymentId): Promise<void> {
+    if (this.link !== null) {
+      await this.request(this.link, { paymentId: id, type: "payment.cancel" });
+    }
   }
 
   async takePage(): Promise<void> {
@@ -309,6 +353,12 @@ export class RemoteBrowser implements BrowserHandle {
     }
     const event = decoded.success;
     switch (event.type) {
+      case "payment.required": {
+        for (const listener of this.paymentListeners) {
+          listener(event.payment);
+        }
+        return;
+      }
       case "ready": {
         onReady();
         return;

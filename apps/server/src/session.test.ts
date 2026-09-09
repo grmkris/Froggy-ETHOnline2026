@@ -13,7 +13,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  ApprovalId,
   KNOWN_ASSETS,
+  PurchaseId,
   parQuote,
   RuleId,
   RunId,
@@ -23,6 +25,7 @@ import {
   usdMicros,
   userId,
 } from "@froggy/domain";
+import type { Purchase } from "@froggy/domain";
 import type { ServiceModes } from "@froggy/protocol";
 import { memoryLedger, memoryStore } from "@froggy/wallet";
 import type { SpendLedger, Store } from "@froggy/wallet";
@@ -723,6 +726,39 @@ describe("the pocket", () => {
     expect(await store.pocket.load(ALICE)).toBe(1_000_000);
   });
 
+  test("unexpected settlement throws and unspecified send state retain the pocket reservation", async () => {
+    const store = memoryStore();
+    const session = pocketSession(store, 3_000_000);
+    await session.hydrate();
+    const thrown = await session.spend(
+      request({
+        key: "unexpected-throw",
+        settle: async () => {
+          await Promise.resolve();
+          throw new Error("Connection closed after writing the payment");
+        },
+      })
+    );
+    expect(thrown.receipt.failure).toContain("not yet known");
+    expect(session.pocket).toBe(2_000_000);
+    const missing = await session.spend(
+      request({
+        key: "missing-send-state",
+        settle: async () =>
+          await Promise.resolve({
+            network: "hedera:testnet",
+            ok: false,
+            stubbed: false,
+            transactionId: null,
+            error: "Adapter did not report whether it sent the payment",
+          }),
+      })
+    );
+    expect(missing.receipt.failure).toContain("not yet known");
+    expect(session.pocket).toBe(1_000_000);
+    expect(await store.pocket.load(ALICE)).toBe(1_000_000);
+  });
+
   test("refuses a payment the pocket cannot cover, before anything is sent", async () => {
     const session = pocketSession(memoryStore(), 500_000);
     await session.hydrate();
@@ -818,6 +854,7 @@ describe("converting USDC when the pocket is short", () => {
         options.transferOk === false
           ? {
               error: "Privy: policy refused the transfer",
+              sent: false,
               network: "eip155:84532",
               ok: false,
               stubbed: false,
@@ -1028,6 +1065,27 @@ describe("converting USDC when the pocket is short", () => {
     expect(performed).toEqual([2_000_000]);
     expect(session.pocket).toBe(1_000_000);
   });
+  test("the parent and its conversion share the same run budget", async () => {
+    const { performed, session } = converting(memoryStore(), 0);
+    await session.hydrate();
+    const sent = { count: 0 };
+    const result = await session.spend({
+      ...paying("conversion-over-budget", "100000000", sent),
+      budgetUsdMicros: 2_500_000,
+    });
+    expect(result.decision).toMatchObject({ code: "conversion_failed" });
+    expect(performed).toEqual([]);
+    expect(sent.count).toBe(0);
+    expect(session.pocket).toBe(0);
+    expect(
+      session.history.some(
+        (receipt) =>
+          receipt.decision._tag === "deny" &&
+          receipt.decision.code === "run_budget_exceeded"
+      )
+    ).toBe(true);
+  });
+
   test("an over-budget parent never converts USDC", async () => {
     const { performed, session } = converting(memoryStore(), 0);
     await session.hydrate();
@@ -1065,4 +1123,158 @@ describe("the receipt names the tool call that spent", () => {
     // Absent, not present-and-undefined: the receipt is a stored document.
     expect("toolCallId" in paid.receipt).toBe(false);
   });
+});
+
+interface PurchaseSpendFixture {
+  readonly purchase: Purchase;
+  readonly spend: SpendRequest;
+}
+
+const purchaseSpend = (at: number): PurchaseSpendFixture => {
+  const id = PurchaseId.generate();
+  const approvalId = ApprovalId.generate();
+  const spend = request({
+    key: `purchase:${id}`,
+    host: "froggy.test",
+    budgetUsdMicros: 2_000_000,
+    purchase: {
+      id,
+      requestFingerprint: "request-v1",
+      quoteFingerprint: "quote-v1",
+    },
+  });
+  return {
+    spend,
+    purchase: {
+      id,
+      createdAt: at,
+      updatedAt: at,
+      idempotencyKey: "source-key",
+      source: "chat",
+      connectionId: null,
+      runId: spend.runId,
+      toolCallId: null,
+      browserPaymentId: null,
+      request: { method: "GET", url: "https://froggy.test/quote", body: null },
+      requestFingerprint: "request-v1",
+      purpose: spend.purpose,
+      maxUsdMicros: usdMicros(2_000_000),
+      budgetUsdMicros: usdMicros(2_000_000),
+      preferredNetwork: null,
+      contactApprovedAt: null,
+      status: "paying",
+      quote: {
+        amount: spend.amount,
+        payTo: spend.payeeId,
+        origin: "https://froggy.test",
+        scheme: "exact",
+        extra: {},
+        maxTimeoutSeconds: 60,
+        usdMicros: usdMicros(1_000_000),
+        fingerprint: "quote-v1",
+      },
+      approvalId,
+      expiresAt: at + 60_000,
+      grant: {
+        source: "human",
+        ruleId: RuleId.generate(),
+        approvalId,
+        directoryId: null,
+        grantedAt: at,
+        expiresAt: at + 60_000,
+        requestFingerprint: "request-v1",
+        quoteFingerprint: "quote-v1",
+      },
+      payment: {
+        state: "none",
+        proofHash: null,
+        transactionId: null,
+        sentAt: null,
+      },
+      delivery: {
+        state: "pending",
+        status: null,
+        contentType: null,
+        body: null,
+        bodyHash: null,
+      },
+      receiptId: null,
+      error: null,
+      stubbed: false,
+    },
+  };
+};
+
+test("purchase grants bind the persisted run and budget before settlement", async () => {
+  const alterations: Partial<SpendRequest>[] = [
+    { budgetUsdMicros: undefined },
+    { budgetUsdMicros: 3_000_000 },
+    { runId: RunId.generate() },
+  ];
+  const outcomes = await Promise.all(
+    alterations.map(async (alteration) => {
+      const at = Date.now();
+      const { purchase, spend } = purchaseSpend(at);
+      const store = memoryStore();
+      await store.purchases.create(ALICE, purchase);
+      const session = sessionWith(memoryLedger(), store, undefined, {
+        now: () => at,
+      });
+      let settled = false;
+      const result = await session.spend({
+        ...spend,
+        ...alteration,
+        settle: async () => {
+          settled = true;
+          return await spend.settle();
+        },
+      });
+      expect(settled).toBe(false);
+      return result;
+    })
+  );
+  for (const outcome of outcomes) {
+    expect(outcome.decision).toMatchObject({ code: "approval_denied" });
+  }
+  const at = Date.now();
+  const { purchase, spend } = purchaseSpend(at);
+  const store = memoryStore();
+  await store.purchases.create(ALICE, purchase);
+  const valid = await sessionWith(memoryLedger(), store, undefined, {
+    now: () => at,
+  }).spend(spend);
+  expect(valid.decision._tag).toBe("allow");
+  expect(valid.receipt.approval?.id).toBe(purchase.approvalId);
+});
+
+test("declined, expired, and cancelled purchases file the original human decision", async () => {
+  const cases = [
+    { status: "declined", resolution: "deny" },
+    { status: "expired", resolution: "timeout" },
+    { status: "cancelled", resolution: "aborted" },
+  ] as const;
+  await Promise.all(
+    cases.map(async ({ status, resolution }) => {
+      const at = Date.now();
+      const { purchase, spend } = purchaseSpend(at);
+      const store = memoryStore();
+      await store.purchases.create(ALICE, { ...purchase, status, grant: null });
+      let sent = false;
+      const result = await sessionWith(memoryLedger(), store, undefined, {
+        now: () => at,
+      }).spend({
+        ...spend,
+        settle: async () => {
+          sent = true;
+          return await spend.settle();
+        },
+      });
+      expect(sent).toBe(false);
+      expect(result.decision).toMatchObject({ code: "approval_denied" });
+      expect(result.receipt.approval).toEqual({
+        id: purchase.approvalId,
+        resolution,
+      });
+    })
+  );
 });

@@ -26,6 +26,8 @@ export const Network = Schema.Literals([
   "eip155:84532",
   "hedera:mainnet",
   "hedera:testnet",
+  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 ]);
 export type Network = typeof Network.Type;
 
@@ -97,6 +99,19 @@ export type Amount = typeof Amount.Type;
  * refused rather than guessed at — see `priceInUsdMicros`.
  */
 export const KNOWN_ASSETS = {
+  /** Circle's mint registry: https://developers.circle.com/stablecoins/usdc-contract-addresses */
+  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:usdc": {
+    decimals: 6,
+    id: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    symbol: "USDC",
+  },
+  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:usdc": {
+    decimals: 6,
+    id: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    symbol: "USDC",
+  },
   /** Base mainnet USDC: what The Graph's x402 gateway is paid in. Real money. */
   "eip155:8453:usdc": {
     decimals: 6,

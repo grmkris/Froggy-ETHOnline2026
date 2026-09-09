@@ -1,10 +1,9 @@
+import { formatUsd } from "@froggy/domain";
 /**
  * What the wallet can buy: fixed prices, a request, and the results to come
  * back to. The chosen service lives in the URL, so Back works and the chat
  * can point at one.
  */
-
-import { formatUsd } from "@froggy/domain";
 import type { ServiceName, TaskDetail } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -12,10 +11,14 @@ import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 
 import { Page } from "../components/nav/page";
+import { PurchasePanel } from "../components/purchases/purchase-panel";
+import { LaunchWatchList } from "../components/services/launch-watch-list";
 import { ServiceCatalog } from "../components/services/service-catalog";
 import { ServiceRequestForm } from "../components/services/service-request-form";
 import { ServiceTaskCard } from "../components/services/service-task-card";
 import { ServiceTaskList } from "../components/services/service-task-list";
+import { TradingServiceForm } from "../components/services/trading-service-form";
+import { TradePanel } from "../components/trading/trade-panel";
 import { useServiceApi } from "../hooks/use-service-api";
 
 const DelegatedTaskResult = ({
@@ -56,7 +59,7 @@ const DelegatedTaskResult = ({
 
 export const ServicesPage = (): ReactElement => {
   const search = useSearch({ from: "/workspace/services" });
-  const { catalog, download, run, tasks, selectedTask } = useServiceApi(
+  const { api, catalog, download, run, tasks, selectedTask } = useServiceApi(
     search.task
   );
   const navigate = useNavigate();
@@ -97,6 +100,10 @@ export const ServicesPage = (): ReactElement => {
         <DelegatedTaskResult task={chosenTask} />
       );
   }
+  const RequestForm =
+    chosen?.inputKind === "structured"
+      ? TradingServiceForm
+      : ServiceRequestForm;
   return (
     <Page
       intro="Fixed prices, paid from your wallet, with a result you can come back to."
@@ -127,8 +134,9 @@ export const ServicesPage = (): ReactElement => {
               selected={search.service ?? null}
             />
           ) : (
-            <ServiceRequestForm
+            <RequestForm
               card={chosen}
+              key={chosen.name}
               onBack={() => {
                 choose(null);
               }}
@@ -147,6 +155,9 @@ export const ServicesPage = (): ReactElement => {
           tasks={tasks}
         />
       </div>
+      <LaunchWatchList api={api} />
+      <TradePanel />
+      <PurchasePanel />
     </Page>
   );
 };

@@ -24,6 +24,7 @@ export const OAuthScope = Schema.Literals([
   "browse",
   "pay",
   "services",
+  "history",
 ]);
 export type OAuthScope = typeof OAuthScope.Type;
 
@@ -33,6 +34,7 @@ export const OAUTH_SCOPES: readonly OAuthScope[] = [
   "browse",
   "pay",
   "services",
+  "history",
 ];
 
 export const OAuthClient = Schema.Struct({

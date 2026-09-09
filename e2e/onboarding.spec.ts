@@ -195,3 +195,74 @@ for (const reducedMotion of ["reduce", "no-preference"] as const) {
     expect(await scroll.evaluate((node) => node.scrollTop)).toBe(before);
   });
 }
+
+test("wallet and activity load without showing false empty or unavailable states", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const backfill = Promise.withResolvers<null>();
+  const wallet = Promise.withResolvers<() => void>();
+  await page.route("**/api/receipts", async (route) => {
+    await backfill.promise;
+    await route.fulfill({ json: { receipts: [] } });
+  });
+  await page.routeWebSocket("**/ws/app", (socket) => {
+    const server = socket.connectToServer();
+    server.onMessage((message) => {
+      const decoded = decodeAppServerMessage(message);
+      if (
+        decoded._tag === "Success" &&
+        decoded.success.type === "wallet.state"
+      ) {
+        wallet.resolve(() => {
+          socket.send(message);
+        });
+      } else {
+        socket.send(message);
+      }
+    });
+  });
+  try {
+    await page.goto("/wallet");
+    await expect(page.getByLabel("Loading wallet balance")).toBeVisible();
+    await expect(page.getByLabel("Loading wallet activity")).toBeVisible();
+    await expect(
+      page.getByText("Total unavailable", { exact: true })
+    ).toHaveCount(0);
+    await expect(page.getByText("Nothing spent or refused yet.")).toHaveCount(
+      0
+    );
+    await expect(
+      page
+        .getByLabel("Loading wallet balance")
+        .locator('[data-slot="skeleton"]')
+    ).toHaveCSS("animation-name", "none");
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+    const activity = page.getByRole("heading", {
+      name: "Activity",
+      exact: true,
+    });
+    const activityBefore = await activity.boundingBox();
+    await page.screenshot({
+      path: testInfo.outputPath("wallet-loading-mobile.png"),
+    });
+    await page.getByRole("button", { name: "Add funds", exact: true }).click();
+    await expect(page.getByLabel("Loading funding details")).toBeVisible();
+    const deliverWallet = await wallet.promise;
+    deliverWallet();
+    await expect(page.getByLabel("Loading funding details")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toContainText(
+      "This is a local identity"
+    );
+    await page.keyboard.press("Escape");
+    expect(await activity.boundingBox()).toEqual(activityBefore);
+    backfill.resolve(null);
+    await expect(page.getByLabel("Loading wallet activity")).toHaveCount(0);
+    await expect(page.getByText("Nothing spent or refused yet.")).toBeVisible();
+  } finally {
+    backfill.resolve(null);
+  }
+});

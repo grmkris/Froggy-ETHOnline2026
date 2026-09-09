@@ -104,7 +104,8 @@ export const buildStream = (
     byRun.set(receipt.runId, bucket);
   }
   const turns: StreamItem[] = messages.map((message) => {
-    const runId = message.metadata?.runId;
+    const runId =
+      message.role === "assistant" ? message.metadata?.runId : undefined;
     const attached = runId === undefined ? [] : (byRun.get(runId) ?? []);
     if (runId !== undefined) {
       byRun.delete(runId);

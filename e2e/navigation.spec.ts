@@ -47,6 +47,10 @@ for (const theme of ["passbook", "lilypad"] as const) {
       ).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(
+        nav.getByRole("link", { name: "Activity", exact: true })
+      ).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(
         nav.getByRole("link", { name: "Settings", exact: true })
       ).toBeFocused();
       await page.keyboard.press("Enter");

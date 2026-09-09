@@ -7,6 +7,7 @@ import { formatUsd } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Button, buttonVariants } from "@froggy/ui/components/button";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
+import { Skeleton } from "@froggy/ui/components/skeleton";
 import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
@@ -43,11 +44,21 @@ const WalletPeek = ({
       to="/wallet"
     >
       Wallet:{" "}
-      <MorphText className="text-money text-foreground text-sm tabular-nums">
-        {totalUsdMicros === null
-          ? "balance unavailable"
-          : formatUsd(totalUsdMicros)}
-      </MorphText>
+      {wallet === null ? (
+        <output
+          aria-label="Loading wallet balance"
+          className="inline-flex items-center"
+        >
+          <Skeleton aria-hidden className="h-4 w-20" />
+          <span className="sr-only">Loading wallet balance</span>
+        </output>
+      ) : (
+        <MorphText className="text-money text-foreground text-sm tabular-nums">
+          {totalUsdMicros === null
+            ? "balance unavailable"
+            : formatUsd(totalUsdMicros)}
+        </MorphText>
+      )}
       <ArrowUpRightIcon aria-hidden className="size-4" />
     </Link>
   );
@@ -79,6 +90,7 @@ export const EmptyState = ({
         Research an idea, make something, or put your agent to work.
       </p>
     </div>
+    <AgentOnboarding />
     <div className="grid gap-3 sm:grid-cols-2">
       <Button
         aria-label="Buy the lending snapshot"
@@ -111,7 +123,6 @@ export const EmptyState = ({
         </span>
       </Link>
     </div>
-    <AgentOnboarding />
     <div className="flex flex-col gap-1 border-t pt-3">
       <WalletPeek wallet={wallet} />
       <p className="text-muted-foreground text-xs leading-relaxed">

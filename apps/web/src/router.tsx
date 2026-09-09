@@ -1,4 +1,4 @@
-import { TaskId } from "@froggy/domain";
+import { HistoryId, TaskId } from "@froggy/domain";
 import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
@@ -41,6 +41,25 @@ const chatRoute = page(
   async () => await import("./routes/chat-page"),
   "ChatPage"
 );
+const conversationRoute = page(
+  "/chat/$conversationId",
+  async () => await import("./routes/chat-page"),
+  "ChatPage"
+);
+const activityRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/activity-page"),
+    "ActivityPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/activity",
+  validateSearch: (raw: { readonly record?: unknown }) => {
+    const decoded = Schema.decodeUnknownResult(
+      Schema.Struct({ record: Schema.optional(HistoryId) })
+    )(raw);
+    return decoded._tag === "Success" ? decoded.success : {};
+  },
+});
 const walletRoute = page(
   "/wallet",
   async () => await import("./routes/wallet-page"),
@@ -124,6 +143,8 @@ const oauthManualRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   workspaceRoute.addChildren([
     chatRoute,
+    conversationRoute,
+    activityRoute,
     walletRoute,
     servicesRoute,
     agentsRoute,

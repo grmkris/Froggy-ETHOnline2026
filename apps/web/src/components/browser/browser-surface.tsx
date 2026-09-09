@@ -19,6 +19,7 @@ import type { ReactElement } from "react";
 
 import { usePageInput } from "../../hooks/use-page-input";
 import type { BrowserPainter } from "../../lib/browser-painter";
+import { CloudViewer } from "./cloud-viewer";
 
 interface BrowserSurfaceProps {
   readonly className?: string | undefined;
@@ -138,26 +139,30 @@ export const BrowserSurface = ({
       className={cn("bg-paper-deep relative overflow-hidden", className)}
       style={{ aspectRatio: `${viewport.width} / ${viewport.height}` }}
     >
-      <canvas
-        aria-label={
-          interactive
-            ? "The shared browser. Click to take the page."
-            : "The shared browser. Open Froggy on a desktop to drive it."
-        }
-        className={cn(
-          "block h-full w-full object-contain",
-          interactive ? "cursor-default" : "pointer-events-none"
-        )}
-        inert={!interactive}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            input.focusKeyboard();
+      {state?.cloud?.viewerReady === true ? (
+        <CloudViewer state={state} interactive={interactive && connected} />
+      ) : (
+        <canvas
+          aria-label={
+            interactive
+              ? "The shared browser. Click to take the page."
+              : "The shared browser. Open Froggy on a desktop to drive it."
           }
-        }}
-        ref={canvasRef}
-        tabIndex={interactive ? 0 : -1}
-        {...input.canvasProps}
-      />
+          className={cn(
+            "block h-full w-full object-contain",
+            interactive ? "cursor-default" : "pointer-events-none"
+          )}
+          inert={!interactive}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              input.focusKeyboard();
+            }
+          }}
+          ref={canvasRef}
+          tabIndex={interactive ? 0 : -1}
+          {...input.canvasProps}
+        />
+      )}
       <Overlay
         connected={connected}
         onStart={() => {

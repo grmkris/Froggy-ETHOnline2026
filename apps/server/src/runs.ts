@@ -34,8 +34,8 @@ export class ChatRun {
   private replayable = true;
   private finished = false;
 
-  constructor(sessionId: SessionId) {
-    this.id = RunId.generate();
+  constructor(sessionId: SessionId, id = RunId.generate()) {
+    this.id = id;
     this.sessionId = sessionId;
   }
 
@@ -127,9 +127,9 @@ export class ChatRunRegistry {
   private readonly current = new Map<SessionId, ChatRun>();
 
   /** Starting a run supersedes and aborts whatever the session was doing. */
-  start(sessionId: SessionId): ChatRun {
+  start(sessionId: SessionId, id?: RunId): ChatRun {
     this.current.get(sessionId)?.abort();
-    const run = new ChatRun(sessionId);
+    const run = new ChatRun(sessionId, id);
     this.current.set(sessionId, run);
     return run;
   }

@@ -18,7 +18,7 @@
  * own screencast policy, so a take never queues behind a backlog of JPEGs.
  */
 
-import { ProtocolVersion } from "@froggy/domain";
+import { BrowserPaymentId, ProtocolVersion, TabId } from "@froggy/domain";
 import { Schema } from "effect";
 
 import { BrowserClientMessage, BrowserState } from "./browser";
@@ -29,6 +29,48 @@ const Correlated = { ...Envelope, id: Schema.Int };
 /** Why an agent operation unblocked: the human was quiet, went quiet, or never did. */
 export const WaitReason = Schema.Literals(["skipped", "idle", "timeout"]);
 export type WaitReason = typeof WaitReason.Type;
+
+export const BROWSER_PAYMENT_CHALLENGE_LIMIT = 32_768;
+export const BROWSER_PAYMENT_BODY_LIMIT = 65_536;
+export const BROWSER_PAYMENT_URL_LIMIT = 8192;
+
+const PaymentHeader = Schema.String.check(
+  Schema.isMaxLength(BROWSER_PAYMENT_CHALLENGE_LIMIT)
+);
+const PaymentUrl = Schema.String.check(
+  Schema.isMaxLength(BROWSER_PAYMENT_URL_LIMIT)
+);
+
+/** Protocol facts from one top-level GET; never page text or browser credentials. */
+export const BrowserPaymentRequest = Schema.Struct({
+  id: BrowserPaymentId,
+  tabId: TabId,
+  url: PaymentUrl,
+  method: Schema.Literals(["GET"]),
+  paymentRequired: Schema.NullOr(PaymentHeader),
+  body: Schema.String.check(
+    Schema.isMaxLength(BROWSER_PAYMENT_CHALLENGE_LIMIT)
+  ),
+  observedAt: Schema.Int,
+});
+export type BrowserPaymentRequest = typeof BrowserPaymentRequest.Type;
+
+/** The signature is a transport capability, confined to server-worker IPC. */
+export const BrowserPaymentReplay = Schema.Struct({
+  id: BrowserPaymentId,
+  paymentHeader: PaymentHeader.check(Schema.isMinLength(1)),
+});
+export type BrowserPaymentReplay = typeof BrowserPaymentReplay.Type;
+
+export const BrowserPaymentResult = Schema.Struct({
+  sent: Schema.Boolean,
+  status: Schema.NullOr(Schema.Int),
+  url: PaymentUrl,
+  paymentResponse: Schema.NullOr(PaymentHeader),
+  body: Schema.String.check(Schema.isMaxLength(BROWSER_PAYMENT_BODY_LIMIT)),
+  error: Schema.NullOr(Schema.String.check(Schema.isMaxLength(1000))),
+});
+export type BrowserPaymentResult = typeof BrowserPaymentResult.Type;
 
 export const WorkerCommand = Schema.Union([
   /** A message from the human's browser socket, forwarded verbatim. */
@@ -54,6 +96,20 @@ export const WorkerCommand = Schema.Union([
     type: Schema.Literals(["agent.type"]),
   }),
   Schema.Struct({ ...Correlated, type: Schema.Literals(["take"]) }),
+  Schema.Struct({
+    ...Correlated,
+    type: Schema.Literals(["payment.pending"]),
+  }),
+  Schema.Struct({
+    ...Correlated,
+    payment: BrowserPaymentReplay,
+    type: Schema.Literals(["payment.replay"]),
+  }),
+  Schema.Struct({
+    ...Correlated,
+    paymentId: BrowserPaymentId,
+    type: Schema.Literals(["payment.cancel"]),
+  }),
   /** Whether anyone is looking. No watchers, no screencast, no encoding. */
   Schema.Struct({
     ...Correlated,
@@ -87,11 +143,24 @@ export const WorkerReply = Schema.Union([
     ok: Schema.Boolean,
   }),
   Schema.Struct({ kind: Schema.Literals(["done"]) }),
+  Schema.Struct({
+    kind: Schema.Literals(["payment.pending"]),
+    payment: Schema.NullOr(BrowserPaymentRequest),
+  }),
+  Schema.Struct({
+    kind: Schema.Literals(["payment.result"]),
+    result: BrowserPaymentResult,
+  }),
   Schema.Struct({ kind: Schema.Literals(["state"]), state: BrowserState }),
 ]);
 export type WorkerReply = typeof WorkerReply.Type;
 
 export const WorkerEvent = Schema.Union([
+  Schema.Struct({
+    ...Envelope,
+    payment: BrowserPaymentRequest,
+    type: Schema.Literals(["payment.required"]),
+  }),
   Schema.Struct({
     ...Envelope,
     pid: Schema.Int,

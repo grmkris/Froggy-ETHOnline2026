@@ -9,14 +9,14 @@ import { WalletHome } from "../components/wallet/wallet-home";
 import { useWorkspace } from "../lib/workspace-context";
 
 export const WalletPage = (): ReactElement => {
-  const { app } = useWorkspace();
+  const { app, receiptHistory } = useWorkspace();
   return (
     <Page slot="wallet-home-scroll" title="Wallet" titleHidden>
       <MotionItem>
         <WalletHome wallet={app.wallet} />
       </MotionItem>
       <MotionItem delay={0.07}>
-        <WalletActivity receipts={app.receipts} />
+        <WalletActivity history={receiptHistory} receipts={app.receipts} />
       </MotionItem>
     </Page>
   );

@@ -56,6 +56,12 @@ const STORIES = {
     sentence: () => "Checked your service result",
     tone: "plain",
   },
+  browse_task: {
+    icon: GlobeIcon,
+    tone: "plain",
+    doing: () => "Preparing a browsing task",
+    sentence: () => "Choose a browsing budget",
+  },
   browser_click: {
     doing: (input) => `Clicking ${input.ref ?? "an element"}`,
     icon: MousePointerClickIcon,

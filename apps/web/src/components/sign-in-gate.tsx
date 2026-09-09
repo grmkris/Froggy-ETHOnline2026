@@ -46,20 +46,6 @@ const Wordmark = (): React.ReactElement => (
 export const SignInGate = (): React.ReactElement => {
   const identity = useIdentity();
 
-  if (identity.status === "loading") {
-    return (
-      <Frame>
-        <Wordmark />
-        <output aria-label="Preparing sign-in" className="flex flex-col gap-3">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <span className="sr-only">Preparing sign-in</span>
-        </output>
-      </Frame>
-    );
-  }
-
   if (identity.status === "failed") {
     return (
       <Frame>
@@ -98,15 +84,25 @@ export const SignInGate = (): React.ReactElement => {
           </li>
         ))}
       </ol>
-      <Button
-        className="min-h-11 w-full rounded-xl text-base"
-        onClick={() => {
-          identity.login();
-        }}
-        size="lg"
-      >
-        Sign in with email or Google
-      </Button>
+      {identity.status === "loading" || !identity.ready ? (
+        <output
+          aria-label="Preparing sign-in"
+          className="flex h-11 items-center"
+        >
+          <Skeleton aria-hidden className="h-11 w-full rounded-xl" />
+          <span className="sr-only">Preparing sign-in</span>
+        </output>
+      ) : (
+        <Button
+          className="min-h-11 w-full rounded-xl text-base"
+          onClick={() => {
+            identity.login();
+          }}
+          size="lg"
+        >
+          Sign in with email or Google
+        </Button>
+      )}
       <p className="text-muted-foreground mt-4 text-center text-xs">
         Bring your own agent, or start a task with Froggy.
       </p>

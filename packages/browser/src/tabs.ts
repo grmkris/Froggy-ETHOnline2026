@@ -9,14 +9,24 @@
  */
 
 import { TabId } from "@froggy/domain";
-import type { TabSummary } from "@froggy/protocol";
+import type { BrowserPaymentId } from "@froggy/domain";
+import type {
+  BrowserPaymentReplay,
+  BrowserPaymentRequest,
+  BrowserPaymentResult,
+  TabSummary,
+} from "@froggy/protocol";
 
 import { bestEffort } from "./best-effort";
 import { webViewCdp } from "./cdp";
 import type { CdpPayload, CdpTab } from "./cdp";
+import { browserPaymentRefused, PaymentNavigation } from "./payment-navigation";
 import { PRIVATE_URL_PATTERNS } from "./private-network";
 
 export interface TabView extends EventTarget {
+  readonly attached?: boolean;
+  readonly ready?: () => Promise<void>;
+  readonly activate?: () => Promise<void>;
   readonly cdp: <T = unknown>(
     method: string,
     params?: CdpPayload
@@ -43,8 +53,9 @@ export interface TabRegistryDeps {
    * Off only for local development, where the app itself is on `localhost`.
    */
   readonly blockPrivateNetwork: boolean;
-  readonly createView: () => TabView;
+  readonly createView: () => TabView | Promise<TabView>;
   readonly onStateChange: () => void;
+  readonly onPayment: (request: BrowserPaymentRequest) => void;
 }
 
 /**
@@ -63,6 +74,7 @@ const BLANK_PAGE = "about:blank";
 export class TabRegistry {
   private readonly deps: TabRegistryDeps;
   private readonly tabs = new Map<TabId, Tab>();
+  private readonly payments = new Map<TabId, PaymentNavigation>();
   private readonly refreshTimers = new Map<
     TabId,
     ReturnType<typeof setTimeout>
@@ -102,13 +114,43 @@ export class TabRegistry {
    * navigated has no `cdp()` to call and looks broken rather than empty.
    */
   async openTab(url: string = BLANK_PAGE): Promise<Tab> {
-    const view = this.deps.createView();
+    const view = await this.deps.createView();
+    return await this.adoptTab(view, url);
+  }
+
+  async adoptTab(view: TabView, url?: string): Promise<Tab> {
     const id = TabId.generate();
-    await view.navigate(url);
+    if (view.attached !== true) {
+      await view.navigate(BLANK_PAGE);
+    }
     const cdp = webViewCdp(view);
-    const tab: Tab = { cdp, id, loading: true, title: "", url, view };
+    const tab: Tab = { cdp, id, loading: true, title: "", url: view.url, view };
     this.tabs.set(id, tab);
+    view.addEventListener(
+      "close",
+      () => {
+        this.closeTab(id);
+      },
+      { once: true }
+    );
+    this.active = id;
     await bestEffort(cdp.send("Page.enable"));
+    const payment = new PaymentNavigation({
+      cdp,
+      currentUrl: () => view.url,
+      isActive: () => this.active === id,
+      navigate: async (target) => {
+        await view.navigate(target);
+      },
+      onPayment: this.deps.onPayment,
+      tabId: id,
+    });
+    this.payments.set(id, payment);
+    // Boot on about:blank so the first real request is observed and blocked
+    // where necessary, rather than attaching after it has already completed.
+    await (view.attached === true
+      ? payment.start()
+      : bestEffort(payment.start()));
     if (this.deps.blockPrivateNetwork) {
       // Enforced by Chrome for every request the tab makes, so a redirect or a
       // subresource cannot reach what a check on the typed URL never saw.
@@ -120,7 +162,10 @@ export class TabRegistry {
     cdp.on("Page.domContentEventFired", () => {
       this.scheduleRefresh(tab);
     });
-    this.active = id;
+    await view.ready?.();
+    if (url !== undefined && url !== BLANK_PAGE) {
+      await view.navigate(url);
+    }
     this.scheduleRefresh(tab);
     this.deps.onStateChange();
     return tab;
@@ -131,6 +176,7 @@ export class TabRegistry {
       return false;
     }
     this.active = id;
+    void bestEffort(this.tabs.get(id)?.view.activate?.());
     this.deps.onStateChange();
     return true;
   }
@@ -141,6 +187,8 @@ export class TabRegistry {
       return false;
     }
     this.clearRefresh(id);
+    this.payments.get(id)?.dispose();
+    this.payments.delete(id);
     try {
       tab.view.close();
     } catch {
@@ -153,6 +201,36 @@ export class TabRegistry {
     }
     this.deps.onStateChange();
     return true;
+  }
+
+  async pendingPayment(): Promise<BrowserPaymentRequest | null> {
+    const payment =
+      this.active === null ? undefined : this.payments.get(this.active);
+    return (await payment?.pending()) ?? null;
+  }
+
+  async replayPayment(
+    input: BrowserPaymentReplay
+  ): Promise<BrowserPaymentResult> {
+    const payment =
+      this.active === null ? undefined : this.payments.get(this.active);
+    return payment === undefined
+      ? browserPaymentRefused("The browser tab is no longer open.")
+      : await payment.replayPayment(input);
+  }
+
+  async cancelPayment(id?: BrowserPaymentId): Promise<void> {
+    await Promise.all(
+      [...this.payments.values()].map(async (payment) => {
+        await payment.cancel(id);
+      })
+    );
+  }
+
+  cancelReplays(): void {
+    for (const payment of this.payments.values()) {
+      payment.cancelReplay();
+    }
   }
 
   dispose(): void {

@@ -105,6 +105,7 @@ export const BrowserClientMessage = Schema.Union([
     ...Envelope,
     type: Schema.Literals(["browser.take"]),
   }),
+  Schema.Struct({ ...Envelope, type: Schema.Literals(["browser.resume"]) }),
   /**
    * Keepalive. Deliberately its own message and **not** routed through input
    * handling: an input-shaped ping would flip arbitration to `human` on every
@@ -136,6 +137,15 @@ export const BrowserStatus = Schema.Literals([
 export type BrowserStatus = typeof BrowserStatus.Type;
 
 export const BrowserState = Schema.Struct({
+  cloud: Schema.optional(
+    Schema.Struct({
+      control: Schema.Literals(["agent", "human", "stopping"]),
+      viewerReady: Schema.Boolean,
+      expiresAt: Schema.NullOr(Schema.Number),
+      idleExpiresAt: Schema.optional(Schema.Number),
+      stubbed: Schema.Boolean,
+    })
+  ),
   activeTabId: Schema.NullOr(TabId),
   /** Populated when `status` is `crashed` or `unavailable`; the pane shows it verbatim. */
   error: Schema.NullOr(Schema.String),

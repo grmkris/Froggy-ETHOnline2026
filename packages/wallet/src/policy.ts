@@ -20,6 +20,9 @@ import type {
   MandateRule,
   Network,
   PolicyDecision,
+  Purchase,
+  PurchaseGrant,
+  PurchaseQuote,
   RuleId,
   SpendIntent,
 } from "@froggy/domain";
@@ -31,6 +34,8 @@ export interface LedgerEntry {
 }
 
 export interface AuthorizeInput {
+  /** Loaded by the server from this person's store, never from a tool argument. */
+  readonly purchase?: Purchase | null;
   /**
    * A person has already answered "yes" to this exact intent.
    *
@@ -168,28 +173,71 @@ const pocketShortfall = (input: AuthorizeInput): PolicyDecision | null => {
   );
 };
 
-export const authorize = (input: AuthorizeInput): PolicyDecision => {
-  const { intent, mandate, now, recent } = input;
-  const satisfied: RuleId[] = [];
+const matchesPurchasePayment = (
+  intent: SpendIntent,
+  quote: PurchaseQuote
+): boolean =>
+  !(
+    normalizePayeeId(intent.payee.id) !== normalizePayeeId(quote.payTo) ||
+    intent.amount.asset.network !== quote.amount.asset.network ||
+    normalizePayeeId(intent.amount.asset.id) !==
+      normalizePayeeId(quote.amount.asset.id) ||
+    intent.amount.asset.decimals !== quote.amount.asset.decimals ||
+    intent.amount.asset.symbol !== quote.amount.asset.symbol ||
+    intent.amount.units !== quote.amount.units ||
+    intent.host !== new URL(quote.origin).host
+  );
 
-  // 2. Where the payee came from. A well-formed address is not a trusted one:
-  //    this is the check that stops an address a page suggested from being paid.
-  if (!isPayable(intent.payee.provenance)) {
-    return deny(
-      "untrusted_provenance",
-      `Refusing to pay ${intent.payee.id}: it came from ${intent.payee.provenance === "page" ? "page content" : "the model"}, not from you, your allowlist or this server. Type the address yourself, or add it to the mandate, if you meant it.`
-    );
+interface GrantedPurchase extends Purchase {
+  readonly grant: PurchaseGrant;
+  readonly quote: PurchaseQuote;
+}
+
+/** A grant covers one immutable request/offer and the ledger key of that purchase. */
+const permittedPurchase = (input: AuthorizeInput): GrantedPurchase | null => {
+  const { intent, purchase, now } = input;
+  const context = intent.purchase;
+  const grant = purchase?.grant;
+  const quote = purchase?.quote;
+  if (
+    !context ||
+    !purchase ||
+    !grant ||
+    !quote ||
+    purchase.status !== "paying" ||
+    !URL.canParse(quote.origin)
+  ) {
+    return null;
   }
-
-  for (const rule of rulesOfKind(mandate, "expiry")) {
-    if (now > rule.notAfter) {
-      return deny("expired", "This mandate has expired.", rule.id);
-    }
-    satisfied.push(rule.id);
+  if (
+    context.id !== purchase.id ||
+    purchase.approvalId !== grant.approvalId ||
+    now > purchase.expiresAt ||
+    intent.idempotencyKey !== `purchase:${purchase.id}` ||
+    context.requestFingerprint !== purchase.requestFingerprint ||
+    context.requestFingerprint !== grant.requestFingerprint ||
+    context.quoteFingerprint !== quote.fingerprint ||
+    context.quoteFingerprint !== grant.quoteFingerprint ||
+    now > grant.expiresAt ||
+    grant.grantedAt > now ||
+    !matchesPurchasePayment(intent, quote)
+  ) {
+    return null;
   }
+  return { ...purchase, grant, quote };
+};
 
+const checkAllowlists = (
+  input: AuthorizeInput,
+  purchase: Purchase | null,
+  satisfied: RuleId[]
+): PolicyDecision | null => {
+  const { intent, mandate } = input;
   for (const rule of rulesOfKind(mandate, "network_allowlist")) {
-    if (!rule.networks.includes(intent.amount.asset.network)) {
+    if (
+      purchase === null &&
+      !rule.networks.includes(intent.amount.asset.network)
+    ) {
       return deny(
         "network_not_allowed",
         `${intent.amount.asset.network} is not in this mandate's network allowlist.`,
@@ -205,7 +253,7 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
     // the act the allowlist stands in for. Every cap below still applies, and
     // so does the signer's own policy — Privy is the outer leash, and a typed
     // address it has no rule for is refused there, in its words.
-    if (intent.payee.provenance === "user") {
+    if (purchase !== null || intent.payee.provenance === "user") {
       satisfied.push(rule.id);
       continue;
     }
@@ -222,7 +270,7 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
 
   if (intent.host !== undefined) {
     for (const rule of rulesOfKind(mandate, "host_allowlist")) {
-      if (!hostAllowed(intent.host, rule.hosts)) {
+      if (purchase === null && !hostAllowed(intent.host, rule.hosts)) {
         return deny(
           "host_not_allowed",
           `${intent.host} is not on the paid-host allowlist.`,
@@ -231,6 +279,55 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
       }
       satisfied.push(rule.id);
     }
+  }
+
+  return null;
+};
+
+export const authorize = (input: AuthorizeInput): PolicyDecision => {
+  const { intent, mandate, now, recent } = input;
+  const satisfied: RuleId[] = [];
+  const purchase = permittedPurchase(input);
+
+  // 2. Where the payee came from. A well-formed address is not a trusted one:
+  //    this is the check that stops an address a page suggested from being paid.
+  if (!isPayable(intent.payee.provenance)) {
+    return deny(
+      "untrusted_provenance",
+      `Refusing to pay ${intent.payee.id}: it came from ${intent.payee.provenance === "page" ? "page content" : "the model"}, not from you, your allowlist or this server. Type the address yourself, or add it to the mandate, if you meant it.`
+    );
+  }
+
+  if (intent.purchase !== undefined && purchase === null) {
+    return deny(
+      "approval_denied",
+      "This purchase has no current permission matching its exact request and payment offer."
+    );
+  }
+  if (purchase !== null) {
+    if (
+      intent.usdMicros >
+      Math.min(purchase.maxUsdMicros, purchase.quote.usdMicros)
+    ) {
+      return deny(
+        "per_tx_cap_exceeded",
+        "The purchase exceeds its approved spending ceiling.",
+        purchase.grant.ruleId
+      );
+    }
+    satisfied.push(purchase.grant.ruleId);
+  }
+
+  for (const rule of rulesOfKind(mandate, "expiry")) {
+    if (now > rule.notAfter) {
+      return deny("expired", "This mandate has expired.", rule.id);
+    }
+    satisfied.push(rule.id);
+  }
+
+  const allowlistDecision = checkAllowlists(input, purchase, satisfied);
+  if (allowlistDecision !== null) {
+    return allowlistDecision;
   }
 
   for (const rule of rulesOfKind(mandate, "per_tx_cap")) {
@@ -265,7 +362,10 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
   }
 
   // 3. Last: the human's line.
-  const ask = threshold(input, satisfied);
+  const ask = threshold(
+    { ...input, approved: input.approved === true || purchase !== null },
+    satisfied
+  );
   if (ask !== null) {
     return ask;
   }

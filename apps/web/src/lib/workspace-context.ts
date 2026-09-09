@@ -11,10 +11,13 @@
 import { createContext, useContext } from "react";
 
 import type { AppStream } from "../hooks/use-app-socket";
+import type { ReceiptsBackfill } from "../hooks/use-receipts";
 import type { WebMcpStatus } from "./webmcp";
 
 export interface Workspace {
   readonly app: AppStream;
+  readonly pendingPurchases: number;
+  readonly receiptHistory: ReceiptsBackfill;
   /** Wipes everything Froggy holds for this person and reloads. */
   readonly deleteMyData: () => Promise<void>;
   readonly webMcp: WebMcpStatus;

@@ -21,6 +21,7 @@ import { createConversion } from "./conversion";
 import { detached } from "./detached";
 import { describeModes, loadEnvironment } from "./environment";
 import { AgentGrants } from "./grants";
+import { recordHistoryWait } from "./history-sources";
 import { InteractionRegistry } from "./interactions";
 import { digestJob, promptJob, runScheduledFor } from "./jobs";
 import { createNotices } from "./notices";
@@ -32,8 +33,11 @@ import { cspModeOf, withSecurityHeaders } from "./security-headers";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData } from "./sockets";
+import { resumeBrowseTask } from "./tasks";
 import { liveTelegramPager, stubTelegramPager } from "./telegram/pager";
 import type { TelegramPager } from "./telegram/pager";
+import { LaunchReactor } from "./trading/reactions";
+import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
 import { Workspaces } from "./workspaces";
 
@@ -117,6 +121,16 @@ class FroggyServer extends Context.Service<
         );
       }
       const quotes = createQuotes(services.rates);
+      const unsubscribeHistory = services.store.history.subscribe(
+        (userId, sequence) => {
+          sinks.publishApp?.(userId, {
+            v: 1,
+            type: "history.changed",
+            sequence,
+          });
+        }
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribeHistory));
 
       const interactions = new InteractionRegistry({
         onRequest: (userId, request) => {
@@ -142,8 +156,20 @@ class FroggyServer extends Context.Service<
         // the session never learns what a run is.
         ask: async (userId, input) => {
           // The same question, on the phone too, with the same four answers.
+          await recordHistoryWait(
+            services.store.history,
+            userId,
+            input.request,
+            null
+          );
           sinks.pager?.postApproval(userId, input.request);
           const outcome = await interactions.park({ ...input, userId });
+          await recordHistoryWait(
+            services.store.history,
+            userId,
+            input.request,
+            outcome.kind === "answered" ? outcome.optionId : outcome.kind
+          );
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
             runs.abort(workspaces.for(userId).session.id);
             interactions.abortAll(userId, "stopped from the approval card");
@@ -152,11 +178,27 @@ class FroggyServer extends Context.Service<
         },
         blockPrivateNetwork: environment.blockPrivateNetwork,
         browserIdleMs: environment.browserIdleMs,
+        createBrowser: services.createBrowser,
         demoUserId: environment.demoUserId,
         isBusy: (sessionId) => runs.get(sessionId) !== null,
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
         modes: environment.modes,
+        onBrowserPayment: (userId, request) => {
+          detached("browser purchase", async () => {
+            const workspace = await workspaces.hydrate(userId);
+            const run = runs.get(workspace.session.id);
+            await services.purchases.observe(
+              {
+                session: workspace.session,
+                browser: workspace.browser,
+                source: "browser",
+                run: run ?? undefined,
+              },
+              request
+            );
+          });
+        },
         onBrowserState: (userId, state) => {
           sinks.publishBrowserState?.(userId, state);
         },
@@ -236,7 +278,31 @@ class FroggyServer extends Context.Service<
       // One-time links to the pages payments unlock, opened by the shared Chrome.
       const unlocks = new UnlockTokens();
 
+      const notices = createNotices({
+        notify: async (userId, text) =>
+          (await sinks.pager?.notify(userId, text)) ?? false,
+        publishApp: (userId, message) => {
+          sinks.publishApp?.(userId, message);
+        },
+      });
+
       const sockets = createSocketHandlers({
+        resumeBrowse: async (userId) => {
+          await resumeBrowseTask(
+            {
+              budget,
+              interactions,
+              notices,
+              oracleUrl,
+              runs,
+              services,
+              tasksUrl: `${environment.appOrigin}/api/tasks`,
+              unlocks,
+              workspaces,
+            },
+            userId
+          );
+        },
         interactions,
         runs,
         services,
@@ -257,11 +323,6 @@ class FroggyServer extends Context.Service<
       // What the agent says unprompted: to the phone through the pager,
       // which is built next and needs these same notices for its own turns,
       // so the pager is reached through the sinks rather than by reference.
-      const notices = createNotices({
-        notify: async (userId, text) =>
-          (await sinks.pager?.notify(userId, text)) ?? false,
-        publishApp: sockets.publishApp,
-      });
 
       // The pager. Live only with a bot token *and* a webhook secret; the
       // stub answers 404 and says so.
@@ -322,6 +383,38 @@ class FroggyServer extends Context.Service<
           await ticker.tick();
         });
       }, SCHEDULE_TICK_MS);
+
+      const reactions = new LaunchReactor({
+        watches: services.store.launches,
+        store: services.store.trading,
+        trades: services.trades,
+        sessionFor: async (owner) => {
+          const workspace = await workspaces.hydrate(owner);
+          return workspace.session;
+        },
+        now: Date.now,
+      });
+      const launchTick = setInterval(() => {
+        detached("launch observation", async () => {
+          await services.launches.tick();
+          await reactions.tick();
+        });
+      }, 5000);
+      detached("launch observation at startup", async () => {
+        await services.launches.tick();
+        await reactions.tick();
+      });
+
+      const tradeRecovery = createTradeRecovery({
+        store: services.store.trading,
+        recover: async (owner, id) => {
+          await services.trades.get(owner, id, null);
+        },
+      });
+      const tradeTick = setInterval(() => {
+        detached("trade recovery", tradeRecovery.tick);
+      }, 15_000);
+      detached("trade recovery at startup", tradeRecovery.tick);
 
       const routerDeps = {
         budget,
@@ -409,6 +502,11 @@ class FroggyServer extends Context.Service<
           Effect.promise(async () => {
             clearInterval(sweep);
             clearInterval(scheduleTick);
+            clearInterval(launchTick);
+            await services.launches.close();
+            await reactions.close();
+            clearInterval(tradeTick);
+            await tradeRecovery.close();
             await running.stop(true);
             await workspaces.closeAll();
             await services.shutdown();

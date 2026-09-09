@@ -136,6 +136,10 @@ export type RunId = typeof RunId.Type;
 export const TabId = makeIdSchema("tab", "TabId");
 export type TabId = typeof TabId.Type;
 
+/** One observed payment challenge bound to a browser navigation. */
+export const BrowserPaymentId = makeIdSchema("bpay", "BrowserPaymentId");
+export type BrowserPaymentId = typeof BrowserPaymentId.Type;
+
 /** A spend mandate: the caps and allowlists the agent is held to. */
 export const MandateId = makeIdSchema("mnd", "MandateId");
 export type MandateId = typeof MandateId.Type;
@@ -198,3 +202,41 @@ export type ConversionId = typeof ConversionId.Type;
 /** One MCP tool call or HTTP task/payment request from a connected agent. */
 export const AgentInvocationId = makeIdSchema("aiv", "AgentInvocationId");
 export type AgentInvocationId = typeof AgentInvocationId.Type;
+
+/** One HTTP purchase, shared by chat, the browser and connected agents. */
+export const PurchaseId = makeIdSchema("pur", "PurchaseId");
+export type PurchaseId = typeof PurchaseId.Type;
+
+/** One immutable, unsigned trading quote returned by a provider. */
+export const TradeQuoteId = makeIdSchema("tqt", "TradeQuoteId");
+export type TradeQuoteId = typeof TradeQuoteId.Type;
+
+export const TradeId = makeIdSchema("trd", "TradeId");
+export type TradeId = typeof TradeId.Type;
+
+export const TradeStepId = makeIdSchema("tst", "TradeStepId");
+export type TradeStepId = typeof TradeStepId.Type;
+
+export const TradeRuleId = makeIdSchema("trl", "TradeRuleId");
+export type TradeRuleId = typeof TradeRuleId.Type;
+
+export const LaunchWatchId = makeIdSchema("lwt", "LaunchWatchId");
+export type LaunchWatchId = typeof LaunchWatchId.Type;
+
+export const LaunchEventId = makeIdSchema("lev", "LaunchEventId");
+export type LaunchEventId = typeof LaunchEventId.Type;
+
+export const ConversationId = makeIdSchema("cnvrs", "ConversationId");
+export type ConversationId = typeof ConversationId.Type;
+
+export const MessageId = makeIdSchema("msg", "MessageId");
+export type MessageId = typeof MessageId.Type;
+
+export const ExecutionId = makeIdSchema("exe", "ExecutionId");
+export type ExecutionId = typeof ExecutionId.Type;
+
+export const ActivityEventId = makeIdSchema("act", "ActivityEventId");
+export type ActivityEventId = typeof ActivityEventId.Type;
+
+export const ArtifactId = makeIdSchema("art", "ArtifactId");
+export type ArtifactId = typeof ArtifactId.Type;

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "trading_stopped" boolean DEFAULT false NOT NULL;

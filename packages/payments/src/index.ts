@@ -80,3 +80,13 @@ export type {
   Payer,
   SettleOutcome,
 } from "./types";
+
+export {
+  isSolanaNetwork,
+  solanaPayer,
+  solanaBalance,
+  reconcileSolanaPayment,
+  SOLANA_MAINNET,
+  SOLANA_DEVNET,
+} from "./solana";
+export type { SolanaNetwork, SolanaPayerOptions } from "./solana";

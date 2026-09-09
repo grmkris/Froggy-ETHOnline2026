@@ -25,12 +25,15 @@
     "@froggy/payments": "workspace:*",
     "@froggy/protocol": "workspace:*",
     "@froggy/wallet": "workspace:*",
+    "@solana-program/token-2022": "0.6.1",
+    "@solana/kit": "5.5.1",
     "@standard-schema/spec": "1.1.0",
     "ai": "7.0.92",
     "chat": "4.40.0",
     "drizzle-orm": "0.45.2",
     "effect": "4.0.0-rc.112",
-    "postgres": "3.4.9"
+    "postgres": "3.4.9",
+    "viem": "2.56.3"
   },
   "devDependencies": {
     "@types/bun": "1.4.1",

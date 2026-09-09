@@ -1,7 +1,8 @@
 /**
- * A sale, recorded on the seller side the moment a payment proof is accepted.
+ * A seller's payment attempt and the work it purchases.
  *
- * The proof comes first and the work second, so a buyer who paid and lost
+ * A pending row may claim the proof before settlement; the work starts only
+ * after settlement is confirmed. A buyer who paid and lost
  * the answer can present the same proof and get the same sale back rather
  * than paying again — and a buyer whose answer failed after settlement has a
  * record that says so, in place of a 500 and a debit.
@@ -12,10 +13,19 @@ import { Schema } from "effect";
 import { SaleId } from "./id";
 
 /**
- * `settled` is the proof accepted and the work not yet done; `delivered` is
- * the result stored; `failed` is the work refused after the money moved.
+ * `pending` reserves a proof before settlement is attempted; `uncertain`
+ * means that attempt cannot safely be repeated; `rejected` did not settle.
+ * `settled` is accepted payment with work outstanding; `delivered` stores the
+ * result; `failed` is delivery failure after confirmed settlement.
  */
-export const SaleStatus = Schema.Literals(["settled", "delivered", "failed"]);
+export const SaleStatus = Schema.Literals([
+  "pending",
+  "uncertain",
+  "rejected",
+  "settled",
+  "delivered",
+  "failed",
+]);
 export type SaleStatus = typeof SaleStatus.Type;
 
 export const Sale = Schema.Struct({

@@ -1,3 +1,4 @@
+import { Button } from "@froggy/ui/components/button";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
@@ -15,6 +16,7 @@ export const CopyAgentPrompt = (): ReactElement => {
     <CopyButton
       confirmation="Copied. Paste this into your agent’s chat."
       fallbackLabel="Instructions for your agent"
+      hint="Paste into your agent’s chat, then approve access in your browser."
       label="Copy for your agent"
       text={prompt}
       variant="default"
@@ -24,7 +26,7 @@ export const CopyAgentPrompt = (): ReactElement => {
   );
 };
 
-export const AgentOnboarding = (): ReactElement => {
+const ConnectionStatus = (): ReactElement => {
   const { agents } = useAgentTokens();
   const connected = [
     ...(agents.data?.agents ?? []),
@@ -32,16 +34,45 @@ export const AgentOnboarding = (): ReactElement => {
   ].filter((agent) => agent.revokedAt === null);
   if (agents.isPending) {
     return (
-      <Skeleton aria-label="Loading agent connections" className="h-11 w-40" />
+      <output
+        aria-label="Loading agent connections"
+        className="flex min-h-8 items-center"
+      >
+        <Skeleton aria-hidden className="h-4 w-40" />
+        <span className="sr-only">Loading agent connections</span>
+      </output>
+    );
+  }
+  if (agents.isError) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <output className="text-muted-foreground">
+          Connection status unavailable.
+        </output>
+        <Button
+          disabled={agents.isFetching}
+          onClick={() => {
+            void agents.refetch();
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          {agents.isFetching ? "Checking…" : "Retry connection status"}
+        </Button>
+      </div>
     );
   }
   if (connected.length === 0) {
-    return <CopyAgentPrompt />;
+    return (
+      <p className="text-muted-foreground flex min-h-8 items-center text-xs">
+        No agent connected yet.
+      </p>
+    );
   }
   const [single] = connected;
   return (
     <Link
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm outline-none focus-visible:ring-2"
+      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center rounded-lg text-xs outline-none focus-visible:ring-2"
       to={
         connected.length === 1 && single !== undefined
           ? "/agents/$id"
@@ -53,3 +84,13 @@ export const AgentOnboarding = (): ReactElement => {
     </Link>
   );
 };
+
+export const AgentOnboarding = (): ReactElement => (
+  <section
+    aria-label="Connect your agent"
+    className="flex max-w-sm flex-col items-start gap-2"
+  >
+    <CopyAgentPrompt />
+    <ConnectionStatus />
+  </section>
+);

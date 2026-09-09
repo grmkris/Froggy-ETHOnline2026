@@ -2,6 +2,10 @@
 
 const NETWORK_WORDS: ReadonlyMap<string, string> = new Map([
   ["eip155:1", "Ethereum"],
+  ["eip155:4663", "Robinhood"],
+  ["eip155:11155111", "Sepolia"],
+  ["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "Solana"],
+  ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "Solana devnet"],
   ["eip155:8453", "Base"],
   ["eip155:84532", "Base Sepolia"],
   ["hedera:mainnet", "Hedera"],

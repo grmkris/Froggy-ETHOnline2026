@@ -278,6 +278,56 @@ const unavailable = (deployment: Deployment, note: string): Reading => ({
   },
 });
 
+const GatewayFailure = Schema.Struct({
+  error: Schema.optional(Schema.String),
+  errors: Schema.optional(
+    Schema.Array(Schema.Struct({ message: Schema.String }))
+  ),
+});
+
+/** Preserve a supplier or signer refusal without buffering an unbounded error page. */
+const failureNote = async (response: Response): Promise<string> => {
+  const status =
+    `gateway returned ${response.status} ${response.statusText}`.trim();
+  const fallback =
+    response.status === 402
+      ? `${status}: supplier payment did not complete; no market data was retrieved`
+      : status;
+  if (response.body === null) {
+    return fallback;
+  }
+  try {
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    let body = "";
+    for await (const chunk of response.body) {
+      bytes += chunk.byteLength;
+      if (bytes > 16_384) {
+        // Breaking async iteration cancels the stream instead of draining an error page.
+        return fallback;
+      }
+      body += decoder.decode(chunk, { stream: true });
+    }
+    body += decoder.decode();
+    const decoded = Schema.decodeUnknownResult(GatewayFailure)(
+      JSON.parse(body)
+    );
+    if (decoded._tag === "Failure") {
+      return fallback;
+    }
+    const messages = decoded.success.errors
+      ?.slice(0, 3)
+      .map((error) => error.message)
+      .join("; ");
+    const detail = (messages ?? decoded.success.error ?? "")
+      .trim()
+      .slice(0, 1000);
+    return detail === "" ? fallback : `${status}: ${detail}`;
+  } catch {
+    return fallback;
+  }
+};
+
 /**
  * Query one deployment.
  *
@@ -311,10 +361,7 @@ const readDeployment = async (
     );
   }
   if (!response.ok) {
-    return unavailable(
-      deployment,
-      `gateway returned ${response.status} ${response.statusText}`
-    );
+    return unavailable(deployment, await failureNote(response));
   }
 
   const decoded = decodeGatewayResponse(

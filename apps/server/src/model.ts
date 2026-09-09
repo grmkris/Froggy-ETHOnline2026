@@ -18,7 +18,10 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
+import type {
+  LanguageModelV3Prompt,
+  LanguageModelV3StreamPart,
+} from "@ai-sdk/provider";
 import type { LanguageModel } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 
@@ -67,6 +70,34 @@ const CLOSING: readonly string[] = [
   "| 3 | `wallet_status` | The ledger and the pocket read back |\n\nSet `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and `OPENAI_COMPATIBLE_MODEL` (or `ANTHROPIC_API_KEY`) for a model that can actually reason about this.",
 ];
 
+/** The local paid report also exercises chat approvals without a model key. */
+const demoUrlFrom = (
+  prompt: LanguageModelV3Prompt,
+  oracleUrl: string
+): string | null => {
+  const message = prompt.findLast((entry) => entry.role === "user");
+  if (message?.role !== "user") {
+    return null;
+  }
+  const text = message.content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join(" ");
+  const candidates = text.match(/https?:\/\/[^\s<>"`]+/gu) ?? [];
+  const { origin } = new URL(oracleUrl);
+  return (
+    candidates.find(
+      (candidate) =>
+        URL.canParse(candidate) &&
+        new URL(candidate).origin === origin &&
+        new URL(candidate).pathname === "/demo/x402/report"
+    ) ?? null
+  );
+};
+const URL_CLOSING = [
+  "**The scripted URL request has finished.** Its tool result shows the approval outcome, delivered content and any receipt. This demo does not interpret the report. Configure a model key for a conversational summary.",
+];
+
 const scriptedModel = (oracleUrl: string): LanguageModel =>
   new MockLanguageModelV3({
     doStream: async ({ prompt }) => {
@@ -76,17 +107,39 @@ const scriptedModel = (oracleUrl: string): LanguageModel =>
       await Promise.resolve();
       // Count the tool results already in the transcript to decide where in the
       // script we are. Stateless, so a resumed or replayed turn lands correctly.
-      const completed = prompt.filter(
+      const recent = prompt.slice(
+        Math.max(
+          0,
+          prompt.findLastIndex((message) => message.role === "user")
+        )
+      );
+      const completed = recent.filter(
         (message) =>
           message.role === "tool" ||
           (message.role === "assistant" &&
             message.content.some((part) => part.type === "tool-call"))
       ).length;
-      const step = script(oracleUrl)[Math.floor(completed / 2)];
+      const demoUrl = demoUrlFrom(recent, oracleUrl);
+      const steps =
+        demoUrl === null
+          ? script(oracleUrl)
+          : [
+              {
+                args: JSON.stringify({
+                  url: demoUrl,
+                  purpose: "Read the USDC lending report",
+                  maxUsdMicros: 50_000,
+                }),
+                tool: "x402_fetch",
+              },
+              { args: "{}", tool: "wallet_status" },
+            ];
+      const step = steps[Math.floor(completed / 2)];
+      const closing = demoUrl === null ? CLOSING : URL_CLOSING;
 
       const parts: LanguageModelV3StreamPart[] =
         step === undefined
-          ? CLOSING.map((delta) => ({
+          ? closing.map((delta) => ({
               delta,
               id: "text-1",
               type: "text-delta" as const,

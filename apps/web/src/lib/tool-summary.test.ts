@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
+import { PurchaseId } from "@froggy/domain";
+
 import type { ToolCall } from "./tool-call";
 import { summarize } from "./tool-summary";
 
@@ -192,5 +194,64 @@ describe("summarize the rest", () => {
     const text =
       "@e12 is not in the current snapshot. Take a fresh snapshot and use a ref from it.";
     expect(summarize(call("browser_click", text))?.outcome).toBe("refused");
+  });
+});
+
+const purchase = (
+  state: "none" | "settled" | "uncertain",
+  status: "declined" | "completed" | "uncertain",
+  delivery: "pending" | "delivered" | "failed"
+): string =>
+  JSON.stringify({
+    v: 1,
+    id: PurchaseId.generate(),
+    status,
+    payment: { state },
+    delivery: { state: delivery },
+    error: null,
+    stubbed: true,
+  });
+
+describe("URL purchase summaries", () => {
+  it("distinguishes a simulated payment with a delivered result", () => {
+    expect(
+      summarize(
+        call("x402_fetch", purchase("settled", "completed", "delivered"))
+      )
+    ).toMatchObject({
+      headline: "Simulated payment · result delivered",
+      detail: "The saved response is in Services.",
+      stubbed: true,
+    });
+  });
+
+  it("never calls an uncertain sent payment free", () => {
+    expect(
+      summarize(
+        call("x402_fetch", purchase("uncertain", "uncertain", "failed"))
+      )
+    ).toMatchObject({
+      headline: "Payment uncertain",
+      detail: "Check the saved purchase in Services before buying again.",
+    });
+  });
+
+  it("reports a declined purchase", () => {
+    expect(
+      summarize(call("x402_fetch", purchase("none", "declined", "pending")))
+    ).toMatchObject({
+      headline: "Purchase declined",
+      outcome: "refused",
+    });
+  });
+
+  it("recognizes coordinator refusals without claiming a response was delivered", () => {
+    expect(
+      summarize(call("x402_fetch", "Purchase refused: The request is blocked."))
+    ).toMatchObject({
+      headline: "Purchase refused",
+      detail: "The request is blocked.",
+      outcome: "refused",
+    });
   });
 });

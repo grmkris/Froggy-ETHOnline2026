@@ -1,13 +1,5 @@
-/**
- * The durable store: mandates, receipts, sales, tasks and tokens in Postgres.
- *
- * Receipts and mandates are stored as documents. A receipt is an immutable
- * record of a past decision, and a mandate is whatever the person last
- * saved; normalising either into columns would mean a later schema change
- * silently rewrites history.
- */
-
 import {
+  browserProfiles,
   agentInvocations,
   agentTokens,
   conversions,
@@ -16,6 +8,7 @@ import {
   oauthClients,
   oauthGrants,
   oauthTokens,
+  purchases,
   receipts,
   sales,
   schedules,
@@ -23,11 +16,20 @@ import {
   telegramPairings,
   users,
 } from "@froggy/database";
+/**
+ * The durable store: mandates, receipts, sales, tasks and tokens in Postgres.
+ *
+ * Receipts and mandates are stored as documents. A receipt is an immutable
+ * record of a past decision, and a mandate is whatever the person last
+ * saved; normalising either into columns would mean a later schema change
+ * silently rewrites history.
+ */
 import {
   AgentInvocation,
   DirectoryId,
   decodeUserId,
   OAuthScope,
+  Purchase,
 } from "@froggy/domain";
 import type {
   AgentToken,
@@ -55,7 +57,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
+import { postgresHistoryStore } from "./history-store-postgres";
+import { postgresLaunchStore } from "./launch-store-postgres";
 import {
+  BrowserProfileRecord,
   decodeConversion,
   decodeMandate,
   decodeSale,
@@ -64,6 +69,7 @@ import {
   readReceipts,
 } from "./store";
 import type { DueSchedule, OAuthTokenRow, Store } from "./store";
+import { postgresTradingStore } from "./trading-store-postgres";
 
 const millis = (value: Date | null): number | null =>
   value === null ? null : value.getTime();
@@ -243,8 +249,171 @@ export const postgresStore = (sql: Sql): Store => {
       .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
+  const history = postgresHistoryStore(sql);
   return {
+    browsers: {
+      load: async (userId) => {
+        const [row] = await database
+          .select()
+          .from(browserProfiles)
+          .where(eq(browserProfiles.userId, userId))
+          .limit(1);
+        return row === undefined
+          ? null
+          : Schema.decodeUnknownSync(BrowserProfileRecord)(row.document);
+      },
+      save: async (userId, record) => {
+        await ensureUser(userId);
+        const document = Schema.decodeUnknownSync(BrowserProfileRecord)(record);
+        await database
+          .insert(browserProfiles)
+          .values({ userId, document })
+          .onConflictDoUpdate({
+            target: browserProfiles.userId,
+            set: { document },
+          });
+      },
+    },
+    history,
+    trading: postgresTradingStore(sql),
+    launches: postgresLaunchStore(sql),
+    purchases: {
+      forRun: async (userId, runId) => {
+        const rows = await database
+          .select({ document: purchases.document })
+          .from(purchases)
+          .where(
+            and(
+              eq(purchases.userId, userId),
+              raw`${purchases.document}->>'runId' = ${runId}`
+            )
+          )
+          .orderBy(asc(purchases.createdAt))
+          .limit(100);
+        return rows.map((row) =>
+          Schema.decodeUnknownSync(Purchase)(row.document)
+        );
+      },
+      create: async (userId, purchase) => {
+        const decoded = Schema.decodeUnknownSync(Purchase)(purchase);
+        await ensureUser(userId);
+        const [inserted] = await database
+          .insert(purchases)
+          .values({
+            id: decoded.id,
+            userId,
+            idempotencyKey: decoded.idempotencyKey,
+            status: decoded.status,
+            createdAt: new Date(decoded.createdAt),
+            updatedAt: new Date(decoded.updatedAt),
+            document: decoded,
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (inserted !== undefined) {
+          return {
+            created: true,
+            purchase: Schema.decodeUnknownSync(Purchase)(inserted.document),
+          };
+        }
+        const [existing] = await database
+          .select()
+          .from(purchases)
+          .where(
+            and(
+              eq(purchases.userId, userId),
+              eq(purchases.idempotencyKey, decoded.idempotencyKey)
+            )
+          )
+          .limit(1);
+        if (existing === undefined) {
+          throw new Error("Purchase record disappeared.");
+        }
+        return {
+          created: false,
+          purchase: Schema.decodeUnknownSync(Purchase)(existing.document),
+        };
+      },
+      byId: async (userId, id) => {
+        const [row] = await database
+          .select()
+          .from(purchases)
+          .where(and(eq(purchases.userId, userId), eq(purchases.id, id)))
+          .limit(1);
+        return row === undefined
+          ? null
+          : Schema.decodeUnknownSync(Purchase)(row.document);
+      },
+      byKey: async (userId, key) => {
+        const [row] = await database
+          .select()
+          .from(purchases)
+          .where(
+            and(eq(purchases.userId, userId), eq(purchases.idempotencyKey, key))
+          )
+          .limit(1);
+        return row === undefined
+          ? null
+          : Schema.decodeUnknownSync(Purchase)(row.document);
+      },
+      list: async (userId, limit) => {
+        const rows = await database
+          .select()
+          .from(purchases)
+          .where(eq(purchases.userId, userId))
+          .orderBy(desc(purchases.createdAt), desc(purchases.id))
+          .limit(limit);
+        return rows.map((row) =>
+          Schema.decodeUnknownSync(Purchase)(row.document)
+        );
+      },
+      update: async (userId, id, expected, patch, approvalId) =>
+        await database.transaction(async (tx) => {
+          const [row] = await tx
+            .select()
+            .from(purchases)
+            .where(and(eq(purchases.userId, userId), eq(purchases.id, id)))
+            .for("update");
+          if (row === undefined) {
+            return null;
+          }
+          const prior = Schema.decodeUnknownSync(Purchase)(row.document);
+          if (
+            !expected.includes(prior.status) ||
+            (approvalId !== undefined && prior.approvalId !== approvalId)
+          ) {
+            return null;
+          }
+          const next = Schema.decodeUnknownSync(Purchase)({
+            ...prior,
+            ...patch,
+          });
+          await tx
+            .update(purchases)
+            .set({
+              status: next.status,
+              updatedAt: new Date(next.updatedAt),
+              document: next,
+            })
+            .where(and(eq(purchases.userId, userId), eq(purchases.id, id)));
+          return next;
+        }),
+    },
     invocations: {
+      recent: async (userId) => {
+        const rows = await database
+          .select()
+          .from(agentInvocations)
+          .where(eq(agentInvocations.userId, userId))
+          .orderBy(desc(agentInvocations.at), desc(agentInvocations.id))
+          .limit(50);
+        return rows.map((row) =>
+          Schema.decodeUnknownSync(AgentInvocation)({
+            ...row,
+            at: row.at.getTime(),
+          })
+        );
+      },
       append: async (userId, invocation) => {
         const decoded = Schema.decodeUnknownSync(AgentInvocation)(invocation);
         await ensureUser(userId);
@@ -613,10 +782,30 @@ export const postgresStore = (sql: Sql): Store => {
         if (patch.status !== undefined) {
           set.status = patch.status;
         }
+        if (patch.stubbed !== undefined) {
+          set.stubbed = patch.stubbed;
+        }
+        if (patch.transactionId !== undefined) {
+          set.transactionId = patch.transactionId;
+        }
         await database.update(sales).set(set).where(eq(sales.id, id));
       },
     },
     tasks: {
+      claim: async (userId, id, expected, patch) => {
+        const rows = await database
+          .update(tasks)
+          .set({ ...patch, updatedAt: new Date(patch.updatedAt) })
+          .where(
+            and(
+              eq(tasks.userId, userId),
+              eq(tasks.id, id),
+              eq(tasks.status, expected)
+            )
+          )
+          .returning({ id: tasks.id });
+        return rows.length === 1;
+      },
       byId: async (userId, id) => {
         const rows = await database
           .select()
@@ -947,6 +1136,12 @@ export const postgresStore = (sql: Sql): Store => {
     },
     forget: async (userId) => {
       await database
+        .delete(browserProfiles)
+        .where(eq(browserProfiles.userId, userId));
+      await history.clearTelegramCache(userId);
+      await history.forget(userId);
+      await database.delete(purchases).where(eq(purchases.userId, userId));
+      await database
         .delete(agentInvocations)
         .where(eq(agentInvocations.userId, userId));
       await database.delete(tasks).where(eq(tasks.userId, userId));
@@ -1080,6 +1275,36 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     receipts: {
+      forRun: async (userId, runId) => {
+        const rows = await database
+          .select({ document: receipts.document })
+          .from(receipts)
+          .where(
+            and(
+              eq(receipts.userId, userId),
+              raw`${receipts.document}->>'runId' = ${runId}`
+            )
+          )
+          .orderBy(asc(receipts.createdAt))
+          .limit(100);
+        return readReceipts(rows.map((row) => row.document));
+      },
+      byIds: async (userId, ids) => {
+        if (ids.length === 0) {
+          return [];
+        }
+        const rows = await database
+          .select({ document: receipts.document })
+          .from(receipts)
+          .where(
+            and(
+              eq(receipts.userId, userId),
+              inArray(receipts.id, ids.slice(0, 100))
+            )
+          )
+          .limit(100);
+        return readReceipts(rows.map((row) => row.document));
+      },
       append: async (userId, receipt) => {
         await ensureUser(userId);
         await database

@@ -95,7 +95,9 @@ export const ServiceTaskCard = ({
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">{task.prompt}</p>
+        <p className="text-muted-foreground text-sm break-words">
+          {task.prompt}
+        </p>
         <Standing task={task} />
         <ServiceTaskResult download={download} task={task} />
       </CardContent>

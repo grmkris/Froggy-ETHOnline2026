@@ -52,6 +52,8 @@ interface Parked {
 export class InteractionRegistry {
   private readonly deps: InteractionDeps;
   private readonly parked = new Map<string, Parked>();
+  private readonly waitStarted = new Map<UserId, number>();
+  private readonly waited = new Map<UserId, number>();
 
   constructor(deps: InteractionDeps) {
     this.deps = deps;
@@ -62,6 +64,17 @@ export class InteractionRegistry {
     return [...this.parked.values()]
       .filter((entry) => entry.userId === userId)
       .map((entry) => entry.request);
+  }
+
+  /** Union of human-approval intervals, so concurrent cards never double-count. */
+  waitingMs(userId: UserId): number {
+    const started = this.waitStarted.get(userId);
+    return (
+      (this.waited.get(userId) ?? 0) +
+      (started === undefined
+        ? 0
+        : Math.max(0, (this.deps.now ?? Date.now)() - started))
+    );
   }
 
   async park(input: ParkInput): Promise<ApprovalOutcome> {
@@ -84,7 +97,12 @@ export class InteractionRegistry {
       if (!this.parked.has(request.id)) {
         return;
       }
+      const waited = this.waitingMs(userId);
       this.parked.delete(request.id);
+      if (this.pendingFor(userId).length === 0) {
+        this.waited.set(userId, waited);
+        this.waitStarted.delete(userId);
+      }
       if (timer !== null) {
         clearTimeout(timer);
       }
@@ -92,6 +110,9 @@ export class InteractionRegistry {
       resolve(outcome);
     };
 
+    if (!this.waitStarted.has(userId)) {
+      this.waitStarted.set(userId, now());
+    }
     this.parked.set(request.id, { request, settle, userId });
     signal.addEventListener(
       "abort",

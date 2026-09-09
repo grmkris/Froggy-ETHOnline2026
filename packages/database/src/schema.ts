@@ -21,12 +21,14 @@
  */
 
 import {
+  LaunchWatchId,
   AgentInvocationId,
   AgentTokenId,
   ConversionId,
   DirectoryId,
   OAuthClientId,
   OAuthGrantId,
+  PurchaseId,
   ReceiptId,
   RunId,
   SaleId,
@@ -34,9 +36,13 @@ import {
   SessionId,
   SpendId,
   TaskId,
+  TradeId,
+  TradeRuleId,
 } from "@froggy/domain";
 import type { AgentConnectionId } from "@froggy/domain";
+import { sql } from "drizzle-orm";
 import {
+  uuid,
   bigint,
   boolean,
   index,
@@ -54,6 +60,7 @@ export const users = pgTable("users", {
     .notNull()
     .defaultNow(),
   /** Privy's DID. The identity, owned by Privy; this is a foreign key to it. */
+  tradingStopped: boolean("trading_stopped").notNull().default(false),
   did: text("did").primaryKey(),
   /**
    * `0.0.x`. The person's own Hedera account, opened by the host at their
@@ -448,5 +455,250 @@ export const agentInvocations = pgTable(
       table.at,
       table.id
     ),
+  ]
+);
+
+/** The request and quote are immutable; state transitions compare the status column. */
+export const purchases = pgTable(
+  "purchases",
+  {
+    id: typeIdPrimaryKey(PurchaseId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("purchases_user_key").on(table.userId, table.idempotencyKey),
+    index("purchases_user_created").on(table.userId, table.createdAt),
+  ]
+);
+
+/** Trading recovery records survive workspace deletion. */
+export const trades = pgTable(
+  "trades",
+  {
+    id: typeIdPrimaryKey(TradeId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("trades_user_key").on(table.userId, table.idempotencyKey),
+    index("trades_pending").on(table.status, table.userId),
+  ]
+);
+
+export const tradeRules = pgTable(
+  "trade_rules",
+  {
+    id: typeIdPrimaryKey(TradeRuleId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [index("trade_rules_owner").on(table.userId)]
+);
+
+export const launchWatches = pgTable(
+  "launch_watches",
+  {
+    id: typeIdPrimaryKey(LaunchWatchId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    sourceTaskId: typeIdColumn(TaskId, "source_task_id").notNull(),
+    status: text("status").notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("launch_watches_user_task").on(
+      table.userId,
+      table.sourceTaskId
+    ),
+    index("launch_watches_active").on(table.status, table.userId),
+  ]
+);
+
+/** Browser provider identifiers only; never bearer viewer or CDP URLs. */
+export const browserProfiles = pgTable("browser_profiles", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.did),
+  document: jsonb("document").notNull(),
+});
+// The same indexed envelope keeps bounded reads and revision handling uniform;
+// each entity retains its own table and versioned domain document.
+const historyColumns = () => ({
+  id: uuid("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.did, { onDelete: "cascade" }),
+  conversationId: uuid("conversation_id"),
+  runId: uuid("run_id"),
+  externalKey: text("external_key"),
+  source: text("source").notNull(),
+  status: text("status"),
+  connectionId: text("connection_id"),
+  searchText: text("search_text").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  data: jsonb("data").notNull(),
+});
+export const conversations = pgTable("conversations", historyColumns(), (t) => [
+  index("conversations_owner_updated").on(t.userId, t.updatedAt, t.id),
+  index("conversations_thread_created").on(
+    t.userId,
+    t.conversationId,
+    t.createdAt,
+    t.id
+  ),
+  index("conversations_run_created").on(t.userId, t.runId, t.createdAt, t.id),
+  index("conversations_search").using(
+    "gin",
+    sql`to_tsvector('simple', ${t.searchText})`
+  ),
+  index("conversations_owner_created").on(t.userId, t.createdAt, t.id),
+  uniqueIndex("conversations_external").on(t.userId, t.externalKey),
+]);
+export const historyMessages = pgTable(
+  "conversation_messages",
+  historyColumns(),
+  (t) => [
+    index("conversation_messages_owner_updated").on(
+      t.userId,
+      t.updatedAt,
+      t.id
+    ),
+    index("conversation_messages_thread_created").on(
+      t.userId,
+      t.conversationId,
+      t.createdAt,
+      t.id
+    ),
+    index("conversation_messages_run_created").on(
+      t.userId,
+      t.runId,
+      t.createdAt,
+      t.id
+    ),
+    index("conversation_messages_search").using(
+      "gin",
+      sql`to_tsvector('simple', ${t.searchText})`
+    ),
+    index("conversation_messages_owner_created").on(
+      t.userId,
+      t.createdAt,
+      t.id
+    ),
+    uniqueIndex("conversation_messages_external").on(t.userId, t.externalKey),
+  ]
+);
+export const historyRuns = pgTable(
+  "conversation_runs",
+  historyColumns(),
+  (t) => [
+    index("conversation_runs_owner_updated").on(t.userId, t.updatedAt, t.id),
+    index("conversation_runs_thread_created").on(
+      t.userId,
+      t.conversationId,
+      t.createdAt,
+      t.id
+    ),
+    index("conversation_runs_run_created").on(
+      t.userId,
+      t.runId,
+      t.createdAt,
+      t.id
+    ),
+    index("conversation_runs_search").using(
+      "gin",
+      sql`to_tsvector('simple', ${t.searchText})`
+    ),
+    index("conversation_runs_owner_created").on(t.userId, t.createdAt, t.id),
+    uniqueIndex("conversation_runs_external").on(t.userId, t.externalKey),
+  ]
+);
+export const historyExecutions = pgTable(
+  "tool_executions",
+  historyColumns(),
+  (t) => [
+    index("tool_executions_owner_updated").on(t.userId, t.updatedAt, t.id),
+    index("tool_executions_thread_created").on(
+      t.userId,
+      t.conversationId,
+      t.createdAt,
+      t.id
+    ),
+    index("tool_executions_run_created").on(
+      t.userId,
+      t.runId,
+      t.createdAt,
+      t.id
+    ),
+    index("tool_executions_search").using(
+      "gin",
+      sql`to_tsvector('simple', ${t.searchText})`
+    ),
+    index("tool_executions_owner_created").on(t.userId, t.createdAt, t.id),
+    uniqueIndex("tool_executions_external").on(t.userId, t.externalKey),
+  ]
+);
+export const historyArtifacts = pgTable(
+  "history_artifacts",
+  historyColumns(),
+  (t) => [
+    index("history_artifacts_owner_updated").on(t.userId, t.updatedAt, t.id),
+    index("history_artifacts_thread_created").on(
+      t.userId,
+      t.conversationId,
+      t.createdAt,
+      t.id
+    ),
+    index("history_artifacts_run_created").on(
+      t.userId,
+      t.runId,
+      t.createdAt,
+      t.id
+    ),
+    index("history_artifacts_search").using(
+      "gin",
+      sql`to_tsvector('simple', ${t.searchText})`
+    ),
+    index("history_artifacts_owner_created").on(t.userId, t.createdAt, t.id),
+    uniqueIndex("history_artifacts_external").on(t.userId, t.externalKey),
+  ]
+);
+export const historyOwners = pgTable("history_owners", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.did, { onDelete: "cascade" }),
+  sequence: bigint("sequence", { mode: "number" }).notNull().default(0),
+  leaseEpoch: bigint("lease_epoch", { mode: "number" }).notNull().default(0),
+  leaseExpiresAt: bigint("lease_expires_at", { mode: "number" })
+    .notNull()
+    .default(0),
+  activeRunId: typeIdColumn(RunId, "active_run_id"),
+});
+export const historyEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    sequence: bigint("sequence", { mode: "number" }).notNull(),
+    data: jsonb("data").notNull(),
+  },
+  (t) => [
+    uniqueIndex("activity_events_owner_sequence").on(t.userId, t.sequence),
   ]
 );

@@ -1,4 +1,5 @@
 import {
+  ExecutionId,
   AgentConnectionId,
   AgentInvocation,
   OAuthScope,
@@ -19,6 +20,7 @@ export type AgentConnection = typeof AgentConnection.Type;
 
 export const AgentInvocationView = Schema.Struct({
   ...AgentInvocation.fields,
+  executionId: Schema.NullOr(ExecutionId),
   taskKind: Schema.NullOr(TaskKind),
   taskStatus: Schema.NullOr(TaskStatus),
 });

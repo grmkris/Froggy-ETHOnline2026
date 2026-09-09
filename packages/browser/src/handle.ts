@@ -9,13 +9,22 @@
  * in-process one without a Chrome.
  */
 
-import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
+import type { BrowserPaymentId } from "@froggy/domain";
+import type {
+  BrowserClientMessage,
+  BrowserPaymentReplay,
+  BrowserPaymentRequest,
+  BrowserPaymentResult,
+  BrowserState,
+} from "@froggy/protocol";
 
 import type { WaitReason } from "./arbitration";
 import type { FrameSubscriber } from "./screencast";
 import type { Snapshot } from "./snapshot";
 
 export interface BrowserHandle {
+  readonly viewer?: () => Promise<string | null>;
+  readonly forget?: () => Promise<void>;
   readonly state: () => BrowserState;
   readonly subscribe: (subscriber: FrameSubscriber) => () => void;
   readonly resendLatest: (subscriber: FrameSubscriber) => void;
@@ -29,6 +38,14 @@ export interface BrowserHandle {
   }>;
   readonly agentClick: (ref: string) => Promise<{ ok: boolean; note: string }>;
   readonly agentType: (text: string) => Promise<void>;
+  readonly subscribePayments: (
+    listener: (request: BrowserPaymentRequest) => void
+  ) => () => void;
+  readonly pendingPayment: () => Promise<BrowserPaymentRequest | null>;
+  readonly replayPayment: (
+    payment: BrowserPaymentReplay
+  ) => Promise<BrowserPaymentResult>;
+  readonly cancelPayment: (id: BrowserPaymentId) => Promise<void>;
   /** Callers abort the agent run first. See `BrowserSession.takePage`. */
   readonly takePage: () => Promise<void>;
   /** Release Chrome. Sync in-process, a round trip for a worker. */

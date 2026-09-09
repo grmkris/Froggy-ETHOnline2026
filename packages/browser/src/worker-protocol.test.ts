@@ -12,7 +12,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import type { WorkerEvent } from "@froggy/protocol";
+import type { BrowserPaymentRequest, WorkerEvent } from "@froggy/protocol";
 
 import type { CdpPayload } from "./cdp";
 import { RemoteBrowser } from "./remote";
@@ -28,6 +28,8 @@ class FakeView extends EventTarget implements TabView {
   loading = false;
   title = "Fake page";
   url = "about:blank";
+  private intercepting = false;
+  private requestNumber = 0;
 
   async cdp<T = unknown>(method: string, params?: CdpPayload): Promise<T> {
     await Promise.resolve();
@@ -38,6 +40,24 @@ class FakeView extends EventTarget implements TabView {
       value as T;
     if (method === "Runtime.evaluate") {
       return answer({ result: { value: { t: this.title, u: this.url } } });
+    }
+    if (method === "Page.getFrameTree") {
+      return answer({ frameTree: { frame: { id: "main-frame" } } });
+    }
+    if (method === "Network.getResponseBody") {
+      return answer({ body: "Purchased report" });
+    }
+    if (method === "Fetch.enable") {
+      this.intercepting = true;
+    }
+    if (method === "Fetch.disable") {
+      this.intercepting = false;
+    }
+    if (
+      method === "Fetch.continueRequest" &&
+      params?.["headers"] !== undefined
+    ) {
+      this.networkResponse(200, { "payment-response": "settled" });
     }
     if (method === "Accessibility.getFullAXTree") {
       return answer({ nodes: [] });
@@ -52,6 +72,58 @@ class FakeView extends EventTarget implements TabView {
   async navigate(url: string): Promise<void> {
     await Promise.resolve();
     this.url = url;
+    if (this.intercepting) {
+      this.networkRequest();
+      this.dispatchEvent(
+        new MessageEvent("Fetch.requestPaused", {
+          data: {
+            frameId: "main-frame",
+            networkId: `request-${this.requestNumber}`,
+            requestId: `fetch-${this.requestNumber}`,
+            resourceType: "Document",
+            request: { headers: {}, method: "GET", url },
+          },
+        })
+      );
+    }
+  }
+
+  paymentRequired(): void {
+    this.networkRequest();
+    this.networkResponse(402, { "payment-required": "encoded-challenge" });
+  }
+
+  private networkRequest(): void {
+    this.requestNumber += 1;
+    this.dispatchEvent(
+      new MessageEvent("Network.requestWillBeSent", {
+        data: {
+          frameId: "main-frame",
+          requestId: `request-${this.requestNumber}`,
+          type: "Document",
+          request: { method: "GET", url: this.url },
+        },
+      })
+    );
+  }
+
+  private networkResponse(
+    status: number,
+    headers: Record<string, string>
+  ): void {
+    const requestId = `request-${this.requestNumber}`;
+    this.dispatchEvent(
+      new MessageEvent("Network.responseReceived", {
+        data: {
+          requestId,
+          type: "Document",
+          response: { headers, status, url: this.url },
+        },
+      })
+    );
+    this.dispatchEvent(
+      new MessageEvent("Network.loadingFinished", { data: { requestId } })
+    );
   }
 
   close(): void {
@@ -291,5 +363,53 @@ describe("RemoteBrowser over the worker protocol", () => {
     await settle();
     expect(remote.state().status).toBe("idle");
     expect(pair.views[0]?.calls).toContain("Browser.close");
+  });
+  test("payment discovery, replay and cancellation cross the worker protocol", async () => {
+    const pair = loopback({ blockPrivateNetwork: false });
+    const remote = new RemoteBrowser({ spawn: pair.spawn });
+    const observations: BrowserPaymentRequest[] = [];
+    const unsubscribe = remote.subscribePayments((payment) => {
+      observations.push(payment);
+    });
+    expect(await remote.pendingPayment()).toBeNull();
+    await remote.agentNavigate("https://seller.example/report");
+    const [view] = pair.views;
+    if (view === undefined) {
+      throw new Error("no view");
+    }
+    view.paymentRequired();
+    await settle();
+    const observed = await remote.pendingPayment();
+    expect(observed).toEqual(observations[0] ?? null);
+    if (observed === null) {
+      throw new Error("no payment observation");
+    }
+    const result = await remote.replayPayment({
+      id: observed.id,
+      paymentHeader: "single-proof",
+    });
+    expect(result).toEqual({
+      body: "Purchased report",
+      error: null,
+      paymentResponse: "settled",
+      sent: true,
+      status: 200,
+      url: observed.url,
+    });
+    view.paymentRequired();
+    await settle();
+    const next = await remote.pendingPayment();
+    if (next === null) {
+      throw new Error("no second payment observation");
+    }
+    await remote.cancelPayment(next.id);
+    expect(await remote.pendingPayment()).toBeNull();
+    const cancelled = await remote.replayPayment({
+      id: next.id,
+      paymentHeader: "unused-proof",
+    });
+    expect(cancelled.sent).toBe(false);
+    unsubscribe();
+    await remote.close();
   });
 });

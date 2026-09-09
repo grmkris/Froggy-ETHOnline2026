@@ -6,21 +6,29 @@ import {
   paymentHeaders,
   settlementHeaderFrom,
 } from "@froggy/payments";
-import { ServiceResult } from "@froggy/protocol";
+import { PromptServiceName as PromptName } from "@froggy/protocol";
 import type {
   ServiceCard,
-  ServiceName,
+  PromptServiceName,
+  PromptServiceRequest,
   ServiceRequest,
+  ServiceResult,
 } from "@froggy/protocol";
 import { Redacted, Schema } from "effect";
 
-import { safeFetch } from "./outbound";
+import { boundedBytes, safeFetch } from "./outbound";
 import type { OutboundOptions } from "./outbound";
 import type { Services } from "./services";
+import type { TradingServiceContext } from "./trading/services";
+import {
+  preflightTrading,
+  runTradingService,
+  tradingCatalog,
+} from "./trading/services";
 
 const DEFINITIONS: Readonly<
   Record<
-    ServiceName,
+    PromptServiceName,
     {
       title: string;
       description: string;
@@ -87,7 +95,7 @@ const availability = (
 const readinessNote = (
   demo: boolean,
   configured: boolean,
-  name: ServiceName
+  name: PromptServiceName
 ): string => {
   if (demo) {
     return "Demo fixture — no live provider call.";
@@ -100,9 +108,9 @@ const readinessNote = (
     : "Supplier payee and Base treasury signing must be configured.";
 };
 
-export const serviceCatalog = (services: Services): readonly ServiceCard[] =>
-  Object.entries(DEFINITIONS).map(([key, definition]) => {
-    const name = Schema.decodeUnknownSync(ServiceResult.fields.service)(key);
+export const serviceCatalog = (services: Services): readonly ServiceCard[] => [
+  ...Object.entries(DEFINITIONS).map(([key, definition]) => {
+    const name = Schema.decodeUnknownSync(PromptName)(key);
     const demo = services.environment.modes.hedera === "stub";
     const host = name === "web_search" ? "api.you.com" : "blockrun.ai";
     const configured =
@@ -120,34 +128,10 @@ export const serviceCatalog = (services: Services): readonly ServiceCard[] =>
       status: availability(demo, configured),
       note: readinessNote(demo, configured, name),
     };
-  });
+  }),
+  ...tradingCatalog(services),
+];
 
-/** Stream limits apply before buffering, including media. Never follow a redirect with a credential. */
-export const boundedBytes = async (
-  response: Response,
-  limit = 3 * 1024 * 1024
-): Promise<Uint8Array> => {
-  if (response.body === null) {
-    return new Uint8Array();
-  }
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  // Async iteration cancels the stream on throw, before another chunk is read.
-  for await (const chunk of response.body) {
-    size += chunk.byteLength;
-    if (size > limit) {
-      throw new Error("Provider response exceeded the size limit.");
-    }
-    chunks.push(chunk);
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
-};
 const readJson = async <S extends Schema.Codec<unknown>>(
   response: Response,
   schema: S
@@ -210,7 +194,7 @@ const ImageJob = Schema.Struct({
 
 const supplier = async (
   services: Services,
-  name: ServiceName,
+  name: PromptServiceName,
   url: string,
   init: RequestInit,
   outbound: OutboundOptions
@@ -274,7 +258,7 @@ interface ProviderRequest {
   readonly url: string;
   readonly init: RequestInit;
 }
-const providerRequest = (request: ServiceRequest): ProviderRequest => {
+const providerRequest = (request: PromptServiceRequest): ProviderRequest => {
   switch (request.service) {
     case "web_search": {
       return {
@@ -467,7 +451,7 @@ const imageResult = async (
 };
 
 const providerResult = async (
-  request: ServiceRequest,
+  request: PromptServiceRequest,
   response: Response,
   base: ServiceResult,
   outbound: OutboundOptions
@@ -526,8 +510,19 @@ const providerResult = async (
 export const runServiceProvider = async (
   services: Services,
   request: ServiceRequest,
-  options: OutboundOptions = {}
+  options: OutboundOptions = {},
+  context?: TradingServiceContext
 ): Promise<ServiceResult> => {
+  if ("input" in request) {
+    const card = tradingCatalog(services).find(
+      (entry) => entry.name === request.service
+    );
+    if (card?.status === "unavailable") {
+      throw new Error(card.note);
+    }
+    preflightTrading(services, request);
+    return await runTradingService(services, request, context);
+  }
   const card = serviceCatalog(services).find(
     (entry) => entry.name === request.service
   );

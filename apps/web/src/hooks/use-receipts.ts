@@ -20,6 +20,8 @@ const decodeReceipts = Schema.decodeUnknownSync(ReceiptsBody);
 
 export interface ReceiptsBackfill {
   readonly loading: boolean;
+  readonly failed: boolean;
+  readonly retry: () => void;
 }
 
 export const useReceipts = (
@@ -48,5 +50,11 @@ export const useReceipts = (
     }
   }, [dispatch, query.data]);
 
-  return { loading: query.isPending && sessionId !== null };
+  return {
+    loading: query.isPending,
+    failed: query.isError,
+    retry: () => {
+      void query.refetch();
+    },
+  };
 };

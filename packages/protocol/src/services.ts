@@ -1,23 +1,40 @@
 import { RunId, SaleId, TaskId, TaskStatus, UsdMicros } from "@froggy/domain";
 import { Schema } from "effect";
 
-export const ServiceName = Schema.Literals([
+import { TradingNetwork } from "./trading";
+import {
+  TradingResult,
+  TradingServiceName,
+  TradingServiceRequest,
+} from "./trading-services";
+
+export const PromptServiceName = Schema.Literals([
   "x_search",
   "web_search",
   "image",
   "inference",
   "speech",
 ]);
+export type PromptServiceName = typeof PromptServiceName.Type;
+export const ServiceName = Schema.Union([
+  PromptServiceName,
+  TradingServiceName,
+]);
 export type ServiceName = typeof ServiceName.Type;
-export const ServiceRequest = Schema.Struct({
+export const PromptServiceRequest = Schema.Struct({
   v: Schema.Literals([1]),
-  service: ServiceName,
+  service: PromptServiceName,
   prompt: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
   idempotencyKey: Schema.String.check(
     Schema.isMinLength(1),
     Schema.isMaxLength(128)
   ),
 });
+export type PromptServiceRequest = typeof PromptServiceRequest.Type;
+export const ServiceRequest = Schema.Union([
+  PromptServiceRequest,
+  TradingServiceRequest,
+]);
 export type ServiceRequest = typeof ServiceRequest.Type;
 export const ServiceCard = Schema.Struct({
   name: ServiceName,
@@ -28,6 +45,9 @@ export const ServiceCard = Schema.Struct({
   maxInput: Schema.Int,
   status: Schema.Literals(["demo", "configured", "unavailable"]),
   note: Schema.String,
+  inputKind: Schema.optional(Schema.Literals(["prompt", "structured"])),
+  networks: Schema.optional(Schema.Array(TradingNetwork)),
+  inputSchema: Schema.optional(Schema.Json),
 });
 export type ServiceCard = typeof ServiceCard.Type;
 export const ServiceCatalog = Schema.Struct({
@@ -57,6 +77,7 @@ export const ServiceResult = Schema.Struct({
     })
   ),
   upstreamTransactionId: Schema.NullOr(Schema.String),
+  data: Schema.optional(TradingResult),
 });
 export type ServiceResult = typeof ServiceResult.Type;
 export const ServiceTicket = Schema.Struct({
@@ -68,6 +89,7 @@ export const ServiceTicket = Schema.Struct({
   status: TaskStatus,
   service: ServiceName,
   prompt: Schema.String,
+  data: Schema.optional(TradingResult),
   priceUsdMicros: UsdMicros,
   error: Schema.NullOr(Schema.String),
   text: Schema.String,

@@ -34,6 +34,9 @@ export const ServiceMode = Schema.Literals(["live", "stub"]);
 export type ServiceMode = typeof ServiceMode.Type;
 
 export const ServiceModes = Schema.Struct({
+  birdeye: Schema.optional(ServiceMode),
+  quicknode: Schema.optional(ServiceMode),
+  uniswap: Schema.optional(ServiceMode),
   database: ServiceMode,
   graph: ServiceMode,
   hedera: ServiceMode,
@@ -94,6 +97,7 @@ export const ApprovalOption = Schema.Struct({
 export type ApprovalOption = typeof ApprovalOption.Type;
 
 export const ApprovalRequest = Schema.Struct({
+  runId: Schema.optional(RunId),
   /** "$0.50", "0.05 tHBAR" — what the card prints large. */
   amountLabel: Schema.String,
   detail: Schema.String,
@@ -196,6 +200,11 @@ export const WalletSummary = Schema.Struct({
 export type WalletSummary = typeof WalletSummary.Type;
 
 export const AppServerMessage = Schema.Union([
+  Schema.Struct({
+    ...Envelope,
+    type: Schema.Literal("history.changed"),
+    sequence: Schema.Int,
+  }),
   Schema.Struct({
     ...Envelope,
     /**

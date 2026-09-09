@@ -79,6 +79,7 @@ const ANSWER_WORDS: Record<ApprovalResolution, string> = {
 };
 
 export interface AppState {
+  readonly historySequence: number;
   readonly approvals: readonly ApprovalRequest[];
   readonly connected: boolean;
   /** Oldest first. */
@@ -115,6 +116,7 @@ export type AppEvent =
   | { readonly type: "socket"; readonly connected: boolean };
 
 export const initialAppState: AppState = {
+  historySequence: 0,
   approvals: [],
   connected: false,
   events: [],
@@ -275,6 +277,12 @@ const onServer = (
   at: number
 ): AppState => {
   switch (message.type) {
+    case "history.changed": {
+      return {
+        ...state,
+        historySequence: Math.max(state.historySequence, message.sequence),
+      };
+    }
     case "session.welcome": {
       return {
         ...state,

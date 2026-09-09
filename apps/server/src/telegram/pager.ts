@@ -21,6 +21,7 @@ import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { TelegramAdapterConfig } from "@chat-adapter/telegram";
 import type { UserId } from "@froggy/domain";
 import type { AppServerMessage, ApprovalRequest } from "@froggy/protocol";
+import { HistoryConflictError } from "@froggy/wallet";
 import type { UIMessage } from "ai";
 import { Chat } from "chat";
 import type { Thread } from "chat";
@@ -28,6 +29,13 @@ import type { Thread } from "chat";
 import { ModelBudgetExhaustedError } from "../budget";
 import type { ModelBudget } from "../budget";
 import { detached } from "../detached";
+import { HistoryDuplicateError } from "../history";
+import {
+  recoverTelegramHistory,
+  recordTelegramQueued,
+  recordTelegramIntent,
+  recordTelegramDelivery,
+} from "../history-sources";
 import type { InteractionRegistry } from "../interactions";
 import type { JobReport, ReportSink } from "../jobs";
 import type { Notices } from "../notices";
@@ -44,9 +52,6 @@ import {
   reportCard,
 } from "./cards";
 import { PairingCodes } from "./pairing";
-
-/** How much of a Telegram conversation the model sees. Phones are terse. */
-const HISTORY = 20;
 
 export interface TelegramPager extends ReportSink {
   readonly codes: PairingCodes;
@@ -112,7 +117,6 @@ const NOT_PAIRED =
 export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
   const { store } = deps.services;
   const codes = new PairingCodes();
-  const histories = new Map<UserId, UIMessage[]>();
 
   const adapterConfig: TelegramAdapterConfig = {
     botToken: deps.botToken,
@@ -148,14 +152,28 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
   const whose = async (telegramUserId: string): Promise<UserId | null> =>
     await store.telegram.lookup(telegramUserId);
 
-  const postTo = (userId: UserId, message: Parameters<Thread["post"]>[0]) => {
-    detached("telegram post", async () => {
-      const pairing = await store.telegram.forUser(userId);
-      if (pairing === null) {
-        return;
-      }
-      await bot.thread(pairing.threadId).post(message);
-    });
+  const postTo = async (
+    userId: UserId,
+    message: Parameters<Thread["post"]>[0],
+    text: string
+  ): Promise<void> => {
+    const pairing = await store.telegram.forUser(userId);
+    if (pairing === null) {
+      return;
+    }
+    const intent = await recordTelegramIntent(
+      store,
+      userId,
+      pairing.threadId,
+      text
+    );
+    try {
+      const sent = await bot.thread(pairing.threadId).post(message);
+      await recordTelegramDelivery(store.history, userId, intent, sent.id);
+    } catch (error) {
+      await recordTelegramDelivery(store.history, userId, intent, null);
+      throw error;
+    }
   };
 
   bot.onSlashCommand("/start", async (event) => {
@@ -197,7 +215,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     );
   });
 
-  bot.onDirectMessage(async (thread, message) => {
+  bot.onDirectMessage(async (thread, message, _channel, context) => {
     // Commands arrive here too; they have their own handlers above.
     if (message.text.startsWith("/")) {
       return;
@@ -208,13 +226,30 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       return;
     }
     const workspace = await deps.workspaces.hydrate(userId);
-    const history = histories.get(userId) ?? [];
+    await recoverTelegramHistory(store, userId, `tg-${message.id}`);
+    await recordTelegramQueued(
+      store,
+      userId,
+      (context?.skipped ?? [])
+        .filter(
+          (queued) =>
+            queued.author.userId === message.author.userId &&
+            queued.id !== message.id
+        )
+        .map((queued) => ({
+          id: queued.id,
+          text: queued.text,
+          threadId: thread.id,
+          author: { isMe: false },
+          metadata: { dateSent: queued.metadata.dateSent.toISOString() },
+        }))
+    );
     const incoming: UIMessage = {
       id: `tg-${message.id}`,
       parts: [{ text: message.text, type: "text" }],
       role: "user",
     };
-    const messages: UIMessage[] = [...history, incoming].slice(-HISTORY);
+    const messages = [incoming];
     await thread.startTyping();
     deps.workspaces.touch(userId);
     let turn: Awaited<ReturnType<typeof startTurn>>;
@@ -231,11 +266,22 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
           unlocks: deps.unlocks,
           workspaces: deps.workspaces,
         },
-        { messages, sessionId: workspace.session.id }
+        {
+          messages,
+          sessionId: workspace.session.id,
+          source: "telegram",
+          externalThreadId: thread.id,
+        }
       );
     } catch (error) {
       // The day's turns are spent. Said in the thread, before any model call.
-      if (error instanceof ModelBudgetExhaustedError) {
+      if (error instanceof HistoryDuplicateError) {
+        return;
+      }
+      if (
+        error instanceof ModelBudgetExhaustedError ||
+        error instanceof HistoryConflictError
+      ) {
         await thread.post(error.message);
         return;
       }
@@ -249,20 +295,33 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     });
     // Recorded for the web app's replay, and streamed here for the person.
     recordTurn(deps, workspace.session.id, turn.run, sseOf(turn));
-    await thread.post(turn.result.stream);
-    const reply: UIMessage = {
-      id: `tg-${message.id}-reply`,
-      parts: [{ text: await turn.result.text, type: "text" }],
-      role: "assistant",
-    };
-    histories.set(userId, [...messages, reply]);
+    try {
+      const sent = await thread.post(turn.result.stream);
+      await recordTelegramDelivery(
+        store.history,
+        userId,
+        turn.history.assistantMessageId,
+        sent.id
+      );
+    } catch (error) {
+      await recordTelegramDelivery(
+        store.history,
+        userId,
+        turn.history.assistantMessageId,
+        null
+      );
+      throw error;
+    }
   });
 
   return {
     codes,
     deliver: async (report) => {
-      await Promise.resolve();
-      postTo(report.userId, reportCard(report));
+      await postTo(
+        report.userId,
+        reportCard(report),
+        `${report.title}\n${report.outcome}: ${report.summary === "" ? (report.reason ?? "Nothing to report.") : report.summary}\nSpent: ${report.spentUsdMicros} USD micros. Receipts: ${report.receipts.map((receipt) => receipt.id).join(", ")}`
+      );
     },
     link: (code) =>
       deps.botUsername === ""
@@ -274,26 +333,29 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       if (pairing === null) {
         return false;
       }
-      // Awaited, unlike `postTo`: the caller reports whether the phone saw
-      // it, and that has to be true when said.
-      await bot.thread(pairing.threadId).post(text);
-      // Into the DM history as the agent's own line, so the person's next
-      // reply ("yes, do that") lands in a conversation the model remembers.
-      const sent: UIMessage = {
-        id: `tg-notify-${Date.now()}`,
-        parts: [
-          { text: `[Sent to you as a notification] ${text}`, type: "text" },
-        ],
-        role: "assistant",
-      };
-      histories.set(
+      const intent = await recordTelegramIntent(
+        store,
         userId,
-        [...(histories.get(userId) ?? []), sent].slice(-HISTORY)
+        pairing.threadId,
+        text
       );
+      try {
+        const sent = await bot.thread(pairing.threadId).post(text);
+        await recordTelegramDelivery(store.history, userId, intent, sent.id);
+      } catch (error) {
+        await recordTelegramDelivery(store.history, userId, intent, null);
+        throw error;
+      }
       return true;
     },
     postApproval: (userId, request) => {
-      postTo(userId, approvalCard(request));
+      detached("telegram approval", async () => {
+        await postTo(
+          userId,
+          approvalCard(request),
+          `${request.title}\n${request.purpose}\n${request.amountLabel} · ${request.payeeLabel}\n${request.detail}`
+        );
+      });
     },
     webhook: async (request) => {
       // Looked up by name: with the adapter map above rejected by the type

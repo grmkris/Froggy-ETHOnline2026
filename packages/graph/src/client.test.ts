@@ -143,3 +143,67 @@ describe("describeBestSupply", () => {
     expect(describeBestSupply(snapshot)).toBe("No usable supply markets.");
   });
 });
+
+const failedQuery = async (response: Response) =>
+  await liveGraphClient({
+    apiKey: "",
+    deployments: [{ chain: "ethereum", id: "DEP1", label: "Aave v3" }],
+    transport: x402Transport(async () => await Promise.resolve(response)),
+  }).lendingMarkets("HUNTER");
+
+describe("gateway failure diagnostics", () => {
+  it("preserves a treasury refusal instead of hiding it behind HTTP 402", async () => {
+    const snapshot = await failedQuery(
+      Response.json(
+        {
+          errors: [
+            {
+              message:
+                "The treasury could not pay: recipient not allowed by policy.",
+            },
+          ],
+        },
+        { status: 402 }
+      )
+    );
+    expect(snapshot.deployments[0]?.note).toContain(
+      "recipient not allowed by policy"
+    );
+    expect(snapshot.deployments[0]?.status).toBe("unavailable");
+    expect(snapshot.markets).toEqual([]);
+  });
+
+  it("distinguishes an empty payment challenge from a successful query with no markets", async () => {
+    const snapshot = await failedQuery(new Response(null, { status: 402 }));
+    expect(snapshot.deployments[0]?.note).toContain(
+      "supplier payment did not complete"
+    );
+    expect(snapshot.deployments[0]?.blockNumber).toBeNull();
+  });
+
+  it("ignores HTML errors and caps provider diagnostics", async () => {
+    const html = await failedQuery(
+      new Response("<html>upstream unavailable</html>", { status: 502 })
+    );
+    expect(html.deployments[0]?.note).toBe("gateway returned 502");
+    const long = await failedQuery(
+      Response.json({ error: "x".repeat(5000) }, { status: 403 })
+    );
+    expect(long.deployments[0]?.note?.length).toBeLessThan(1100);
+  });
+
+  it("cancels an oversized error stream before reading it all", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(8192));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const snapshot = await failedQuery(new Response(stream, { status: 502 }));
+    expect(cancelled).toBe(true);
+    expect(snapshot.deployments[0]?.note).toBe("gateway returned 502");
+  });
+});

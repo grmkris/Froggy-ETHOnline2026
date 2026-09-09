@@ -24,6 +24,7 @@ export const TaskStatus = Schema.Literals([
   "quoted",
   "paid",
   "running",
+  "paused",
   "awaiting_approval",
   "done",
   "failed",

@@ -1,0 +1,17 @@
+# Trading principal and signing authority
+
+Status: accepted for implementation, 8 September 2026.
+
+Trading moves token principal and pays native transaction fees. The existing service payment ledger measures the cost of buying an API response in USD. Treating a swap's input as API spending, or assigning an invented dollar price to a new token, would make both budgets unreliable.
+
+`WorkspaceSession.spendTrade()` is the typed trading branch of the session's authority boundary. It takes an immutable proposal step and an exact human approval or a persisted human-issued trading rule. The trading store serializes authority checks and capital reservations per owner across processes. Only human routes can create or revoke rules or stop trading. Tools may prepare proposals and request execution under existing rules; they cannot grant authority.
+
+The trade book keeps token principal and native fee reservations separately from the service ledger. Signing is claimed once before any wallet RPC. Signed bytes and the derived transaction identity are committed before broadcast. Ambiguous signing and submission retain their reservations; recovery never asks for another signature. Provider simulation and a fresh chain check precede signing. The signed transaction is independently decoded and compared with the approved transaction.
+
+Trade audit events are append-only and carry receipt TypeIDs. They preserve refusals, authorization, submission and settlement. Public trade responses omit signed recovery bytes. A simulated flow carries `stubbed: true` throughout and cannot obtain a live signer.
+
+Uniswap execution initially accepts only a locally constructed single V3 route through reviewed deployments. Factory membership and independent simulation must match. Additional protocols need their own transaction validation before being advertised as executable. Native fees on rollups require their additional data fee to be included in settlement accounting; a missing fee leaves reconciliation unresolved.
+
+Recovery runs at server startup and every fifteen seconds independently of workspace sockets. Sweeps join overlapping ticks and visit at most eight transactions per pass. A saved signature can be broadcast after restart; a submitted transaction with no receipt can be rebroadcast with the same bytes and identity. Recovery cannot obtain a signer, and missing signing identity retains capital for investigation. An active signing request gets two minutes before recovery records its unknown outcome. Repeated observations of the same uncertainty do not consume audit capacity.
+
+Live Uniswap execution is currently limited to Ethereum mainnet and Sepolia. Base quote support and reviewed deployment metadata remain available, but Base execution is disabled: its L1 data fee and possible operator fee are outside the signed EIP-1559 execution fee cap. An oracle estimate is not an enforceable maximum. Enabling it requires an explicit budget model for these additional fees. The [OP Stack fee specification](https://specs.optimism.io/protocol/isthmus/exec-engine.html) describes the additional operator fee, and the [Fjord oracle specification](https://specs.optimism.io/protocol/fjord/predeploys.html) describes the data-fee estimate. Existing Base transaction identities remain reconcilable.

@@ -19,11 +19,22 @@
 
 import type { LinkedAccount } from "@privy-io/node";
 import { PrivyClient } from "@privy-io/node";
+import { createSolanaKitSigner } from "@privy-io/node/solana-kit";
+import { address as solanaAddress } from "@solana/kit";
+import type { TransactionPartialSigner } from "@solana/kit";
 
 import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
 import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
 import { privyAgentSigner } from "./evm-signer";
-import type { AgentEvmSigner } from "./evm-signer";
+import type { AgentEvmSigner, AgentTypedDataSigner } from "./evm-signer";
+import {
+  privyCreateSolanaWallet,
+  privyOwnerEvmSigner,
+  privyOwnerTradeSigner,
+  privyOwnerSolanaSigner,
+  privyPaymentWallets,
+} from "./owner-payments";
+import type { OwnerPaymentRequest, PaymentWallets } from "./owner-payments";
 import { privyHederaKeys } from "./privy-hedera-keys";
 import type { HederaKeys } from "./privy-hedera-keys";
 
@@ -63,6 +74,21 @@ export interface PrivyServer {
    */
   readonly hederaKeys: HederaKeys | null;
   readonly mode: "live" | "stub";
+  /** Embedded wallets resolved from Privy; callers supply an authenticated DID. */
+  readonly createSolanaWallet: (
+    request: OwnerPaymentRequest
+  ) => Promise<UserWallet | null>;
+  readonly paymentWallets: (did: string) => Promise<PaymentWallets>;
+  /** Single-use owner authority, created only after a human purchase approval. */
+  readonly ownerEvmSigner: (
+    request: OwnerPaymentRequest
+  ) => Promise<AgentTypedDataSigner | null>;
+  readonly ownerTradeSigner: (
+    request: OwnerPaymentRequest
+  ) => Promise<Pick<AgentEvmSigner, "address" | "signTransaction"> | null>;
+  readonly ownerSolanaSigner: (
+    request: OwnerPaymentRequest
+  ) => Promise<TransactionPartialSigner | null>;
   /** Remove the signer. This is what freezing does, and it is a revocation. */
   readonly revokeAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
   /**
@@ -70,6 +96,10 @@ export interface PrivyServer {
    * when no agent key is configured. Never the user's own authority.
    */
   readonly signerFor: (wallet: UserWallet) => AgentEvmSigner | null;
+  /** Uses only the existing agent authorization key; this never grants or widens wallet authority. */
+  readonly solanaSignerFor: (
+    wallet: UserWallet
+  ) => TransactionPartialSigner | null;
   /** Returns the Privy DID, or null when the token is absent or invalid. */
   readonly verify: (accessToken: string) => Promise<string | null>;
 }
@@ -87,7 +117,10 @@ const addressOf = (account: LinkedAccount): string | null =>
 const pickAddresses = (accounts: readonly LinkedAccount[]): WalletAddresses => {
   const signer =
     accounts
-      .filter((account) => account.type === "wallet")
+      .filter(
+        (account) =>
+          account.type === "wallet" && account.chain_type === "ethereum"
+      )
       .map(addressOf)
       .find((address) => address !== null) ?? null;
   const smart =
@@ -169,6 +202,15 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
           }),
 
     mode: "live",
+    createSolanaWallet: async (request) =>
+      await privyCreateSolanaWallet(client, request),
+    paymentWallets: async (did) => await privyPaymentWallets(client, did),
+    ownerEvmSigner: async (request) =>
+      await privyOwnerEvmSigner(client, request),
+    ownerTradeSigner: async (request) =>
+      await privyOwnerTradeSigner(client, request),
+    ownerSolanaSigner: async (request) =>
+      await privyOwnerSolanaSigner(client, request),
 
     revokeAgent: async (request) =>
       await revokeAgentSigner(client, {
@@ -177,6 +219,16 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
         did: request.did,
       }),
 
+    solanaSignerFor: (wallet) =>
+      options.agent === null
+        ? null
+        : createSolanaKitSigner(client, {
+            address: solanaAddress(wallet.address),
+            walletId: wallet.id,
+            authorizationContext: {
+              authorization_private_keys: [options.agent.privateKey],
+            },
+          }),
     signerFor: (wallet) =>
       options.agent === null
         ? null
@@ -239,8 +291,15 @@ export const stubPrivyServer = (): PrivyServer => ({
     };
   },
   mode: "stub",
+  createSolanaWallet: async () => await Promise.resolve(null),
+  paymentWallets: async () =>
+    await Promise.resolve({ ethereum: null, solana: null }),
+  ownerEvmSigner: async () => await Promise.resolve(null),
+  ownerTradeSigner: async () => await Promise.resolve(null),
+  ownerSolanaSigner: async () => await Promise.resolve(null),
   hederaKeys: null,
   signerFor: () => null,
+  solanaSignerFor: () => null,
   revokeAgent: async () => {
     await Promise.resolve();
     return { attached: false, reason: null, wallet: null };

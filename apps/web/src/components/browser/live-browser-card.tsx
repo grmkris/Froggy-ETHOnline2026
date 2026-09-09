@@ -97,6 +97,36 @@ export const driveModeOf = (state: BrowserState | null): DriveMode => {
   return state.interaction === "idle" ? "idle" : state.interaction;
 };
 
+const CloudIdleWarning = ({
+  state,
+  send,
+}: Pick<LiveBrowserCardProps, "state" | "send">): ReactElement | null => {
+  if (
+    state?.cloud?.control !== "human" ||
+    state.cloud.idleExpiresAt === undefined
+  ) {
+    return null;
+  }
+  return (
+    <output className="bg-muted flex items-center justify-between gap-2 px-3 py-2 text-xs">
+      <span>
+        Browser closes at{" "}
+        {new Date(state.cloud.idleExpiresAt).toLocaleTimeString()} unless you
+        extend the session.
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          send({ type: "browser.start", v: 1 });
+        }}
+      >
+        Keep open
+      </Button>
+    </output>
+  );
+};
+
 export const LiveBrowserCard = ({
   connected,
   drive,
@@ -146,9 +176,23 @@ export const LiveBrowserCard = ({
         }
         trailing={
           <>
+            {state?.cloud !== undefined && state.cloud.control === "human" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  send({ type: "browser.resume", v: 1 });
+                }}
+              >
+                Resume
+              </Button>
+            ) : null}
+            {state?.cloud?.control === "stopping" ? (
+              <span className="text-muted-foreground text-xs">Stopping…</span>
+            ) : null}
             <Button
               aria-label="Take the page"
-              disabled={!running}
+              disabled={!running || state?.cloud?.control === "stopping"}
               onClick={() => {
                 send({ type: "browser.take", v: 1 });
               }}
@@ -162,6 +206,7 @@ export const LiveBrowserCard = ({
           </>
         }
       />
+      <CloudIdleWarning state={state} send={send} />
       <BrowserSurface
         className={fill ? "min-h-0 flex-1" : undefined}
         connected={connected}

@@ -3,6 +3,9 @@ import { afterAll, describe, expect, test } from "bun:test";
 import {
   AgentInvocationId,
   AgentTokenId,
+  ApprovalId,
+  PurchaseId,
+  SaleId,
   OAuthGrantId,
   ConversionId,
   RunId,
@@ -11,7 +14,7 @@ import {
   usdMicros,
   userId,
 } from "@froggy/domain";
-import type { AgentInvocation, Schedule } from "@froggy/domain";
+import type { AgentInvocation, Purchase, Sale, Schedule } from "@froggy/domain";
 import postgres from "postgres";
 
 import { memoryLedger, SpendBudgetExceededError } from "./ledger";
@@ -27,8 +30,257 @@ interface Backend {
   readonly ledger: SpendLedger;
   readonly otherLedger: SpendLedger;
 }
+const pendingPurchase = (key: string): Purchase => {
+  const at = Date.now();
+  return {
+    id: PurchaseId.generate(),
+    createdAt: at,
+    updatedAt: at,
+    idempotencyKey: key,
+    source: "chat",
+    connectionId: null,
+    runId: RunId.generate(),
+    toolCallId: null,
+    browserPaymentId: null,
+    request: {
+      method: "POST",
+      url: "https://merchant.example/search",
+      body: "{}",
+    },
+    requestFingerprint: "request-v1",
+    purpose: "Look up a price",
+    maxUsdMicros: usdMicros(100_000),
+    budgetUsdMicros: usdMicros(1_000_000),
+    preferredNetwork: null,
+    contactApprovedAt: null,
+    status: "awaiting_approval",
+    quote: null,
+    approvalId: ApprovalId.generate(),
+    expiresAt: at + 60_000,
+    grant: null,
+    payment: {
+      state: "none",
+      proofHash: null,
+      transactionId: null,
+      sentAt: null,
+    },
+    delivery: {
+      state: "pending",
+      status: null,
+      contentType: null,
+      body: null,
+      bodyHash: null,
+    },
+    receiptId: null,
+    error: null,
+    stubbed: true,
+  };
+};
+
 const suite = (name: string, make: () => Backend): void => {
   describe(name, () => {
+    test("purchase creation and approval claims are atomic across workers and owner scoped", async () => {
+      const { store, other } = make();
+      const owner = userId(`did:privy:purchase-${crypto.randomUUID()}`);
+      const stranger = userId(
+        `did:privy:other-purchase-${crypto.randomUUID()}`
+      );
+      const purchase = pendingPurchase(crypto.randomUUID());
+      const records = await Promise.all([
+        store.purchases.create(owner, purchase),
+        other.purchases.create(owner, {
+          ...purchase,
+          id: PurchaseId.generate(),
+        }),
+      ]);
+      expect(records.filter((record) => record.created)).toHaveLength(1);
+      const recorded = records[0]?.purchase;
+      if (recorded === undefined) {
+        throw new Error("No purchase persisted.");
+      }
+      expect(records[1]?.purchase.id).toBe(recorded.id);
+      expect(await other.purchases.byId(stranger, recorded.id)).toBeNull();
+      expect(
+        await other.purchases.byKey(stranger, recorded.idempotencyKey)
+      ).toBeNull();
+      expect(await other.purchases.list(stranger, 50)).toEqual([]);
+      expect(
+        await other.purchases.update(
+          stranger,
+          recorded.id,
+          ["awaiting_approval"],
+          { status: "paying", updatedAt: Date.now() },
+          recorded.approvalId
+        )
+      ).toBeNull();
+      const claims = await Promise.all([
+        store.purchases.update(
+          owner,
+          recorded.id,
+          ["awaiting_approval"],
+          { status: "probing", updatedAt: Date.now() },
+          recorded.approvalId
+        ),
+        other.purchases.update(
+          owner,
+          recorded.id,
+          ["awaiting_approval"],
+          { status: "probing", updatedAt: Date.now() },
+          recorded.approvalId
+        ),
+      ]);
+      expect(claims.filter((claim) => claim !== null)).toHaveLength(1);
+      const quoteApproval = ApprovalId.generate();
+      const next = await store.purchases.update(
+        owner,
+        recorded.id,
+        ["probing"],
+        {
+          approvalId: quoteApproval,
+          status: "awaiting_approval",
+          contactApprovedAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+      );
+      expect(next?.approvalId).toBe(quoteApproval);
+      // Returning to the same status must not revive the earlier POST consent.
+      expect(
+        await other.purchases.update(
+          owner,
+          recorded.id,
+          ["awaiting_approval"],
+          { status: "paying", updatedAt: Date.now() },
+          recorded.approvalId
+        )
+      ).toBeNull();
+      const paid = await other.purchases.update(
+        owner,
+        recorded.id,
+        ["awaiting_approval"],
+        { status: "paying", updatedAt: Date.now() },
+        quoteApproval
+      );
+      expect(paid?.status).toBe("paying");
+      expect(
+        await store.purchases.update(
+          owner,
+          recorded.id,
+          ["awaiting_approval"],
+          { status: "paying", updatedAt: Date.now() },
+          quoteApproval
+        )
+      ).toBeNull();
+      const found = await store.purchases.byKey(owner, recorded.idempotencyKey);
+      expect(found?.request).toEqual(recorded.request);
+      expect(found?.status).toBe("paying");
+    });
+
+    test("forget removes the owner's purchase input and result while retaining other owners and the ledger", async () => {
+      const { store, other, ledger, otherLedger } = make();
+      const owner = userId(`did:privy:forget-purchase-${crypto.randomUUID()}`);
+      const stranger = userId(`did:privy:keep-purchase-${crypto.randomUUID()}`);
+      const draft = pendingPurchase(crypto.randomUUID());
+      const purchase: Purchase = {
+        ...draft,
+        request: { ...draft.request, body: '{"query":"private owner input"}' },
+        delivery: {
+          ...draft.delivery,
+          state: "delivered",
+          status: 200,
+          contentType: "application/json",
+          body: '{"result":"private owner result"}',
+        },
+        status: "completed",
+      };
+      const kept: Purchase = {
+        ...purchase,
+        id: PurchaseId.generate(),
+        request: { ...draft.request, body: '{"query":"other owner input"}' },
+        delivery: {
+          ...purchase.delivery,
+          body: '{"result":"other owner result"}',
+        },
+      };
+      await store.purchases.create(owner, purchase);
+      await other.purchases.create(stranger, kept);
+      const spend = {
+        id: SpendId.generate(),
+        userId: owner,
+        idempotencyKey: `purchase:${purchase.id}`,
+        usdMicros: usdMicros(10_000),
+        at: Date.now(),
+      };
+      await ledger.reserve(spend);
+      expect(await other.purchases.byId(owner, purchase.id)).toEqual(purchase);
+
+      await store.forget(owner);
+
+      expect(await other.purchases.byId(owner, purchase.id)).toBeNull();
+      expect(
+        await other.purchases.byKey(owner, purchase.idempotencyKey)
+      ).toBeNull();
+      expect(await other.purchases.list(owner, 50)).toEqual([]);
+      expect(await other.purchases.byId(stranger, kept.id)).toEqual(kept);
+      expect(
+        await store.purchases.byKey(stranger, kept.idempotencyKey)
+      ).toEqual(kept);
+      expect(await store.purchases.list(stranger, 50)).toEqual([kept]);
+      expect(await otherLedger.since(owner, 0)).toEqual([
+        { ...spend, status: "reserved" },
+      ]);
+    });
+
+    test("seller proof claims persist uncertainty, transaction IDs, and stub markers", async () => {
+      const { store, other } = make();
+      const sale: Sale = {
+        id: SaleId.generate(),
+        amount: "10000",
+        asset: "0.0.0",
+        at: Date.now(),
+        deliveredAt: null,
+        error: null,
+        network: "hedera:testnet",
+        payer: "0.0.1",
+        paymentHash: crypto.randomUUID(),
+        resource: "https://merchant.example/demo",
+        result: null,
+        status: "pending",
+        stubbed: false,
+        transactionId: null,
+      };
+      const claims = await Promise.all([
+        store.sales.record(sale),
+        other.sales.record({ ...sale, id: SaleId.generate() }),
+      ]);
+      expect(claims.filter((claim) => claim.created)).toHaveLength(1);
+      const [claim] = claims;
+      if (claim === undefined) {
+        throw new Error("No sale persisted.");
+      }
+      await store.sales.update(claim.sale.id, {
+        status: "uncertain",
+        error: "Connection lost after sending",
+        transactionId: "0.0.1@1",
+        stubbed: true,
+      });
+      expect(await other.sales.byPaymentHash(sale.paymentHash)).toMatchObject({
+        status: "uncertain",
+        transactionId: "0.0.1@1",
+        stubbed: true,
+      });
+      await other.sales.update(claim.sale.id, {
+        status: "settled",
+        error: null,
+        transactionId: "0.0.1@2",
+        stubbed: false,
+      });
+      expect(await store.sales.byId(claim.sale.id)).toMatchObject({
+        status: "settled",
+        transactionId: "0.0.1@2",
+        stubbed: false,
+      });
+    });
+
     test("agent invocation history is owner-scoped, newest 50, and survives disconnect", async () => {
       const { store, other } = make();
       const owner = userId(`did:privy:history-${crypto.randomUUID()}`);

@@ -7,27 +7,27 @@
  * is all there when they come back.
  */
 
-import type { useChat } from "@ai-sdk/react";
 import { createContext, useContext } from "react";
 
 import type { SplitWidth } from "../components/browser/browser-split-pane";
 import type { useStopRun } from "../components/stop-feedback";
 import type { BrowserStream } from "../hooks/use-browser-socket";
+import type { usePersistentChat } from "../hooks/use-persistent-chat";
 import type { PopOut } from "../hooks/use-pop-out";
 import type { Notice } from "./app-state";
 import type { BrowserPainter } from "./browser-painter";
-import type { FroggyMessage } from "./stream-model";
 
-export interface ChatSurface {
+export interface ChatSurface extends ReturnType<typeof usePersistentChat> {
   readonly browser: BrowserStream;
+  readonly browserRequested: boolean;
+  readonly showBrowser: () => void;
   readonly busy: boolean;
-  readonly chat: ReturnType<typeof useChat<FroggyMessage>>;
   /** A refused turn, shown beside the socket's notices. */
   readonly chatNotices: readonly Notice[];
   readonly painter: BrowserPainter;
   readonly phone: boolean;
   readonly popOut: PopOut;
-  readonly send: (text: string) => void;
+  readonly send: (text: string, includeOtherThreads?: boolean) => void;
   readonly split: SplitWidth;
   readonly stopRun: ReturnType<typeof useStopRun>;
 }

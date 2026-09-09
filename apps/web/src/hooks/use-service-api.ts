@@ -5,7 +5,7 @@
 
 import type { TaskId } from "@froggy/domain";
 import { ServiceCatalog, ServiceTicket, TaskDetail } from "@froggy/protocol";
-import type { ServiceName } from "@froggy/protocol";
+import type { ServiceRequest } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { useCallback } from "react";
@@ -26,11 +26,7 @@ const decodeTicket = Schema.decodeUnknownSync(ServiceTicket);
 const SETTLING_POLL_MS = 3000;
 const IDLE_POLL_MS = 15_000;
 
-export interface RunInput {
-  readonly idempotencyKey: string;
-  readonly prompt: string;
-  readonly service: ServiceName;
-}
+export type RunInput = ServiceRequest;
 
 export const useServiceApi = (taskId?: TaskId) => {
   const { getToken } = useSessionToken();
@@ -96,7 +92,7 @@ export const useServiceApi = (taskId?: TaskId) => {
   const run = useMutation({
     mutationFn: async (input: RunInput) => {
       const response = await api("/api/services/run", {
-        body: JSON.stringify({ v: 1, ...input }),
+        body: JSON.stringify(input),
         method: "POST",
       });
       return decodeTicket(await response.json());

@@ -34,6 +34,7 @@ import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
+import { pauseBrowseTask } from "./tasks";
 import { BrowserLimitReachedError } from "./workspaces";
 import type { Workspaces } from "./workspaces";
 
@@ -64,6 +65,7 @@ type Socket = Bun.ServerWebSocket<SocketData>;
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
 export interface SocketDeps {
+  readonly resumeBrowse?: (userId: UserId) => Promise<void>;
   readonly interactions: InteractionRegistry;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
@@ -184,7 +186,12 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           // seconds before the next queued tool call grabs it straight back,
           // which looks exactly like the button not working. Only this user's
           // run is aborted — one person hitting Take must not stop everyone.
+          pauseBrowseTask(workspace.session.id);
           deps.runs.abort(workspace.session.id);
+          await deps.services.purchases.cancelAll(
+            workspace.userId,
+            workspace.browser
+          );
         }
         try {
           // The seat is taken here rather than inside the session, because
@@ -199,6 +206,14 @@ export const createSocketHandlers = (deps: SocketDeps) => {
             deps.workspaces.admitBrowser(ws.data.userId, message.url);
           }
           await workspace.browser.handleClientMessage(message);
+          if (message.type === "browser.resume") {
+            try {
+              await deps.resumeBrowse?.(workspace.userId);
+            } catch (error) {
+              await workspace.browser.takePage();
+              throw error;
+            }
+          }
         } catch (error) {
           if (error instanceof BrowserLimitReachedError) {
             publishBrowserState(

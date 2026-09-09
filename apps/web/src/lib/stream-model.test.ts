@@ -88,6 +88,15 @@ const label = (item: StreamItem): string => {
 };
 
 describe("buildStream", () => {
+  it("keeps receipts on the assistant when a restored user message has the same run id", () => {
+    const run = RunId.generate();
+    const stream = buildStream(
+      [{ ...turn("request", run), role: "user" }, turn("answer", run)],
+      [receipt(run, 10)]
+    );
+    expect(receiptsAt(stream, 0)).toEqual([]);
+    expect(receiptsAt(stream, 1)).toEqual([10]);
+  });
   it("files each receipt under the turn that produced it, oldest first", () => {
     const runA = RunId.generate();
     const runB = RunId.generate();

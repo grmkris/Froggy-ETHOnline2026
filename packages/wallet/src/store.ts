@@ -1,3 +1,36 @@
+import {
+  AgentInvocation,
+  ConversionId,
+  Mandate,
+  Purchase,
+  Receipt,
+  Sale,
+  Schedule,
+  Task,
+} from "@froggy/domain";
+import type {
+  AgentConnectionId,
+  AgentInvocationId,
+  AgentToken,
+  AgentTokenId,
+  ApprovalId,
+  DirectoryEntry,
+  OAuthClient,
+  OAuthClientId,
+  OAuthGrant,
+  OAuthGrantId,
+  OAuthScope,
+  RunId,
+  ReceiptId,
+  PurchaseId,
+  PurchaseStatus,
+  SaleId,
+  ScheduleId,
+  ScheduleStatus,
+  TaskId,
+  TelegramPairing,
+  UserId,
+} from "@froggy/domain";
 /**
  * What survives a restart, beyond the ledger.
  *
@@ -9,35 +42,14 @@
  * reported as `database=stub` in the pane, and a Postgres one otherwise,
  * behind one interface. Nothing above this line knows which it holds.
  */
-
-import {
-  AgentInvocation,
-  ConversionId,
-  Mandate,
-  Receipt,
-  Sale,
-  Schedule,
-  Task,
-} from "@froggy/domain";
-import type {
-  AgentConnectionId,
-  AgentInvocationId,
-  AgentToken,
-  AgentTokenId,
-  DirectoryEntry,
-  OAuthClient,
-  OAuthClientId,
-  OAuthGrant,
-  OAuthGrantId,
-  OAuthScope,
-  SaleId,
-  ScheduleId,
-  ScheduleStatus,
-  TaskId,
-  TelegramPairing,
-  UserId,
-} from "@froggy/domain";
 import { Result, Schema } from "effect";
+
+import type { HistoryStore } from "./history-store";
+import { memoryHistoryStore } from "./history-store";
+import { memoryLaunchStore } from "./launch-store";
+import type { LaunchStore } from "./launch-store";
+import { memoryTradingStore } from "./trading-store";
+import type { TradingStore } from "./trading-store";
 
 /** A token row with the one field the domain record leaves out. */
 interface AgentTokenRow extends AgentToken {
@@ -94,7 +106,10 @@ type TaskPatch = Partial<
 
 /** What a sale update may change once the proof is on file. */
 type SalePatch = Partial<
-  Pick<Sale, "deliveredAt" | "error" | "result" | "status">
+  Pick<
+    Sale,
+    "deliveredAt" | "error" | "result" | "status" | "stubbed" | "transactionId"
+  >
 >;
 
 /**
@@ -158,8 +173,79 @@ export type ConversionPatch = Partial<
 >;
 export const decodeConversion = Schema.decodeUnknownSync(ConversionRecord);
 
+export type PurchasePatch = Partial<
+  Pick<
+    Purchase,
+    | "status"
+    | "quote"
+    | "grant"
+    | "payment"
+    | "delivery"
+    | "receiptId"
+    | "error"
+    | "stubbed"
+    | "expiresAt"
+    | "contactApprovedAt"
+    | "approvalId"
+  >
+> & { readonly updatedAt: number };
+
+export const BrowserProfileRecord = Schema.Struct({
+  profileId: Schema.String.check(Schema.isUUID()),
+  browserId: Schema.NullOr(Schema.String.check(Schema.isUUID())),
+  uncertain: Schema.Boolean,
+  usage: Schema.optional(
+    Schema.Struct({
+      sessions: Schema.Int,
+      unreportedSessions: Schema.Int,
+      browserUsdMicros: Schema.Int,
+      proxyUsdMicros: Schema.Int,
+      lastBrowserId: Schema.String.check(Schema.isUUID()),
+      lastBrowserUsdMicros: Schema.NullOr(Schema.Int),
+      lastProxyUsdMicros: Schema.NullOr(Schema.Int),
+      updatedAt: Schema.Int,
+    })
+  ),
+});
+export type BrowserProfileRecord = typeof BrowserProfileRecord.Type;
+
 export interface Store {
+  readonly browsers: {
+    readonly load: (userId: UserId) => Promise<BrowserProfileRecord | null>;
+    readonly save: (
+      userId: UserId,
+      record: BrowserProfileRecord
+    ) => Promise<void>;
+  };
+  readonly history: HistoryStore;
+  readonly trading: TradingStore;
+  readonly launches: LaunchStore;
+  readonly purchases: {
+    readonly forRun: (
+      userId: UserId,
+      runId: RunId
+    ) => Promise<readonly Purchase[]>;
+    readonly create: (
+      userId: UserId,
+      purchase: Purchase
+    ) => Promise<{ readonly created: boolean; readonly purchase: Purchase }>;
+    readonly byId: (userId: UserId, id: PurchaseId) => Promise<Purchase | null>;
+    readonly byKey: (userId: UserId, key: string) => Promise<Purchase | null>;
+    readonly list: (
+      userId: UserId,
+      limit: number
+    ) => Promise<readonly Purchase[]>;
+    /** Compare-and-set: only one approval may claim the right to pay. */
+    readonly update: (
+      userId: UserId,
+      id: PurchaseId,
+      expected: readonly PurchaseStatus[],
+      patch: PurchasePatch,
+      approvalId?: ApprovalId
+    ) => Promise<Purchase | null>;
+  };
   readonly invocations: {
+    readonly recent: (userId: UserId) => Promise<readonly AgentInvocation[]>;
     readonly append: (
       userId: UserId,
       invocation: AgentInvocation
@@ -226,6 +312,12 @@ export interface Store {
   };
   /** Delegated tasks, per person. A key seen before returns the earlier task. */
   readonly tasks: {
+    readonly claim: (
+      userId: UserId,
+      id: TaskId,
+      expected: Task["status"],
+      patch: TaskPatch
+    ) => Promise<boolean>;
     readonly byId: (userId: UserId, id: TaskId) => Promise<Task | null>;
     readonly byIdempotencyKey: (
       userId: UserId,
@@ -282,8 +374,8 @@ export interface Store {
     readonly timezoneFor: (userId: UserId) => Promise<string | null>;
   };
   /**
-   * Everything this store holds about one person: mandate, receipts, tasks,
-   * schedules and tokens. The ledger's spend rows are not here — they are
+   * Everything this store holds about one person: mandate, receipts, purchases,
+   * tasks, schedules and tokens. The ledger's spend rows are not here — they are
    * the money record and stay — but nothing that says who this person was
    * or what they allowed survives.
    */
@@ -369,6 +461,14 @@ export interface Store {
     readonly unpair: (userId: UserId) => Promise<void>;
   };
   readonly receipts: {
+    readonly forRun: (
+      userId: UserId,
+      runId: RunId
+    ) => Promise<readonly Receipt[]>;
+    readonly byIds: (
+      userId: UserId,
+      ids: readonly ReceiptId[]
+    ) => Promise<readonly Receipt[]>;
     readonly append: (userId: UserId, receipt: Receipt) => Promise<void>;
     /** Newest first. */
     readonly recent: (
@@ -459,6 +559,12 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 };
 
 export const memoryStore = (): Store => {
+  const browsers = new Map<UserId, BrowserProfileRecord>();
+  const history = memoryHistoryStore();
+  const purchases = new Map<
+    PurchaseId,
+    { userId: UserId; purchase: Purchase }
+  >();
   const invocations = new Map<
     AgentInvocationId,
     { userId: UserId; invocation: AgentInvocation }
@@ -484,7 +590,98 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
+    browsers: {
+      load: async (userId) =>
+        await Promise.resolve(structuredClone(browsers.get(userId) ?? null)),
+      save: async (userId, record) => {
+        await Promise.resolve();
+        browsers.set(
+          userId,
+          Schema.decodeUnknownSync(BrowserProfileRecord)(record)
+        );
+      },
+    },
+    history,
+    trading: memoryTradingStore(),
+    launches: memoryLaunchStore(),
+    purchases: {
+      forRun: async (userId, runId) =>
+        await Promise.resolve(
+          [...purchases.values()]
+            .filter(
+              (row) => row.userId === userId && row.purchase.runId === runId
+            )
+            .map((row) => structuredClone(row.purchase))
+            .slice(0, 100)
+        ),
+      create: async (userId, purchase) => {
+        await Promise.resolve();
+        const existing = [...purchases.values()].find(
+          (row) =>
+            row.userId === userId &&
+            row.purchase.idempotencyKey === purchase.idempotencyKey
+        );
+        if (existing !== undefined) {
+          return {
+            created: false,
+            purchase: structuredClone(existing.purchase),
+          };
+        }
+        const decoded = Schema.decodeUnknownSync(Purchase)(purchase);
+        purchases.set(decoded.id, {
+          userId,
+          purchase: structuredClone(decoded),
+        });
+        return { created: true, purchase: structuredClone(decoded) };
+      },
+      byId: async (userId, id) => {
+        await Promise.resolve();
+        const row = purchases.get(id);
+        return row?.userId === userId ? structuredClone(row.purchase) : null;
+      },
+      byKey: async (userId, key) => {
+        await Promise.resolve();
+        const row = [...purchases.values()].find(
+          (entry) =>
+            entry.userId === userId && entry.purchase.idempotencyKey === key
+        );
+        return row === undefined ? null : structuredClone(row.purchase);
+      },
+      list: async (userId, limit) => {
+        await Promise.resolve();
+        return [...purchases.values()]
+          .filter((row) => row.userId === userId)
+          .map((row) => structuredClone(row.purchase))
+          .toSorted((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit);
+      },
+      update: async (userId, id, expected, patch, approvalId) => {
+        await Promise.resolve();
+        const row = purchases.get(id);
+        if (
+          row?.userId !== userId ||
+          !expected.includes(row.purchase.status) ||
+          (approvalId !== undefined && row.purchase.approvalId !== approvalId)
+        ) {
+          return null;
+        }
+        const next = Schema.decodeUnknownSync(Purchase)({
+          ...row.purchase,
+          ...patch,
+        });
+        purchases.set(id, { userId, purchase: structuredClone(next) });
+        return structuredClone(next);
+      },
+    },
     invocations: {
+      recent: async (userId) =>
+        await Promise.resolve(
+          [...invocations.values()]
+            .filter((row) => row.userId === userId)
+            .map((row) => row.invocation)
+            .toSorted((a, b) => b.at - a.at)
+            .slice(0, 50)
+        ),
       append: async (userId, invocation) => {
         await Promise.resolve();
         invocations.set(invocation.id, {
@@ -715,6 +912,19 @@ export const memoryStore = (): Store => {
       },
     },
     tasks: {
+      claim: async (userId, id, expected, patch) => {
+        await Promise.resolve();
+        const row = tasks.get(id);
+        if (
+          row === undefined ||
+          row.userId !== userId ||
+          row.status !== expected
+        ) {
+          return false;
+        }
+        tasks.set(id, { ...row, ...patch });
+        return true;
+      },
       byId: async (userId, id) => {
         await Promise.resolve();
         const task = tasks.get(id);
@@ -920,7 +1130,15 @@ export const memoryStore = (): Store => {
       },
     },
     forget: async (userId) => {
+      browsers.delete(userId);
+      await history.clearTelegramCache(userId);
+      await history.forget(userId);
       await Promise.resolve();
+      for (const [id, row] of purchases) {
+        if (row.userId === userId) {
+          purchases.delete(id);
+        }
+      }
       for (const [id, row] of invocations) {
         if (row.userId === userId) {
           invocations.delete(id);
@@ -990,6 +1208,18 @@ export const memoryStore = (): Store => {
       },
     },
     receipts: {
+      forRun: async (userId, runId) =>
+        await Promise.resolve(
+          (receipts.get(userId) ?? [])
+            .filter((r) => r.runId === runId)
+            .slice(0, 100)
+        ),
+      byIds: async (userId, ids) =>
+        await Promise.resolve(
+          (receipts.get(userId) ?? []).filter((r) =>
+            ids.slice(0, 100).includes(r.id)
+          )
+        ),
       append: async (userId, receipt) => {
         await Promise.resolve();
         const list = receipts.get(userId) ?? [];

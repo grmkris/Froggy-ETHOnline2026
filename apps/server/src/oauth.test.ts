@@ -269,6 +269,7 @@ describe("metadata", () => {
       "browse",
       "pay",
       "services",
+      "history",
     ]);
     expect(body.authorization_response_iss_parameter_supported).toBe(true);
   });

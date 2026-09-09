@@ -27,6 +27,7 @@ import { summarize } from "../../lib/tool-summary";
 import type { Outcome, ToolSummary } from "../../lib/tool-summary";
 import { walletStatusOf } from "../../lib/wallet-status";
 import type { WalletStatus } from "../../lib/wallet-status";
+import { BrowseTaskForm } from "../browser/browse-task-form";
 import { MotionItem } from "../motion-item";
 import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
@@ -65,6 +66,18 @@ const Body = ({
   readonly summary: ToolSummary | null;
   readonly wallet: WalletStatus | null;
 }): ReactElement | null => {
+  if (
+    call.name === "browse_task" &&
+    call.output !== null &&
+    call.input.prompt !== undefined
+  ) {
+    return (
+      <BrowseTaskForm
+        instruction={call.input.prompt}
+        requestKey={`browse:${call.toolCallId}`}
+      />
+    );
+  }
   if (receipt !== null) {
     return (
       <MotionItem key={receipt.id} spring>

@@ -2,10 +2,14 @@ import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { BrowserHandle } from "@froggy/browser";
 import { SaleId, SessionId, userId } from "@froggy/domain";
+import type { Task } from "@froggy/domain";
+import { decodePaymentChallenge } from "@froggy/payments";
+import { BrowseChallenge, BrowseQuoteResponse } from "@froggy/protocol";
 import { Effect, Schema } from "effect";
 
 import { agentDetail } from "./agent-invocations";
 import { mintAgentToken } from "./agents";
+import { handleBrowseQuote } from "./browse-quotes";
 import { ModelBudget } from "./budget";
 import { loadEnvironment } from "./environment";
 import { InteractionRegistry } from "./interactions";
@@ -18,6 +22,7 @@ import { WorkspaceSession } from "./session";
 import {
   handleTaskGet,
   handleTaskPost,
+  resumeBrowseTask,
   handleWalletPay,
   TASK_PRICE_USD_MICROS,
 } from "./tasks";
@@ -84,6 +89,7 @@ const registryThatOnlyTouches = (): Workspaces => {
 interface TaskRequestBody {
   readonly idempotencyKey?: string;
   readonly instruction?: string;
+  readonly budgetUsd?: number;
   readonly kind: string;
   readonly symbol?: string;
 }
@@ -386,5 +392,265 @@ describe("a paid brief, from 402 to result", () => {
     expect(bad.status).toBe(400);
     const missing = await handleTaskGet(deps, workspace(), ALICE, "tsk_nope");
     expect(missing.status).toBe(404);
+  });
+});
+
+const quoteBody = (key: string) => ({
+  kind: "browse" as const,
+  instruction: "Read the fixture page",
+  budgetUsd: 1 as const,
+  idempotencyKey: key,
+});
+const quoteView = (task: Task) => ({ ...task, approval: [], receipts: [] });
+
+describe("bounded browser quotes", () => {
+  const caller = {
+    agentTokenId: null,
+    grantId: null,
+    scopes: null,
+    userId: ALICE,
+  };
+
+  it("rejects malformed budgets instead of selling a legacy browse", async () => {
+    const response = await handleTaskPost(
+      deps,
+      post({ ...quoteBody("bad-budget"), budgetUsd: 2 }),
+      workspace(),
+      caller
+    );
+    expect(response.status).toBe(400);
+    expect(
+      await services.store.tasks.byIdempotencyKey(ALICE, "bad-budget")
+    ).toBeNull();
+  });
+
+  it("freezes the quote and refuses expired payment without settlement", async () => {
+    const body = quoteBody("expiring-browser-quote");
+    const first = await handleTaskPost(deps, post(body), workspace(), caller);
+    expect(first.status).toBe(402);
+    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const replay = await handleTaskPost(deps, post(body), workspace(), caller);
+    expect(
+      Schema.decodeUnknownSync(BrowseQuoteResponse)(await replay.json())
+    ).toEqual(initial);
+    const expired = await handleTaskPost(
+      { ...deps, now: () => initial.quote.expiresAt },
+      post(body),
+      workspace(),
+      caller
+    );
+    expect(expired.status).toBe(410);
+    const task = await services.store.tasks.byId(ALICE, initial.quote.taskId);
+    expect(task?.status).toBe("quoted");
+    expect(task?.saleId).toBeNull();
+  });
+
+  it("accepts the browser card's decoded challenge and never signs the quote twice", async () => {
+    const body = quoteBody("quote-wallet-sign-once");
+    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
+    const raw: unknown = await quoted.json();
+    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
+    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
+    const pay = () =>
+      new Request("http://localhost:3000/api/wallet/pay", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
+      });
+    const first = await handleWalletPay(deps, pay(), workspace(), caller);
+    expect(first.status).toBe(200);
+    const after = session.pocket;
+    const duplicate = await handleWalletPay(deps, pay(), workspace(), caller);
+    expect(duplicate.status).toBe(402);
+    expect(session.pocket).toBe(after);
+  });
+
+  it("keeps an ambiguous settlement retrievable without trying the provider again", async () => {
+    const body = quoteBody("uncertain-browser-settlement");
+    let settlements = 0;
+    let executions = 0;
+    const uncertainDeps: TaskDeps = {
+      ...deps,
+      services: {
+        ...services,
+        oracle: {
+          ...services.oracle,
+          settle: async () => {
+            settlements += 1;
+            await Promise.resolve();
+            throw new Error("Fixture transport ended after dispatch");
+          },
+        },
+      },
+    };
+    const executeQuote = (): void => {
+      executions += 1;
+    };
+    const first = await handleBrowseQuote(
+      uncertainDeps,
+      post(body),
+      workspace(),
+      caller,
+      body,
+      executeQuote,
+      quoteView
+    );
+    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
+    const paid = await handleBrowseQuote(
+      uncertainDeps,
+      post(paying, { "x-payment": "uncertain-fixture-proof" }),
+      workspace(),
+      caller,
+      paying,
+      executeQuote,
+      quoteView
+    );
+    expect(paid.status).toBe(502);
+    const uncertain = await services.store.tasks.byId(
+      ALICE,
+      quoted.quote.taskId
+    );
+    expect(uncertain?.status).toBe("uncertain");
+    const replay = await handleBrowseQuote(
+      uncertainDeps,
+      post(paying, { "x-payment": "uncertain-fixture-proof" }),
+      workspace(),
+      caller,
+      paying,
+      executeQuote,
+      quoteView
+    );
+    expect(replay.status).toBe(202);
+    expect(settlements).toBe(1);
+    expect(executions).toBe(0);
+  });
+
+  it("claims one settlement and one execution for simultaneous proof replays", async () => {
+    const body = quoteBody("concurrent-browser-proof");
+    let executions = 0;
+    const executeQuote = (): void => {
+      executions += 1;
+    };
+    const first = await handleBrowseQuote(
+      deps,
+      post(body),
+      workspace(),
+      caller,
+      body,
+      executeQuote,
+      quoteView
+    );
+    expect(first.status).toBe(402);
+    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const challenge = decodePaymentChallenge(quoted);
+    if (challenge._tag === "Failure") {
+      throw new Error("Fixture challenge did not decode");
+    }
+    const signed = await services.payer.pay(challenge.success);
+    if (signed.header === null) {
+      throw new Error("Fixture did not sign");
+    }
+    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
+    const responses = await Promise.all(
+      Array.from(
+        { length: 4 },
+        async () =>
+          await handleBrowseQuote(
+            deps,
+            post(paying, { "x-payment": signed.header ?? "" }),
+            workspace(),
+            caller,
+            paying,
+            executeQuote,
+            quoteView
+          )
+      )
+    );
+    expect(responses.every((response) => response.status === 202)).toBe(true);
+    expect(executions).toBe(1);
+    const task = await services.store.tasks.byId(ALICE, quoted.quote.taskId);
+    expect(task?.status).toBe("paid");
+    expect(task?.saleId).not.toBeNull();
+    const repeated = await handleBrowseQuote(
+      deps,
+      post(paying, { "x-payment": signed.header }),
+      workspace(),
+      caller,
+      paying,
+      executeQuote,
+      quoteView
+    );
+    expect(repeated.status).toBe(202);
+    expect(executions).toBe(1);
+  });
+
+  it("refuses to resume an exhausted allowance without buying or signing again", async () => {
+    const body = quoteBody("exhausted-resume-fixture");
+    const first = await handleBrowseQuote(
+      deps,
+      post(body),
+      workspace(),
+      caller,
+      body,
+      noop,
+      quoteView
+    );
+    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const challenge = decodePaymentChallenge(quoted);
+    if (challenge._tag === "Failure") {
+      throw new Error("Fixture challenge did not decode");
+    }
+    const signed = await services.payer.pay(challenge.success);
+    if (signed.header === null) {
+      throw new Error("Fixture did not sign");
+    }
+    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
+    const paid = await handleBrowseQuote(
+      deps,
+      post(paying, { "x-payment": signed.header }),
+      workspace(),
+      caller,
+      paying,
+      noop,
+      quoteView
+    );
+    expect(paid.status).toBe(202);
+    const task = await services.store.tasks.byId(ALICE, quoted.quote.taskId);
+    if (task === null) {
+      throw new Error("Expected the purchased fixture task");
+    }
+    await services.store.tasks.update(ALICE, task.id, {
+      status: "paused",
+      updatedAt: Date.now(),
+      result: {
+        progress: {
+          spentUsdMicros: 500_000,
+          steps: 2,
+          activeMs: 1000,
+          summary: "Partial fixture result",
+        },
+      },
+    });
+    const registry = registryThatOnlyTouches();
+    Object.defineProperty(registry, "hydrate", {
+      value: async () => await Promise.resolve(workspace()),
+    });
+    const before = session.pocket;
+    await resumeBrowseTask({ ...deps, workspaces: registry }, ALICE);
+    await settle();
+    const stopped = await services.store.tasks.byId(ALICE, task.id);
+    expect(stopped?.status).toBe("failed");
+    expect(stopped?.error).toContain("allowance is exhausted");
+    expect(stopped?.saleId).toBe(task.saleId);
+    expect(session.pocket).toBe(before);
   });
 });

@@ -20,10 +20,25 @@
 
 import { decodeUserId } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
-import { EVM_CHAIN_IDS, isEvmNetwork, isHederaNetwork } from "@froggy/payments";
-import type { EvmNetwork, HederaNetwork } from "@froggy/payments";
-import type { ServiceMode, ServiceModes } from "@froggy/protocol";
-import { Config, Effect, Redacted, Result } from "effect";
+import {
+  EVM_CHAIN_IDS,
+  isEvmNetwork,
+  isHederaNetwork,
+  isSolanaNetwork,
+  SOLANA_DEVNET,
+} from "@froggy/payments";
+import type {
+  EvmNetwork,
+  HederaNetwork,
+  SolanaNetwork,
+} from "@froggy/payments";
+import { EvmTradingNetwork, TradingNetwork } from "@froggy/protocol";
+import type {
+  ServiceMode,
+  ServiceModes,
+  TradingServiceName,
+} from "@froggy/protocol";
+import { Config, Effect, Redacted, Result, Schema } from "effect";
 
 /**
  * The placeholder values. A variable equal to its placeholder is *unset* as far
@@ -38,6 +53,8 @@ const PLACEHOLDER = {
   // placeholder would make a real local database indistinguishable from none.
   databaseUrl: "",
   graphApiKey: "REPLACE_ME_GRAPH_STUDIO_KEY",
+  birdeyeApiKey: "REPLACE_ME_BIRDEYE_KEY",
+  uniswapApiKey: "REPLACE_ME_UNISWAP_KEY",
   hederaAccountId: "0.0.0",
   hederaKek: "REPLACE_ME_HEDERA_KEK",
   hederaPrivateKey: "0xREPLACE_ME",
@@ -160,7 +177,40 @@ export const selectModelProvider = (input: {
   return "stub";
 };
 
+const TradingPrice = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(1),
+  Schema.isLessThanOrEqualTo(100_000_000)
+);
+const UniswapChain = Schema.Struct({
+  network: EvmTradingNetwork,
+  routerVersion: Schema.Literals(["2.0", "2.1.1"]),
+});
+
+export interface TradingEnvironment {
+  readonly uniswapMode: "live" | "stub" | "unavailable";
+  readonly tenderly: {
+    readonly accessKey: Redacted.Redacted;
+    readonly account: string;
+    readonly project: string;
+  } | null;
+  readonly confirmations: number;
+  readonly ensoApiKey: Redacted.Redacted;
+  readonly ensoMode: "live" | "stub" | "unavailable";
+  readonly jupiterApiKey: Redacted.Redacted;
+  readonly ponsMode: "live" | "stub" | "unavailable";
+  readonly pumpMode: "live" | "stub" | "unavailable";
+  readonly jupiterMode: "live" | "stub" | "unavailable";
+  readonly birdeyeApiKey: Redacted.Redacted;
+  readonly uniswapApiKey: Redacted.Redacted;
+  readonly rpcEndpoints: Readonly<Record<string, Redacted.Redacted>>;
+  readonly uniswapChains: readonly (typeof UniswapChain.Type)[];
+  readonly prices: Readonly<
+    Partial<Record<TradingServiceName, number | undefined>>
+  >;
+}
+
 export interface Environment {
+  readonly trading: TradingEnvironment;
   readonly xApiBearer: Redacted.Redacted;
   readonly supplierPayees: Readonly<Record<string, string>>;
 
@@ -213,6 +263,11 @@ export interface Environment {
   readonly hederaPrivateKey: string;
   /** Kill a browser nobody is watching or driving after this long. */
   readonly browserIdleMs: number;
+  readonly browserProvider: "local" | "cloud";
+  readonly browserUseApiKey: string | null;
+  readonly browserCountry: string | null;
+  readonly browserModelInputRate: number;
+  readonly browserModelOutputRate: number;
   /** The judge's account: always gets a seat. Null when nobody is reserved. */
   readonly demoUserId: UserId | null;
   /** Concurrent browser workers across all users. 0 means unlimited. */
@@ -247,6 +302,8 @@ export interface Environment {
    * Sepolia; the RPC must answer with the matching chain id, checked at boot.
    */
   readonly evmNetwork: EvmNetwork;
+  readonly solanaNetwork: SolanaNetwork;
+  readonly solanaRpcUrl: string;
   readonly evmChainId: number;
   readonly port: number;
   /**
@@ -294,6 +351,259 @@ export interface Environment {
   } | null;
 }
 
+const configuredSolanaNetwork = (network: string): SolanaNetwork => {
+  if (!isSolanaNetwork(network)) {
+    throw new Error(
+      `Unsupported SOLANA_NETWORK ${network}. Use the Solana mainnet or devnet CAIP identifier.`
+    );
+  }
+  return network;
+};
+
+const executionModeFor = (input: {
+  readonly providerLive: boolean;
+  readonly tenderly: TradingEnvironment["tenderly"];
+  readonly rpcCount: number;
+  readonly tenderlyKeySet: boolean;
+}): TradingEnvironment["uniswapMode"] => {
+  if (input.providerLive && input.tenderly !== null && input.rpcCount > 0) {
+    return "live";
+  }
+  if (!input.providerLive && !input.tenderlyKeySet && input.rpcCount === 0) {
+    return "stub";
+  }
+  return "unavailable";
+};
+
+const jupiterModeFor = (
+  key: boolean,
+  rpc: boolean
+): TradingEnvironment["jupiterMode"] => {
+  if (key && rpc) {
+    return "live";
+  }
+  return !key && !rpc ? "stub" : "unavailable";
+};
+
+const nativeLaunchModeFor = (
+  enabled: boolean,
+  rpc: boolean
+): TradingEnvironment["pumpMode"] => {
+  if (!enabled && !rpc) {
+    return "stub";
+  }
+  return enabled && rpc ? "live" : "unavailable";
+};
+
+export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
+  function* loadTradingEnvironment() {
+    const birdeyeApiKey = yield* secret(
+      "BIRDEYE_API_KEY",
+      PLACEHOLDER.birdeyeApiKey
+    );
+    const uniswapApiKey = yield* secret(
+      "UNISWAP_API_KEY",
+      PLACEHOLDER.uniswapApiKey
+    );
+    const jupiterApiKey = yield* secret(
+      "JUPITER_API_KEY",
+      "REPLACE_ME_JUPITER_API_KEY"
+    );
+    const ponsEnabled = yield* Config.boolean("PONS_EXECUTION_ENABLED").pipe(
+      Config.withDefault(false)
+    );
+    const pumpEnabled = yield* Config.boolean("PUMP_EXECUTION_ENABLED").pipe(
+      Config.withDefault(false)
+    );
+    const ensoApiKey = yield* secret("ENSO_API_KEY", "REPLACE_ME_ENSO_API_KEY");
+    const tenderlyAccessKey = yield* secret(
+      "TENDERLY_ACCESS_KEY",
+      "REPLACE_ME_TENDERLY_ACCESS_KEY"
+    );
+    const tenderlyAccount = yield* Config.string("TENDERLY_ACCOUNT").pipe(
+      Config.withDefault("")
+    );
+    const tenderlyProject = yield* Config.string("TENDERLY_PROJECT").pipe(
+      Config.withDefault("")
+    );
+    const confirmations = yield* Config.int("TRADING_CONFIRMATIONS").pipe(
+      Config.withDefault(2)
+    );
+    if (confirmations < 1 || confirmations > 100) {
+      throw new Error("TRADING_CONFIRMATIONS must be between 1 and 100.");
+    }
+    const tenderlyKeySet =
+      Redacted.value(tenderlyAccessKey) !== "REPLACE_ME_TENDERLY_ACCESS_KEY" &&
+      Redacted.value(tenderlyAccessKey).trim() !== "";
+    const tenderly =
+      tenderlyKeySet &&
+      /^[a-zA-Z0-9_-]{1,128}$/u.test(tenderlyAccount) &&
+      /^[a-zA-Z0-9_-]{1,128}$/u.test(tenderlyProject)
+        ? {
+            accessKey: tenderlyAccessKey,
+            account: tenderlyAccount,
+            project: tenderlyProject,
+          }
+        : null;
+    const tradingRpcRaw = yield* secret("TRADING_RPC_ENDPOINTS", "{}");
+    const tradingPricesRaw = yield* Config.string(
+      "TRADING_PRICES_USD_MICROS"
+    ).pipe(Config.withDefault("{}"));
+    const uniswapChainsRaw = yield* Config.string("UNISWAP_CHAINS").pipe(
+      Config.withDefault(
+        '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"}]'
+      )
+    );
+    const rpcEndpoints: Record<string, Redacted.Redacted> = {};
+    let uniswapChains: TradingEnvironment["uniswapChains"];
+    let prices: TradingEnvironment["prices"];
+    try {
+      const endpoints = Schema.decodeUnknownSync(
+        Schema.Record(Schema.String, Schema.String)
+      )(JSON.parse(Redacted.value(tradingRpcRaw)));
+      if (Object.keys(endpoints).length > 16) {
+        throw new Error("Too many RPC endpoints.");
+      }
+      for (const [network, endpoint] of Object.entries(endpoints)) {
+        Schema.decodeUnknownSync(TradingNetwork)(network);
+        const url = new URL(endpoint);
+        if (
+          url.protocol !== "https:" ||
+          url.username !== "" ||
+          url.password !== "" ||
+          url.hash !== ""
+        ) {
+          throw new Error("Invalid RPC endpoint.");
+        }
+        rpcEndpoints[network] = Redacted.make(url.toString());
+      }
+      uniswapChains = Schema.decodeUnknownSync(
+        Schema.Array(UniswapChain).check(Schema.isMaxLength(16))
+      )(JSON.parse(uniswapChainsRaw));
+      if (
+        new Set(uniswapChains.map((chain) => chain.network)).size !==
+        uniswapChains.length
+      ) {
+        throw new Error("Duplicate Uniswap chain.");
+      }
+      prices = Schema.decodeUnknownSync(
+        Schema.Struct({
+          market_search: Schema.optional(TradingPrice),
+          token_inspect: Schema.optional(TradingPrice),
+          rpc_read: Schema.optional(TradingPrice),
+          quote_action: Schema.optional(TradingPrice),
+          watch_launches: Schema.optional(TradingPrice),
+        }),
+        { onExcessProperty: "error" }
+      )(JSON.parse(tradingPricesRaw));
+    } catch {
+      // A decoder issue can include the input. Credential-bearing RPC URLs must never reach logs.
+      throw new Error(
+        "Invalid trading configuration. Use HTTPS RPC endpoints keyed by network, unique Uniswap chains with router versions 2.0 or 2.1.1, and positive integer service prices in USD micros."
+      );
+    }
+    const uniswapLive =
+      modeOf([Redacted.value(uniswapApiKey), PLACEHOLDER.uniswapApiKey]) ===
+      "live";
+    const uniswapMode = executionModeFor({
+      providerLive: uniswapLive,
+      tenderly,
+      rpcCount: Object.keys(rpcEndpoints).length,
+      tenderlyKeySet,
+    });
+    const jupiterLive =
+      modeOf([Redacted.value(jupiterApiKey), "REPLACE_ME_JUPITER_API_KEY"]) ===
+      "live";
+    const solanaRpc =
+      rpcEndpoints["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"] !== undefined;
+    const jupiterMode = jupiterModeFor(jupiterLive, solanaRpc);
+    const ensoMode = executionModeFor({
+      providerLive:
+        modeOf([Redacted.value(ensoApiKey), "REPLACE_ME_ENSO_API_KEY"]) ===
+        "live",
+      tenderly,
+      rpcCount: rpcEndpoints["eip155:1"] === undefined ? 0 : 1,
+      tenderlyKeySet,
+    });
+    return {
+      ensoApiKey,
+      ensoMode,
+      jupiterApiKey,
+      jupiterMode,
+      pumpMode: nativeLaunchModeFor(pumpEnabled, solanaRpc),
+      ponsMode:
+        ponsEnabled && tenderly === null
+          ? "unavailable"
+          : nativeLaunchModeFor(
+              ponsEnabled,
+              rpcEndpoints["eip155:4663"] !== undefined
+            ),
+      uniswapMode,
+      tenderly,
+      confirmations,
+      birdeyeApiKey,
+      uniswapApiKey,
+      rpcEndpoints,
+      uniswapChains,
+      prices,
+    };
+  }
+);
+
+const tradingModes = (trading: TradingEnvironment) => ({
+  birdeye: modeOf([
+    Redacted.value(trading.birdeyeApiKey),
+    PLACEHOLDER.birdeyeApiKey,
+  ]),
+  uniswap: modeOf([
+    Redacted.value(trading.uniswapApiKey),
+    PLACEHOLDER.uniswapApiKey,
+  ]),
+  quicknode:
+    Object.keys(trading.rpcEndpoints).length > 0
+      ? ("live" as const)
+      : ("stub" as const),
+});
+
+const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
+  function* loadBrowserConfiguration() {
+    const browserProviderValue = yield* Config.string("BROWSER_PROVIDER").pipe(
+      Config.withDefault("local")
+    );
+    const browserProvider = Schema.decodeUnknownSync(
+      Schema.Literals(["local", "cloud"])
+    )(browserProviderValue);
+    const browserUseSecret = yield* secret(
+      "BROWSER_USE_API_KEY",
+      "REPLACE_ME_BROWSER_USE_KEY"
+    );
+    const browserUseValue = Redacted.value(browserUseSecret);
+    const browserUseApiKey = isPlaceholder(
+      browserUseValue,
+      "REPLACE_ME_BROWSER_USE_KEY"
+    )
+      ? null
+      : browserUseValue;
+    const country = yield* Config.string("BROWSER_COUNTRY").pipe(
+      Config.withDefault("us")
+    );
+    const browserCountry = country === "none" ? null : country;
+    const browserModelInputRate = yield* Config.number(
+      "BROWSER_MODEL_INPUT_USD_PER_MILLION"
+    ).pipe(Config.withDefault(0));
+    const browserModelOutputRate = yield* Config.number(
+      "BROWSER_MODEL_OUTPUT_USD_PER_MILLION"
+    ).pipe(Config.withDefault(0));
+    return {
+      browserProvider,
+      browserUseApiKey,
+      browserCountry,
+      browserModelInputRate,
+      browserModelOutputRate,
+    };
+  }
+);
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
@@ -324,6 +634,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const reservedBrowsers = yield* Config.number("RESERVED_BROWSERS").pipe(
       Config.withDefault(1)
     );
+    const {
+      browserProvider,
+      browserUseApiKey,
+      browserCountry,
+      browserModelInputRate,
+      browserModelOutputRate,
+    } = yield* loadBrowserConfiguration();
     const browserIdleMs = yield* Config.number("BROWSER_IDLE_MS").pipe(
       Config.withDefault(10 * 60 * 1000)
     );
@@ -428,6 +745,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       );
     }
     const evmNetwork: EvmNetwork = evmNetworkRaw;
+    const solanaNetworkRaw = yield* Config.string("SOLANA_NETWORK").pipe(
+      Config.withDefault(SOLANA_DEVNET)
+    );
+    const solanaNetwork = configuredSolanaNetwork(solanaNetworkRaw);
+    const solanaRpcUrl = yield* Config.string("SOLANA_RPC_URL").pipe(
+      Config.withDefault("")
+    );
     const evmRpcUrl = rpcUrlFor(evmNetwork, evmRpcUrlRaw, legacyRpcUrl);
     const pocketStartingUsd = yield* Config.number("POCKET_STARTING_USD").pipe(
       Config.withDefault(0.5)
@@ -510,7 +834,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       }
       supplierPayees[host] = payee;
     }
+    const trading = yield* loadTradingEnvironment();
     const modes: ServiceModes = {
+      ...tradingModes(trading),
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
       // The key alone. The deployments are pinned in `packages/graph`'s
       // registry rather than configured, because *which* four indexes the
@@ -540,6 +866,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     };
 
     return {
+      trading,
       xApiBearer,
       supplierPayees,
       allowedOrigins: allowedOrigins(appOrigin, extraOrigins),
@@ -547,6 +874,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       appOrigin,
       blockPrivateNetwork: !isLoopback(appOrigin),
       browserIdleMs,
+      browserProvider,
+      browserUseApiKey,
+      browserCountry,
+      browserModelInputRate,
+      browserModelOutputRate,
       demoUserId,
       chromeProfileDirectory,
       databaseUrl: Redacted.value(databaseUrl),
@@ -583,6 +915,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
         .filter((entry) => entry !== ""),
       teamStartingUsdMicros: Math.round(teamStartingUsd * 1_000_000),
       evmNetwork,
+      solanaNetwork,
+      solanaRpcUrl,
       evmChainId: EVM_CHAIN_IDS[evmNetwork],
       port,
       // All three or none. Two of three is a deployment that would fail at the

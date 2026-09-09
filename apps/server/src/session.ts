@@ -40,6 +40,8 @@ import type {
   ApprovalResolution,
   Mandate,
   PolicyDecision,
+  Purchase,
+  PurchaseIntent,
   Quote,
   Receipt,
   RuleId,
@@ -56,9 +58,15 @@ import type {
   ServiceModes,
   WalletSummary,
 } from "@froggy/protocol";
-import { authorize, SpendBudgetExceededError } from "@froggy/wallet";
+import {
+  authorize,
+  executeTradeStep,
+  SpendBudgetExceededError,
+} from "@froggy/wallet";
 import type {
   AuthorizeInput,
+  TradeClaimRequest,
+  TradeSubmission,
   SpendLedger,
   Store,
   WalletAddresses,
@@ -79,6 +87,7 @@ import type { ApprovalOutcome } from "./interactions";
 type Draft<T, K extends keyof T> = Omit<T, K> & { -readonly [P in K]?: T[P] };
 
 export interface SpendRequest {
+  readonly purchase?: PurchaseIntent;
   readonly budgetUsdMicros?: number | undefined;
   readonly amount: Amount;
   /** The Graph answer this spend is justified by, when there is one. */
@@ -107,7 +116,7 @@ export interface SpendRequest {
   readonly signal?: AbortSignal;
   /** Performs the payment. Only called after the policy has allowed it. */
   readonly settle: () => Promise<{
-    /** Why it failed, in the words of whoever refused. Only when `ok` is false. */
+    /** A payment refusal or a delivery failure after an acknowledged payment. */
     readonly error?: string;
     /** The HCS note about this payment, when one was posted. */
     readonly hcsSequence?: number;
@@ -228,10 +237,16 @@ const settlementStatus = async (request: SpendRequest, outcome: Settled) => {
   // nothing sent (refund), the network says it did not go through
   // (refund), or nobody knows (keep the reservation, say so on the receipt).
   let status: SpendStatus = "settled";
-  let failure = outcome.ok ? undefined : (outcome.error ?? "not settled");
+  let failure = outcome.error;
+  if (!outcome.ok && failure === undefined) {
+    failure = "not settled";
+  }
   let refund = false;
   if (!outcome.ok) {
-    if (outcome.sent === true) {
+    if (outcome.sent === false) {
+      status = "abandoned";
+      refund = true;
+    } else {
       const verdict = await verdictOf(request, outcome);
       if (verdict === "success") {
         status = "settled";
@@ -243,9 +258,6 @@ const settlementStatus = async (request: SpendRequest, outcome: Settled) => {
         status = "uncertain";
         failure = `${failure}; whether the payment landed is not yet known`;
       }
-    } else {
-      status = "abandoned";
-      refund = true;
     }
   }
   return { status, failure, refund };
@@ -255,6 +267,7 @@ const settlementStatus = async (request: SpendRequest, outcome: Settled) => {
 const unpaid = (request: SpendRequest): Settled => ({
   network: request.amount.asset.network,
   ok: false,
+  sent: false,
   stubbed: false,
   transactionId: null,
 });
@@ -394,6 +407,27 @@ const resolutionOf = (outcome: ApprovalOutcome): ApprovalResolution => {
       return "deny";
     }
   }
+};
+
+/** A refusal receipt preserves the human decision that closed the purchase. */
+const purchaseApproval = (
+  purchase: Purchase | null
+): ApprovalRecord | undefined => {
+  if (purchase === null) {
+    return undefined;
+  }
+  if (purchase.status === "declined") {
+    return { id: purchase.approvalId, resolution: "deny" };
+  }
+  if (purchase.status === "expired") {
+    return { id: purchase.approvalId, resolution: "timeout" };
+  }
+  if (purchase.status === "cancelled") {
+    return { id: purchase.approvalId, resolution: "aborted" };
+  }
+  return purchase.grant?.source === "human"
+    ? { id: purchase.grant.approvalId, resolution: "allow_once" }
+    : undefined;
 };
 
 /** The ways a question ends without a yes. */
@@ -966,6 +1000,19 @@ export class WorkspaceSession {
     });
   }
 
+  /** Token principal and native fees use the durable trading book, never an invented USD quote. */
+  async spendTrade(request: TradeClaimRequest, submission: TradeSubmission) {
+    return await this.serial(
+      async () =>
+        await executeTradeStep(
+          this.deps.store.trading,
+          this.userId,
+          request,
+          submission
+        )
+    );
+  }
+
   /** Run `work` after every judgement queued before it has finished. */
   private async serial<T>(work: () => Promise<T>): Promise<T> {
     const previous = this.gate;
@@ -1007,7 +1054,7 @@ export class WorkspaceSession {
     // Decoded, not assembled. The amount's `units` came from a tool argument
     // and a tool argument came from the model; the schema is what refuses a
     // negative, fractional or non-numeric one before a cap compares it.
-    const draft: Draft<SpendIntent, "host" | "usdMicros"> = {
+    const draft: Draft<SpendIntent, "host" | "usdMicros" | "purchase"> = {
       amount: request.amount,
       idempotencyKey: request.idempotencyKey,
       payee: {
@@ -1019,6 +1066,9 @@ export class WorkspaceSession {
     };
     if (request.host !== undefined) {
       draft.host = request.host;
+    }
+    if (request.purchase !== undefined) {
+      draft.purchase = request.purchase;
     }
     const decoded = decodeIntent({ ...draft, usdMicros: 0 });
     if (decoded._tag === "Failure") {
@@ -1148,6 +1198,7 @@ export class WorkspaceSession {
         provenance: "server",
         purpose: `Convert ${formatUsd(amount)} of USDC to HBAR for: ${request.purpose}`,
         runId: request.runId,
+        budgetUsdMicros: request.budgetUsdMicros,
         settle: async () => {
           const outcome = await convert.perform(
             this.userId,
@@ -1228,7 +1279,33 @@ export class WorkspaceSession {
 
     const since = at - widestWindowMs(this.mandate);
     const recent = await this.deps.ledger.since(this.userId, since);
+    let purchase =
+      request.purchase === undefined
+        ? null
+        : await this.deps.store.purchases.byId(
+            this.userId,
+            request.purchase.id
+          );
+    if (
+      purchase !== null &&
+      (purchase.runId !== request.runId ||
+        purchase.budgetUsdMicros !== request.budgetUsdMicros)
+    ) {
+      purchase = null;
+    }
+    if (
+      purchase?.grant?.directoryId !== null &&
+      purchase?.grant?.directoryId !== undefined
+    ) {
+      const directory = await this.deps.store.directory.list(this.userId);
+      if (
+        !directory.some((entry) => entry.id === purchase?.grant?.directoryId)
+      ) {
+        purchase = null;
+      }
+    }
     const judgement: Draft<AuthorizeInput, "pocket"> = {
+      purchase,
       approved,
       intent,
       mandate: this.mandate,
@@ -1389,6 +1466,7 @@ export class WorkspaceSession {
     const { intent } = judged;
     const outcome = await ask({
       request: {
+        runId: request.runId,
         amountLabel: formatUsd(intent.usdMicros),
         detail: `${intent.purpose}. Over the automatic limit, so it is your call.`,
         expiresAt: judged.at + APPROVAL_TTL_MS,
@@ -1477,7 +1555,14 @@ export class WorkspaceSession {
   ): Promise<SpendResult> {
     let approved = false;
     let attempt = await this.judgeAndReserve(request, approved);
-    let approval: ApprovalRecord | undefined;
+    const purchase =
+      request.purchase === undefined
+        ? null
+        : await this.deps.store.purchases.byId(
+            this.userId,
+            request.purchase.id
+          );
+    let approval = purchaseApproval(purchase);
 
     if (attempt.judged.decision._tag === "ask") {
       const { ruleId } = attempt.judged.decision;
@@ -1589,10 +1674,11 @@ export class WorkspaceSession {
     try {
       outcome = await request.settle();
     } catch (error) {
-      // A throw is a failure before anything was sent: the settle closures
-      // catch their own transport errors and report `sent` themselves.
+      // An unexpected throw cannot prove no money moved. Only an explicit
+      // sent:false from the adapter releases the reservation.
       outcome = {
         ...unpaid(request),
+        sent: true,
         error: error instanceof Error ? error.message : "settlement threw",
       };
     }

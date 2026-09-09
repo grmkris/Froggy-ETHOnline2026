@@ -8,6 +8,7 @@ import {
   looksLikeAgentSecret,
   mintAgentToken,
   resolveAgentSecret,
+  requiredScope,
 } from "./agents";
 
 const ALICE = userId("did:privy:agents-test");
@@ -50,5 +51,24 @@ describe("agent tokens", () => {
     expect(agentMayCall("/api/agents", "POST")).toBe(false);
     expect(agentMayCall("/api/me", "DELETE")).toBe(false);
     expect(agentMayCall("/api/chat", "POST")).toBe(false);
+  });
+});
+
+describe("agent purchase routes", () => {
+  it("permits requests and status reads, while keeping approvals and wallets owner-only", () => {
+    const purchase = "/api/purchases/pur_01k4test";
+    expect(agentMayCall("/api/purchases", "POST")).toBe(true);
+    expect(agentMayCall("/api/purchases", "GET")).toBe(true);
+    expect(agentMayCall(purchase, "GET")).toBe(true);
+    expect(agentMayCall(`${purchase}/answer`, "POST")).toBe(false);
+    expect(agentMayCall(`${purchase}/cancel`, "POST")).toBe(false);
+    expect(agentMayCall("/api/purchases/wallets", "GET")).toBe(false);
+    expect(agentMayCall("/api/purchases/wallets/solana", "POST")).toBe(false);
+  });
+
+  it("requires the OAuth pay scope for purchase requests and status reads", () => {
+    expect(requiredScope("/api/purchases", "POST")).toBe("pay");
+    expect(requiredScope("/api/purchases", "GET")).toBe("pay");
+    expect(requiredScope("/api/purchases/pur_01k4test", "GET")).toBe("pay");
   });
 });

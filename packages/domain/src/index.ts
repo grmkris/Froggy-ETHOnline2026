@@ -45,12 +45,14 @@ export {
   AgentInvocationId,
   AgentTokenId,
   ApprovalId,
+  BrowserPaymentId,
   DirectoryId,
   MandateId,
   makeIdSchema,
   NoticeId,
   OAuthClientId,
   OAuthGrantId,
+  PurchaseId,
   ReceiptId,
   RuleId,
   RunId,
@@ -120,3 +122,89 @@ export const ProtocolVersion = Schema.Literals([PROTOCOL_VERSION]);
 export { ConversionId } from "./id";
 
 export { AgentConnectionId, AgentInvocation } from "./agent-invocation";
+
+export {
+  Purchase,
+  PurchaseGrant,
+  PurchaseHttpRequest,
+  PurchaseIntent,
+  PurchaseQuote,
+  PurchaseStatus,
+  purchaseFinished,
+  PURCHASE_BODY_LIMIT,
+  PURCHASE_INPUT_LIMIT,
+  PURCHASE_MAX_USD_MICROS,
+  PURCHASE_RUN_USD_MICROS,
+} from "./purchase";
+
+export { TradeQuoteId } from "./id";
+
+export {
+  TradeId,
+  TradeStepId,
+  TradeRuleId,
+  LaunchWatchId,
+  LaunchEventId,
+} from "./id";
+
+export {
+  EvmTradingNetwork,
+  TradingNetwork,
+  TradingUnits,
+  TradingAddress,
+  SolanaTradingAddress,
+  hasBase58Size,
+  sameTradingAddress,
+} from "./trading";
+
+export {
+  Trade,
+  TradeAction,
+  TradeEvent,
+  TradeExitPolicy,
+  TradeAssetAmount,
+  TradeInput,
+  TradePayload,
+  TradeRule,
+  TradeSimulation,
+  TradeStatus,
+  TradeStep,
+  TradeStepStatus,
+  TradeVenue,
+  tradeFinished,
+  tradeRuleRefusal,
+  tradeProceedsRefusal,
+  minimumTradeOutput,
+} from "./trade";
+export type { TradeRuleUsage } from "./trade";
+
+export {
+  LaunchWatch,
+  LaunchReaction,
+  LaunchWatchInput,
+  LaunchObservation,
+} from "./launch-watch";
+
+export {
+  ConversationId,
+  MessageId,
+  ExecutionId,
+  ActivityEventId,
+  ArtifactId,
+} from "./id";
+export {
+  Conversation,
+  HistoryMessage,
+  HistoryRun,
+  HistoryExecution,
+  HistoryArtifact,
+  HistoryRecord,
+  HistoryId,
+  HistoryEvent,
+  HistoryPage,
+  HistoryChanges,
+  HistorySource,
+  HistoryStatus,
+} from "./history";
+
+export { tradeExitRefusal, tradeExitTrigger } from "./trade-exits";

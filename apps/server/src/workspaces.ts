@@ -29,7 +29,11 @@ import type {
   Receipt,
   UserId,
 } from "@froggy/domain";
-import type { BrowserState, ServiceModes } from "@froggy/protocol";
+import type {
+  BrowserPaymentRequest,
+  BrowserState,
+  ServiceModes,
+} from "@froggy/protocol";
 import type { SpendLedger, Store } from "@froggy/wallet";
 
 import { detached } from "./detached";
@@ -69,6 +73,10 @@ export interface Workspace {
 }
 
 export interface WorkspaceDeps {
+  readonly onBrowserPayment?: (
+    userId: UserId,
+    request: BrowserPaymentRequest
+  ) => void;
   /** Put an approval card in front of this user and wait. See `SessionDeps.ask`. */
   readonly ask?: (userId: UserId, input: AskInput) => Promise<ApprovalOutcome>;
   /** Off only for local development, where the app itself is on `localhost`. */
@@ -80,7 +88,9 @@ export interface WorkspaceDeps {
    * the cap, which only means anything once a Chrome is actually running — is
    * exercisable without one.
    */
-  readonly createBrowser?: (options: BrowserSessionOptions) => BrowserHandle;
+  readonly createBrowser?:
+    | ((options: BrowserSessionOptions, userId: UserId) => BrowserHandle)
+    | undefined;
   /** What the chains say someone holds; display only. See `SessionDeps.balances`. */
   readonly balances: SessionDeps["balances"];
   /** Always seated. Null when no account is reserved. */
@@ -225,11 +235,17 @@ export class Workspaces {
               viewport: options.viewport ?? { height: 800, width: 1280 },
             }),
         }));
-    const browser = build({
-      blockPrivateNetwork: this.deps.blockPrivateNetwork,
-      onStateChange,
-      profileDirectory,
-    });
+    const browser = build(
+      {
+        blockPrivateNetwork: this.deps.blockPrivateNetwork,
+        onStateChange,
+        profileDirectory,
+      },
+      userId
+    );
+    browser.subscribePayments((request) =>
+      this.deps.onBrowserPayment?.(userId, request)
+    );
     const workspace: Workspace = { browser, session, userId };
     this.workspaces.set(userId, workspace);
     this.touch(userId);
@@ -265,6 +281,10 @@ export class Workspaces {
   /** A person or the agent did something. Resets the idle clock. */
   touch(userId: UserId): void {
     this.activity.set(userId, this.now());
+    const workspace = this.workspaces.get(userId);
+    if (workspace?.browser.state().cloud !== undefined) {
+      this.deps.onBrowserState(userId, this.stateOf(userId));
+    }
   }
 
   /** A browser socket opened. Somebody is looking. */
@@ -314,17 +334,24 @@ export class Workspaces {
   /**
    * Release browsers nobody is using.
    *
-   * Idle means: no browser socket open, no agent turn running, and nothing
-   * has happened for the idle period. The profile survives on disk, so the
+   * Local idle requires no watcher. Cloud idle also expires watched sessions:
+   * iframe input is cross-origin, so the human explicitly extends its lease.
+   * An active agent turn keeps either browser alive. The profile survives on disk, so the
    * next start finds the user's logins where they left them; only the
    * process goes.
    */
   async sweepIdle(): Promise<void> {
     const cutoff = this.now() - this.deps.browserIdleMs;
+    for (const workspace of this.workspaces.values()) {
+      if (this.deps.isBusy(workspace.session.id)) {
+        this.touch(workspace.userId);
+      }
+    }
     const idle = [...this.workspaces.values()].filter(
       (workspace) =>
         this.seated.has(workspace.userId) &&
-        (this.watchers.get(workspace.userId) ?? 0) === 0 &&
+        (workspace.browser.state().cloud !== undefined ||
+          (this.watchers.get(workspace.userId) ?? 0) === 0) &&
         !this.deps.isBusy(workspace.session.id) &&
         (this.activity.get(workspace.userId) ?? 0) < cutoff
     );
@@ -345,7 +372,9 @@ export class Workspaces {
   async forget(userId: UserId): Promise<void> {
     const workspace = this.workspaces.get(userId);
     if (workspace !== undefined) {
-      await workspace.browser.close();
+      await (workspace.browser.forget
+        ? workspace.browser.forget()
+        : workspace.browser.close());
     }
     this.workspaces.delete(userId);
     this.activity.delete(userId);
@@ -415,9 +444,18 @@ export class Workspaces {
 
   private decorate(userId: UserId, state: BrowserState): BrowserState {
     const index = this.queue.findIndex((entry) => entry.userId === userId);
+    const queue = index === -1 ? null : { ahead: index, position: index + 1 };
+    if (state.cloud === undefined) {
+      return { ...state, queue };
+    }
     return {
       ...state,
-      queue: index === -1 ? null : { ahead: index, position: index + 1 },
+      cloud: {
+        ...state.cloud,
+        idleExpiresAt:
+          (this.activity.get(userId) ?? this.now()) + this.deps.browserIdleMs,
+      },
+      queue,
     };
   }
 

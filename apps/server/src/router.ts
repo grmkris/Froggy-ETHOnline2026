@@ -12,6 +12,7 @@
  * about answering questions.
  */
 import {
+  ConversationId,
   AgentConnectionId,
   AgentTokenId,
   OAuthGrantId,
@@ -25,6 +26,8 @@ import type {
 } from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
 import type { AgentDetail } from "@froggy/protocol";
+import { HistoryConflictError } from "@froggy/wallet";
+import { validateUIMessages } from "ai";
 import { Schema } from "effect";
 
 import {
@@ -42,13 +45,14 @@ import {
 import { authenticate, bearerFromRequest } from "./auth";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
-import { handleChat } from "./chat";
 import type { ChatRequest } from "./chat";
+import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
+import { handleHistory } from "./history-routes";
 import type { InteractionRegistry } from "./interactions";
 import { digestJob, runScheduledFor } from "./jobs";
 import type { JobDeps, JobReport } from "./jobs";
@@ -69,6 +73,7 @@ import {
   PRICE_TINYBARS,
   SALES_PATH,
 } from "./oracle-route";
+import { handlePurchases } from "./purchase-routes";
 import type { ChatRunRegistry } from "./runs";
 import { handleDigest, handleSchedules } from "./schedule-routes";
 import { handleServices } from "./service-routes";
@@ -84,9 +89,11 @@ import {
 } from "./tasks";
 import type { TaskCaller, TaskDeps } from "./tasks";
 import type { TelegramPager } from "./telegram/pager";
+import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
+import { handleX402Demo } from "./x402-demo";
 
 export const ORACLE_PATH = "/oracle/snapshot";
 
@@ -98,7 +105,13 @@ export const ORACLE_PATH = "/oracle/snapshot";
  * conversion on the next line. Re-declaring it here would be a second copy of
  * someone else's type that only ever drifts.
  */
-const ChatBody = Schema.Struct({ messages: Schema.Array(Schema.Unknown) });
+const ChatBody = Schema.Struct({
+  crossThreadHistory: Schema.optional(Schema.Boolean),
+  v: Schema.Literal(1),
+  messages: Schema.Array(Schema.Unknown).check(Schema.isMaxLength(100)),
+  conversationId: Schema.optional(ConversationId),
+  revision: Schema.optional(Schema.Int),
+});
 const decodeChatBody = Schema.decodeUnknownResult(ChatBody);
 const AgentBody = Schema.Struct({ label: Schema.String });
 const decodeAgentBody = Schema.decodeUnknownResult(AgentBody);
@@ -229,6 +242,7 @@ const serveStatic = async (
 };
 
 /** A turn from the web chat. */
+type ChatIngress = { -readonly [K in keyof ChatRequest]: ChatRequest[K] };
 const handleChatPost = async (
   deps: RouterDeps,
   request: Request,
@@ -242,6 +256,21 @@ const handleChatPost = async (
   }
   deps.workspaces.touch(userId);
   try {
+    const input: ChatIngress = {
+      messages: await validateUIMessages({
+        messages: decoded.success.messages,
+      }),
+      sessionId,
+    };
+    if (decoded.success.conversationId !== undefined) {
+      input.conversationId = decoded.success.conversationId;
+    }
+    if (decoded.success.crossThreadHistory !== undefined) {
+      input.crossThreadHistory = decoded.success.crossThreadHistory;
+    }
+    if (decoded.success.revision !== undefined) {
+      input.revision = decoded.success.revision;
+    }
     return await handleChat(
       {
         browser: workspace.browser,
@@ -254,19 +283,14 @@ const handleChatPost = async (
         unlocks: deps.unlocks,
         workspaces: deps.workspaces,
       },
-      {
-        // SAFETY: the envelope is decoded above; the elements are the AI SDK's
-        // `UIMessage` union, which `convertToModelMessages` validates on the
-        // very next hop. Restating that union here would be a second copy of a
-        // type the SDK owns and versions.
-        messages: decoded.success
-          .messages as unknown as ChatRequest["messages"],
-        sessionId,
-      }
+      input
     );
   } catch (error) {
     // The day's turns are spent. Said as a status the client can read and a
     // sentence the person can, before any model call was made.
+    if (error instanceof HistoryConflictError) {
+      return json({ error: error.message }, 409);
+    }
     if (error instanceof ModelBudgetExhaustedError) {
       return json({ error: error.message }, 429);
     }
@@ -513,7 +537,13 @@ const handleTasks = async (
       "task",
       "tasks.list",
       "GET",
-      async () => await handleTaskList(taskDeps, workspace, userId)
+      async () =>
+        await handleTaskList(
+          taskDeps,
+          workspace,
+          userId,
+          new URL(request.url).searchParams.get("idempotencyKey")
+        )
     );
   }
   const events = TASK_EVENTS.exec(pathname)?.groups?.["id"];
@@ -649,15 +679,26 @@ const handleChatRoutes = async (
   }
 
   if (pathname === "/api/chat/stop" && request.method === "POST") {
-    return json({ stopped: deps.runs.abort(sessionId) });
+    const stopped = deps.runs.abort(sessionId);
+    await deps.services.purchases.cancelAll(
+      workspace.userId,
+      workspace.browser
+    );
+    return json({ stopped });
   }
 
-  // The AI SDK's transport resumes at `/api/chat/<chat id>/stream`. That id is
-  // the client's own, generated by `useChat`, and it is deliberately not what
-  // resolves the run: the caller's token is. Trusting the path would let one
-  // signed-in user resume another's turn by guessing an id.
+  // The authenticated owner and requested conversation must both match.
   if (/^\/api\/chat\/[^/]+\/stream$/u.test(pathname)) {
-    const replay = deps.runs.get(sessionId)?.replay() ?? null;
+    const active = deps.runs.get(sessionId);
+    const activeRecord =
+      active === null
+        ? null
+        : await deps.services.store.history.get(workspace.userId, active.id);
+    const requested = pathname.split("/").at(3);
+    const replay =
+      activeRecord?.kind === "run" && activeRecord.conversationId === requested
+        ? (active?.replay() ?? null)
+        : null;
     // 204 rather than an empty 200: `useChat({resume:true})` reads "nothing to
     // resume" from the status, and an empty body would look like a stream that
     // ended the instant it opened.
@@ -669,6 +710,25 @@ const handleChatRoutes = async (
     });
   }
   return null;
+};
+
+const browserViewer = async (
+  workspace: Awaited<ReturnType<Workspaces["hydrate"]>>,
+  caller: TaskCaller
+): Promise<Response> => {
+  if (caller.agentTokenId !== null || caller.grantId !== null) {
+    return json({ error: "Only the browser owner may open its viewer." }, 403);
+  }
+  const url = (await workspace.browser.viewer?.()) ?? null;
+  return Response.json(
+    { v: 1, url },
+    {
+      headers: {
+        "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
+      },
+    }
+  );
 };
 
 const handleApi = async (
@@ -693,6 +753,26 @@ const handleApi = async (
   const workspace = await deps.workspaces.hydrate(userId);
   const sessionId = workspace.session.id;
 
+  if (pathname === "/api/browser/viewer" && request.method === "GET") {
+    return await browserViewer(workspace, caller);
+  }
+
+  const trade = await handleTrades(deps.services, workspace, caller, request);
+  if (trade !== null) {
+    return trade;
+  }
+
+  const purchase = await handlePurchases(
+    deps.services,
+    deps.runs,
+    workspace,
+    caller,
+    request
+  );
+  if (purchase !== null) {
+    return purchase;
+  }
+
   const tasks = await handleTasks(deps, request, workspace, caller, pathname);
   if (tasks !== null) {
     return tasks;
@@ -712,6 +792,11 @@ const handleApi = async (
   );
   if (oauth !== null) {
     return oauth;
+  }
+
+  const history = await handleHistory(deps.services.store, request, userId);
+  if (history !== null) {
+    return history;
   }
 
   const chat = await handleChatRoutes(deps, request, workspace, pathname);
@@ -736,6 +821,9 @@ const handleApi = async (
     // Their run stops, their browser closes, their profile and their records
     // go. The ledger's spend rows stay: money that moved is not a preference.
     deps.runs.abort(sessionId);
+    await deps.services.trades.stopAndRevoke(userId);
+    await deps.services.launches.cancelAll(userId);
+    await deps.services.purchases.cancelAll(userId, workspace.browser);
     await deps.workspaces.forget(userId);
     await deps.services.store.forget(userId);
     return json({ deleted: true });
@@ -805,6 +893,28 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
   };
 };
 
+const handleInstallation = async (
+  origin: string,
+  request: Request,
+  pathname: string
+): Promise<Response | null> => {
+  // Public installation documents contain the configured origin, never secrets.
+  if (pathname === "/froggy-cli.js" && request.method === "GET") {
+    return await serveCli();
+  }
+  if (
+    ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
+    request.method === "GET"
+  ) {
+    const render = pathname === "/llm.md" ? llmText : skillText;
+    return new Response(render({ url: origin }), {
+      headers: { "content-type": "text/markdown; charset=utf-8" },
+    });
+  }
+
+  return null;
+};
+
 export const handleRequest = async (
   deps: RouterDeps,
   request: Request
@@ -821,6 +931,11 @@ export const handleRequest = async (
     });
   }
 
+  const demo = await handleX402Demo(deps.services, request);
+  if (demo !== null) {
+    return demo;
+  }
+
   // Outside the `/api` group on purpose: Telegram authenticates with its
   // secret header, which the adapter checks, not with a Privy token.
   if (pathname === "/telegram/webhook" && request.method === "POST") {
@@ -833,18 +948,13 @@ export const handleRequest = async (
     return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
   }
 
-  // Public installation documents contain the configured origin, never secrets.
-  if (pathname === "/froggy-cli.js" && request.method === "GET") {
-    return await serveCli();
-  }
-  if (
-    ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
-    request.method === "GET"
-  ) {
-    const render = pathname === "/llm.md" ? llmText : skillText;
-    return new Response(render({ url: deps.environment.appOrigin }), {
-      headers: { "content-type": "text/markdown; charset=utf-8" },
-    });
+  const installation = await handleInstallation(
+    deps.environment.appOrigin,
+    request,
+    pathname
+  );
+  if (installation !== null) {
+    return installation;
   }
 
   // The service card: what this server sells, how it is paid, where the
