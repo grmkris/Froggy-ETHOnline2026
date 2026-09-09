@@ -280,7 +280,23 @@ export const createServices = (options: ServiceOptions): Services => {
   // A short cache: the wallet pane asks on every publish and every socket
   // open, and a balance that is fifteen seconds old is still the balance.
   const BALANCE_TTL_MS = 15_000;
-  const cached = new Map<string, { at: number; value: bigint | null }>();
+  /**
+   * How long a balance we did read stands in for one we could not.
+   *
+   * The public Base endpoint answers 429 under a burst, and an unreadable
+   * USDC balance takes the whole dollar total down with it, because a total
+   * that silently drops a side would look complete. Serving the last figure
+   * we actually read, for a couple of minutes, keeps a rate limit from
+   * blanking the wallet; past that it is honest to say unknown again.
+   */
+  const BALANCE_STALE_MS = 120_000;
+  interface Reading {
+    readonly at: number;
+    /** The last figure a read actually returned, to stand in for a failure. */
+    readonly good?: { readonly at: number; readonly value: bigint };
+    readonly value: bigint | null;
+  }
+  const cached = new Map<string, Reading>();
   const remember = async (
     key: string,
     read: () => Promise<bigint | null>
@@ -291,9 +307,21 @@ export const createServices = (options: ServiceOptions): Services => {
       return hit.value;
     }
     const value = await read();
-    cached.set(key, { at: now, value });
-    return value;
+    if (value !== null) {
+      cached.set(key, { at: now, good: { at: now, value }, value });
+      return value;
+    }
+    const good = hit?.good;
+    const fresh = good !== undefined && now - good.at < BALANCE_STALE_MS;
+    const served = fresh ? good.value : null;
+    const next: Reading =
+      good === undefined
+        ? { at: now, value: served }
+        : { at: now, good, value: served };
+    cached.set(key, next);
+    return served;
   };
+
   const balances: Balances = {
     hbar: async (accountId) =>
       await remember(`hbar:${accountId}`, async () =>
@@ -309,12 +337,19 @@ export const createServices = (options: ServiceOptions): Services => {
         if (environment.modes.privy !== "live") {
           return null;
         }
+        // One retry: the public endpoint rate-limits a burst and the wallet
+        // pane asks on every publish. A display figure, so the endpoint being
+        // down reads as unknown, never as zero.
+        const balanceOnce = async (): Promise<bigint | null> =>
+          decodeUint256(await rpc.call(usdc.id, encodeBalanceOf(address)));
         try {
-          return decodeUint256(
-            await rpc.call(usdc.id, encodeBalanceOf(address))
-          );
+          return await balanceOnce();
         } catch {
-          // A display figure: the RPC being down shows as unknown, not as zero.
+          await Bun.sleep(250);
+        }
+        try {
+          return await balanceOnce();
+        } catch {
           return null;
         }
       }),
