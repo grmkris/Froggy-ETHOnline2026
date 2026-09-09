@@ -3,8 +3,6 @@ import type { Page } from "@playwright/test";
 import { Schema } from "effect";
 
 import { Receipt } from "../packages/domain/src/receipt";
-import { decodeBrowserServerMessage } from "../packages/protocol/src/browser";
-import type { BrowserState } from "../packages/protocol/src/browser";
 import {
   PurchaseList,
   PurchaseTicket,
@@ -186,78 +184,40 @@ test.describe("URL purchases", () => {
     expect(errors).toEqual([]);
   });
 
-  test("a paid page in the shared Chrome asks and opens its original HTML", async ({
+  /**
+   * The browser half of this flow moved out of Playwright.
+   *
+   * A paid page in the shared browser used to be exercised here against a
+   * Chrome on this box, loading a fixture served by the test server itself.
+   * The browser is Browser Use's now and runs on their machines, so it cannot
+   * reach a fixture on `127.0.0.1` — and pointing it at a public paywall would
+   * make this suite spend real money on every run.
+   *
+   * The whole 402 path — observing the first top-level GET 402, replaying to a
+   * 200, and keeping the proof off subresources and redirects — is exercised by
+   * `tools/spikes/cloud-cdp-check.ts`, which drives the shipped adapter against
+   * a local Chromium and local fixture HTTP. What stays here is the part
+   * Playwright can still tell the truth about: with no provider configured, the
+   * pane says so and no purchase is invented.
+   */
+  test("with no browser configured the pane says so and invents no purchase", async ({
     page,
-    request,
-    baseURL,
-  }, testInfo) => {
-    test.setTimeout(60_000);
+  }) => {
     const errors = watchErrors(page);
-    let state: BrowserState | null = null;
-    page.on("websocket", (socket) => {
-      if (!new URL(socket.url()).pathname.endsWith("/ws/browser")) {
-        return;
-      }
-      socket.on("framereceived", ({ payload }) => {
-        const decoded = decodeBrowserServerMessage(payload);
-        if (
-          decoded._tag === "Success" &&
-          decoded.success.type === "browser.state"
-        ) {
-          ({ state } = decoded.success);
-        }
-      });
-    });
-    const listing = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === "/api/purchases"
-    );
     await page.goto("/");
-    const sessionResponse = await listing;
-    const headers = {
-      authorization: sessionResponse.request().headers()["authorization"] ?? "",
-    };
     await page.getByRole("button", { name: "Show the browser" }).click();
-    const target = new URL("/demo/x402/report", baseURL).href;
     await page
       .getByRole("textbox", { name: "Address", exact: true })
-      .fill(target);
+      .fill("https://example.com/paid");
     await page
       .getByRole("textbox", { name: "Address", exact: true })
       .press("Enter");
-    const purpose = `Open paid page at ${new URL(target).host}`;
-    const ticket = approvalFor(page, purpose);
-    await expect(ticket).toBeVisible({ timeout: 30_000 });
     await expect(
-      page.getByRole("region", { name: "Purchase approvals" })
-    ).toContainText("Simulated");
-    await page.screenshot({
-      path: testInfo.outputPath("browser-payment-approval.png"),
-    });
-    await ticket.getByRole("button", { name: "Pay once", exact: true }).click();
-    await expect(ticket).toHaveCount(0);
-    await expect
-      .poll(
-        () => state?.tabs.find((tab) => tab.id === state?.activeTabId)?.title,
-        { timeout: 20_000 }
-      )
-      .toBe("Your USDC lending report · Pond Observatory");
+      page.getByText("Browser Use is stubbed.", { exact: false })
+    ).toBeVisible();
     await expect(
-      page.getByRole("textbox", { name: "Address", exact: true })
-    ).toHaveAttribute("placeholder", target);
-    await page.screenshot({
-      path: testInfo.outputPath("browser-native-report.png"),
-    });
-    const response = await request.get("/api/purchases", { headers });
-    const list = decodeList(await response.json());
-    const purchase = list.purchases.find(
-      (item) => item.source === "browser" && item.request.url === target
-    );
-    expect(purchase?.payment.state).toBe("settled");
-    expect(purchase?.delivery.state).toBe("delivered");
-    expect(purchase?.delivery.contentType).toContain("text/html");
-    expect(purchase?.delivery.body).toContain(
-      "<title>Your USDC lending report"
-    );
+      page.getByLabel("Approve URL purchase", { exact: true })
+    ).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
