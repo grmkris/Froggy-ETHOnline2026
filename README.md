@@ -71,7 +71,7 @@ flowchart TB
     ledger[(spend ledger)]
   end
 
-  graph[["packages/graph<br/>why it spent"]]
+  thegraph[["packages/graph<br/>why it spent"]]
   pay[["packages/payments<br/>how it paid"]]
   oracle[/"GET /oracle/snapshot<br/>402, Hedera x402"/]
 
@@ -79,15 +79,15 @@ flowchart TB
   human -->|asks| loop
   arb --> chrome
   loop -->|browser tools| arb
-  loop -->|graph_query| graph
+  loop -->|graph_query| thegraph
   loop -->|"x402_fetch · wallet_send"| session
   session --> policy
   policy -->|allow| pay
   policy -.->|"deny · ask"| human
   session --> ledger
-  graph -.->|evidence| session
+  thegraph -.->|evidence| session
   pay --> oracle
-  oracle --> graph
+  oracle --> thegraph
   model --- loop
 
   chrome x--x policy
