@@ -41,10 +41,10 @@ The data delivery is complete. Controlled execution is in progress below; funded
 Requested 8 September 2026 after the first delivery. Deployment of the completed application to the existing Railway production service is authorized. Live trading-provider credentials are not yet configured there.
 
 - [x] Persist immutable trade proposals, simulations, transaction attempts, capital reservations and human-issued trading rules.
-- [ ] Build Uniswap, Jupiter, Enso and native Pons/Pump routes; validate transaction contents and independent simulation before signing.
-- [ ] Support positions and withdrawal/claim proceeds followed by a swap, with explicit waits and partial outcomes.
-- [ ] Expose prepare, simulate, execute and status through HTTP, MCP and chat, with approval restricted to authenticated people.
-- [ ] Add durable bounded launch watches, gap recovery, entry/exit rules and cancellation.
+- [x] Build Uniswap, Jupiter, Enso and native Pons/Pump routes; validate transaction contents and independent simulation before signing.
+- [x] Support positions and supported withdrawal proceeds (claims remain explicitly unavailable) followed by a swap, with explicit waits and partial outcomes.
+- [x] Expose prepare, simulate, execute and status through HTTP, MCP and chat, with approval restricted to authenticated people.
+- [x] Add durable bounded launch watches, gap recovery, entry/exit rules and cancellation.
 - [ ] Complete provider/configuration, accounting, adversarial, restart and browser verification.
 - [ ] Deploy the verified build and migrations to Railway; verify health, authentication and the installed capabilities.
 - [ ] Verify live provider delivery where credentials are available; document any configuration that still prevents live testing.
@@ -76,3 +76,9 @@ Native tests exercise buys and sells in both phases, changed recipients and boun
 `watch_launches` now runs through the existing paid task coordinator with a configured fixed bundle price and no per-poll payment. Versioned contracts, memory/Postgres storage, server lifecycle polling, HTTP/MCP/chat status and cancellation, and a Services form/history view are implemented. Capacity, deduplication, expiry, provider mode and gaps survive restart. Connection ownership is fixed at purchase. Account reset cancels watches and retains history. Provider metadata remains explicitly unverified; no replay cursor or complete coverage is claimed.
 
 Focused paid-service/watch tests pass, including HTTP/MCP replay and authority injection refusal. Separate PostgreSQL connections pass shared budget and immutable history tests against a disposable database. All ten trading browser tests pass, including mobile watch cancellation and reload. The full unit suite passed with 406 server tests before the additional account-reset watch test. The shared workspace's concurrent browser implementation currently prevents a clean full formatting/type gate; this watch addition has passed scoped type-aware lint. Watch migration `0015` has only been applied to the disposable database. Pump/watch changes are not deployed. Automatic entry and exit rules remain to be connected.
+
+## Native routes and rules verification — 9 September
+
+Pons curve and graduated-pool buy/sell routes, native confirmed-log watches, and human-issued entry/exit rules are implemented locally. Pons transactions passed four buy/sell checks against a disposable local fork of real deployments; no mainnet transaction was submitted. A separate read-only production RPC check verified the factory and confirmed watch cursor, then resumed it successfully. Pump tests cover both lifecycle phases. Unsupported reward claims and queued withdrawals remain explicit.
+
+Automatic reactions persist check claims, trade identities and progress across workers and restarts. Entry and exit authority share atomic wallet accounting. Orphaned or stale launch observations cannot trigger entries. Rule authorization, reload and revocation passed in the actual UI at 320 pixels with no page errors or horizontal overflow. The fast gate, full repository gate (453 server tests) and production build passed. The final full browser suite and deployment are recorded below when complete.
