@@ -282,6 +282,7 @@ describe("the welcome", () => {
       hcsTopicId: "0.0.10381647",
       mcpUrl: null,
       modes: {
+        browser: "stub",
         database: "stub",
         graph: "stub",
         hedera: "stub",

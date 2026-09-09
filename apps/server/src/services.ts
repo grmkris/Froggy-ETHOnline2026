@@ -91,9 +91,10 @@ interface Balances {
 }
 
 export interface Services {
-  readonly createBrowser?:
-    | ((options: BrowserSessionOptions, userId: UserId) => BrowserHandle)
-    | undefined;
+  readonly createBrowser: (
+    options: BrowserSessionOptions,
+    userId: UserId
+  ) => BrowserHandle;
   readonly launches: LaunchCoordinator;
   readonly trading: TradingProviders;
   readonly purchases: Purchases;
@@ -156,6 +157,17 @@ export interface Services {
    */
   readonly treasuryPayer: Payer | null;
 }
+
+/**
+ * The name a person's provider profile is created under.
+ *
+ * Hashed rather than passed through: a Privy DID is the person's identity on
+ * this deployment, and it has no business appearing in a third party's
+ * dashboard, list endpoint or logs. Stable, so a returning user gets back the
+ * profile they already logged into things with.
+ */
+export const providerUserKey = (userId: UserId): string =>
+  new Bun.CryptoHasher("sha256").update(userId).digest("hex");
 
 export interface ServiceOptions {
   readonly environment: Environment;
@@ -407,28 +419,23 @@ export const createServices = (options: ServiceOptions): Services => {
   };
   return {
     ...adapters,
-    createBrowser:
-      environment.browserProvider === "cloud"
-        ? (browserOptions, userId) => {
-            if (environment.browserUseApiKey === null) {
-              return new StubCloudBrowser(browserOptions);
-            }
-            return new CloudBrowser({
-              ...browserOptions,
-              api: cloudApi({
-                apiKey: environment.browserUseApiKey,
-                country: environment.browserCountry,
-              }),
-              userKey: new Bun.CryptoHasher("sha256")
-                .update(userId)
-                .digest("hex"),
-              load: async () => await store.browsers.load(userId),
-              save: async (record) => {
-                await store.browsers.save(userId, record);
-              },
-            });
-          }
-        : undefined,
+    createBrowser: (browserOptions, userId) => {
+      if (environment.browserUseApiKey === null) {
+        return new StubCloudBrowser(browserOptions);
+      }
+      return new CloudBrowser({
+        ...browserOptions,
+        api: cloudApi({
+          apiKey: environment.browserUseApiKey,
+          country: environment.browserCountry,
+        }),
+        userKey: providerUserKey(userId),
+        load: async () => await store.browsers.load(userId),
+        save: async (record) => {
+          await store.browsers.save(userId, record);
+        },
+      });
+    },
     purchases: new Purchases(adapters),
   };
 };

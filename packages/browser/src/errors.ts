@@ -1,8 +1,8 @@
 /**
  * Browser failures are values, not throws, everywhere they cross a boundary.
  *
- * A browser that will not start is an ordinary state of this product — a laptop
- * with no Chrome, a container with no display — and the pane has to render it.
+ * A browser that will not start is an ordinary state of this product — no
+ * provider key, no credit, a provider outage — and the pane has to render it.
  * Modelling that as an exception pushes the decision into a catch block far
  * from the code that knows what to say about it.
  */
@@ -41,18 +41,20 @@ export class CdpTimeoutError extends Error {
 }
 
 /**
- * Bun gives no handle on the spawned Chrome process, so a crash is only
- * observable as the shape of the error the next command fails with.
+ * The browser is at the provider, so it dies as a dropped socket rather than a
+ * dead child process: the CDP client rejects everything in flight and every
+ * later command with a closed-session error.
  */
-const CRASH_PATTERN =
-  /closed the pipe|view is closed|not connected|chrome exited/iu;
+const CRASH_PATTERN = /disconnected|session is closed|not connected/iu;
 
 /**
- * Does this failure look like Chrome dying rather than a command failing?
+ * Does this failure look like the browser going away rather than a command
+ * failing?
  *
  * Takes an `Error` because every call site has already caught one; a caught
  * value that is not an `Error` is not a crash signal, it is a thrown string,
  * and treating it as one would mark the session dead over a bad `throw`.
  */
 export const looksLikeCrash = (error: Error): boolean =>
+  error instanceof BrowserSessionClosedError ||
   CRASH_PATTERN.test(error.message);

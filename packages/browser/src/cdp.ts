@@ -2,20 +2,12 @@
  * The CDP seam.
  *
  * Every other file in this package talks to a `CdpTab` and nothing else, so the
- * decision to drive Chrome through `Bun.WebView` lives here alone. Swapping in
- * a spawned Chrome with a raw DevTools WebSocket — which is what would be
- * needed to run headless in a container — means writing one more implementation
- * of this interface and changing nothing else.
+ * transport — one WebSocket to a Browser Use browser, with a flattened target
+ * session per tab — lives behind this interface and nowhere else.
  *
- * Two Bun-specific facts shape the whole file:
- *
- *   1. **One in-flight `cdp()` per view.** A second call while one is pending
- *      throws `Invalid state: a cdp() is already pending`. So commands queue,
- *      per view — the lock is per view, not per process, so a second tab still
- *      answers while the first is busy.
- *   2. **Bun consumes `Page.loadEventFired` and `Page.frameNavigated`** for its
- *      own navigation tracking; they never reach a listener. What a tab can see
- *      is `Page.domContentEventFired` and Bun's own navigation callback.
+ * Commands are serialised per tab and every one carries a deadline. Ordering is
+ * the point: a mouse release that overtakes its press is not a click, and a
+ * snapshot that overtakes the navigation it describes is a lie.
  */
 
 import { bestEffort } from "./best-effort";
@@ -83,9 +75,9 @@ const withDeadline = async <T>(
   }
 };
 
-export const webViewCdp = (view: CdpView): CdpTab => {
+export const tabCdp = (view: CdpView): CdpTab => {
   // The serialisation point. Every command chains onto the previous one's
-  // settlement, so `Bun.WebView` never sees two at once.
+  // settlement, so the page never sees two of ours at once.
   let tail: Promise<unknown> = Promise.resolve();
 
   const send = async <T>(
@@ -112,18 +104,14 @@ export const webViewCdp = (view: CdpView): CdpTab => {
     handler: (params: CdpPayload) => void
   ): (() => void) => {
     const listener = (event: Event): void => {
-      // Bun delivers CDP events as `MessageEvent`s. Anything else on this
+      // CDP events arrive as `MessageEvent`s. Anything else on this
       // EventTarget is not a protocol event, so it becomes an empty payload
       // rather than being forwarded as a lie about its shape.
-      // SAFETY: `MessageEvent.data` on a Bun WebView CDP event is the
-      // protocol's parameter object, typed `any` by the DOM lib. It is narrowed
-      // per-command at each call site rather than parsed here — see
-      // docs/decisions/0004.
       const data: unknown =
         event instanceof MessageEvent ? event.data : EMPTY_PAYLOAD;
-      // SAFETY: `MessageEvent.data` on a Bun WebView CDP event is the
-      // protocol's parameter object. It is narrowed per-command at each call
-      // site rather than parsed here — see docs/decisions/0004.
+      // SAFETY: `MessageEvent.data` on a CDP event is the protocol's parameter
+      // object, typed `any` by the DOM lib. It is narrowed per-command at each
+      // call site rather than parsed here — see docs/decisions/0004.
       handler(data as CdpPayload);
     };
     view.addEventListener(method, listener);

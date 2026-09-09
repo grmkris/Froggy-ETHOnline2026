@@ -31,6 +31,7 @@ const fixture = (overrides: Partial<TradeBackend> = {}) => {
       store,
       ledger: memoryLedger(),
       modes: {
+        browser: "stub",
         database: "stub",
         graph: "stub",
         hedera: "stub",

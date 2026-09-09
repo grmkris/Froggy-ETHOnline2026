@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from "bun:test";
 
-import { BrowserSession } from "@froggy/browser";
+import { StubCloudBrowser } from "@froggy/browser";
 import {
   AgentTokenId,
   KNOWN_ASSETS,
@@ -498,9 +498,7 @@ const route = async (
     f.services,
     new ChatRunRegistry(),
     {
-      browser: new BrowserSession({
-        profileDirectory: "/tmp/froggy-purchase-routes-unused",
-      }),
+      browser: new StubCloudBrowser({}),
       session: f.session,
       userId: f.session.userId,
     },

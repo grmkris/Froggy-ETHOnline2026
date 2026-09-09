@@ -37,6 +37,7 @@ const fixture = (options: { graph?: GraphClient; gate?: OracleGate } = {}) => {
     environment: {
       appOrigin: ORIGIN,
       modes: {
+        browser: "stub",
         database: "stub",
         graph: "stub",
         hedera: "stub",

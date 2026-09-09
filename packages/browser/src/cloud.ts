@@ -162,10 +162,11 @@ export class CloudBrowser implements BrowserHandle {
       await bestEffort(this.tail);
       const record = this.record ?? (await this.options.load());
       if (record !== null && record.browserId !== null) {
-        await this.options.api.stop(record.browserId);
-        const finalInfo = await this.options.api
-          .get(record.browserId)
-          .catch(() => null);
+        // The stop reply carries the browser's final cost, so this is both the
+        // lifecycle call and the accounting read. It is deliberately not
+        // caught: a browser we failed to stop must keep its id in the record,
+        // or nothing will ever stop it and the provider keeps billing.
+        const finalInfo = await this.options.api.stop(record.browserId);
         const usage = recordCloudUsage(
           record.usage,
           record.browserId,
@@ -238,7 +239,6 @@ export class CloudBrowser implements BrowserHandle {
   private build(): BrowserSession {
     const session = new BrowserSession({
       ...this.options,
-      externalBrowser: true,
       createView: async () => await this.connect(),
       onStateChange: () => {
         this.publish();
@@ -286,8 +286,11 @@ export class CloudBrowser implements BrowserHandle {
     if (this.info.cdpUrl === null || this.info.cdpUrl === "") {
       throw new BrowserStartError("The Cloud browser has no CDP connection.");
     }
+    // `cdpUrl` addresses the browser over HTTPS; the socket to attach to is the
+    // one Chrome names on that host. Resolved per connection, never persisted.
+    const socketUrl = await this.options.api.socket(this.info.cdpUrl);
     this.connection = new CloudCdp(
-      this.info.cdpUrl,
+      socketUrl,
       async (view) => {
         await this.session.adoptTab(view);
       },
@@ -303,14 +306,27 @@ export class CloudBrowser implements BrowserHandle {
   }
 }
 
+const STUB_MESSAGE =
+  "Browser Use is stubbed. Configure BROWSER_USE_API_KEY to open a browser.";
+
 /** Missing credentials are explicit; this adapter never pretends a paid run happened. */
 export class StubCloudBrowser extends BrowserSession {
+  constructor(options: BrowserSessionOptions) {
+    // A stub has no provider to ask for a page, and saying so here means the
+    // failure is the same one whether the pane or a tool reached for it.
+    super({
+      ...options,
+      createView: () => {
+        throw new BrowserStartError(STUB_MESSAGE);
+      },
+    });
+  }
+
   override state(): BrowserState {
     return {
       ...super.state(),
       status: "unavailable",
-      error:
-        "Browser Use is stubbed. Configure BROWSER_USE_API_KEY to open a Cloud browser.",
+      error: STUB_MESSAGE,
       cloud: {
         control: "agent",
         viewerReady: false,
@@ -321,7 +337,7 @@ export class StubCloudBrowser extends BrowserSession {
   }
   override async start(): Promise<void> {
     await Promise.reject(
-      new BrowserStartError(this.state().error ?? "Browser Use is stubbed.")
+      new BrowserStartError(this.state().error ?? STUB_MESSAGE)
     );
   }
 }

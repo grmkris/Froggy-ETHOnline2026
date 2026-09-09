@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
-import { RemoteBrowser } from "@froggy/browser";
+import { StubCloudBrowser } from "@froggy/browser";
 import { SessionId, userId } from "@froggy/domain";
 import type { TaskId } from "@froggy/domain";
 import {
@@ -113,11 +113,8 @@ const fixture = async () => {
     }
   );
   await session.hydrate();
-  const browser = new RemoteBrowser({
-    spawn: () => {
-      throw new Error("Trading tools must not start a browser.");
-    },
-  });
+  // Trading tools must never reach for a page; a stub refuses loudly if they do.
+  const browser = new StubCloudBrowser({});
   const workspaces = new Workspaces({
     blockPrivateNetwork: true,
     browserIdleMs: 1000,
@@ -137,7 +134,6 @@ const fixture = async () => {
     onReceipt: noop,
     oracleHost: new URL(environment.appOrigin).host,
     oraclePayTo: services.oracle.payTo,
-    profileRoot: "/tmp/froggy-unused-trading-chat-browser",
     reservedBrowsers: 0,
     store: services.store,
   });

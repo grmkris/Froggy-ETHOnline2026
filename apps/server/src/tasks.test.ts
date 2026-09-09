@@ -12,6 +12,7 @@ import { mintAgentToken } from "./agents";
 import { handleBrowseQuote } from "./browse-quotes";
 import { ModelBudget } from "./budget";
 import { loadEnvironment } from "./environment";
+import type { Environment } from "./environment";
 import { InteractionRegistry } from "./interactions";
 import { createNotices } from "./notices";
 import { createQuotes } from "./quotes";
@@ -106,7 +107,16 @@ beforeAll(async () => {
   for (const [key, value] of Object.entries(PLACEHOLDERS)) {
     process.env[key] = value;
   }
-  const environment = await Effect.runPromise(loadEnvironment());
+  const loaded = await Effect.runPromise(loadEnvironment());
+  // A browse quote is refused outright with no browser provider configured, so
+  // these tests name one here rather than through the environment: the config
+  // is read once per process, and a sibling test file may have read it first.
+  // Nothing reaches the provider — the browser handle is a stand-in object.
+  const environment: Environment = {
+    ...loaded,
+    browserUseApiKey: "bu_task_fixture_key",
+    modes: { ...loaded.modes, browser: "live" },
+  };
   services = createServices({ environment });
   const { quote } = createQuotes(services.rates);
   session = new WorkspaceSession(

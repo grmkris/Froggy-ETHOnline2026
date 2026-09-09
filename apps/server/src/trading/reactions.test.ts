@@ -28,6 +28,7 @@ const setup = async () => {
       store,
       ledger: memoryLedger(),
       modes: {
+        browser: "stub",
         database: "stub",
         graph: "stub",
         hedera: "stub",

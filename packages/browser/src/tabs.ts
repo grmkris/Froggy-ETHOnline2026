@@ -1,11 +1,9 @@
 /**
  * Tabs.
  *
- * Under `Bun.WebView` a tab *is* a WebView instance — Bun owns the Chrome
- * process and hands back one view per window it opened. That has one
- * consequence that shapes this file and `popups.ts`: Bun cannot attach to a
- * target it did not create, so a page that calls `window.open` produces a
- * window we do not own.
+ * A tab is one CDP target session on the provider's browser. Targets are
+ * auto-attached as they appear, so a page that calls `window.open` arrives here
+ * as a tab like any other, with its opener and its JavaScript context intact.
  */
 
 import { TabId } from "@froggy/domain";
@@ -18,7 +16,7 @@ import type {
 } from "@froggy/protocol";
 
 import { bestEffort } from "./best-effort";
-import { webViewCdp } from "./cdp";
+import { tabCdp } from "./cdp";
 import type { CdpPayload, CdpTab } from "./cdp";
 import { browserPaymentRefused, PaymentNavigation } from "./payment-navigation";
 import { PRIVATE_URL_PATTERNS } from "./private-network";
@@ -109,9 +107,8 @@ export class TabRegistry {
   /**
    * Open a tab and navigate it.
    *
-   * The navigate is not optional: `Bun.WebView` only establishes its CDP
-   * session once the view has loaded something, so a view that is never
-   * navigated has no `cdp()` to call and looks broken rather than empty.
+   * The navigate is not optional: a target that has loaded nothing paints
+   * nothing, so a tab that is never navigated looks broken rather than empty.
    */
   async openTab(url: string = BLANK_PAGE): Promise<Tab> {
     const view = await this.deps.createView();
@@ -123,7 +120,7 @@ export class TabRegistry {
     if (view.attached !== true) {
       await view.navigate(BLANK_PAGE);
     }
-    const cdp = webViewCdp(view);
+    const cdp = tabCdp(view);
     const tab: Tab = { cdp, id, loading: true, title: "", url: view.url, view };
     this.tabs.set(id, tab);
     view.addEventListener(

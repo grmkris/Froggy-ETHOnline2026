@@ -37,6 +37,7 @@ export const ServiceModes = Schema.Struct({
   birdeye: Schema.optional(ServiceMode),
   quicknode: Schema.optional(ServiceMode),
   uniswap: Schema.optional(ServiceMode),
+  browser: ServiceMode,
   database: ServiceMode,
   graph: ServiceMode,
   hedera: ServiceMode,

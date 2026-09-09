@@ -225,7 +225,6 @@ export interface Environment {
    * `localhost`.
    */
   readonly blockPrivateNetwork: boolean;
-  readonly chromeProfileDirectory: string;
   readonly databaseUrl: string;
   /** The JSON-RPC endpoint the host broadcasts signed Base Sepolia transactions to. */
   readonly evmRpcUrl: string;
@@ -263,7 +262,6 @@ export interface Environment {
   readonly hederaPrivateKey: string;
   /** Kill a browser nobody is watching or driving after this long. */
   readonly browserIdleMs: number;
-  readonly browserProvider: "local" | "cloud";
   readonly browserUseApiKey: string | null;
   readonly browserCountry: string | null;
   readonly browserModelInputRate: number;
@@ -567,12 +565,6 @@ const tradingModes = (trading: TradingEnvironment) => ({
 
 const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
   function* loadBrowserConfiguration() {
-    const browserProviderValue = yield* Config.string("BROWSER_PROVIDER").pipe(
-      Config.withDefault("local")
-    );
-    const browserProvider = Schema.decodeUnknownSync(
-      Schema.Literals(["local", "cloud"])
-    )(browserProviderValue);
     const browserUseSecret = yield* secret(
       "BROWSER_USE_API_KEY",
       "REPLACE_ME_BROWSER_USE_KEY"
@@ -594,12 +586,16 @@ const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
     const browserModelOutputRate = yield* Config.number(
       "BROWSER_MODEL_OUTPUT_USD_PER_MILLION"
     ).pipe(Config.withDefault(0));
+    // No provider key, no browser: the pane refuses to open one and says so,
+    // rather than showing a page nobody is hosting.
+    const browserMode: ServiceMode =
+      browserUseApiKey === null ? "stub" : "live";
     return {
-      browserProvider,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
       browserModelOutputRate,
+      browserMode,
     };
   }
 );
@@ -619,15 +615,14 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const staticDirectory = yield* Config.string("STATIC_DIR").pipe(
       Config.withDefault("")
     );
-    const chromeProfileDirectory = yield* Config.string(
-      "CHROME_PROFILE_DIR"
-    ).pipe(Config.withDefault(".froggy/chrome-profile"));
-    // One browser process per signed-in user, eight at a time by default: a
-    // headless Chrome is half a gigabyte and change, so eight is comfortable
-    // on the deployment's memory and a link that gets shared widely queues
-    // rather than exhausting the box. One of the eight is held for the demo
-    // account, so a judge never waits behind testers. All three are variables
-    // rather than code so they can be moved under load.
+    // One provider browser per signed-in user, eight at a time by default.
+    // The cap is now about money and the provider's concurrency limit rather
+    // than this box's memory: every seated browser bills by the hour, and a
+    // free Browser Use project allows ten at once. A link that gets shared
+    // widely queues instead of opening browsers nobody asked to pay for. One
+    // of the eight is held for the demo account, so a judge never waits behind
+    // testers. All three are variables rather than code so they can be moved
+    // under load.
     const maxBrowsers = yield* Config.number("MAX_BROWSERS").pipe(
       Config.withDefault(8)
     );
@@ -635,11 +630,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       Config.withDefault(1)
     );
     const {
-      browserProvider,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
       browserModelOutputRate,
+      browserMode,
     } = yield* loadBrowserConfiguration();
     const browserIdleMs = yield* Config.number("BROWSER_IDLE_MS").pipe(
       Config.withDefault(10 * 60 * 1000)
@@ -837,6 +832,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const trading = yield* loadTradingEnvironment();
     const modes: ServiceModes = {
       ...tradingModes(trading),
+      browser: browserMode,
       database: modeOf([Redacted.value(databaseUrl), PLACEHOLDER.databaseUrl]),
       // The key alone. The deployments are pinned in `packages/graph`'s
       // registry rather than configured, because *which* four indexes the
@@ -874,13 +870,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       appOrigin,
       blockPrivateNetwork: !isLoopback(appOrigin),
       browserIdleMs,
-      browserProvider,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
       browserModelOutputRate,
       demoUserId,
-      chromeProfileDirectory,
       databaseUrl: Redacted.value(databaseUrl),
       evmRpcUrl,
       graphApiKey: Redacted.value(graphApiKey),

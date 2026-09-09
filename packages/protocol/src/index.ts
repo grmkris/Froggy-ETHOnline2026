@@ -35,13 +35,8 @@ export {
   BrowserPaymentReplay,
   BrowserPaymentRequest,
   BrowserPaymentResult,
-  decodeWorkerCommand,
-  decodeWorkerEvent,
   WaitReason,
-  WorkerCommand,
-  WorkerEvent,
-  WorkerReply,
-} from "./worker";
+} from "./browser-payments";
 export {
   decodeGraphQueryOutput,
   GraphQueryDeployment,

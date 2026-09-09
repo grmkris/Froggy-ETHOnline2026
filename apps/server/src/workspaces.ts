@@ -1,5 +1,5 @@
 /**
- * One workspace per signed-in user: their mandate, their receipts, their Chrome.
+ * One workspace per signed-in user: their mandate, their receipts, their browser.
  *
  * Before this, the process had a single session created at boot and every
  * visitor shared it — a second person's chat aborted the first, and every
@@ -7,18 +7,16 @@
  * than it sounds here, because the profile holds whatever the agent has logged
  * into on the first person's behalf.
  *
- * A workspace is built eagerly and its browser is a `RemoteBrowser` that
- * spawns a worker process on the first message that needs a page, so the cap
- * below counts processes with a Chrome behind them, not objects that exist.
- * Past the cap a user waits in line and is seated automatically when a seat
- * frees; one seat is held back for the demo account so a judge never waits
- * behind testers. A browser nobody is watching or driving is released after
- * an idle period, which is how eight seats serve more than eight people.
+ * A workspace is built eagerly, but its browser is only created at the
+ * provider on the first message that needs a page — so the cap below counts
+ * browsers somebody is paying for, not objects that exist. Past the cap a user
+ * waits in line and is seated automatically when a seat frees; one seat is held
+ * back for the demo account so a judge never waits behind testers. A browser
+ * nobody is watching or driving is released after an idle period, which is how
+ * eight seats serve more than eight people — and, since the provider bills by
+ * the browser-hour, what stops an abandoned tab billing all night.
  */
 
-import { rm } from "node:fs/promises";
-
-import { RemoteBrowser, spawnBrowserWorker } from "@froggy/browser";
 import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { SessionId } from "@froggy/domain";
 import type {
@@ -88,9 +86,10 @@ export interface WorkspaceDeps {
    * the cap, which only means anything once a Chrome is actually running — is
    * exercisable without one.
    */
-  readonly createBrowser?:
-    | ((options: BrowserSessionOptions, userId: UserId) => BrowserHandle)
-    | undefined;
+  readonly createBrowser: (
+    options: BrowserSessionOptions,
+    userId: UserId
+  ) => BrowserHandle;
   /** What the chains say someone holds; display only. See `SessionDeps.balances`. */
   readonly balances: SessionDeps["balances"];
   /** Always seated. Null when no account is reserved. */
@@ -114,7 +113,6 @@ export interface WorkspaceDeps {
   readonly pocket?: SessionDeps["pocket"];
   /** USDC into HBAR when a pocket is short. See `SessionDeps.convert`. */
   readonly convert?: SessionDeps["convert"] | undefined;
-  readonly profileRoot: string;
   /** What an asset is worth. Null refuses the spend; see `quotes.ts`. */
   readonly quote: (asset: Amount["asset"], now: number) => Quote | null;
   /** Which Base and which Hedera this deployment is on. */
@@ -127,16 +125,6 @@ export interface WorkspaceDeps {
   /** Where a top-up sends USDC; allowlisted as a payee so the transfer can be judged. Null when unset. */
   readonly treasuryPayee?: string | null;
 }
-
-/**
- * A filesystem-safe directory name for a DID.
- *
- * Hashed rather than escaped: DIDs contain colons, and a hash also keeps the
- * profile path from naming the user to anyone reading a directory listing on
- * the host.
- */
-export const profileDirectoryFor = (root: string, userId: UserId): string =>
-  `${root}/${new Bun.CryptoHasher("sha256").update(userId).digest("hex").slice(0, 24)}`;
 
 interface Waiting {
   readonly url: string | undefined;
@@ -214,32 +202,17 @@ export class Workspaces {
             : [this.deps.oraclePayTo, treasury],
       }
     );
-    const profileDirectory = profileDirectoryFor(this.deps.profileRoot, userId);
     const onStateChange = (state: BrowserState): void => {
       this.observe(userId, state);
       this.deps.onBrowserState(userId, this.decorate(userId, state));
     };
-    // One worker *process* per user, not one `BrowserSession` per user in
-    // this process: `Bun.WebView` runs one Chrome per process and the first
-    // view's profile applies to every later one, so two users in one process
-    // would share a profile however many sessions were constructed.
-    const build =
-      this.deps.createBrowser ??
-      ((options: BrowserSessionOptions) =>
-        new RemoteBrowser({
-          onStateChange: options.onStateChange ?? onStateChange,
-          spawn: () =>
-            spawnBrowserWorker({
-              blockPrivateNetwork: options.blockPrivateNetwork ?? true,
-              profileDirectory: options.profileDirectory,
-              viewport: options.viewport ?? { height: 800, width: 1280 },
-            }),
-        }));
-    const browser = build(
+    // One provider browser per signed-in user, each on that user's own
+    // provider profile: the logins the agent collects on someone's behalf are
+    // theirs, and two users must never meet in one cookie jar.
+    const browser = this.deps.createBrowser(
       {
         blockPrivateNetwork: this.deps.blockPrivateNetwork,
         onStateChange,
-        profileDirectory,
       },
       userId
     );
@@ -384,10 +357,6 @@ export class Workspaces {
       this.seatNext();
     }
     this.publishQueue();
-    await rm(profileDirectoryFor(this.deps.profileRoot, userId), {
-      force: true,
-      recursive: true,
-    });
   }
 
   async closeAll(): Promise<void> {

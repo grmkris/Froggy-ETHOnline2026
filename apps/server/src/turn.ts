@@ -221,8 +221,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       abortSignal: run.signal,
       instructions:
         (deps.instructions ?? systemPrompt(deps.oracleUrl)) +
-        (deps.services.environment.browserProvider === "cloud" &&
-        deps.paidBrowse === undefined
+        (deps.paidBrowse === undefined
           ? "\nFor browser work, call browse_task with the complete user goal. The person chooses and pays a task budget in that card. Do not call low-level browser tools outside a paid task."
           : ""),
       activeTools:

@@ -1,9 +1,12 @@
 /**
  * The shared browser session: one Chrome, driven by two parties.
  *
- * This is the composition root for the package — it owns the tab registry, the
- * screencast, the arbitration gate and the snapshot cache, and it is the only
- * thing outside this directory needs to hold.
+ * The Chrome is Browser Use's, reached over CDP. This class owns everything on
+ * Froggy's side of that socket — the tab registry, the screencast, the
+ * arbitration gate and the snapshot cache — and is the only thing outside this
+ * directory needs to hold. It never launches a browser: `createView` comes
+ * from whatever holds the provider connection, which is `CloudBrowser` in the
+ * app and a fixture in the tests.
  *
  * It knows nothing about money. That is deliberate and enforced in
  * `tools/graph.ts`: this package cannot import `@froggy/wallet`. The browser is
@@ -23,13 +26,10 @@ import type {
 import { Arbitrator } from "./arbitration";
 import type { WaitReason } from "./arbitration";
 import { bestEffort } from "./best-effort";
-import { chromeArgv, detectChrome } from "./chrome-detect";
 import { BrowserStartError, looksLikeCrash } from "./errors";
 import type { BrowserHandle } from "./handle";
 import { dispatchInput } from "./input";
 import { browserPaymentRefused } from "./payment-navigation";
-import { watchPopupTargets } from "./popups";
-import { clearStaleProfileLock } from "./profile";
 import { Screencast } from "./screencast";
 import type { FrameSubscriber } from "./screencast";
 import { SnapshotCapture } from "./snapshot";
@@ -51,42 +51,26 @@ export interface BrowserSessionOptions {
    * local development turns it off because the app itself is on `localhost`.
    */
   readonly blockPrivateNetwork?: boolean;
-  /** Chrome profile directory. Persistent, so the agent shops as *you*. */
-  readonly profileDirectory: string;
-  /** Injected in tests so the whole session can run against a fake view. */
-  readonly createView?: (options: {
-    readonly chromePath: string;
-    readonly profileDirectory: string;
-  }) => TabView | Promise<TabView>;
-  /** Cloud CDP owns native popup attachment and the hosted viewer. */
-  readonly externalBrowser?: boolean;
   readonly onStateChange?: (state: BrowserState) => void;
   readonly viewport?: Viewport;
 }
 
-const spawnWebView = (options: {
-  readonly chromePath: string;
-  readonly profileDirectory: string;
-  readonly viewport: Viewport;
-}): TabView =>
-  new Bun.WebView({
-    backend: {
-      argv: chromeArgv(),
-      path: options.chromePath,
-      type: "chrome",
-      // Never auto-connect to an already-running Chrome. Attaching to the
-      // user's own browser would hand the agent every session they have open.
-      url: false,
-    },
-    dataStore: { directory: options.profileDirectory },
-    height: options.viewport.height,
-    width: options.viewport.width,
-  });
+/**
+ * A session, plus the thing that hands it pages.
+ *
+ * `createView` is the only way a tab comes into existence, and the provider
+ * connection supplies it. Nothing in this file knows how to start a browser,
+ * which is what makes "Browser Use is the only browser" a property of the code
+ * rather than of a configuration flag.
+ */
+export interface SessionViewOptions extends BrowserSessionOptions {
+  readonly createView: () => TabView | Promise<TabView>;
+}
 
 export class BrowserSession implements BrowserHandle {
   readonly viewport: Viewport;
 
-  private readonly options: BrowserSessionOptions;
+  private readonly options: SessionViewOptions;
   private readonly arbiter: Arbitrator;
   private readonly screencast: Screencast;
   private readonly tabs: TabRegistry;
@@ -94,15 +78,12 @@ export class BrowserSession implements BrowserHandle {
   private readonly paymentListeners = new Set<
     (request: BrowserPaymentRequest) => void
   >();
-  private readonly seenPopupTargets = new Set<string>();
-  private readonly detachPopupWatchers: (() => void)[] = [];
   private status: BrowserState["status"] = "idle";
   private error: string | null = null;
-  private chromePath: string | null = null;
   /** De-dupes concurrent `start()`: the second caller awaits the first. */
   private starting: Promise<void> | null = null;
 
-  constructor(options: BrowserSessionOptions) {
+  constructor(options: SessionViewOptions) {
     this.options = options;
     this.viewport = options.viewport ?? DEFAULT_VIEWPORT;
     const publish = (): void => {
@@ -111,7 +92,7 @@ export class BrowserSession implements BrowserHandle {
     this.arbiter = new Arbitrator({ onStateChange: publish });
     this.tabs = new TabRegistry({
       blockPrivateNetwork: options.blockPrivateNetwork ?? true,
-      createView: async () => await this.createView(),
+      createView: async () => await this.options.createView(),
       onPayment: (request) => {
         for (const listener of this.paymentListeners) {
           listener(request);
@@ -142,10 +123,10 @@ export class BrowserSession implements BrowserHandle {
   }
 
   /**
-   * Boot Chrome, on demand.
+   * Open the first page, on demand.
    *
    * Never called at process start: a workspace where nobody has asked for a
-   * browser should not be running one, and on a box with no Chrome the failure
+   * browser should not be paying for one, and a provider that will not answer
    * should surface when someone asks rather than as a startup error in a log
    * nobody reads.
    */
@@ -153,8 +134,8 @@ export class BrowserSession implements BrowserHandle {
     if (this.status === "running") {
       return;
     }
-    // De-duped: a second caller awaits the first rather than launching a
-    // second Chrome. `browser_execute` and the pane's start button routinely
+    // De-duped: a second caller awaits the first rather than paying for a
+    // second browser. `browser_execute` and the pane's start button routinely
     // race on a cold session.
     this.starting ??= (async () => {
       try {
@@ -167,13 +148,12 @@ export class BrowserSession implements BrowserHandle {
   }
 
   /**
-   * Close Chrome so its profile survives.
+   * Close the browser so its profile survives.
    *
-   * `Bun.WebView` ends Chrome with a kill on process exit, and a killed Chrome
-   * does not flush cookies or local storage — the next start finds the user
-   * signed out of everything. `Browser.close` first is what makes a
-   * persistent profile actually persist; `close()` then tears down the
-   * in-process state.
+   * A browser dropped without `Browser.close` does not flush cookies or local
+   * storage — the next start finds the user signed out of everything. Closing
+   * it first is what makes the provider profile actually persist; `close()`
+   * then tears down the in-process state.
    */
   async shutdown(): Promise<void> {
     const tab = this.tabs.activeTab;
@@ -184,9 +164,6 @@ export class BrowserSession implements BrowserHandle {
   }
 
   close(): void {
-    for (const detach of this.detachPopupWatchers.splice(0)) {
-      detach();
-    }
     this.arbiter.dispose();
     this.screencast.stop();
     this.tabs.dispose();
@@ -445,66 +422,12 @@ export class BrowserSession implements BrowserHandle {
     };
   }
 
-  private createView(): TabView | Promise<TabView> {
-    const { chromePath } = this;
-    if (chromePath === null) {
-      throw new BrowserStartError("Chrome has not been located yet.");
-    }
-    const factory = this.options.createView;
-    if (factory !== undefined) {
-      return factory({
-        chromePath,
-        profileDirectory: this.options.profileDirectory,
-      });
-    }
-    return spawnWebView({
-      chromePath,
-      profileDirectory: this.options.profileDirectory,
-      viewport: this.viewport,
-    });
-  }
-
   private async doStart(url?: string): Promise<void> {
     this.status = "starting";
     this.error = null;
     this.options.onStateChange?.(this.state());
-    const found = detectChrome();
-    if (found === null && this.options.createView === undefined) {
-      this.status = "unavailable";
-      this.error =
-        "No Chrome or Chromium found. Install one, or set FROGGY_CHROME to a binary path, then retry.";
-      this.options.onStateChange?.(this.state());
-      throw new BrowserStartError(this.error);
-    }
-    this.chromePath = found?.path ?? "";
-
-    // A lock left by a killed Chrome makes every subsequent start die with
-    // "closed the pipe". The profile is on a persistent volume so that logins
-    // survive a redeploy, which means a killed container hands its lock to the
-    // next one — without this the browser works exactly once per volume.
-    const lock =
-      this.options.externalBrowser === true
-        ? { heldBy: null }
-        : clearStaleProfileLock(this.options.profileDirectory);
-    if (lock.heldBy !== null) {
-      this.status = "crashed";
-      this.error = `Another Chrome is using this profile (${lock.heldBy}).`;
-      this.options.onStateChange?.(this.state());
-      throw new BrowserStartError(this.error);
-    }
-
     try {
-      const tab = await this.tabs.openTab(url);
-      if (this.options.externalBrowser !== true) {
-        this.detachPopupWatchers.push(
-          watchPopupTargets(tab.cdp, {
-            adopt: async (popupUrl) => {
-              await this.tabs.openTab(popupUrl);
-            },
-            seen: this.seenPopupTargets,
-          })
-        );
-      }
+      await this.tabs.openTab(url);
       this.status = "running";
       this.options.onStateChange?.(this.state());
       await this.screencast.sync();
@@ -517,10 +440,9 @@ export class BrowserSession implements BrowserHandle {
   }
 
   /**
-   * Bun gives no handle on the Chrome process, so a crash is only visible as
-   * the shape of the error the next command fails with. Recognising it here is
-   * what lets the pane say "crashed" instead of showing a live-looking browser
-   * that answers nothing.
+   * A dropped provider connection is only visible as the shape of the error
+   * the next command fails with. Recognising it here is what lets the pane say
+   * "crashed" instead of showing a live-looking browser that answers nothing.
    */
   private async guard<T>(work: Promise<T>): Promise<T> {
     try {

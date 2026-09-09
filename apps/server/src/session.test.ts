@@ -35,6 +35,7 @@ import { MalformedSpendError, totalOf, WorkspaceSession } from "./session";
 import type { AskInput, SessionDeps, SpendRequest } from "./session";
 
 const MODES: ServiceModes = {
+  browser: "stub",
   database: "live",
   graph: "stub",
   hedera: "stub",

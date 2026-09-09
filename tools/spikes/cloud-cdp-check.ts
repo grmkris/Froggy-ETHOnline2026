@@ -2,13 +2,28 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { detectChrome } from "../../packages/browser/src/chrome-detect";
 import { CloudBrowser } from "../../packages/browser/src/cloud";
 import type { CloudBrowserRecord } from "../../packages/browser/src/cloud";
 
-// Local Chromium and fixture HTTP only. No provider key, wallet or settlement.
+/**
+ * A local stand-in for a Browser Use browser.
+ *
+ * It starts a Chromium here, hands `CloudBrowser` its DevTools socket, and
+ * serves fixture pages — so the driver, the takeover gate and the payment
+ * observation can be exercised without a provider key. Chromium is discovered
+ * *here* rather than in the product: nothing Froggy ships knows how to find or
+ * launch a browser any more.
+ *
+ * This proves the CDP behaviour and nothing else. It is not evidence of
+ * provider billing, hosted-viewer compatibility or a real settlement, and a run
+ * of it must never be reported as one.
+ */
 const profileDirectory = await mkdtemp(join(tmpdir(), "froggy-cloud-cdp-"));
-const executable = detectChrome()?.path;
+const executable =
+  Bun.env["FROGGY_CHROME"] ??
+  Bun.which("chromium") ??
+  Bun.which("chromium-browser") ??
+  Bun.which("google-chrome");
 if (!executable) throw new Error("No Chromium");
 const paidRequests: { path: string; proof: string | null }[] = [];
 const page = Bun.serve({
@@ -78,16 +93,18 @@ try {
     }
   }
   if (!metadata) throw new Error("CDP unavailable");
+  const socket = metadata.webSocketDebuggerUrl;
   const info = {
     id: "00000000-0000-4000-8000-000000000001",
     status: "active" as const,
-    cdpUrl: metadata.webSocketDebuggerUrl,
+    // The provider serves an https endpoint and names the socket on it; the
+    // fixture skips that hop and answers with the socket from `socket()`.
+    cdpUrl: "https://00000000-0000-4000-8000-000000000001.cdp.browser-use.com",
     liveUrl: null,
     timeoutAt: new Date(Date.now() + 60000).toISOString(),
   };
   let record: CloudBrowserRecord | null = null;
   browser = new CloudBrowser({
-    profileDirectory,
     blockPrivateNetwork: false,
     userKey: "local-check",
     load: async () => record,
@@ -98,7 +115,8 @@ try {
       profile: async () => "00000000-0000-4000-8000-000000000002",
       create: async () => info,
       get: async () => info,
-      stop: async () => {},
+      socket: async () => socket,
+      stop: async () => null,
       deleteProfile: async () => {},
     },
   });

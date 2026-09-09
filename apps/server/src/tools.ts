@@ -629,14 +629,11 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Open a URL in the shared browser. The human is watching this exact page and can take it from you at any moment — narrate what you are doing.",
       execute: async ({ url }, { toolCallId }) => {
-        if (
-          services.environment.browserProvider === "cloud" &&
-          deps.paidBrowse !== true
-        ) {
+        if (deps.paidBrowse !== true) {
           return "Use browse_task to offer a paid browsing task first.";
         }
         // Checked here, in the tool, so the model reads a refusal rather than
-        // a thrown error, and before the worker is asked anything.
+        // a thrown error, and before the provider is asked anything.
         const check = publicHttpUrl(url, outbound);
         if (!check.ok) {
           return `Refused: ${check.reason}. The browser opens public http(s) pages only.`;
@@ -666,10 +663,7 @@ export const buildTools = (deps: ToolDeps) => {
       description:
         "Read the current page as an accessibility tree with @eN refs you can click.",
       execute: async () => {
-        if (
-          services.environment.browserProvider === "cloud" &&
-          deps.paidBrowse !== true
-        ) {
+        if (deps.paidBrowse !== true) {
           return "Use browse_task to offer a paid browsing task first.";
         }
         const { snapshot, wait } = await browser.agentSnapshot();
@@ -688,10 +682,7 @@ export const buildTools = (deps: ToolDeps) => {
     browser_click: tool({
       description: "Click an @eN ref from the most recent snapshot.",
       execute: async ({ ref }) => {
-        if (
-          services.environment.browserProvider === "cloud" &&
-          deps.paidBrowse !== true
-        ) {
+        if (deps.paidBrowse !== true) {
           return "Use browse_task to offer a paid browsing task first.";
         }
         const result = await browser.agentClick(ref);
@@ -707,10 +698,7 @@ export const buildTools = (deps: ToolDeps) => {
     browser_type: tool({
       description: "Type text into the focused element on the page.",
       execute: async ({ text }) => {
-        if (
-          services.environment.browserProvider === "cloud" &&
-          deps.paidBrowse !== true
-        ) {
+        if (deps.paidBrowse !== true) {
           return "Use browse_task to offer a paid browsing task first.";
         }
         await browser.agentType(text);

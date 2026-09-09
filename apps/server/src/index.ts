@@ -251,7 +251,6 @@ class FroggyServer extends Context.Service<
               ? environment.teamStartingUsdMicros
               : environment.pocketStartingUsdMicros,
         },
-        profileRoot: environment.chromeProfileDirectory,
         quote: quotes.quote,
         reservedBrowsers: environment.reservedBrowsers,
         spendingLimits: environment.spendingLimits,

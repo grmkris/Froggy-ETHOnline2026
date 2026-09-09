@@ -14,7 +14,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { parQuote, userId } from "@froggy/domain";
-import type { SessionId } from "@froggy/domain";
+import type { SessionId, UserId } from "@froggy/domain";
 import type {
   BrowserClientMessage,
   BrowserState,
@@ -22,11 +22,8 @@ import type {
 } from "@froggy/protocol";
 import { memoryLedger, memoryStore } from "@froggy/wallet";
 
-import {
-  BrowserLimitReachedError,
-  profileDirectoryFor,
-  Workspaces,
-} from "./workspaces";
+import { providerUserKey } from "./services";
+import { BrowserLimitReachedError, Workspaces } from "./workspaces";
 
 const ALICE = userId("did:privy:alice");
 const BOB = userId("did:privy:bob");
@@ -34,6 +31,7 @@ const CAROL = userId("did:privy:carol");
 const JUDGE = userId("did:privy:judge");
 
 const MODES: ServiceModes = {
+  browser: "stub",
   database: "stub",
   graph: "stub",
   hedera: "stub",
@@ -170,10 +168,10 @@ const createRegistry = (options: RegistryOptions = {}) => {
   const workspaces = new Workspaces({
     blockPrivateNetwork: true,
     browserIdleMs: 10_000,
-    createBrowser: (browserOptions: BrowserSessionOptions) => {
+    createBrowser: (browserOptions: BrowserSessionOptions, user: UserId) => {
       const browser = createFakeBrowser(browserOptions, options.cloud);
-      browsers.set(browserOptions.profileDirectory, browser);
-      profiles.push(browserOptions.profileDirectory);
+      browsers.set(user, browser);
+      profiles.push(providerUserKey(user));
       return browser;
     },
     demoUserId: options.demoUserId ?? null,
@@ -195,16 +193,13 @@ const createRegistry = (options: RegistryOptions = {}) => {
     onReceipt: noop,
     oracleHost: "oracle.test",
     oraclePayTo: "0.0.5005",
-    profileRoot: "/tmp/froggy-test-profiles",
     quote: (_asset, at) => parQuote(at),
     reservedBrowsers: options.reservedBrowsers ?? 0,
     store: memoryStore(),
   });
   const browserOf = (user: typeof ALICE): FakeBrowser => {
     workspaces.for(user);
-    const browser = browsers.get(
-      profileDirectoryFor("/tmp/froggy-test-profiles", user)
-    );
+    const browser = browsers.get(user);
     if (browser === undefined) {
       throw new Error("no browser");
     }
@@ -220,26 +215,18 @@ const settle = async (): Promise<void> => {
   await Bun.sleep(5);
 };
 
-describe("profileDirectoryFor", () => {
-  test("gives each user their own directory", () => {
-    expect(profileDirectoryFor("/data", ALICE)).not.toBe(
-      profileDirectoryFor("/data", BOB)
-    );
+describe("providerUserKey", () => {
+  test("gives each user their own provider profile", () => {
+    expect(providerUserKey(ALICE)).not.toBe(providerUserKey(BOB));
   });
 
   test("is stable, so a returning user keeps their logins", () => {
-    expect(profileDirectoryFor("/data", ALICE)).toBe(
-      profileDirectoryFor("/data", ALICE)
-    );
+    expect(providerUserKey(ALICE)).toBe(providerUserKey(ALICE));
   });
 
-  test("does not name the user", () => {
-    expect(profileDirectoryFor("/data", ALICE)).not.toContain("alice");
-  });
-
-  test("is a single path segment with no separators of its own", () => {
-    const leaf = profileDirectoryFor("/data", ALICE).slice("/data/".length);
-    expect(leaf).toMatch(/^[0-9a-f]+$/u);
+  test("does not name the user to the provider", () => {
+    expect(providerUserKey(ALICE)).not.toContain("alice");
+    expect(providerUserKey(ALICE)).toMatch(/^[0-9a-f]{64}$/u);
   });
 });
 

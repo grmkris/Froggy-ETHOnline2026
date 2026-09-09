@@ -179,7 +179,7 @@ export interface PurchaseContext {
 }
 
 export class Purchases {
-  private readonly services: Omit<Services, "purchases">;
+  private readonly services: Omit<Services, "purchases" | "createBrowser">;
   private readonly active = new Map<
     PurchaseId,
     {
@@ -188,7 +188,7 @@ export class Purchases {
       completion: Promise<PurchaseId>;
     }
   >();
-  constructor(services: Omit<Services, "purchases">) {
+  constructor(services: Omit<Services, "purchases" | "createBrowser">) {
     this.services = services;
   }
 

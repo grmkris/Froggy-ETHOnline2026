@@ -3,9 +3,6 @@
   "ignore": ["tools/spikes/**", ".railway/railway.ts", ".design-sync/**"],
   "ignoreDependencies": ["railway"],
   "workspaces": {
-    "packages/browser": {
-      "entry": ["src/worker.ts"]
-    },
     "apps/server": {
       "entry": ["src/cli/froggy.ts"]
     }

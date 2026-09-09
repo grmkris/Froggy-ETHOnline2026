@@ -64,12 +64,9 @@ const createQuote = async (
   const { deps, caller, now } = context;
   const { services } = deps;
   const { environment, store } = services;
-  if (
-    environment.browserProvider === "cloud" &&
-    environment.browserUseApiKey === null
-  ) {
+  if (environment.browserUseApiKey === null) {
     return json(
-      { error: "Cloud browsing is not configured. Nothing was charged." },
+      { error: "Browsing is not configured. Nothing was charged." },
       503
     );
   }
