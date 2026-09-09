@@ -268,7 +268,7 @@ export interface Environment {
   readonly browserModelOutputRate: number;
   /** The judge's account: always gets a seat. Null when nobody is reserved. */
   readonly demoUserId: UserId | null;
-  /** Concurrent browser workers across all users. 0 means unlimited. */
+  /** Concurrent hosted browsers across all users. 0 means unlimited. */
   readonly maxBrowsers: number;
   /** Which model backs the agent. `modes.model` is derived from it. */
   readonly modelProvider: ModelProvider;

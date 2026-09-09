@@ -1,6 +1,6 @@
 # apps/server
 
-One Bun process: the SPA, the JSON API, both WebSockets, the paid oracle endpoint, the Telegram webhook, the schedule ticker, and one browser worker process per signed-in user. One origin, so there is no CORS configuration that exists only in development.
+One Bun process: the SPA, the JSON API, both WebSockets, the paid oracle endpoint, the Telegram webhook, the schedule ticker, and one hosted browser per signed-in user. One origin, so there is no CORS configuration that exists only in development.
 
 `index.ts` owns the process lifecycle and nothing else. `router.ts` answers requests. `services.ts` is the only file that holds the browser, the wallet and the payer at once — that adjacency is deliberate and contained. `turn.ts` is the one agent loop; the web chat, Telegram and a scheduled run all start it and differ only in where the words go.
 

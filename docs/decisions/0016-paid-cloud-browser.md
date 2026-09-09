@@ -1,8 +1,8 @@
 # 0016 — Paid tasks in a hosted shared Chrome
 
-Status: implemented locally; Cloud release remains gated on live verification.
+Status: implemented; its provider selection is superseded by [0018](0018-browser-use-only.md), which removes local Chrome and `BROWSER_PROVIDER` entirely. Everything below about the driver, arbitration, task pricing and payment isolation still holds. Where this document says "when Cloud is enabled", read "always"; the rollback is now a missing key and a loud stub rather than a local browser.
 
-Froggy can host each person's Chrome in Browser Use Cloud while retaining its own agent and payment controls. The runtime stays Bun. `BROWSER_PROVIDER=local` remains the rollback default until the Cloud release checks pass.
+Froggy hosts each person's Chrome in Browser Use while retaining its own agent and payment controls. The runtime stays Bun.
 
 ## One owner, one driver
 
@@ -47,4 +47,4 @@ A task, its x402 sale, its model usage, hosting costs and website-purchase recei
 
 ## Release gate
 
-Before setting Cloud as the production default, configure `BROWSER_USE_API_KEY` and the configured model's verified `BROWSER_MODEL_INPUT_USD_PER_MILLION` and `BROWSER_MODEL_OUTPUT_USD_PER_MILLION`. Then verify the embedded live viewer, keyboard takeover, native popups, profile persistence, reconnect, provider expiry/outages, and a real browser-triggered x402 purchase with a matching receipt. Run the repository and browser gates against a stable checkout, migrate the database, deploy to the existing Railway app, and repeat the checks there. Missing credentials or a stub cannot substitute for these checks.
+Configure `BROWSER_USE_API_KEY` and the configured model's verified `BROWSER_MODEL_INPUT_USD_PER_MILLION` and `BROWSER_MODEL_OUTPUT_USD_PER_MILLION`. Then verify the embedded live viewer, keyboard takeover, native popups, profile persistence, reconnect, provider expiry/outages, and a real browser-triggered x402 purchase with a matching receipt. Run the repository and browser gates against a stable checkout, migrate the database, deploy to the existing Railway app, and repeat the checks there. Missing credentials or a stub cannot substitute for these checks.

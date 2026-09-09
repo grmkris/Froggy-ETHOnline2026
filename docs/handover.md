@@ -24,6 +24,8 @@ Verified by hand, not inferred: the container answers `/health`, serves the SPA,
 
 That risk turned out to be imaginary, and the reason is worth knowing: `Bun.WebView` launches Chrome with `--headless --ozone-platform=headless --no-startup-window` and SwiftShader software rendering, all on its own. There is no window to want an X server, and `Page.startScreencast` captures the compositor rather than a window. Nothing in this repository makes it headless. The whole contribution is installing Chromium in the image, pointing `FROGGY_CHROME` at it, adding `--no-sandbox` and `--disable-dev-shm-usage` for the container, and clearing the stale profile lock. `packages/browser/src/chrome-detect.ts` lists the full argument set Bun supplies.
 
+**Superseded on 9 Sep.** That headless finding stood, and then stopped mattering: the browser is now a Browser Use hosted browser reached over CDP, so the image ships no Chromium, `chrome-detect.ts` and the `Bun.WebView` launch are gone, and there is no display question left to have an answer to. See [decision 0018](decisions/0018-browser-use-only.md).
+
 ## What is stubbed, and what that costs
 
 Every external service has a stub, chosen in `apps/server/src/environment.ts` when its variable still holds the placeholder from `.env.example`. A stub is loud: the wallet pane shows a chip, and every receipt it touches carries `stubbed: true`.

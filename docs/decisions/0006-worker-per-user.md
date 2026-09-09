@@ -4,7 +4,7 @@ Date: 2026-09-05
 
 ## Status
 
-Accepted.
+Superseded by [0018](0018-browser-use-only.md) on 9 September 2026. `Bun.WebView` is gone, so its one-Chrome-per-process constraint is gone with it: the browser is hosted at Browser Use and the isolation this decision bought with a process now comes from a separate provider profile per user. The worker process, its IPC protocol and `RemoteBrowser` are removed. The context below is kept as the record of why the process existed.
 
 ## Context
 

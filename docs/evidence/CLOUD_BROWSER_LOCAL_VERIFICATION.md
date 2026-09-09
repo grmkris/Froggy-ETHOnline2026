@@ -1,6 +1,8 @@
 # Cloud browser integration — local verification
 
-9 September 2026. This records local integration evidence, not a production release or a live Browser Use payment.
+9 September 2026, morning. This records local integration evidence, not a production release or a live Browser Use payment.
+
+**Superseded in part, later the same day.** Two of the fixtures this run passed against were wrong about the provider: `cdpUrl` is an HTTPS endpoint rather than a `wss:` URL, and profiles and browser reads are `/api/v3`, not `/api/v4`. Both were found by calling the live API and are recorded in [the migration evidence](BROWSER_USE_MIGRATION.md); the local runs below could not have caught either. Local Chrome, and with it the provider selection this document assumes, was removed in [decision 0018](../decisions/0018-browser-use-only.md).
 
 Implementation decisions and release prerequisites are in [decision 0016](../decisions/0016-paid-cloud-browser.md).
 
@@ -53,4 +55,4 @@ To complete the release:
 
 Browser execution uses the agreed Froggy/CDP fallback. Managed Browser Use execution has not passed its live control/interception gate and is not enabled.
 
-Dashboard and environment instructions: [Cloud browser setup](../CLOUD_BROWSER_SETUP.md).
+Dashboard and environment instructions: [browser setup](../BROWSER_SETUP.md).

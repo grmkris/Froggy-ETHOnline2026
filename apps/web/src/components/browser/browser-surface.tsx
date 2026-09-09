@@ -49,7 +49,7 @@ const overlayMessage = (
   connected: boolean
 ): string => {
   if (status === "unavailable") {
-    return error ?? "No Chrome found.";
+    return error ?? "No browser is available.";
   }
   if (status === "crashed") {
     return `The browser crashed: ${error ?? "unknown reason"}`;

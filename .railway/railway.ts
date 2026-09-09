@@ -48,15 +48,14 @@ export default defineRailway((ctx) => {
   });
 
   /**
-   * The agent's Chrome profile.
+   * The agent's old Chrome profile volume — no longer written to.
    *
-   * Persistent so logins survive a redeploy — which is the product ("the agent
-   * shops as you") and also the scary part. Deleting this volume signs the
-   * agent out of everything, and that is the intended escape hatch.
+   * Profiles moved to Browser Use, one per signed-in user, so nothing in the
+   * image mounts anything at `/data` any more. The declaration is kept because
+   * removing it deletes the volume, and deleting a volume is the owner's call
+   * rather than a side effect of a refactor. Delete it in the Railway dashboard
+   * once the migration has been accepted in production.
    */
-  // Ten gigabytes: one persistent profile per signed-in user at fifty to two
-  // hundred megabytes each, so a few dozen users fit with room for Chrome's
-  // caches. Growing a volume is online and non-destructive; shrinking is not.
   const browserVolume = volume("browser-profile", {
     allowOnlineResize: true,
     region,
@@ -91,7 +90,6 @@ export default defineRailway((ctx) => {
     },
     env: {
       ANTHROPIC_API_KEY: preserve(),
-      BROWSER_PROVIDER: preserve(),
       BROWSER_USE_API_KEY: preserve(),
       BROWSER_COUNTRY: preserve(),
       BROWSER_MODEL_INPUT_USD_PER_MILLION: preserve(),

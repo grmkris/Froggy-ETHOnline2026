@@ -147,22 +147,6 @@ export class BrowserSession implements BrowserHandle {
     await this.starting;
   }
 
-  /**
-   * Close the browser so its profile survives.
-   *
-   * A browser dropped without `Browser.close` does not flush cookies or local
-   * storage — the next start finds the user signed out of everything. Closing
-   * it first is what makes the provider profile actually persist; `close()`
-   * then tears down the in-process state.
-   */
-  async shutdown(): Promise<void> {
-    const tab = this.tabs.activeTab;
-    if (tab !== null && this.status === "running") {
-      await bestEffort(tab.cdp.send("Browser.close", {}, { timeoutMs: 3000 }));
-    }
-    this.close();
-  }
-
   close(): void {
     this.arbiter.dispose();
     this.screencast.stop();

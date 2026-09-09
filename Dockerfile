@@ -1,23 +1,16 @@
 # syntax=docker/dockerfile:1.7
 #
-# Froggy — one image, one process: the SPA, the API, both sockets, and the
-# Chrome the agent drives.
+# Froggy — one image, one process: the SPA, the API and both sockets.
 #
 # Build from the repo root; the context has to include the whole workspace so
 # bun can resolve `workspace:*`:
 #   docker build -t froggy .
 #
-# The unusual part of this image is the browser. Most Bun services ship on
-# `-slim`; this one cannot, because it launches Chromium and Chromium wants
-# fonts and a pile of shared libraries. That is the cost of the product being a
-# browser you can watch.
-#
-# It needs no display server, and not by luck: `Bun.WebView` launches Chrome with
-# `--headless --ozone-platform=headless --no-startup-window` and software
-# rendering via SwiftShader. There is no window to want an X server, and
-# `Page.startScreencast` captures the compositor rather than a window — so there
-# is deliberately no Xvfb in this image. See `chrome-detect.ts` for the full
-# argument list Bun supplies.
+# There is deliberately no browser in this image. The Chrome the agent drives is
+# a Browser Use hosted browser, reached over CDP, so this container ships no
+# Chromium, no fonts for it to render with, and no profile directory — and the
+# process that holds the Privy secret and the Hedera key is no longer the
+# process that renders hostile pages.
 
 # ---- builder ----------------------------------------------------------------
 FROM oven/bun:1.4.2 AS builder
@@ -57,33 +50,14 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Chromium and the fonts it needs to render anything but boxes. `--no-sandbox`
-# is applied in `chrome-detect.ts` rather than here, because it is a property of
-# running as root in a container without user namespaces, not of this image.
-RUN apt-get update \
-  && apt-get install --no-install-recommends -y \
-    chromium \
-    fonts-liberation \
-    fonts-noto-color-emoji \
-  && rm -rf /var/lib/apt/lists/*
-
-# Chosen explicitly rather than detected. A container that silently fell back to
-# a different browser would be the hardest kind of difference to notice.
-ENV FROGGY_CHROME=/usr/bin/chromium
-
 # Bun runs TypeScript directly, so there is no server build step. The whole tree
 # is copied so `workspace:*` resolution through the root symlinks keeps working.
 COPY --from=builder /app /app
 
-# The agent's Chrome profile, under a path a volume gets mounted at, so a
-# redeploy does not sign the agent out of everything — which is the product, and
-# also the part of it worth thinking hard about.
-#
-# Deliberately no `VOLUME` instruction: Railway rejects one outright ("docker
-# VOLUME is not supported, use Railway Volumes"), because it owns the mount. The
-# volume is declared in .railway/railway.ts instead, and without it this path is
-# simply container-local and the profile does not survive a restart.
-ENV CHROME_PROFILE_DIR=/data/chrome-profile
+# The agent's logins live in a Browser Use profile per user, not on a disk here,
+# so a redeploy no longer signs the agent out of everything and this image needs
+# no volume. `.railway/railway.ts` still declares the old `browser-profile`
+# volume; see the note there.
 ENV STATIC_DIR=/app/apps/web/dist
 
 EXPOSE 3001

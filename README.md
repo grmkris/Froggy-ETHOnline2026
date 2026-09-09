@@ -56,7 +56,7 @@ flowchart TB
   human([human])
   model([model])
 
-  subgraph browser["packages/browser — the shared Chrome"]
+  subgraph browser["packages/browser — the shared Chrome (Browser Use, over CDP)"]
     chrome[Chromium via Bun.WebView]
     arb{{"arbitration<br/>agent · human · idle"}}
   end
@@ -100,10 +100,10 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 |  |  |
 | --- | --- |
 | `apps/web` | Wallet home, funding and agent setup; the conversation with receipts and a shared browser; wallet/settings drawer. Frames never touch React state. |
-| `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one browser worker process per user. |
+| `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one hosted browser per user. |
 | `packages/domain` | Money, mandates, decisions, receipts — as Effect Schema. |
 | `packages/protocol` | Both wire protocols and the screencast frame envelope. |
-| `packages/browser` | The shared Chrome. Knows nothing about money. |
+| `packages/browser` | The shared Chrome, hosted at Browser Use and driven over CDP. Knows nothing about money. |
 | `packages/wallet` | Privy, the policy engine, the spend ledger. **The leash.** |
 | `packages/payments` | x402: the gate we sell through, and the payer that buys. |
 | `packages/graph` | The Graph gateway. The evidence a spend is justified by. |
@@ -155,7 +155,7 @@ curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
 
 ## What is real, what is host-side, what is not
 
-**Real.** A Chrome on our server the agent drives and you watch, grab and stop. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera mainnet with HashScan ids and matching HCS notes, including a paid HTTP 200 response from the hosted service. Live Messari lending data from twelve deployments through The Graph.
+**Real.** A hosted Chrome the agent drives and you watch, grab and stop. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera mainnet with HashScan ids and matching HCS notes, including a paid HTTP 200 response from the hosted service. Live Messari lending data from twelve deployments through The Graph.
 
 **Host-side, not Privy.** The Hedera leg: the pocket balance, the per-transaction and rolling caps, idempotency, the provenance gate on page-derived addresses, the daily model budget. Privy evaluates policies only on transactions it can decode, and a Hedera transaction is a raw signature to it.
 
@@ -190,6 +190,6 @@ Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2
 
 ## Known limits
 
-- Each signed-in user's Chrome profile is persistent, so the agent browses as _you_. That is the point and also the risk. Profiles live under `CHROME_PROFILE_DIR` in a directory named by a hash of the Privy identity, and deleting one signs that agent out of everything.
-- `Bun.WebView` launches Chrome headless on its own, so a container needs no display server. Where Chrome cannot start, the pane says so and everything else keeps working.
+- Each signed-in user's browser profile is persistent, so the agent browses as _you_. That is the point and also the risk. Profiles are Browser Use profiles, one per person, named by a hash of the Privy identity so the provider never sees the identity itself; deleting one signs that agent out of everything.
+- The browser is hosted: Browser Use runs the Chrome, Froggy drives it over CDP and Chrome renders hostile pages somewhere the signing keys are not. Every browser bills by the hour, so browsing is only sold inside a paid task, seats are capped and an idle browser is stopped. With no `BROWSER_USE_API_KEY` the pane says so and everything else keeps working.
 - Browser seats live in one server process, so the deployment runs at one replica. The spend ledger, mandates, receipts, sales, tasks and agent tokens are in Postgres when `DATABASE_URL` is set and in memory otherwise, and the wallet pane says which.
