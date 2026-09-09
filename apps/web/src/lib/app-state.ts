@@ -202,24 +202,51 @@ const noticeEvents = (
         },
       ];
 
+/** A balance figure that may be unreadable, as a number or nothing. */
+const figure = (units: string | null | undefined): number | null => {
+  if (units === null || units === undefined || !/^\d+$/u.test(units)) {
+    return null;
+  }
+  const parsed = Number(units);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+};
+
+/**
+ * Money arriving is an event, not a number that quietly changes.
+ *
+ * A deposit sent from another chain lands minutes after the person walked
+ * away from Privy's window, so the first they would otherwise know is a
+ * larger total. Both markers are drawn from figures the wallet already
+ * publishes: the USDC a deposit converts into, and the pocket Froggy funds
+ * for Hedera payments out of it.
+ */
 const walletEvents = (
   state: AppState,
   message: Extract<AppServerMessage, { readonly type: "wallet.state" }>,
   at: number
 ): readonly TimelineEvent[] => {
+  const events: TimelineEvent[] = [];
+  const heldBefore = figure(state.wallet?.balances.usdcUnits);
+  const heldAfter = figure(message.wallet.balances.usdcUnits);
+  if (heldBefore !== null && heldAfter !== null && heldAfter > heldBefore) {
+    events.push({
+      at,
+      id: `arrived:${at}`,
+      kind: "topup",
+      text: `${formatUsd(heldAfter - heldBefore)} arrived and is ready to spend.`,
+    });
+  }
   const before = state.wallet?.pocketUsdMicros ?? null;
   const after = message.wallet.pocketUsdMicros ?? null;
-  if (before === null || after === null || after <= before) {
-    return [];
-  }
-  return [
-    {
+  if (before !== null && after !== null && after > before) {
+    events.push({
       at,
       id: `topup:${at}`,
       kind: "topup",
       text: `Froggy moved ${formatUsd(after - before)} to Hedera for payments; ${formatUsd(after)} is ready there.`,
-    },
-  ];
+    });
+  }
+  return events;
 };
 
 /**

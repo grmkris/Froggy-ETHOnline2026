@@ -141,6 +141,14 @@ const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
   windowSpentUsdMicros: 0,
 });
 
+const walletWith = (
+  pocketUsdMicros: number | null,
+  usdcUnits: string | null
+): WalletSummary => ({
+  ...walletOf(pocketUsdMicros),
+  balances: { ...walletOf(pocketUsdMicros).balances, usdcUnits },
+});
+
 describe("timeline events", () => {
   it("files a conversion when the pocket grows, and nothing when it shrinks", () => {
     let state = server(
@@ -163,6 +171,35 @@ describe("timeline events", () => {
       state,
       { type: "wallet.state", v: 1, wallet: walletOf(1_000_000) },
       3
+    );
+    expect(state.events).toHaveLength(1);
+  });
+
+  it("marks money arriving once, and not when the balance is unreadable", () => {
+    let state = server(
+      initialAppState,
+      { type: "wallet.state", v: 1, wallet: walletWith(null, "1000000") },
+      1
+    );
+    expect(state.events).toHaveLength(0);
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletWith(null, "6000000") },
+      2
+    );
+    expect(state.events).toMatchObject([
+      { kind: "topup", text: "$5.00 arrived and is ready to spend." },
+    ]);
+    // An unreadable balance is not an arrival, and not a departure either.
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletWith(null, null) },
+      3
+    );
+    state = server(
+      state,
+      { type: "wallet.state", v: 1, wallet: walletWith(null, "6000000") },
+      4
     );
     expect(state.events).toHaveLength(1);
   });
