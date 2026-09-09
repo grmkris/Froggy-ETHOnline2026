@@ -42,9 +42,11 @@ const DEFINITIONS: Readonly<
   x_search: {
     title: "Listen on X",
     description:
-      "Up to 20 recent public posts, with source links. Last seven days; no claim of exhaustive research.",
+      "Up to 10 recent public posts, with source links. Last seven days; no claim of exhaustive research.",
     provider: "X API",
-    price: 200_000,
+    // X bills $0.005 per post read, so ten posts cost us $0.05 and this
+    // clears it. Twenty posts at $0.20 was four times the market.
+    price: 60_000,
     cap: 0,
     maxInput: 450,
   },
@@ -52,7 +54,7 @@ const DEFINITIONS: Readonly<
     title: "Search the web",
     description: "Find five useful pages with excerpts and links.",
     provider: "You.com",
-    price: 30_000,
+    price: 10_000,
     cap: 10_000,
     maxInput: 1000,
   },
@@ -60,7 +62,7 @@ const DEFINITIONS: Readonly<
     title: "Make an image",
     description: "One 1024 × 1024 image with Google Nano Banana.",
     provider: "BlockRun",
-    price: 120_000,
+    price: 80_000,
     cap: 60_000,
     maxInput: 2000,
   },
@@ -68,7 +70,7 @@ const DEFINITIONS: Readonly<
     title: "Ask another model",
     description: "A second opinion from GPT-4o mini, up to 512 output tokens.",
     provider: "BlockRun",
-    price: 30_000,
+    price: 10_000,
     cap: 10_000,
     maxInput: 2000,
   },
@@ -77,7 +79,7 @@ const DEFINITIONS: Readonly<
     description:
       "Turn up to 1,000 characters into an MP3 with ElevenLabs Flash.",
     provider: "BlockRun",
-    price: 150_000,
+    price: 100_000,
     cap: 100_000,
     maxInput: 1000,
   },
@@ -315,7 +317,7 @@ const searchX = async (
 ): Promise<ServiceResult> => {
   const url = new URL("https://api.x.com/2/tweets/search/recent");
   url.searchParams.set("query", prompt);
-  url.searchParams.set("max_results", "20");
+  url.searchParams.set("max_results", "10");
   const response = await safeFetch(
     url.toString(),
     {
@@ -332,7 +334,7 @@ const searchX = async (
   if ((data.errors?.length ?? 0) > 0) {
     throw new Error("X API returned a partial or invalid result.");
   }
-  const sources = (data.data ?? []).slice(0, 20).map((item) => ({
+  const sources = (data.data ?? []).slice(0, 10).map((item) => ({
     title: `Post ${item.id}`,
     url: `https://x.com/i/status/${encodeURIComponent(item.id)}`,
     text: item.text.slice(0, 2000),

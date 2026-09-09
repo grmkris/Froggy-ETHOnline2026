@@ -216,7 +216,7 @@ describe("service providers", () => {
     expect(setup.requests[0]?.url).toContain(
       "api.x.com/2/tweets/search/recent"
     );
-    expect(setup.requests[0]?.url).toContain("max_results=20");
+    expect(setup.requests[0]?.url).toContain("max_results=10");
     expect(result.sources[0]?.url).toBe("https://x.com/i/status/123");
     expect(setup.signatures()).toBe(0);
   });

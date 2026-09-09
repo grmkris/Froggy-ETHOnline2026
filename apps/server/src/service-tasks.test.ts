@@ -130,7 +130,8 @@ describe("service purchases", () => {
       ["one", "two", "three"].map(
         async (key) =>
           await purchaseService(
-            { ...context, runId, interactive: false, budgetUsdMicros: 250_000 },
+            // Affords exactly one X search at $0.06; the other two must be refused.
+            { ...context, runId, interactive: false, budgetUsdMicros: 90_000 },
             { ...request(), service: "x_search", idempotencyKey: key }
           )
       )

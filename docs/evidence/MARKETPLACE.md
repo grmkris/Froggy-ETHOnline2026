@@ -6,11 +6,11 @@ The workspace's **Services** page contains the catalog, fixed prices, a request 
 
 | Service | Customer price | Supplier limit | Input bound |
 | --- | --: | --: | --- |
-| X recent search | $0.20 | X API credits, at most 20 posts | 450 characters, seven-day search |
-| You.com web search | $0.03 | $0.01 USDC | 1,000 characters, five results |
-| BlockRun image | $0.12 | $0.06 USDC | 2,000 characters, one Nano Banana image |
-| BlockRun inference | $0.03 | $0.01 USDC | 2,000 characters, 512 output tokens |
-| BlockRun speech | $0.15 | $0.10 USDC | 1,000 characters, ElevenLabs Flash MP3 |
+| X recent search | $0.06 | X API credits, at most 10 posts | 450 characters, seven-day search |
+| You.com web search | $0.01 | $0.01 USDC | 1,000 characters, five results |
+| BlockRun image | $0.08 | $0.06 USDC | 2,000 characters, one Nano Banana image |
+| BlockRun inference | $0.01 | $0.01 USDC | 2,000 characters, 512 output tokens |
+| BlockRun speech | $0.10 | $0.10 USDC | 1,000 characters, ElevenLabs Flash MP3 |
 
 Prices above are Froggy's fixed task prices. Supplier limits are ceilings, not claims about what every request costs. The existing Graph brief and shared browser task remain available through the existing task API and CLI.
 
@@ -102,3 +102,17 @@ Done by the agent session under the owner's 7 Sep decision that activation is a 
 | BlockRun image | pending |  |  |  |
 | BlockRun speech | pending |  |  |  |
 | X search | pending the token |  | none (API credit) |  |
+
+## Prices cut to the market, 9 September 2026
+
+Kristjan asked what X search costs at the source and whether we were dear. We were. X's pay-per-use tier, the only one open to new developers since February, bills **$0.005 per post read**, so twenty posts cost us up to $0.10 while we charged $0.20; xAI's own X Search tool is $0.005 a call, and web search APIs (Exa, Brave, Tavily, Perplexity) run $0.005 to $0.009 a request.
+
+| Service           | Was             | Now                 | Our cost        |
+| ----------------- | --------------- | ------------------- | --------------- |
+| Listen on X       | $0.20, 20 posts | **$0.06, 10 posts** | up to $0.05     |
+| Search the web    | $0.03           | **$0.01**           | $0.005          |
+| Ask another model | $0.03           | **$0.01**           | $0.002          |
+| Make an image     | $0.12           | **$0.08**           | $0.054          |
+| Read it aloud     | $0.15           | **$0.10**           | $0.002 to $0.10 |
+
+Every price still clears its worst-case supplier cost, so a task cannot lose money. The supplier ceilings are unchanged: a purchase whose supplier quote exceeds its cap is refused before we pay, and lowering the caps would refuse work rather than save money.

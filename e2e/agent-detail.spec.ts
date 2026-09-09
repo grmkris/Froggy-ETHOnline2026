@@ -116,7 +116,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   ).toHaveLength(1);
   expect(
     history.invocations.find((row) => row.outcome === "accepted")?.usdMicros
-  ).toBe(30_000);
+  ).toBe(10_000);
   expect(
     history.invocations.some(
       (row) => row.outcome === "replayed" && row.usdMicros === null
@@ -144,7 +144,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   await page.getByRole("button", { name: "Refresh history" }).click();
   const list = page.getByRole("region", { name: "Invocation history" });
   await expect(list.getByRole("listitem")).toHaveCount(8);
-  await expect(list.getByText("$0.03 paid")).toBeVisible();
+  await expect(list.getByText("$0.01 paid")).toBeVisible();
   await list.getByRole("link", { name: ticket.id }).first().click();
   await expect(
     page.getByRole("region", { name: "Selected service task" })

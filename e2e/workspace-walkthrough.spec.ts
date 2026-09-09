@@ -37,7 +37,7 @@ for (const size of [
       .getByLabel("Your request")
       .fill("Find useful sources for planning a weekend in Berlin.");
     await capturePage(page, testInfo, "service-request");
-    await page.getByRole("button", { name: "Try simulated · $0.03" }).click();
+    await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
     const tasks = page.getByRole("region", { name: "Service tasks" });
     await expect(tasks).toContainText("DEMO — Search the web");
     await expect(
