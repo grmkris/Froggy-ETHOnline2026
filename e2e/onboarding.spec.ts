@@ -129,6 +129,11 @@ test("adding funds explains the local identity instead of opening an onramp", as
     dialog.getByText("This is a local identity.", { exact: false })
   ).toBeVisible();
   await expect(page.getByLabel("Amount in USDC")).toHaveCount(0);
+  // Without a Privy sign-in there is no deposit flow to open, so the dialog
+  // must not offer one rather than opening a window that cannot work.
+  await expect(
+    dialog.getByRole("button", { name: "Choose a chain and token" })
+  ).toHaveCount(0);
 });
 
 interface BalanceUpdate {

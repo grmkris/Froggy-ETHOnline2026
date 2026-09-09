@@ -19,16 +19,20 @@ import {
   DialogTitle,
 } from "@froggy/ui/components/dialog";
 import { Skeleton } from "@froggy/ui/components/skeleton";
-import { CreditCardIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftRightIcon, CreditCardIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { networkWords } from "../../lib/mandate-words";
 import { useIdentity } from "../../lib/privy";
-import type { FundOutcome } from "../../lib/privy";
+import type { FundOutcome, Identity } from "../../lib/privy";
 import { CopyButton } from "../copy-button";
 
 type FundingOutcome = FundOutcome | "opening" | null;
+type DepositState =
+  | Awaited<ReturnType<NonNullable<Identity["startDeposit"]>>>
+  | "opening"
+  | null;
 
 const outcomeWords = (outcome: FundingOutcome): string => {
   if (outcome === "opening") {
@@ -55,6 +59,78 @@ const unavailableWords = (
     return `Card funding deposits USDC on Base mainnet. This wallet is on ${wallet === null ? "another network" : networkWords(wallet.balances.evmNetwork)}.`;
   }
   return "A wallet is needed before you can add funds.";
+};
+
+/** The words under the deposit button, once it has been used or refused. */
+const depositWords = (outcome: DepositState): string => {
+  if (outcome === "opening") {
+    return "Opening the deposit window…";
+  }
+  if (outcome === null) {
+    return "Pick a chain and a token; Privy converts it to USDC on Base. Ethereum, Base, Arbitrum, Optimism, Polygon and Solana. Not Bitcoin, not Hedera.";
+  }
+  if (outcome.kind === "refused") {
+    return outcome.reason;
+  }
+  if (outcome.kind === "closed") {
+    return "Closed without depositing. Nothing was sent.";
+  }
+  return "Sent. The balance updates when the conversion lands; the amount that arrives is a little less than the amount sent, because the conversion has a fee.";
+};
+
+/** Send from any chain Privy can route, and let it arrive as USDC on Base. */
+const FromAnotherChain = ({
+  address,
+}: {
+  readonly address: string | null;
+}): ReactElement | null => {
+  const identity = useIdentity();
+  const [outcome, setOutcome] = useState<DepositState>(null);
+  const submitting = useRef(false);
+  const start = identity.startDeposit;
+  if (start === null || address === null) {
+    return null;
+  }
+  const open = async (): Promise<void> => {
+    if (submitting.current) {
+      return;
+    }
+    submitting.current = true;
+    setOutcome("opening");
+    try {
+      setOutcome(await start({ address }));
+    } catch {
+      setOutcome({ kind: "refused", reason: "Please try again." });
+    }
+    submitting.current = false;
+  };
+  return (
+    <section className="flex flex-col gap-2 text-sm">
+      <h3 className="font-medium">Send from another chain</h3>
+      <Button
+        className="min-h-11 self-start px-4"
+        disabled={outcome === "opening"}
+        onClick={() => {
+          void open();
+        }}
+      >
+        <ArrowLeftRightIcon data-icon="inline-start" />
+        {outcome === "opening" ? "Opening…" : "Choose a chain and token"}
+      </Button>
+      <output
+        className="text-muted-foreground text-xs"
+        role={
+          outcome !== null &&
+          outcome !== "opening" &&
+          outcome.kind === "refused"
+            ? "alert"
+            : undefined
+        }
+      >
+        {depositWords(outcome)}
+      </output>
+    </section>
+  );
 };
 
 /** The address, and the one sentence that says what to send to it. */
@@ -189,6 +265,7 @@ export const AddFunds = ({
               </span>
             </output>
           ) : null}
+          <FromAnotherChain address={address} />
           {address === null ? null : (
             <SendToAddress address={address} wallet={wallet} />
           )}

@@ -12,6 +12,8 @@ Updated Tue 8 Sep 2026. [Iteration 3](ITERATION_3.md) contains the recovered 7 S
 
 - **Tue 8 Sep, 15:55 CEST (Session F):** `X_API_BEARER_TOKEN` set on the Railway app service and validated against X; after the redeploy the X search service reads configured. Also today from Session F: the Integrations card left Settings (`4c11acb`), the daily digest got "Send a test now" (`b001e24`), torph number morphing (`76a11d0`), the Add-funds dialog leads with the address (`ffca8fe`), and the pages-and-modules proposal (`docs/plan/IA_PROPOSAL_2026-09-08.md`) awaits three answers.
 
+- **Wed 9 Sep, afternoon (Session F):** Funding now accepts other chains. Privy mints a deposit address in the browser (`identity.startDeposit`), the person picks a chain and token, and it arrives as USDC on Base; EVM and Solana only, not Bitcoin and not Hedera, and the dialog says so. Server-side minting is impossible on this app and the spikes that prove it are in [ADR 0015](../decisions/0015-deposit-addresses.md). Also today: the balance no longer reads unavailable when the public Base endpoint rate-limits (`3c5d304`), the funding landscape research is at `docs/research/funding-landscape-2026-09-09.md`, and the X credential is live.
+
 ## Motion and navigation lane — 8 September 2026
 
 Built on Passbook/Lilypad and retained their tokens, typography and financial behaviour. Motion landed first in `00d8cfd`; the pill navigation is the next coherent commit. [Audit, decisions and review](../design/MOTION_NAVIGATION_2026-09-08.md).

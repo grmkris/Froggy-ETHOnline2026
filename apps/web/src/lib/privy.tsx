@@ -41,6 +41,7 @@ import { onrampEnvironment, privyAppId, privyConfigured } from "../environment";
 
 /** USDC on Base mainnet: where a card purchase lands. */
 const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const BASE_MAINNET = "eip155:8453";
 
 /**
  * What came of opening Privy's fiat onramp. `refused` carries Privy's own
@@ -50,6 +51,49 @@ const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export type FundOutcome =
   | { readonly kind: "confirmed" | "submitted" }
   | { readonly kind: "refused"; readonly reason: string };
+
+/**
+ * What came of opening Privy's deposit flow: the person either completed a
+ * deposit, closed the modal, or Privy refused the route. `refused` carries a
+ * sentence already turned from Privy's error code into product words.
+ */
+type DepositOutcome =
+  | { readonly kind: "closed" | "completed" }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/**
+ * Privy names the reason a deposit cannot proceed; a person needs the reason,
+ * not the name. Anything unlisted keeps Privy's own words rather than a shrug.
+ */
+const DEPOSIT_REASONS = {
+  AMOUNT_TOO_LOW: "That amount is too small to convert after fees.",
+  DEPOSIT_ADDRESSES_NOT_ENABLED:
+    "Deposits from other chains are not switched on for this app yet.",
+  DEPOSIT_FAILED: "The deposit did not complete. Nothing was taken.",
+  DEPOSIT_REFUNDED: "The deposit was sent back to where it came from.",
+  INSUFFICIENT_LIQUIDITY:
+    "There is not enough liquidity to convert that token right now.",
+  NOT_AUTHENTICATED: "Sign in again and retry.",
+  NO_SWAP_ROUTES_FOUND: "That token cannot be converted to USDC right now.",
+  ROUTE_UNAVAILABLE: "That chain and token cannot reach USDC on Base today.",
+  SANCTIONED_WALLET_ADDRESS: "That address cannot be used.",
+  TIMEOUT_ORDER_COMPLETION:
+    "The conversion is taking longer than expected; it may still land.",
+  TIMEOUT_WAITING_FOR_NEXT_ORDER: "Nothing arrived before the window closed.",
+  UNSUPPORTED_CHAIN: "That chain is not supported.",
+  UNSUPPORTED_CURRENCY: "That token is not supported.",
+  UNSUPPORTED_ROUTE: "That route is not supported.",
+} satisfies Record<string, string>;
+
+/** Privy's error text carries the code; find the words that belong to it. */
+const depositReason = (words: string): string => {
+  for (const [code, sentence] of Object.entries(DEPOSIT_REASONS)) {
+    if (words.includes(code)) {
+      return sentence;
+    }
+  }
+  return words;
+};
 
 /**
  * What came of asking the person, through Privy's own prompt, to let the
@@ -82,6 +126,14 @@ export interface Identity {
   /** The money address: the smart account when there is one, else the signer. */
   readonly address: string | null;
   readonly authenticated: boolean;
+  /**
+   * Opens Privy's deposit flow: the person picks a chain and token, sends to
+   * the address Privy mints, and Privy converts it to USDC on Base into this
+   * wallet. Null without a Privy sign-in.
+   */
+  readonly startDeposit:
+    | ((input: { readonly address: string }) => Promise<DepositOutcome>)
+    | null;
   /**
    * Asks the person, in Privy's own prompt, to add the agent's key quorum as
    * a signer on their wallet under `policyId`. Privy's primary path for a
@@ -138,6 +190,7 @@ const LOCAL: Identity = {
   addFunds: null,
   address: null,
   grantAgentSigner: null,
+  startDeposit: null,
   // True: there *is* a caller, and the server will accept them. `stubbed`
   // is what tells the UI not to call it a sign-in.
   authenticated: true,
@@ -157,6 +210,7 @@ const LOADING: Identity = {
   addFunds: null,
   address: null,
   grantAgentSigner: null,
+  startDeposit: null,
   authenticated: false,
   login: unavailable,
   logout: unavailable,
@@ -190,6 +244,13 @@ interface PrivyModule {
       environment: "production" | "sandbox";
       source: { defaultAsset: string };
     }) => Promise<{ status: "confirmed" | "submitted" }>;
+  };
+  readonly useDepositAddress: () => {
+    createDepositAddress: (input: {
+      destinationAddress: string;
+      destinationChain: string;
+      destinationCurrency: string;
+    }) => Promise<void>;
   };
   readonly useLogin: () => { login: () => void };
   readonly useSigners: () => {
@@ -228,6 +289,7 @@ const PrivyBridge = ({
   const { login } = mod.useLogin();
   const { fund } = mod.useFiatOnramp();
   const { addSigners } = mod.useSigners();
+  const { createDepositAddress } = mod.useDepositAddress();
 
   /**
    * Privy's callbacks, held rather than depended on.
@@ -242,9 +304,23 @@ const PrivyBridge = ({
    * boundary below caught the throw and blamed HTTPS or the app id, which is
    * what the deployed app said while both were correct.
    */
-  const callbacks = useRef({ addSigners, fund, getAccessToken, login, logout });
+  const callbacks = useRef({
+    addSigners,
+    createDepositAddress,
+    fund,
+    getAccessToken,
+    login,
+    logout,
+  });
   useEffect(() => {
-    callbacks.current = { addSigners, fund, getAccessToken, login, logout };
+    callbacks.current = {
+      addSigners,
+      createDepositAddress,
+      fund,
+      getAccessToken,
+      login,
+      logout,
+    };
   });
 
   // Stable for the life of the bridge, so a consumer can hold one in a
@@ -312,6 +388,31 @@ const PrivyBridge = ({
     []
   );
 
+  const startDeposit = useCallback(
+    async ({
+      address: wallet,
+    }: {
+      readonly address: string;
+    }): Promise<DepositOutcome> => {
+      try {
+        await callbacks.current.createDepositAddress({
+          destinationAddress: wallet,
+          destinationChain: BASE_MAINNET,
+          destinationCurrency: USDC_BASE_MAINNET,
+        });
+        return { kind: "completed" };
+      } catch (error) {
+        const words = error instanceof Error ? error.message : String(error);
+        // Closing the modal is a choice, not a failure, and Privy says so
+        // with its own code rather than an ordinary error.
+        return words.includes("USER_EXITED")
+          ? { kind: "closed" }
+          : { kind: "refused", reason: depositReason(words) };
+      }
+    },
+    []
+  );
+
   // Smart account first: that is where money is. Falling back to the embedded
   // EOA covers a user who has one but no smart wallet.
   const address = user?.smartWallet?.address ?? user?.wallet?.address ?? null;
@@ -327,6 +428,7 @@ const PrivyBridge = ({
       logout: doLogout,
       ready,
       signer,
+      startDeposit,
       status: "ready",
       stubbed: false,
       token,
@@ -344,6 +446,7 @@ const PrivyBridge = ({
     onChange,
     ready,
     signer,
+    startDeposit,
     token,
   ]);
 
