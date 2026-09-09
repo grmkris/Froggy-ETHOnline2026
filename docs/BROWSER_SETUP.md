@@ -27,14 +27,20 @@ Both are set on `froggy → production` as of 9 September 2026; the key was ente
 
 `BROWSER_COUNTRY` is the country the hosted browser is proxied through. `us` is set because sites that matter for the demo refuse datacentre addresses, and a browsing session moves tens of megabytes — call it a few cents at the managed residential rate of $5/GB. Set it to `none` to run with no proxy at all, which costs nothing extra and is the right choice if reliability turns out not to need it.
 
-Before a paid browse task can be sold with a live model, set both model accounting rates above zero:
+A paid browse task cannot be sold with a live model until both model accounting rates are above zero. Set on `froggy → production` as of 9 September 2026:
 
 ```dotenv
-BROWSER_MODEL_INPUT_USD_PER_MILLION=<verified input rate>
-BROWSER_MODEL_OUTPUT_USD_PER_MILLION=<verified output rate>
+BROWSER_MODEL_INPUT_USD_PER_MILLION=2.00
+BROWSER_MODEL_OUTPUT_USD_PER_MILLION=6.00
 ```
 
-These price **Froggy's own model**, not Browser Use: they are what the browse task's model allowance is drawn down against. This deployment's model is `qwen3.8-max` on Alibaba's **Token Plan** endpoint, which consumes a purchased credit balance. Use the rate that plan actually consumes credits at, from Alibaba's own console, and record where the number came from — a pay-as-you-go list price is not that number. The alternative is to point `OPENAI_COMPATIBLE_*` at pay-as-you-go credentials with published rates; the endpoint and the key must belong to the same billing mode.
+These price **Froggy's own model**, not Browser Use: they are what a browse task's model allowance is drawn down against, and the direction of error matters. Too high and the allowance runs out early — the task stops sooner than it needed to and the margin is intact. Too low and the task keeps running past what its price covered, and the difference comes out of Froggy. So what belongs here is a **ceiling on what a token can cost us**, not a best guess.
+
+$2.00 / $6.00 is the published list rate for `qwen3.8-max`, flat across its whole context window — there are no longer-context tiers to overshoot, and its prompt-cache and batch discounts only ever make the real cost lower. This deployment buys that model through Alibaba's **Token Plan**, a prepaid credit balance, and a prepaid plan does not consume credits at more than list value per token. So list is an honest upper bound, and it is deliberately labelled as one rather than presented as the plan's actual rate.
+
+If the Token Plan console shows a different consumption rate, use that number and say so here. If browse tasks start ending earlier than they should, that is this ceiling doing its job, and the fix is the real rate rather than a smaller guess. The alternative is to point `OPENAI_COMPATIBLE_*` at pay-as-you-go credentials with published rates; the endpoint and the key must belong to the same billing mode.
+
+A worked figure, so the economics are visible: at these rates a browsing step of roughly 20k prompt tokens and 500 output tokens costs about $0.043, so a $1 task's $0.50 allowance buys about eleven steps. Browser time for a ten-minute task is $0.0033. The model is the expensive part; the browser is not.
 
 Remove these, which no longer exist:
 
@@ -54,8 +60,8 @@ The `browser-profile` Railway volume is no longer written to. It is still declar
 | --- | --- | --- |
 | `BROWSER_USE_API_KEY` | Browser Use → Settings → API keys | Browser is stubbed; the pane refuses to open one and `browser=stub` shows in the wallet pane |
 | `BROWSER_COUNTRY` | Chosen. `none` for no proxy | Defaults to `us`, which bills the residential proxy per GB |
-| `BROWSER_MODEL_INPUT_USD_PER_MILLION` | The model provider's own billing for this deployment | A browse quote is refused with 503 while the model is live |
-| `BROWSER_MODEL_OUTPUT_USD_PER_MILLION` | Same | Same |
+| `BROWSER_MODEL_INPUT_USD_PER_MILLION` | A ceiling on the configured model's own cost. `2.00` for `qwen3.8-max` | A browse quote is refused with 503 while the model is live |
+| `BROWSER_MODEL_OUTPUT_USD_PER_MILLION` | Same. `6.00` | Same |
 | `MAX_BROWSERS` / `RESERVED_BROWSERS` / `BROWSER_IDLE_MS` | Chosen | 8 seats, 1 held for the demo account, 10-minute idle release. Keep `MAX_BROWSERS` under the provider's concurrency limit |
 
 ## Live acceptance

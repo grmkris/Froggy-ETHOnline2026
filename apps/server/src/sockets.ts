@@ -27,7 +27,11 @@ import {
   encodeAppServerMessage,
   encodeBrowserServerMessage,
 } from "@froggy/protocol";
-import type { AppServerMessage, BrowserState } from "@froggy/protocol";
+import type {
+  AppServerMessage,
+  BrowserClientMessage,
+  BrowserState,
+} from "@froggy/protocol";
 import { Result } from "effect";
 
 import { detached } from "./detached";
@@ -93,6 +97,36 @@ export const isTrustedOrigin = (
 const sendApp = (socket: Socket, message: AppServerMessage): void => {
   socket.send(encodeAppServerMessage(message));
 };
+
+/**
+ * The messages that mean a person is driving the page themselves.
+ *
+ * Not `browser.start`, which only asks for a browser, and not `ping`, which is
+ * answered before it reaches here — a keepalive that counted as input would
+ * starve the agent on every interval.
+ */
+const HUMAN_DRIVING = new Set<BrowserClientMessage["type"]>([
+  "browser.navigate",
+  "browser.activate-tab",
+  "browser.close-tab",
+  "input.key",
+  "input.mouse",
+  "input.text",
+]);
+
+/**
+ * Does this message take the page from the agent?
+ *
+ * `undefined` control is a browser with no explicit ownership — the test
+ * fixtures — and those keep the arbitration they already had rather than
+ * having a run aborted under them.
+ */
+export const seizesPage = (
+  type: BrowserClientMessage["type"],
+  control?: "agent" | "human" | "stopping"
+): boolean =>
+  type === "browser.take" ||
+  (control !== undefined && control !== "human" && HUMAN_DRIVING.has(type));
 
 export const createSocketHandlers = (deps: SocketDeps) => {
   const appSockets = new Set<Socket>();
@@ -181,17 +215,32 @@ export const createSocketHandlers = (deps: SocketDeps) => {
         }
         const workspace = deps.workspaces.for(ws.data.userId);
         deps.workspaces.touch(ws.data.userId);
-        if (message.type === "browser.take") {
+        // A person who types a URL or clicks the page has taken it, whether
+        // or not they pressed the button first: the human always wins
+        // immediately. The hosted browser has explicit ownership rather than
+        // the local build's decaying arbitration, and refusing these until
+        // someone pressed Take control deadlocked the pane — the button is
+        // disabled until the browser runs, and the browser only runs once
+        // someone navigates. The refusal was visible only in a server log.
+        if (
+          seizesPage(message.type, workspace.browser.state().cloud?.control)
+        ) {
           // Abort first, *then* take the page. Flipping only the gate buys 1.5
           // seconds before the next queued tool call grabs it straight back,
           // which looks exactly like the button not working. Only this user's
-          // run is aborted — one person hitting Take must not stop everyone.
+          // run is aborted — one person driving must not stop everyone.
           pauseBrowseTask(workspace.session.id);
           deps.runs.abort(workspace.session.id);
           await deps.services.purchases.cancelAll(
             workspace.userId,
             workspace.browser
           );
+          if (message.type !== "browser.take") {
+            // `browser.take` takes the page inside the handle; every other
+            // message needs ownership to already be theirs by the time it is
+            // handled, or the handle refuses it.
+            await workspace.browser.takePage();
+          }
         }
         try {
           // The seat is taken here rather than inside the session, because

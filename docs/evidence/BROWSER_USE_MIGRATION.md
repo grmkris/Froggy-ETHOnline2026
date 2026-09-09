@@ -51,12 +51,20 @@ One Playwright test was removed rather than repaired: `a paid page in the shared
 
 A fixture run proves the CDP transport and the driver. It is not evidence of provider billing, hosted-viewer compatibility, provider cancellation semantics or a live settlement, and must not be reported as one.
 
+## The pane deadlock, found by driving it
+
+The hosted browser has explicit ownership and starts with the agent holding it; the previous adapter refused every other message with "Take control before interacting with the Cloud browser." That refusal reached a server log and nothing else, and the Take control button is disabled until the browser is running — while the browser only starts when someone navigates. So typing a URL in the address bar did nothing, forever, with no error anywhere a person could see.
+
+Found by running the real UI against a real hosted browser on this box, not by reading the code. The fix is in the socket handler, where the panic ordering already lives: a person's own input (navigate, click, type, tab switch) takes the page the way `browser.take` does — pause the paid task, abort the run, cancel pending purchases, then take it — instead of being refused. `seizesPage` in `sockets.ts` states the rule and `sockets.test.ts` holds it down, including that a keepalive and a plain `browser.start` are never driving, and that a browser with no explicit ownership keeps its own arbitration.
+
+With the fix, typing `https://example.com` into the pane provisions a hosted browser, takes the page, and renders the live viewer inside Froggy with the page visible. That is the "can we see what the browser sees" question answered by looking at it.
+
 ## Still outstanding
 
 Owner access or live money is required for all of these; none was done here.
 
 - A deploy. `BROWSER_USE_API_KEY` and `BROWSER_COUNTRY=us` were set on `froggy → production → app` on 9 September with deploys skipped, so they take effect on the next deploy of this branch.
-- Verified model accounting rates for the Token Plan endpoint (`BROWSER_MODEL_INPUT_USD_PER_MILLION` / `..._OUTPUT_...`). Until both are above zero, a browse quote is refused with 503 while the model is live, so **no browsing can be sold** — this is the remaining functional gate.
+- A rate from the Token Plan console. `2.00` / `6.00` are now set, which is `qwen3.8-max`'s published flat list rate used deliberately as a ceiling — a prepaid plan cannot consume credits at more than list value per token, so this cannot underprice, and the failure mode is a task that ends early rather than one that loses money. Replace it with the plan's real consumption rate when someone reads it off the console.
 - The real hosted viewer under the current iframe sandbox: takeover, keyboard, Keep open, and the same page on Resume.
 - Profile persistence and isolation across a redeploy, with two accounts.
 - Insufficient credit, an interrupted create, and idle expiry actually stopping the provider browser.
