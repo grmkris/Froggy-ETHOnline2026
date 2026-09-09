@@ -18,6 +18,7 @@ Written Sat 5 Sep 2026. These files are the research, product and go-to-market p
 8. **`PIVOT_ASSESSMENT_FABLE51.md`** - the KIMI ideas (SquadPot, No Flake, Payback, Darepot, SecondOpinion, PAYDAY) and IDEAS.md's Allowance validated against the same evidence; decision and what we keep from them.
 9. **`RESEARCH_FABLE51.md`** - the research spine: rules, winners' anatomy, technical verification (browser, custody, Telegram, Graph), market, competition, segments, channels, prize expected value, fourteen corrections to the original plan, open questions.
 10. **`../research/`** - the evidence: the brief and critic, nine dimension digests, six gap studies, four pivot red-teams (`pivot-*`), six product designs, three judge panels, the synthesis and two refutations (`panel-*`).
+11. **`PRD_PRIVY_FLOW_FABLE51.md`** - written 9 Sep for the Privy Best financial flow track: money that arrives from any chain, earns in a self-service Earn vault while it waits, is withdrawn just in time when a purchase is short, and is sent to a person on Base, Arbitrum or Solana with a quote first; screens, receipts, the honesty box, the three-minute demo, build order against the freeze, and open decisions.
 
 A note on `../research/panel-refutations_FABLE51.md` and `panel-judgments_FABLE51.md`: the engineering refuter and one judge measured the proposals against the code tree as it stood on the night of 4 Sep. Their code-level points are the engineering owner's to accept or ignore; the plan above uses only their hour estimates and the rule-risk items.
 
