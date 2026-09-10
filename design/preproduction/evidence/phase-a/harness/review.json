@@ -1,0 +1,52 @@
+{
+  "url": "file:///home/kristjan/code/ethglobal-online-2026/design/preproduction/evidence/phase-a/browser-probe.html",
+  "browser": "151.0.7922.34",
+  "at": "2026-09-10T10:12:16.648Z",
+  "runs": [
+    {
+      "viewport": "1440",
+      "shot": "1440.png",
+      "reducedMotion": false,
+      "oklch": true,
+      "running": 1,
+      "scrollsSideways": false,
+      "errors": []
+    },
+    {
+      "viewport": "768",
+      "shot": "768.png",
+      "reducedMotion": false,
+      "oklch": true,
+      "running": 1,
+      "scrollsSideways": false,
+      "errors": []
+    },
+    {
+      "viewport": "390",
+      "shot": "390.png",
+      "reducedMotion": false,
+      "oklch": true,
+      "running": 1,
+      "scrollsSideways": false,
+      "errors": []
+    },
+    {
+      "viewport": "320",
+      "shot": "320.png",
+      "reducedMotion": false,
+      "oklch": true,
+      "running": 1,
+      "scrollsSideways": false,
+      "errors": []
+    },
+    {
+      "viewport": "1440-reduced",
+      "shot": "1440-reduced.png",
+      "reducedMotion": true,
+      "oklch": true,
+      "running": 0,
+      "scrollsSideways": false,
+      "errors": []
+    }
+  ]
+}
