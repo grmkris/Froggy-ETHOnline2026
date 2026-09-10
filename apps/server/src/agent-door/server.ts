@@ -40,8 +40,12 @@ const Call = Schema.Struct({
 });
 const BuyArguments = Schema.Struct({
   arguments: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  maxAmount: Schema.optional(Schema.String),
   service: Schema.String,
 });
+/** Decoded on its own so a bad `arguments` is not reported as a bad `service`. */
+const BuyService = Schema.Struct({ service: Schema.String });
+const decodeBuyService = Schema.decodeUnknownResult(BuyService);
 const Initialize = Schema.Struct({
   protocolVersion: Schema.optional(Schema.String),
 });
@@ -55,7 +59,14 @@ const decodeBuy = Schema.decodeUnknownResult(BuyArguments);
 const decodeReceipt = Schema.decodeUnknownResult(ReceiptArguments);
 const decodeInitialize = Schema.decodeUnknownResult(Initialize);
 
-const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"];
+/**
+ * Newest first. `2024-11-05` is here because it costs nothing: this door's
+ * whole surface — initialize, tools/list, a tools/call answering `content` and
+ * `isError` — is unchanged across all four, and a client that only speaks the
+ * oldest one is told by the specification to disconnect when it is handed a
+ * version it does not know.
+ */
+const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 /**
  * Written out rather than derived, so what a caller reads is what was meant.
@@ -91,11 +102,24 @@ const TOOLS = [
           additionalProperties: { type: "string" },
           description: "Query arguments for the request, such as symbol=USDC.",
         },
+        maxAmount: {
+          type: "string",
+          description:
+            "The most you are willing to pay, in the asset's smallest units (tinybars for HBAR). The purchase is refused rather than made if the seller asks for more. Omit to accept whatever the catalogue price turns out to be.",
+        },
       },
       required: ["service"],
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: false, destructiveHint: false },
+    // Money leaving a stranger's account does not come back. `destructiveHint`
+    // is what a host reads to decide whether a call needs a person; saying
+    // `false` here would be telling it this one is safe to run unattended.
+    annotations: {
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+      readOnlyHint: false,
+    },
   },
   {
     name: "froggy_receipt",
@@ -142,14 +166,25 @@ type DoorResult =
     }
   | Record<string, never>;
 
-interface Response {
+export interface DoorResponse {
   readonly jsonrpc: "2.0";
-  readonly id: string | number | undefined;
+  /**
+   * `null` where the request's id could not be read. JSON-RPC requires the
+   * member to be present and null in that case; leaving it `undefined` drops
+   * it from the line entirely, which is a different message.
+   */
+  readonly id: string | number | null;
   readonly result?: DoorResult;
   readonly error?: { readonly code: number; readonly message: string };
 }
 
-const write = (response: Response): void => {
+const errorResponse = (
+  id: string | number | null,
+  code: number,
+  message: string
+): DoorResponse => ({ jsonrpc: "2.0", id, error: { code, message } });
+
+const write = (response: DoorResponse): void => {
   process.stdout.write(`${JSON.stringify(response)}\n`);
 };
 
@@ -158,7 +193,7 @@ const failed = (text: string): ToolResult => ({
   isError: true,
 });
 
-const invoke = async (
+const dispatch = async (
   deps: ToolDeps,
   call: typeof Call.Type
 ): Promise<ToolResult> => {
@@ -168,9 +203,16 @@ const invoke = async (
     }
     case "froggy_buy": {
       const args = decodeBuy(call.arguments ?? {});
-      return args._tag === "Failure"
-        ? failed("froggy_buy needs a service. froggy_catalogue lists them.")
-        : await buyTool(deps, args.success);
+      if (args._tag === "Success") {
+        return await buyTool(deps, args.success);
+      }
+      // Which half was wrong. `service` is the required one, so a caller who
+      // supplied it is being told about `arguments` or `maxAmount` instead.
+      return failed(
+        decodeBuyService(call.arguments ?? {})._tag === "Success"
+          ? "froggy_buy takes `arguments` as strings only, and `maxAmount` as a whole number in the asset's smallest units."
+          : "froggy_buy needs a service. froggy_catalogue lists them."
+      );
     }
     case "froggy_receipt": {
       const args = decodeReceipt(call.arguments ?? {});
@@ -186,34 +228,61 @@ const invoke = async (
   }
 };
 
+/**
+ * Every path out of a tool is a sentence, including the ones nobody wrote.
+ *
+ * A throw that escaped to the read loop used to be a line on stderr and
+ * nothing on stdout — the caller waited forever for an answer that was never
+ * coming. That is the worst shape this door can fail in: the dangerous throw
+ * is the one from the retry, after the signed payment has already been sent,
+ * and silence there is indistinguishable from a purchase that is still
+ * working. So an unexpected failure says what broke and, when it could have
+ * been after the money moved, says that too.
+ */
+const invoke = async (
+  deps: ToolDeps,
+  call: typeof Call.Type
+): Promise<ToolResult> => {
+  try {
+    return await dispatch(deps, call);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    return failed(
+      call.name === "froggy_buy"
+        ? [
+            `froggy_buy stopped on an unexpected failure: ${reason}.`,
+            "This is not a refusal that was reasoned about, so whether money moved is unknown.",
+            "Do not buy again on the strength of this message. Check the account on a mirror node or with froggy_receipt first.",
+          ].join(" ")
+        : `${call.name} stopped on an unexpected failure: ${reason}. Nothing was paid.`
+    );
+  }
+};
+
 /** One request in, at most one response out. Notifications get nothing back. */
 export const handleLine = async (
   deps: ToolDeps,
   line: string
-): Promise<Response | null> => {
+): Promise<DoorResponse | null> => {
   let body: unknown;
   try {
     body = JSON.parse(line);
   } catch {
-    return {
-      jsonrpc: "2.0",
-      id: undefined,
-      error: { code: -32_700, message: "Parse error" },
-    };
+    return errorResponse(null, -32_700, "Parse error");
   }
   const message = decodeEnvelope(body);
   if (message._tag === "Failure") {
-    return {
-      jsonrpc: "2.0",
-      id: undefined,
-      error: { code: -32_600, message: "Invalid request" },
-    };
+    return errorResponse(null, -32_600, "Invalid request");
   }
   const { id, method, params } = message.success;
   if (id === undefined) {
     return null;
   }
-  const ok = (result: DoorResult): Response => ({ jsonrpc: "2.0", id, result });
+  const ok = (result: DoorResult): DoorResponse => ({
+    jsonrpc: "2.0",
+    id,
+    result,
+  });
 
   if (method === "initialize") {
     const init = decodeInitialize(params ?? {});
@@ -233,20 +302,33 @@ export const handleLine = async (
     return ok({ tools: TOOLS });
   }
   if (method !== "tools/call") {
-    return {
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32_601, message: "Method not found" },
-    };
+    return errorResponse(id, -32_601, "Method not found");
   }
   const call = decodeCall(params);
   return call._tag === "Failure"
-    ? {
-        jsonrpc: "2.0",
-        id,
-        error: { code: -32_602, message: "Invalid tool parameters" },
-      }
+    ? errorResponse(id, -32_602, "Invalid tool parameters")
     : ok(await invoke(deps, call.success));
+};
+
+/**
+ * One line in, at most one line out, and never a throw.
+ *
+ * `invoke` already turns a tool's failure into a spoken refusal, so a throw
+ * reaching here means the transport itself broke. It is still answered:
+ * nothing that carried an id may go unanswered, because silence on this pipe
+ * is indistinguishable from work still in progress.
+ */
+const answer = async (deps: ToolDeps, line: string): Promise<void> => {
+  try {
+    const response = await handleLine(deps, line);
+    if (response !== null) {
+      write(response);
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    console.error(`froggy-door: ${reason}`);
+    write(errorResponse(null, -32_603, `Internal error: ${reason}`));
+  }
 };
 
 /** Read stdin forever, one JSON-RPC message per line. */
@@ -262,19 +344,19 @@ const main = async (): Promise<void> => {
       continue;
     }
     if (line.length > 64_000) {
-      console.error("froggy-door: input too large");
+      // Answered rather than dropped. A client whose request was this large
+      // cannot match a reply carrying a null id, but a stream that goes quiet
+      // is worse: it looks exactly like work still in progress.
+      write(errorResponse(null, -32_600, "Request too large"));
       continue;
     }
-    try {
-      const response = await handleLine(deps, line);
-      if (response !== null) {
-        write(response);
-      }
-    } catch (error) {
-      console.error(
-        `froggy-door: ${error instanceof Error ? error.message : "unknown error"}`
-      );
-    }
+    // Not awaited. A purchase can take twenty seconds against a slow seller,
+    // and awaiting here would stop this loop reading anything at all in the
+    // meantime — including the client's own ping, whose silence it would read
+    // as a dead server. JSON-RPC pairs answers to requests by id, so replying
+    // out of order is allowed; `answer` never rejects, so there is nothing
+    // here for an unhandled rejection to kill.
+    void answer(deps, line);
   }
 };
 
