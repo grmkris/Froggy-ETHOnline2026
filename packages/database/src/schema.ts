@@ -98,6 +98,24 @@ export const users = pgTable("users", {
   /** The wallet Privy minted at login, which we attach a signer to. */
   privyWalletAddress: text("privy_wallet_address"),
   privyWalletId: text("privy_wallet_id"),
+  /**
+   * The person's own Privy policy: the rules their agent's signer is held to,
+   * minted when they granted it and carrying the numbers they chose.
+   *
+   * Null means they are still on the app-wide policy every wallet shared, which
+   * is every person who granted before this existed. That is a state to migrate
+   * out of, not an error, and it is how the grant path tells the two apart.
+   *
+   * The allowance is stored beside the id rather than re-read from Privy on
+   * every request: it is also what the *mandate* is built from, so our engine
+   * must be able to hold the identical ceiling without a network call — which
+   * is the whole point of having it in two places.
+   */
+  privyPolicyAllowance: jsonb("privy_policy_allowance"),
+  privyPolicyExpiresAt: timestamp("privy_policy_expires_at", {
+    withTimezone: true,
+  }),
+  privyPolicyId: text("privy_policy_id"),
 });
 
 export const spends = pgTable(

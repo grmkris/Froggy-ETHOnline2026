@@ -9,6 +9,7 @@ import {
   Task,
 } from "@froggy/domain";
 import type {
+  Allowance,
   AgentConnectionId,
   AgentInvocationId,
   AgentToken,
@@ -128,6 +129,19 @@ export interface HederaAccountRecord {
   /** `0.0.x`. */
   readonly accountId: string;
   readonly custody: HederaCustody;
+}
+
+/**
+ * The person's own Privy policy, and the numbers it was built from.
+ *
+ * The allowance is kept beside the id deliberately. It is the same allowance
+ * the *mandate* is generated from, and `authorize` must be able to hold that
+ * ceiling synchronously with no network call — a leash that needed Privy to be
+ * reachable in order to refuse would be no leash at all.
+ */
+export interface PersonPolicyRecord {
+  readonly allowance: Allowance;
+  readonly policyId: string;
 }
 
 const CustodyRecord = Schema.Union([
@@ -397,6 +411,22 @@ export interface Store {
     readonly save: (userId: UserId, mandate: Mandate) => Promise<void>;
   };
   /**
+   * The person's own Privy policy. Null while they are still on the app-wide
+   * one, which is every person who granted a signer before this existed.
+   *
+   * Cleared on `forget`, unlike the Hedera account: this is authority, not
+   * money. A person who asked to be forgotten should not leave a standing
+   * signature behind, and the policy itself is revoked at Privy separately.
+   */
+  readonly privyPolicy: {
+    readonly clear: (userId: UserId) => Promise<void>;
+    readonly load: (userId: UserId) => Promise<PersonPolicyRecord | null>;
+    readonly save: (
+      userId: UserId,
+      record: PersonPolicyRecord
+    ) => Promise<void>;
+  };
+  /**
    * The OAuth authorization server's state: registered clients, the grants
    * people gave them, and the hashed codes and tokens under each grant.
    * `tokens.consume` is the one write that must be atomic across processes:
@@ -580,6 +610,7 @@ export const memoryStore = (): Store => {
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
   const hederaAccounts = new Map<UserId, HederaAccountRecord>();
+  const personPolicies = new Map<UserId, PersonPolicyRecord>();
   const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
   const sales = new Map<SaleId, Sale>();
   const tasks = new Map<TaskId, Task & { userId: UserId }>();
@@ -1172,6 +1203,7 @@ export const memoryStore = (): Store => {
       entries.delete(userId);
       unpair(userId);
       mandates.delete(userId);
+      personPolicies.delete(userId);
       pockets.delete(userId);
       receipts.delete(userId);
     },
@@ -1193,6 +1225,20 @@ export const memoryStore = (): Store => {
       save: async (userId, mandate) => {
         await Promise.resolve();
         mandates.set(userId, mandate);
+      },
+    },
+    privyPolicy: {
+      clear: async (userId) => {
+        await Promise.resolve();
+        personPolicies.delete(userId);
+      },
+      load: async (userId) => {
+        await Promise.resolve();
+        return personPolicies.get(userId) ?? null;
+      },
+      save: async (userId, record) => {
+        await Promise.resolve();
+        personPolicies.set(userId, record);
       },
     },
     pocket: {

@@ -25,6 +25,7 @@ import {
  * silently rewrites history.
  */
 import {
+  Allowance,
   AgentInvocation,
   DirectoryId,
   decodeUserId,
@@ -232,6 +233,9 @@ const oauthTokenOf = (row: OAuthTokenDbRow): OAuthTokenRow | null => {
     usedAt: millis(row.usedAt),
   };
 };
+
+/** The stored allowance, checked on the way out. See `privyPolicy.load`. */
+const decodeAllowance = Schema.decodeUnknownResult(Allowance);
 
 export const postgresStore = (sql: Sql): Store => {
   const database = drizzle(sql);
@@ -1169,9 +1173,19 @@ export const postgresStore = (sql: Sql): Store => {
       // is a money record that outlives the person's preferences. The pocket
       // goes back to null, so a returning person is credited once more. The
       // Hedera account stays too: it holds their money.
+      //
+      // The policy does *not* stay. It is standing authority rather than money,
+      // and a person who asked to be forgotten must not leave a signature the
+      // agent can still use. Clearing it here only forgets the id; revoking it
+      // at Privy is a separate act, and both have to happen.
       await database
         .update(users)
-        .set({ pocketUsdMicros: null })
+        .set({
+          pocketUsdMicros: null,
+          privyPolicyAllowance: null,
+          privyPolicyExpiresAt: null,
+          privyPolicyId: null,
+        })
         .where(eq(users.did, userId));
     },
     hedera: {
@@ -1222,6 +1236,54 @@ export const postgresStore = (sql: Sql): Store => {
               record.custody.kind === "privy" ? record.custody.walletId : null,
             hederaPublicKey:
               record.custody.kind === "privy" ? record.custody.publicKey : null,
+          })
+          .where(eq(users.did, userId));
+      },
+    },
+    privyPolicy: {
+      clear: async (userId) => {
+        await database
+          .update(users)
+          .set({
+            privyPolicyAllowance: null,
+            privyPolicyExpiresAt: null,
+            privyPolicyId: null,
+          })
+          .where(eq(users.did, userId));
+      },
+      load: async (userId) => {
+        const rows = await database
+          .select({
+            allowance: users.privyPolicyAllowance,
+            policyId: users.privyPolicyId,
+          })
+          .from(users)
+          .where(eq(users.did, userId))
+          .limit(1);
+        const [row] = rows;
+        if (row === undefined || row.policyId === null) {
+          return null;
+        }
+        // The allowance is decoded rather than trusted. It is what the mandate's
+        // ceilings are built from, so a row that has drifted from the schema
+        // must read as "no policy" and be minted again, never as a silently
+        // wrong cap.
+        const decoded = decodeAllowance(row.allowance);
+        if (Result.isFailure(decoded)) {
+          return null;
+        }
+        return { allowance: decoded.success, policyId: row.policyId };
+      },
+      save: async (userId, record) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({
+            privyPolicyAllowance: record.allowance,
+            // Denormalised from the allowance so an expiry sweep can find rows
+            // by date without decoding every person's JSON.
+            privyPolicyExpiresAt: new Date(record.allowance.expiresAt),
+            privyPolicyId: record.policyId,
           })
           .where(eq(users.did, userId));
       },

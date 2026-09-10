@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 
 import {
+  defaultAllowance,
   AgentInvocationId,
   AgentTokenId,
   ApprovalId,
@@ -79,6 +80,51 @@ const pendingPurchase = (key: string): Purchase => {
 
 const suite = (name: string, make: () => Backend): void => {
   describe(name, () => {
+    test("a person's policy round-trips, is visible to another worker, and clears", async () => {
+      const { store, other } = make();
+      const owner = userId(`did:privy:policy-${crypto.randomUUID()}`);
+      expect(await store.privyPolicy.load(owner)).toBeNull();
+
+      const allowance = defaultAllowance(Date.now());
+      await store.privyPolicy.save(owner, {
+        allowance,
+        policyId: "pol_spike_1",
+      });
+
+      // Read back through a *different* connection: the grant path runs on
+      // whichever process the person's next request lands on, and a policy only
+      // one worker can see would be minted twice.
+      const loaded = await other.privyPolicy.load(owner);
+      expect(loaded?.policyId).toBe("pol_spike_1");
+      expect(loaded?.allowance).toEqual(allowance);
+
+      // Re-granting or adjusting replaces rather than accumulating.
+      await store.privyPolicy.save(owner, {
+        allowance: { ...allowance, perSpendUsdMicros: usdMicros(5_000_000) },
+        policyId: "pol_spike_2",
+      });
+      const second = await other.privyPolicy.load(owner);
+      expect(second?.policyId).toBe("pol_spike_2");
+      expect(second?.allowance.perSpendUsdMicros).toBe(usdMicros(5_000_000));
+
+      await store.privyPolicy.clear(owner);
+      expect(await other.privyPolicy.load(owner)).toBeNull();
+    });
+
+    test("forgetting a person takes their standing authority with them", async () => {
+      // Unlike the Hedera account, which is money and is kept: a policy is
+      // authority, and a person who asked to be forgotten must not leave a
+      // standing signature behind.
+      const { store } = make();
+      const owner = userId(`did:privy:policy-forget-${crypto.randomUUID()}`);
+      await store.privyPolicy.save(owner, {
+        allowance: defaultAllowance(Date.now()),
+        policyId: "pol_spike_forget",
+      });
+      await store.forget(owner);
+      expect(await store.privyPolicy.load(owner)).toBeNull();
+    });
+
     test("purchase creation and approval claims are atomic across workers and owner scoped", async () => {
       const { store, other } = make();
       const owner = userId(`did:privy:purchase-${crypto.randomUUID()}`);

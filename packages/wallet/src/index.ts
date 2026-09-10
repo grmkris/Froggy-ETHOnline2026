@@ -30,6 +30,7 @@ export type {
   DueSchedule,
   HederaAccountRecord,
   HederaCustody,
+  PersonPolicyRecord,
   ScheduleFinish,
   OAuthTokenKind,
   OAuthTokenRow,
