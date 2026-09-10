@@ -1,0 +1,290 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — preproduction gallery</title>
+<link rel="stylesheet" href="screens/board.css" />
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .card a {
+    font-weight: 600;
+  }
+  .marks {
+    display: flex;
+    gap: 18px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .marks figure {
+    margin: 0;
+    text-align: center;
+  }
+  .marks figcaption {
+    font: 11px/1 var(--mono);
+    color: var(--ink-3);
+    margin-top: 7px;
+  }
+  .shot {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-row);
+    border: 1px solid var(--line-soft);
+    background: var(--paper);
+  }
+  .ink {
+    background: #15201a;
+    border-radius: 12px;
+    padding: 12px;
+    color: #eff1ec;
+    display: inline-flex;
+  }
+</style>
+
+<main>
+  <h1>Froggy preproduction gallery</h1>
+  <p class="lede">
+    One index over everything in this workspace. Start here, then
+    <a href="STATUS.md">STATUS.md</a> for what is done and what is next.
+  </p>
+  <p class="warn">
+    Every figure on every board is <b>invented for review</b>. Domains use
+    <code>.example</code>. Nothing here is live data, provider evidence, advice,
+    or a claim that a payment route works today — real readiness is in
+    <a href="SERVICES.md">SERVICES.md</a>.
+  </p>
+
+  <h2>Boards</h2>
+  <div class="grid">
+    <div class="card">
+      <a href="screens/review-board.html">Gate C review board →</a>
+      <p class="why">
+        Mark 128→16, app icon, wordmark, palette, type, buttons, task card,
+        approval, and a quiet Home.
+      </p>
+      <span class="chip work">Gate C approved</span>
+    </div>
+    <div class="card">
+      <a href="screens/task-workspace.html">Task workspace →</a>
+      <p class="why">
+        The first vertical slice: structured comparison, browser modes, four
+        settlement outcomes.
+      </p>
+      <span class="chip">needs-review</span>
+    </div>
+    <div class="card">
+      <a href="screens/families.html">Screen families →</a>
+      <p class="why">
+        Onboarding, Explore, Token detail, Wallet, Background setup,
+        Connections.
+      </p>
+      <span class="chip">needs-review</span>
+    </div>
+    <div class="card">
+      <a href="prototype/motion-states.html">Motion states →</a>
+      <p class="why">
+        The five-state contract, live. Reduced motion, offscreen pause and asset
+        failure are all switchable.
+      </p>
+      <span class="chip work">verified</span>
+    </div>
+  </div>
+
+  <h2>Brand</h2>
+  <div class="panel">
+    <div class="marks">
+      <figure>
+        <img alt="mark 96" height="96" src="brand/frog-mark.svg" width="96" />
+        <figcaption>mark 96</figcaption>
+      </figure>
+      <figure>
+        <img alt="mark 48" height="48" src="brand/frog-mark.svg" width="48" />
+        <figcaption>48</figcaption>
+      </figure>
+      <figure>
+        <img
+          alt="app icon"
+          height="72"
+          src="brand/app-icon.svg"
+          width="72"
+          style="border-radius: 18px"
+        />
+        <figcaption>app icon</figcaption>
+      </figure>
+      <figure>
+        <img alt="favicon 32" height="32" src="brand/favicon.svg" width="32" />
+        <figcaption>favicon 32</figcaption>
+      </figure>
+      <figure>
+        <img alt="favicon 16" height="16" src="brand/favicon.svg" width="16" />
+        <figcaption>favicon 16</figcaption>
+      </figure>
+      <figure>
+        <img
+          alt="monochrome mark"
+          height="44"
+          src="brand/frog-mark-mono.svg"
+          width="44"
+        />
+        <figcaption>mono*</figcaption>
+      </figure>
+      <figure>
+        <img
+          alt="leash icon"
+          height="28"
+          src="system/icons/leash.svg"
+          width="28"
+        />
+        <figcaption>leash</figcaption>
+      </figure>
+      <figure>
+        <img
+          alt="stubbed icon"
+          height="28"
+          src="system/icons/stubbed.svg"
+          width="28"
+        />
+        <figcaption>stubbed</figcaption>
+      </figure>
+    </div>
+    <p class="warn">
+      *The monochrome mark renders black here <b>on purpose</b>. It paints with
+      <code>currentColor</code>, and an SVG loaded through
+      <code>&lt;img&gt;</code> has no parent to inherit from. Inline it to get a
+      colour. See <a href="brand/BRAND.md">BRAND.md</a>.
+    </p>
+  </div>
+
+  <h2>Motion poses — static, as reduced motion shows them</h2>
+  <div class="panel">
+    <img
+      alt="five motion poses"
+      class="shot"
+      src="evidence/phase-b/states/idle.png"
+    />
+    <p class="fig">
+      idle · one frame of the loop. Every state, and the reduced-motion
+      variants, are in
+      <a href="evidence/phase-b/states/">evidence/phase-b/states/</a>
+    </p>
+  </div>
+
+  <h2>Screens</h2>
+  <div class="grid">
+    <div class="card">
+      <img
+        alt="Home, desktop"
+        class="shot"
+        src="evidence/phase-c/board/home-desktop.png"
+      />
+      <span class="fig">home.desktop · Gate C approved</span>
+    </div>
+    <div class="card">
+      <img
+        alt="Task shell"
+        class="shot"
+        src="evidence/phase-e/task/shell.png"
+      />
+      <span class="fig">task.shopping · needs-review</span>
+    </div>
+    <div class="card">
+      <img
+        alt="Browser modes"
+        class="shot"
+        src="evidence/phase-e/task/browser-modes.png"
+      />
+      <span class="fig">browser.modes · needs-review</span>
+    </div>
+    <div class="card">
+      <img
+        alt="Wallet permissions"
+        class="shot"
+        src="evidence/phase-e/families-wallet.png"
+      />
+      <span class="fig">wallet.permissions · needs-review</span>
+    </div>
+  </div>
+
+  <h2>Records</h2>
+  <div class="grid">
+    <div class="card">
+      <a href="handoff/README.md">Handoff package →</a>
+      <p class="why">
+        Direction, assets, tokens, screens, blockers, ordered backlog.
+      </p>
+    </div>
+    <div class="card">
+      <a href="ASSET_MANIFEST.json">Asset manifest →</a>
+      <p class="why">
+        Every asset with checksum, provenance, licence and review status.
+      </p>
+    </div>
+    <div class="card">
+      <a href="SCREEN_MANIFEST.json">Screen manifest →</a>
+      <p class="why">
+        16 screens across 11 families, each with its fixture and source node.
+      </p>
+    </div>
+    <div class="card">
+      <a href="motion/MOTION_CONTRACT.md">Motion contract →</a>
+      <p class="why">
+        Five states, and how the real eight-state TaskStatus maps onto them.
+      </p>
+    </div>
+    <div class="card">
+      <a href="system/TOKENS_PROPOSAL.md">Tokens →</a>
+      <p class="why">
+        The lime accent and frog roles. Proposed, not yet in the app.
+      </p>
+    </div>
+    <div class="card">
+      <a href="system/COPY.md">Copy deck →</a>
+      <p class="why">
+        Onboarding, status, permissions, money, errors, empty states.
+      </p>
+    </div>
+    <div class="card">
+      <a href="flows/STATE_MATRIX.md">State matrix →</a>
+      <p class="why">Twelve states per surface, settlement on its own axis.</p>
+    </div>
+    <div class="card">
+      <a href="flows/NAVIGATION.md">Navigation →</a>
+      <p class="why">Six destinations onto three, nothing deleted.</p>
+    </div>
+    <div class="card">
+      <a href="SERVICES.md">Services readiness →</a>
+      <p class="why">
+        What is wired, and the gap between a live adapter and a real journey.
+      </p>
+    </div>
+    <div class="card">
+      <a href="fixtures/">Fixtures →</a>
+      <p class="why">Five simulated scenarios, gated by check-fixtures.mjs.</p>
+    </div>
+  </div>
+
+  <h2>Reproduce any of it</h2>
+  <div class="panel">
+    <p style="margin: 0 0 8px">From the repository root:</p>
+    <pre
+      class="mono"
+      style="margin: 0; overflow-x: auto"
+    ><code>node design/preproduction/tools/build-prototype.mjs          # regenerate boards from the mark
+node design/preproduction/tools/build-prototype.mjs --check  # fail if any board is stale
+node design/preproduction/tools/state-sweep.mjs out/         # capture and assert every motion state
+node design/preproduction/tools/check-fixtures.mjs           # gate the simulated data
+node design/preproduction/tools/review-shot.mjs &lt;file&gt; out/  # 1440/768/390/320 + reduced motion</code></pre>
+  </div>
+</main>

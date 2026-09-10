@@ -2,7 +2,7 @@
 
 Preproduction workspace for Froggy's brand, assets, motion, screens and implementation handoff. Working brief: [`FROGGY_PREPRODUCTION_SPEC.md`](FROGGY_PREPRODUCTION_SPEC.md) (v1.0, 10 Sep 2026). This workspace is **not** authorization to rebuild the production app.
 
-**Current phase: A complete, Gate A answered → B starting.** Read [`STATUS.md`](STATUS.md) for the exact next action. A fresh agent can resume from these two files alone.
+**Current phase: Gate C approved. A–C, E, F and H complete; D waiting on imagery.** Read [`STATUS.md`](STATUS.md) for the exact next action. A fresh agent can resume from these two files alone.
 
 ## Read in this order
 
@@ -14,7 +14,9 @@ Preproduction workspace for Froggy's brand, assets, motion, screens and implemen
 | [`TOOLCHAIN.md`](TOOLCHAIN.md) | The proposed smallest toolchain, costs, rollback |
 | [`DECISIONS.md`](DECISIONS.md) | Settled choices. Do not reopen these. |
 | [`SOURCES.md`](SOURCES.md) | Dated primary-source verification |
-| [`agents/RIVE_MAC_SETUP.md`](agents/RIVE_MAC_SETUP.md) | The Rive runbook for the Mac — probe first, buy nothing |
+| [`GALLERY.html`](GALLERY.html) | **One index over everything.** Open this first. |
+| [`handoff/README.md`](handoff/README.md) | The implementation package and ordered backlog |
+| [`agents/RIVE_MAC_SETUP.md`](agents/RIVE_MAC_SETUP.md) | The Rive runbook for the Mac — kept, unexecuted |
 | [`motion/MOTION_CONTRACT.md`](motion/MOTION_CONTRACT.md) | The five states and how real `TaskStatus` maps to them |
 | [`references/`](references/) | The three supplied concept images + provenance |
 | [`evidence/`](evidence/) | Test output and screenshots, per phase |

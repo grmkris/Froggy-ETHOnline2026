@@ -68,6 +68,24 @@ const stamp = (index) => {
   return `<circle class="halo" cx="32" cy="34" r="30" />\n${body}`;
 };
 
+/*
+ * A generated file that the formatter also owns is a gate that fails forever:
+ * oxfmt rewrites it, --check calls it stale, and the loop never settles. That
+ * happened three times while this workspace was built, each time because a new
+ * board was added and .prettierignore was not. So the generator refuses to
+ * write an output the formatter would touch.
+ */
+const ignore = await readFile(
+  path.join(root, "../../.prettierignore"),
+  "utf-8"
+);
+const ignored = new Set(
+  ignore
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+);
+
 const header =
   "<!-- GENERATED from brand/frog-mark.svg by tools/build-prototype.mjs. " +
   "Edit the mark or the template, then rebuild. -->\n";
@@ -91,6 +109,15 @@ for (const relative of templates) {
     });
   const out = path.join(root, relative.replace(".template.html", ".html"));
   const shown = path.relative(root, out);
+  const fromRepoRoot = `design/preproduction/${shown}`;
+  if (!ignored.has(fromRepoRoot)) {
+    console.error(
+      `${shown} is generated but not listed in .prettierignore.\n` +
+        `Add this line, or the formatter and this generator will fight forever:\n` +
+        `  ${fromRepoRoot}`
+    );
+    process.exit(2);
+  }
   if (check) {
     const current = await readFile(out, "utf-8").catch(() => "");
     if (current === content) {

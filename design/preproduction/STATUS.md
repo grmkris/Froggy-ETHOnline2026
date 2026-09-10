@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 10 September 2026 · **Gates A and B closed; C and E landed, F drafted** · **Full push** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
+**Updated:** 10 September 2026 · **Gate C approved. A–F and H complete; D partly blocked** · **Full push** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
 
 ## Done
 
@@ -40,15 +40,33 @@ Worth listing, because each one reported healthy while being broken:
 | Mascot poses and illustrations | No image-generation route here | Route agreed: prompts from me, generation by you. Prompts are the next artifact. |
 | Merchant card checkout | No automated route exists at all | Designed as a human handoff, recorded in `SERVICES.md` |
 
-## Next, in order
+## What is left
 
-1. **Mascot pose prompts** — exact, reference-anchored prompts for the six poses, ready to paste. Then verification and manifest records when the files come back.
-2. **Fixtures** — the five labelled scenarios in `fixtures/`, wired into the boards.
-3. **State matrix** — `flows/STATE_MATRIX.md`: empty, loading, partial, no result, provider unavailable, auth expired, blocked, needs-user, rejected, cancelled, failed, completed.
-4. **Copy deck** — onboarding, status, notification, permission, error, empty state.
-5. **Explore, Token detail, Wallet, Onboarding, Connections** screen families.
-6. **Icons** — the mapped `lucide` set plus the few custom brand/status marks.
-7. **Gallery and handoff** — one local index over assets, states and screens, then `handoff/` with the ordered implementation backlog.
+| Phase | State |
+| --- | --- |
+| A audit · B toolchain · C visual system | complete; Gate C approved 10 Sep |
+| E screen families | complete — 16 screens, 11 families, all fixture-driven |
+| F services readiness | complete — `SERVICES.md`, nothing over-claimed |
+| H quality gate and handoff | complete — `GALLERY.html`, both manifests, `handoff/` |
+| **D asset pack** | **partly blocked** — motion, brand exports, icons and copy done; **mascot poses and illustrations need your image route** |
+| G parallel agents | not needed; one coordinator was enough |
+
+### The one thing waiting on you
+
+`brand/POSE_PROMPTS.md` is written and ready to paste: an anchor block, a canonical reference, and six pose prompts. Generate them in the subscription you already have, drop the full-resolution originals into `brand/poses/`, and tell me. I verify format, real alpha, dimensions and checksums, then record provenance and the model in `ASSET_MANIFEST.json`.
+
+Illustration vignettes — shopping, travel, token research, services, background watch — follow the same route once the poses are approved.
+
+### Everything else is done and gated
+
+| Gate | Command | Currently |
+| --- | --- | --- |
+| Boards match the mark | `tools/build-prototype.mjs --check` | in sync, 5 outputs |
+| Motion states | `tools/state-sweep.mjs` | reduced motion silent, `stopped` still, one-shot live |
+| Fixtures | `tools/check-fixtures.mjs` | 5 pass |
+| Any page | `tools/review-shot.mjs` | 4 widths + reduced motion; fails on a console error or sideways scroll |
+
+The generator also refuses to write an output that the formatter would reformat, because that combination is a gate which fails forever — it happened three times here before the guard existed.
 
 ## Deliberately not done
 
