@@ -1,0 +1,11 @@
+Read FROGGY_PREPRODUCTION_SPEC.md and references/README.md. Treat this as the working brief for Froggy, not Invok.
+
+Act as my hands-on setup and design-production lead. First inspect the current repository, machine/remote setup, available agent tools, MCP connections, and existing tmux workflow. Preserve other work and never expose secrets.
+
+Create the initial preproduction records, recommend the smallest complete toolchain, and guide me through the next concrete setup step. Prioritize proving Rive MCP editing and runtime export, an editable design workflow, image generation, and browser-based review. Verify current docs and actual capabilities rather than assuming integrations work.
+
+Keep the approved direction: playful but uncluttered; Home/For You, Explore, Wallet; task-driven recommendations; browsing, payments, receipts, and handoffs inside tasks; Telegram and external-agent/MCP support.
+
+Ask only for decisions, access, or authorizations you cannot resolve yourself. Do not buy subscriptions, spend new credits, send payments/messages, expose ports, or rebuild/deploy the production app without the required approval.
+
+Start Phase A now. Do not just summarize the spec or return another generic plan.
