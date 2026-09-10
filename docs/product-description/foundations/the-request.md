@@ -145,7 +145,7 @@ After an interrupt the person is left where they were, with the conversation sho
 
 ## Open questions and verification
 
-- Whether a spend already reserved when a run is superseded is completed or abandoned has not been established from the code, and it is the case most likely to lose money without a receipt. Worth confirming by hand before it is claimed either way.
+- A spend reserved but not yet sent when a run is superseded or stopped becomes `abandoned` and does not consume the person's allowance; see [money](money.md#the-life-of-a-spend). What happens to one already sent is the `uncertain` path. Neither has been watched happen.
 - The exact turn and step ceilings are configuration, not constants, and are not stated here for that reason. The step cap within one turn is twelve.
 - Whether freezing the wallet mid-run also ends the run, or only refuses its spends, is documented above from the code's structure and has not been watched happen.
 - "Stopping is unconfirmed" was read from `e2e/stop.spec.ts`, which exercises both an HTTP failure and a network failure. The wording in the running product has not been checked.

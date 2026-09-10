@@ -49,7 +49,23 @@ Do not describe code. Describe what the user sees and does. Technical detail goe
 - **Every stub is loud.** A stubbed receipt carries `stubbed: true` in the data, not only in the interface. `apps/server/src/environment.ts` is the only place in the codebase that branches on an environment variable.
 - A task's id outlives every socket. The same idempotency key returns the same task rather than a second bill. `uncertain` is its own status: the payment was sent and never confirmed either way.
 - Navigation has three destinations — Home, Explore, Wallet — with Connections and Account reachable and visibly not destinations. The shared browser is deliberately not a destination. **This differs from `docs/plan/STATUS.md`, which describes an earlier five-page pill.** Describe the tree, not the status file.
-- Every browser is a hosted browser driven over CDP. There is no local Chrome. Ownership is shown as **Control** and **Follow**, and a person's own input takes the page without stopping the work.
+- Every browser is a hosted browser driven over CDP. There is no local Chrome. A person's own input takes the page without stopping the work, and **closing the browser view never stops the work**.
+
+Added as the foundations were written:
+
+- The default allowance is **$2 a spend, $10 a rolling day, ask above $1, expiring in 30 days** — thirty being Privy's own ceiling, not a product choice.
+- Action kinds carry their own ceilings on top of the person's: `earn_deposit` $25, `earn_withdraw` $10. **The tighter of the two always wins.** A kind with no row in the table is refused, never assumed standing: a missing leash must never fail open.
+- Checks run in a fixed order and the **first refusal wins**: provenance, bound purchase, expiry, allowlists, per-transaction cap, rolling window cap, then the human line.
+- **Provenance has five values and three are payable**: `mandate`, `server`, `user` yes; `model` and `page` never, at any amount. Deciding a string counts as `user` is the server's job, never the model's.
+- Converting an amount to micro-dollars **rounds up**, because a cap is a promise not to exceed a number.
+- A spend is written to the ledger **before** it is attempted. Its states are `reserved`, `settled`, `refused`, `failed`, `abandoned`, `uncertain`. `abandoned` (nothing was ever sent) does **not** consume allowance; `failed` and `uncertain` do.
+- A turn's status is one of `accepted`, `running`, `waiting`, `completed`, `failed`, `stopped`, `interrupted`, `uncertain`. `stopped` means a person ended it; `interrupted` means something else did.
+- History has exactly four sources: `web`, `telegram`, `agent`, `schedule`.
+- The step cap within one turn is **twelve**. The model budget is separate, per person per UTC day, counts turns and steps, lives in memory, and exempts one demo account.
+- The five OAuth scopes are `brief`, `browse`, `pay`, `services`, `history`, in that order on the consent page. **No scope approves a ticket, raises a cap or adds a payee**; `services` is what every MCP tool call needs.
+- An agent token's secret is shown once and only hashed; revocation is a **timestamp, not a deletion**, so past invocations stay attributable.
+- Browser arbitration has three modes — `agent`, `human`, `idle` — and `idle` is "nobody is currently acting", not "nobody connected".
+- Navigation is **three destinations** (Home, Explore, Wallet) with Connections and Account at the foot; a conversation and the browser are deliberately not destinations.
 
 ## Order of work
 
