@@ -186,3 +186,37 @@ transfer                       source.asset, source.asset_address, source.amount
 ```
 
 Both Earn methods also refuse a rule with no conditions ("must have at least one condition"), exactly as `signRawMessageBytes` does. So the vault **can** be pinned and the amount **can** be capped inside Privy, and a transfer rule **can** pin the source asset, the destination chain and the destination address — every leash the Privy flow PRD's stages 2 to 4 assume it can express. That much is confirmed from Privy's own validator rather than from its documentation.
+
+## Earn, once switched on: the signer is allowed, the leash is unproven — 10 September 2026
+
+Kristjan enabled Yield on the app and created two vaults. Re-running spike 0b (`tools/spikes/privy-earn-additional-signer.ts`) got past the 403 and two stages further, and answered half the question.
+
+### The two vaults, read back rather than assumed
+
+Neither id says what it is, so both were read from `GET /v1/earn/ethereum/vaults/{id}`. They are the two Morpho vaults the Privy flow PRD names, and they are not interchangeable:
+
+| Vault id | Name | Chain | Asset | User APY | App share | TVL | Available liquidity |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `unzkw5f9txnd2hvmu4z3uan2` | Gauntlet USDC Prime | Base (`eip155:8453`) | USDC `0x8335…2913`, 6dp | 3.74% | 0.42% | $167.2m | $162.4m |
+| `xigq1x9pihk6g023z6ya4n1h` | Steakhouse Prime USDC | Base (`eip155:8453`) | USDC `0x8335…2913`, 6dp | 3.74% | 0.42% | $428.2m | $179.0m |
+
+Both are `provider: morpho`, both on Base, both USDC, both reporting the same rates, and both carry a non-zero app share, so the revenue-sharing beat is live either way. `user_apy` and `app_apy` are basis points: 374 is 3.74% to the person and 42 is 0.42% to the app. The PRD's first choice is Gauntlet USDC Prime, `unzkw5f9txnd2hvmu4z3uan2`; Steakhouse has more than twice the TVL but _less_ liquidity as a share of it. **Which to pin is the owner's call and is not guessed here.**
+
+### What the differential now says
+
+Two wallets, one under a policy pinning an `earn_deposit` rule and one under a policy naming no Earn method at all, each sent the same deposit authorised by the agent's key alone:
+
+```text
+[rule present] 400 {"error":"Insufficient balance: wallet has insufficient funds for this operation"}
+[rule absent ] 400 {"error":"Insufficient balance: wallet has insufficient funds for this operation"}
+```
+
+**Answered: an additional signer is not structurally barred from Earn.** Neither arm was refused for want of the wallet's owner. Both reached execution's balance check carrying only the agent key's signature, on a wallet the app does not own. That is the question ADR 0015 left open — wallet _edits_ need the owner, and wallet _actions_ of the Earn kind demonstrably do not. Stage 2 of the Privy flow PRD does not need the person's browser for every sweep.
+
+The wallets are owned by a test person rather than by the app, and that correction is what makes the run mean anything: an app-created wallet with no owner is owned by the same app secret the spike sends as Basic auth, so Privy would have authorised as the owner and never consulted the signer's policy at all. An earlier run had that flaw and its identical-looking answers were worthless.
+
+**Still open: whether the policy gates Earn.** Privy resolves the vault first, then checks the balance, and only then — presumably — consults the policy. On an empty wallet the arm with _no_ Earn rule is refused for funds rather than by default-deny, so the two arms cannot be told apart. This matters beyond tidiness: if the policy does not judge Earn, then "Privy is the leash" does not extend to Earn, and the submission must say so.
+
+**One cheap test settles it.** Put a few cents of USDC on Base into the wallet **without** the rule and re-run with `PRIVY_SPIKE_DENIED_WALLET` set to it. `policy_violation` proves the leash covers Earn; a successful deposit of 0.000001 USDC proves it does not. The spike now reuses a wallet named that way rather than minting a fresh one, so the funds are not stranded by the next run.
+
+Ordering, established along the way and worth keeping: **vault resolution → balance → policy.** A spike that pins a fabricated vault id, or that runs against an empty wallet, learns nothing about authorisation whatever its policy says.

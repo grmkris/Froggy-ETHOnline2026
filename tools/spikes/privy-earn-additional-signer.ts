@@ -57,6 +57,10 @@ const agentPrivateKey = env("PRIVY_AUTHORIZATION_PRIVATE_KEY");
 const agentQuorum = env("PRIVY_AUTHORIZATION_KEY_ID");
 
 const client = new PrivyClient({ appId, appSecret });
+
+/** Whose wallet this is. Anyone but the app; see `makeWallet`. */
+const subject =
+  Bun.env["PRIVY_SPIKE_USER_DID"] ?? "did:privy:cmtq98t70006g0cjrgjhm3oxj";
 const authorization = `Basic ${Buffer.from(`${appId}:${appSecret}`).toString("base64")}`;
 const base = {
   authorization,
@@ -65,11 +69,14 @@ const base = {
 };
 
 /**
- * A vault id that cannot exist. Deliberate: if the policy engine lets the call
- * through, Privy's own complaint about the vault is the proof, and there is no
- * vault it could accidentally deposit into.
+ * A real vault, because Privy resolves the vault *before* it consults the
+ * policy: a fabricated id answers `404 Vault not found` under every policy and
+ * tells us nothing. Which of the app's vaults this is does not matter to the
+ * question — the wallets below hold no USDC, so a deposit that gets past the
+ * policy engine still cannot move anything, and that refusal is the proof.
  */
-const VAULT = "froggy-spike-vault-that-cannot-exist";
+const VAULT =
+  Bun.env["PRIVY_SPIKE_VAULT_ID"] ?? "unzkw5f9txnd2hvmu4z3uan2";
 
 const post = async (path: string, body: unknown, extra: Record<string, string> = {}) => {
   const response = await fetch(`${PRIVY}${path}`, {
@@ -144,18 +151,34 @@ const makePolicy = async (name: string, rule: unknown): Promise<string> => {
   return id;
 };
 
-const makeWallet = async (policyId: string): Promise<string> => {
+/**
+ * The wallet must be owned by *somebody else*, and this is the correction that
+ * makes the whole spike mean anything.
+ *
+ * An app-created wallet with no owner is owned by the app secret — the same
+ * secret this spike sends as Basic auth. Privy would then authorise the deposit
+ * as the wallet's owner and never consult the additional signer's policy at
+ * all, so both arms of the differential would answer identically for a reason
+ * that has nothing to do with signers. Giving the wallet a user owner puts the
+ * app secret outside the ownership, exactly as a real person's wallet does, and
+ * leaves the agent's key as the only authority in play.
+ */
+const makeWallet = async (
+  policyId: string
+): Promise<{ readonly address: string; readonly id: string }> => {
   const created = await post("/wallets", {
     additional_signers: [
       { override_policy_ids: [policyId], signer_id: agentQuorum },
     ],
     chain_type: "ethereum",
+    owner: { user_id: subject },
   });
   const id = idOf(created.text);
   if (id === null) {
     throw new Error(`wallet: ${created.status} ${created.text}`);
   }
-  return id;
+  const parsed: { address?: string } = JSON.parse(created.text);
+  return { address: parsed.address ?? "unknown", id };
 };
 
 /** The deposit, authorised by the agent's key alone — never the app's owner authority. */
@@ -191,13 +214,49 @@ const withoutPolicy = await makePolicy("froggy-spike-earn-absent", unrelatedRule
 process.stdout.write(`policy with an earn rule:    ${withPolicy}\n`);
 process.stdout.write(`policy without an earn rule: ${withoutPolicy}\n`);
 
-const walletAllowed = await makeWallet(withPolicy);
-const walletDenied = await makeWallet(withoutPolicy);
-process.stdout.write(`wallet under each:           ${walletAllowed} / ${walletDenied}\n\n`);
+/**
+ * Reuse a wallet across runs when one is named.
+ *
+ * The balance check runs ahead of the policy, so the last question needs a
+ * wallet with a few cents in it. Funding a wallet that a fresh run then throws
+ * away would be a donation, so the ids are overridable and a funded wallet
+ * survives to answer.
+ */
+const reuse = async (
+  variable: string,
+  policyId: string
+): Promise<{ readonly address: string; readonly id: string }> => {
+  const existing = Bun.env[variable];
+  if (existing === undefined || existing === "") {
+    return await makeWallet(policyId);
+  }
+  // The policy is attached to the signer on the wallet, so a reused wallet has
+  // to be re-pointed at this run's fresh policy or it would be judged by a
+  // policy this run has already deleted.
+  await fetch(`${PRIVY}/wallets/${existing}`, {
+    body: JSON.stringify({
+      additional_signers: [
+        { override_policy_ids: [policyId], signer_id: agentQuorum },
+      ],
+    }),
+    headers: base,
+    method: "PATCH",
+  });
+  const read = await fetch(`${PRIVY}/wallets/${existing}`, { headers: base });
+  const parsed: { address?: string } = JSON.parse(await read.text());
+  return { address: parsed.address ?? "unknown", id: existing };
+};
 
-const allowed = await deposit(walletAllowed);
+const walletAllowed = await reuse("PRIVY_SPIKE_ALLOWED_WALLET", withPolicy);
+const walletDenied = await reuse("PRIVY_SPIKE_DENIED_WALLET", withoutPolicy);
+process.stdout.write(
+  `wallet with the rule:        ${walletAllowed.id}  ${walletAllowed.address}\n` +
+    `wallet without it:           ${walletDenied.id}  ${walletDenied.address}\n\n`
+);
+
+const allowed = await deposit(walletAllowed.id);
 process.stdout.write(`[rule present] ${allowed.status} ${allowed.text.slice(0, 400)}\n\n`);
-const denied = await deposit(walletDenied);
+const denied = await deposit(walletDenied.id);
 process.stdout.write(`[rule absent ] ${denied.status} ${denied.text.slice(0, 400)}\n\n`);
 
 const isPolicyViolation = (text: string): boolean =>
@@ -206,8 +265,35 @@ const isPolicyViolation = (text: string): boolean =>
 const notEnabled = (text: string): boolean =>
   text.includes("Yield features are not enabled");
 
+/** Vault resolution happens before the policy, so this blinds the differential. */
+const noVault = (text: string): boolean => text.includes("Vault not found");
+
 process.stdout.write("--- verdict ---\n");
-if (notEnabled(allowed.text) || notEnabled(denied.text)) {
+const noFunds = (text: string): boolean =>
+  text.includes("Insufficient balance");
+
+if (noFunds(allowed.text) && noFunds(denied.text)) {
+  process.stdout.write(
+    "HALF ANSWERED.\n\n" +
+      "Answered: an additional signer is NOT structurally barred from Earn. Neither\n" +
+      "arm was refused for want of the wallet's owner; both reached the balance check\n" +
+      "carrying only the agent key's signature, on a wallet the app does not own. That\n" +
+      "is what ADR 0015 left open, and wallet actions plainly differ from wallet edits.\n\n" +
+      "Open: whether the POLICY gates Earn. Privy checks the balance before it consults\n" +
+      "the policy, so on an empty wallet the arm with no Earn rule is refused for funds\n" +
+      "rather than by default-deny, and the two arms cannot be told apart.\n\n" +
+      "To settle it, put a few cents of USDC on Base into the wallet WITHOUT the rule\n" +
+      "and re-run with PRIVY_SPIKE_DENIED_WALLET set to it. A policy_violation proves\n" +
+      "the leash covers Earn; a successful deposit proves it does not, and the bounty\n" +
+      "story has to say so.\n"
+  );
+} else if (noVault(allowed.text) || noVault(denied.text)) {
+  process.stdout.write(
+    "BLOCKED, not answered: Privy resolved the vault before it consulted any policy\n" +
+      "and could not find it, so both arms answered the same thing for a reason that\n" +
+      "has nothing to do with signers. Point PRIVY_SPIKE_VAULT_ID at a real vault.\n"
+  );
+} else if (notEnabled(allowed.text) || notEnabled(denied.text)) {
   process.stdout.write(
     "BLOCKED, not answered: Privy refused both calls with 403 'Yield features are not\n" +
       "enabled for this app', which fires before the policy engine and before any owner\n" +
