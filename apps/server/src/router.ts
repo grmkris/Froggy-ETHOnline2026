@@ -31,6 +31,7 @@ import { validateUIMessages } from "ai";
 import { Schema } from "effect";
 
 import { serveAgentDoor } from "./agent-door-route";
+import { caip10, universalAgentId } from "./agent-identity";
 import {
   agentDetail,
   trackAgentInvocation,
@@ -968,6 +969,54 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
   };
 };
 
+/**
+ * The x402 discovery document, in the shape the specification gives it.
+ *
+ * `/.well-known/x402.json` is our own card and carries fields x402 has no
+ * opinion about — a price, a facilitator, a topic, now a door. This is the
+ * other thing: the standard listing, so a directory or another agent can read
+ * us without knowing anything about Froggy. Both are built from the same
+ * challenge as the 402 itself, so none of the three can drift apart.
+ *
+ * The identifier is HCS-14, computed from the facts printed beside it. It is
+ * a claim about a derivation a reader can repeat, not a registration.
+ */
+const discoveryDocument = (deps: RouterDeps) => {
+  const card = serviceCard(deps);
+  const { environment } = deps;
+  const facts = {
+    name: "froggy-lending-oracle",
+    nativeId: caip10(environment.hederaNetwork, environment.hederaPayTo),
+    protocol: "x402",
+    registry: "froggy",
+    skills: [],
+    version: "1.0.0",
+  };
+  const accepts = card.resources.map((resource) => ({
+    amount: resource.price,
+    asset: resource.asset,
+    network: resource.network,
+    payTo: resource.payTo,
+    scheme: resource.scheme,
+  }));
+  return {
+    agent: { facts, id: universalAgentId(facts), standard: "HCS-14" },
+    items: card.resources.map((resource, index) => ({
+      accepts: accepts[index] === undefined ? [] : [accepts[index]],
+      lastUpdated: new Date().toISOString(),
+      resource: resource.url,
+      type: "http",
+      x402Version: 2,
+    })),
+    pagination: {
+      limit: card.resources.length,
+      offset: 0,
+      total: card.resources.length,
+    },
+    x402Version: 2,
+  };
+};
+
 const handleInstallation = async (
   origin: string,
   request: Request,
@@ -1044,6 +1093,11 @@ export const handleRequest = async (
 
   // The service card: what this server sells, how it is paid, where the
   // trail is. Plain JSON anyone can curl before they pay.
+  if (pathname === "/discovery/resources") {
+    return Response.json(discoveryDocument(deps), {
+      headers: { "cache-control": "public, max-age=300" },
+    });
+  }
   if (pathname === "/.well-known/x402.json") {
     return Response.json(serviceCard(deps), {
       headers: { "cache-control": "public, max-age=300" },
