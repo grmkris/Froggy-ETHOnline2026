@@ -217,6 +217,13 @@ The wallets are owned by a test person rather than by the app, and that correcti
 
 **Still open: whether the policy gates Earn.** Privy resolves the vault first, then checks the balance, and only then — presumably — consults the policy. On an empty wallet the arm with _no_ Earn rule is refused for funds rather than by default-deny, so the two arms cannot be told apart. This matters beyond tidiness: if the policy does not judge Earn, then "Privy is the leash" does not extend to Earn, and the submission must say so.
 
-**One cheap test settles it.** Put a few cents of USDC on Base into the wallet **without** the rule and re-run with `PRIVY_SPIKE_DENIED_WALLET` set to it. `policy_violation` proves the leash covers Earn; a successful deposit of 0.000001 USDC proves it does not. The spike now reuses a wallet named that way rather than minting a fresh one, so the funds are not stranded by the next run.
+**One cheap test settles it, and the wallet for it is now fixed.** Earlier runs minted throwaway wallets, so anything sent to one would have been stranded by the next run. The stable one is:
+
+```text
+wallet   lgptzgy5f25afb92mskj8d9e
+address  0xC87084BcB797Bb97BE22D71aA14a21E4A5fd498A
+```
+
+Owned by the test person, carrying the agent as an additional signer, holding nothing. Put a few cents of USDC on Base into it and re-run with `PRIVY_SPIKE_DENIED_WALLET=lgptzgy5f25afb92mskj8d9e`; the spike re-points it at that run's no-Earn-rule policy rather than minting a fresh wallet. `policy_violation` proves the leash covers Earn; a successful deposit of 0.000001 USDC proves it does not. A third answer is possible and is not a verdict either way: if gas sponsorship does not cover Earn on this app, the refusal will name gas rather than policy, and the wallet needs a little ETH on Base before the question can be asked again. The spike now reuses a wallet named that way rather than minting a fresh one, so the funds are not stranded by the next run.
 
 Ordering, established along the way and worth keeping: **vault resolution → balance → policy.** A spike that pins a fabricated vault id, or that runs against an empty wallet, learns nothing about authorisation whatever its policy says.
