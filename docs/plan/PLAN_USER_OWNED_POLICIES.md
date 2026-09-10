@@ -1,5 +1,7 @@
 # User-owned Privy policies
 
+**Outcome, 10 September 2026.** Built, deployed and proven on production. Spike 0c answered no (a rolling cap cannot be bucketed per wallet), 0b answered yes (Privy judges Earn against the signer's policy), and 0a passed — a person's own key changed a policy their own quorum owns, through the product. The decision is [ADR 0019](../decisions/0019-user-owned-policies.md); every id and reply is in [the evidence](../evidence/PRIVY.md). The sections below are the plan as written beforehand and are kept for that reason; where they speak of the spikes as open, the outcome above is what happened.
+
 ## Context
 
 Today one shared policy governs everybody. `docs/privy-agent-policy.json` (`froggy-agent-v1`, `rk6qw974uapbesb04u5tq5kb`, `owner_id: null`) holds three rules written by us, and every person's wallet carries our server key as an additional signer with `override_policy_ids: [that one policy]` (`packages/wallet/src/agent-signer.ts:189`). The numbers in it are ours, the payees in it are ours, and the person never sees, chooses, extends or revokes any of it. On production the mandate's own caps are off (`SPENDING_LIMITS`, `packages/domain/src/mandate.ts:227`), so on the EVM leg that shared policy is the _only_ ceiling, and it is a ceiling nobody consented to.

@@ -268,3 +268,47 @@ That is the answer the Privy bounty story wanted. Had it gone the other way the 
 **How the wallets had to be arranged, which is a finding in itself.** The funded wallet could not be reused for this: it is owned by the test person, so attaching a policy to it is a wallet _edit_, and the app secret is refused for that with `401 No valid authorization keys or user signing keys available` — the same wall ADR 0015 hit, reached from the other side. A policy can only be attached at creation, so a second wallet was minted with one and the money moved across with two Privy transfers.
 
 Two details worth keeping for whoever writes stage 2. Transfers name the chain as `chain: "base"` while swaps name it `caip2: "eip155:8453"`; the same field spelled the other way is a `400`. And the ordering established across these attempts is **vault → balance → policy**: a spike run against an unfunded wallet or a fabricated vault learns nothing about authorisation, whatever its policy says.
+
+## A person owns their policy, and their own key changed it — 10 September 2026
+
+Spike 0a, passed, and passed the way that counts: Kristjan did it on production, through the product, on a new account, rather than through a console against a throwaway.
+
+Signing in minted **`froggy-person-0clb1jxjihne`**, policy **`hreeb1izpa3cyac6x4xrko8f`**. Its owner is quorum **`x2stgnp1t56qu25d640l0kh6`**, and reading that quorum back shows what ownership means here:
+
+```text
+{"id":"x2stgnp1t56qu25d640l0kh6","authorization_threshold":1,
+ "authorization_keys":[],"user_ids":["did:privy:cmtvcplax01s20clb1jxjihne"]}
+```
+
+No authorization keys, one member, and the member is the person. Our app secret is not in it and is refused on every edit, exactly as the server-half spike found on 10 September. He then changed an allowance in Settings and it saved.
+
+**So the browser signing path works end to end against a policy our secret cannot touch.** The person's key signs the request, our server adds the app secret it must not send to a browser, and Privy accepts the pair. That was the last unproven assumption in this design, and it is the one the whole ownership claim rested on.
+
+### The live object, read back rather than reported
+
+```text
+name froggy-person-0clb1jxjihne   owner x2stgnp1t56qu25d640l0kh6   chain ethereum
+
+ALLOW eth_signTypedData_v4  service-payment-x402-usdc
+   domain.chainId eq 8453 · verifyingContract eq USDC · message.to in 0x79DC…FcCB
+   message.value lte 30000000 · expires 1791626834
+ALLOW eth_signTransaction   conversion-usdc-to-treasury
+   chain_id eq 8453 · to eq USDC · calldata transfer.to eq 0x8Cc2…08C2
+   calldata transfer.amount lte 30000000 · expires 1791626834
+ALLOW earn_deposit          earn-deposit
+   vault_id eq unzkw5f9txnd2hvmu4z3uan2 · raw_amount lte 25000000 · expires 1791626834
+ALLOW earn_withdraw         earn-withdraw
+   vault_id eq unzkw5f9txnd2hvmu4z3uan2 · raw_amount lte 10000000 · expires 1791626834
+```
+
+Four things in that are worth reading rather than skimming.
+
+**The caps are not uniform, and that is the design working.** He set $30 a spend, and the two signing rules carry $30. The Earn rules carry $25 and $10, because a sweep and a withdraw have ceilings of their own and the tighter of the two always wins. Nobody typed $25 or $10; they are `ceilingFor` resolving a kind's limit against the person's, visible in the live object.
+
+**Every rule expires**, at `1791626834` — 10 October, thirty days out, Privy's own ceiling. After that the policy allows nothing, inside Privy, whether or not anything of ours runs.
+
+**The vault is pinned** to `unzkw5f9txnd2hvmu4z3uan2`, Gauntlet USDC Prime, so a sweep can enter that vault and no other.
+
+**Both Earn methods are on it**, which joins this entry to [the Earn verdict above](#earn-is-judged-by-the-policy--10-september-2026-the-verdict): that verdict was established on a throwaway wallet under a policy naming no Earn method, and these rules are the same mechanism on a real person's live policy. The two now describe one object rather than two experiments.
+
+**What this does not prove.** That it cannot fail for somebody else. It has passed once, on one account, on one browser. `PRIVY_PERSON_OWNED_POLICIES` stays, and so does the sentence a person sees when Privy declines to sign — passing once is not a reason to remove the way back.

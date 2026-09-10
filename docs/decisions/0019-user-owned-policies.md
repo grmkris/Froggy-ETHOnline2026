@@ -1,6 +1,6 @@
 # 0019 — A Privy policy per person, owned by the person
 
-Status: built behind its wiring; the ownership half turns on one unfinished spike, named below.
+Status: implemented and proven on production, 10 September 2026. The spike this document was written to survive either way has passed.
 
 Supersedes nothing. It changes what `docs/privy-agent-policy.json` is for: that file stays as the app-wide policy a deployment falls back to, and stops being the policy every person's agent is held to.
 
@@ -30,7 +30,9 @@ So the kill switch is the browser's `removeSigners`, and it belongs to the perso
 
 **What holds the line instead.** Two things, both ours and neither depending on Privy being reachable. The mandate carries the identical ceilings and `authorize` refuses synchronously with no network call, so a Privy outage can never widen what the agent may spend — only narrow it. And the expiry is enforced on our side as well as in the policy, so a policy we cannot edit still goes quiet on time.
 
-**The one sentence that changes.** Whether the person's own key _can_ edit a policy the person owns is unproven: it needs `useAuthorizationSignature` in a signed-in browser, which is spike 0a's remaining half. If it passes, this section stands as written. If it fails, minting flips to `owner: null` and the only sentence that changes is this one — _the policies remain per person and carry each person's own numbers, but the policy record names our app secret as owner, so "the person owns the rules" becomes "the person grants, adjusts and revokes the rules", which is true of the product and not of Privy's data._ Everything else in this document, and every line of the implementation, is the same either way; that is why the ownership is a flag and not an assumption.
+**The one sentence that changed, and which way.** This document was written before it was known whether the person's own key _could_ edit a policy the person owns, with that sentence marked as the only one that would move. It has moved to the pass side: on 10 September Kristjan signed in on production with a new account, was minted policy `hreeb1izpa3cyac6x4xrko8f` owned by quorum `x2stgnp1t56qu25d640l0kh6` — one member, that person, no authorization keys — and changed an allowance through Settings, which saved. The browser signs, our server adds the secret it may not send to a browser, and Privy accepts the pair. Ownership is therefore real in Privy's data and not only in our screens, and the fallback sentence that would have replaced this paragraph is not needed. [The evidence](../evidence/PRIVY.md) carries the ids and the policy read back from the live app.
+
+The flag stays anyway. `PRIVY_PERSON_OWNED_POLICIES` defaults off and remains a one-variable way back, and the failure a person sees when Privy declines to sign remains a sentence rather than a silent no-op. Passing once, on one account, in one browser, is not evidence that it cannot fail for the next person, and the cost of keeping the way back is nothing.
 
 ## Which actions may run without asking
 
