@@ -30,6 +30,7 @@ import { HistoryConflictError } from "@froggy/wallet";
 import { validateUIMessages } from "ai";
 import { Schema } from "effect";
 
+import { serveAgentDoor } from "./agent-door-route";
 import {
   agentDetail,
   trackAgentInvocation,
@@ -946,6 +947,9 @@ const handleInstallation = async (
   // Public installation documents contain the configured origin, never secrets.
   if (pathname === "/froggy-cli.js" && request.method === "GET") {
     return await serveCli();
+  }
+  if (pathname === "/froggy-mcp.js" && request.method === "GET") {
+    return await serveAgentDoor();
   }
   if (
     ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&

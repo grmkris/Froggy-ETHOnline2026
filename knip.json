@@ -9,7 +9,7 @@
   "ignoreDependencies": ["railway"],
   "workspaces": {
     "apps/server": {
-      "entry": ["src/cli/froggy.ts"]
+      "entry": ["src/cli/froggy.ts", "src/agent-door/server.ts"]
     }
   }
 }
