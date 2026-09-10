@@ -13,14 +13,34 @@ import { Schema } from "effect";
 
 export type MirrorVerdict = "failed" | "success" | "unknown";
 
+const Transfer = Schema.Struct({
+  account: Schema.String,
+  amount: Schema.Finite,
+});
+const TokenTransfer = Schema.Struct({
+  account: Schema.String,
+  amount: Schema.Finite,
+  token_id: Schema.String,
+});
 const Transactions = Schema.Struct({
   transactions: Schema.Array(
     Schema.Struct({
+      consensus_timestamp: Schema.optional(Schema.String),
       result: Schema.String,
       entity_id: Schema.optional(Schema.NullOr(Schema.String)),
+      token_transfers: Schema.optional(Schema.Array(TokenTransfer)),
+      transfers: Schema.optional(Schema.Array(Transfer)),
     })
   ),
 });
+
+/** One leg of a settlement: negative debits the account, positive credits it. */
+export interface LedgerTransfer {
+  readonly accountId: string;
+  readonly amount: bigint;
+  /** `"0.0.0"` for HBAR, an HTS token id otherwise. */
+  readonly asset: string;
+}
 const decodeTransactions = Schema.decodeUnknownResult(Transactions);
 
 /**
@@ -57,10 +77,18 @@ export interface MirrorLookup {
 export const lookupHederaTransactionDetails = async (
   input: MirrorLookup
 ): Promise<{
-  readonly status: MirrorVerdict;
+  readonly consensusTimestamp: string | null;
   readonly entityId: string | null;
+  readonly status: MirrorVerdict;
+  /** Every leg the ledger recorded, so a receipt can name who paid whom. */
+  readonly transfers: readonly LedgerTransfer[];
 }> => {
-  const unknown = { status: "unknown", entityId: null } as const;
+  const unknown = {
+    consensusTimestamp: null,
+    entityId: null,
+    status: "unknown",
+    transfers: [],
+  } as const;
   const fetchImpl: MirrorFetch = input.fetch ?? fetch;
   const url = `${mirrorNodeUrlForNetwork(input.network)}/api/v1/transactions/${mirrorTransactionId(input.transactionId)}`;
   try {
@@ -80,8 +108,21 @@ export const lookupHederaTransactionDetails = async (
       return unknown;
     }
     return {
-      status: first.result === "SUCCESS" ? "success" : "failed",
+      consensusTimestamp: first.consensus_timestamp ?? null,
       entityId: first.entity_id ?? null,
+      status: first.result === "SUCCESS" ? "success" : "failed",
+      transfers: [
+        ...(first.transfers ?? []).map((row) => ({
+          accountId: row.account,
+          amount: BigInt(Math.round(row.amount)),
+          asset: "0.0.0",
+        })),
+        ...(first.token_transfers ?? []).map((row) => ({
+          accountId: row.account,
+          amount: BigInt(Math.round(row.amount)),
+          asset: row.token_id,
+        })),
+      ],
     };
   } catch {
     return unknown;

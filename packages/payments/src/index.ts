@@ -58,6 +58,7 @@ export {
 } from "./mirror";
 export type {
   HcsNoteRecord,
+  LedgerTransfer,
   MirrorFetch,
   MirrorLookup,
   MirrorVerdict,
