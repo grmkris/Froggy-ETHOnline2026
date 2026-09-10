@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { MirrorFetch } from "@froggy/payments";
 
 import { formatAmount } from "./catalogue";
-import type { DoorFetch, ServiceCard } from "./catalogue";
+import type { DoorFetch, DoorRequest, ServiceCard } from "./catalogue";
 import { readDoor } from "./config";
 import {
   buyTool,
@@ -229,7 +229,7 @@ describe("froggy_buy refusals", () => {
     expect(text(said)).toContain("Nothing was paid");
   });
 
-  it("blames the facilitator, not the seller, and will not substitute one", async () => {
+  it("names the settlement path without blaming it, and will not substitute one", async () => {
     const said = await buyTool(
       deps({
         env: FUNDED_ENV,
@@ -240,7 +240,8 @@ describe("froggy_buy refusals", () => {
       { service: "oracle" }
     );
     expect(said.isError).toBe(true);
-    expect(text(said)).toContain("api.blocky402.com did not settle it");
+    expect(text(said)).toContain("api.blocky402.com");
+    expect(text(said)).toContain("the payment was not accepted");
     expect(text(said)).toContain("will not try a different facilitator");
     expect(text(said)).toContain("No money moved");
   });
@@ -257,6 +258,126 @@ describe("froggy_buy refusals", () => {
     );
     expect(said.isError).toBe(true);
     expect(text(said)).toContain("rather than paying twice");
+  });
+});
+
+describe("froggy_buy and the price it was shown", () => {
+  /** A challenge that asks for something other than what the card advertised. */
+  const askingFor = (over: Record<string, string>) => ({
+    ...CHALLENGE,
+    accepts: [{ ...CHALLENGE.accepts[0], ...over }],
+  });
+
+  const sellerAsking =
+    (over: Record<string, string>): DoorFetch =>
+    async (url, init) => {
+      await Promise.resolve();
+      if (url.endsWith("/.well-known/x402.json")) {
+        return Response.json(CARD);
+      }
+      return init?.headers === undefined
+        ? Response.json(askingFor(over), { status: 402 })
+        : Response.json({ answer: "sold" });
+    };
+
+  it("refuses a 402 that asks for more than the catalogue said", async () => {
+    const said = await buyTool(
+      deps({ env: FUNDED_ENV, fetch: sellerAsking({ amount: "500000000" }) }),
+      { service: "oracle" }
+    );
+    expect(said.isError).toBe(true);
+    expect(text(said)).toContain("catalogue lists this at 0.05 HBAR");
+    expect(text(said)).toContain("now asking 5 HBAR");
+    expect(text(said)).toContain("Nothing was paid");
+  });
+
+  it("refuses a 402 that redirects the money to a different account", async () => {
+    const said = await buyTool(
+      deps({ env: FUNDED_ENV, fetch: sellerAsking({ payTo: "0.0.999999" }) }),
+      { service: "oracle" }
+    );
+    expect(said.isError).toBe(true);
+    expect(text(said)).toContain("a different recipient");
+  });
+
+  it("refuses a price above the ceiling the caller named", async () => {
+    const said = await buyTool(deps({ env: FUNDED_ENV }), {
+      maxAmount: "1000000",
+      service: "oracle",
+    });
+    expect(said.isError).toBe(true);
+    expect(text(said)).toContain(
+      "more than the 0.01 HBAR you said you would pay"
+    );
+  });
+
+  it("buys when the price is within the ceiling", async () => {
+    const said = await buyTool(deps({ env: FUNDED_ENV }), {
+      maxAmount: "5000000",
+      service: "oracle",
+    });
+    expect(said.isError).toBe(false);
+  });
+
+  it("will not follow a redirect while carrying a payment", async () => {
+    const said = await buyTool(
+      deps({
+        env: FUNDED_ENV,
+        fetch: async (url) => {
+          await Promise.resolve();
+          return url.endsWith("/.well-known/x402.json")
+            ? Response.json(CARD)
+            : new Response(null, {
+                headers: { location: "https://elsewhere.example/x" },
+                status: 302,
+              });
+        },
+      }),
+      { service: "oracle" }
+    );
+    expect(said.isError).toBe(true);
+    expect(text(said)).toContain(
+      "does not follow a redirect while carrying a payment"
+    );
+    expect(text(said)).toContain("https://elsewhere.example/x");
+  });
+});
+
+describe("froggy_buy and the proof it sends", () => {
+  it("puts a real signed payment under both header names", async () => {
+    // The other tests decide "paid" from the mere presence of headers, so they
+    // would pass against an empty one. This one reads what actually travelled.
+    let sent: DoorRequest = {};
+    await buyTool(
+      deps({
+        env: FUNDED_ENV,
+        fetch: async (url, init) => {
+          await Promise.resolve();
+          if (url.endsWith("/.well-known/x402.json")) {
+            return Response.json(CARD);
+          }
+          if (init?.headers === undefined) {
+            return Response.json(CHALLENGE, { status: 402 });
+          }
+          sent = init;
+          return Response.json({ answer: "sold" });
+        },
+      }),
+      { service: "oracle" }
+    );
+    const proof = sent.headers?.["payment-signature"] ?? "";
+    expect(proof).not.toBe("");
+    expect(sent.headers?.["x-payment"]).toBe(proof);
+    // SAFETY: `proof` is the header the door just wrote, and the assertions
+    // below are what check that it decodes to an x402 v2 envelope.
+    const envelope = JSON.parse(
+      Buffer.from(proof, "base64").toString("utf-8")
+    ) as { accepted: { amount: string; payTo: string }; x402Version: number };
+    expect(envelope.x402Version).toBe(2);
+    // Signed against the offer that was assessed and price-checked, not some
+    // other entry of `accepts` the payer might have re-picked on its own.
+    expect(envelope.accepted.amount).toBe("5000000");
+    expect(envelope.accepted.payTo).toBe("0.0.10847556");
   });
 });
 

@@ -13,8 +13,21 @@
 import { HEDERA_MAINNET, HEDERA_TESTNET } from "@froggy/payments";
 import type { HederaNetwork } from "@froggy/payments";
 
-/** Where the door points when the caller says nothing. */
+/**
+ * Where the door points when the caller says nothing.
+ *
+ * `FROGGY_DEFAULT_URL` is stamped into the file by whichever server handed it
+ * out, so a door downloaded from a testnet deployment, a preview, or somebody
+ * else's fork buys from that one rather than from ours. The constant below is
+ * only what is left when a copy arrives from somewhere that did no stamping.
+ */
 const DEFAULT_URL = "https://app-production-58dd.up.railway.app";
+
+/** Set by `serveAgentDoor`, immediately below the shebang. Never by a caller. */
+const STAMPED_VARIABLE = "FROGGY_DEFAULT_URL";
+
+/** What a caller sets to aim the door somewhere else entirely. */
+const FROGGY_URL = "FROGGY_URL";
 
 interface Wallet {
   readonly accountId: string;
@@ -35,6 +48,38 @@ const KEY_VARIABLE = "FROGGY_HEDERA_PRIVATE_KEY";
 /** A Hedera account id, `0.0.x`. Anything else is not one. */
 const ACCOUNT_PATTERN = /^\d+\.\d+\.\d+$/u;
 
+/** Long and hexish: an ECDSA key, with or without its `0x`. */
+const KEY_PATTERN = /^(?:0x)?[\da-f]{60,}$/iu;
+
+const looksLikeKey = (value: string): boolean => KEY_PATTERN.test(value);
+
+/**
+ * A value described rather than repeated.
+ *
+ * Anything this function returns may end up in a tool result, so it says how
+ * long the value is and what kind of characters it holds, and never what they
+ * are. A caller who mistyped `0.0.1234` can still tell which variable is
+ * wrong; a caller who pasted a key has not just published it.
+ */
+const withoutQuoting = (value: string): string =>
+  looksLikeKey(value)
+    ? `a ${value.length}-character hexadecimal string`
+    : `a ${value.length}-character value`;
+
+/** The first of these variables that holds something, or the compiled default. */
+const firstSet = (
+  env: Record<string, string | undefined>,
+  names: readonly string[]
+): string => {
+  for (const name of names) {
+    const value = env[name]?.trim() ?? "";
+    if (value !== "") {
+      return value;
+    }
+  }
+  return DEFAULT_URL;
+};
+
 const readNetwork = (value: string | undefined): HederaNetwork =>
   value === HEDERA_TESTNET ? HEDERA_TESTNET : HEDERA_MAINNET;
 
@@ -54,7 +99,7 @@ export const readDoor = (env: Record<string, string | undefined>): Door => {
   const configured = accountId !== "" && privateKey !== "";
   return {
     network: readNetwork(env["FROGGY_NETWORK"]?.trim()),
-    url: trimTrailingSlash(env["FROGGY_URL"]?.trim() ?? DEFAULT_URL),
+    url: trimTrailingSlash(firstSet(env, [FROGGY_URL, STAMPED_VARIABLE])),
     wallet: configured ? { accountId, privateKey } : null,
   };
 };
@@ -83,7 +128,17 @@ export const unconfigured = (
     return `This door is not configured to pay. Set ${missing.join(" and ")}. Nothing was bought and nothing was simulated.`;
   }
   if (!ACCOUNT_PATTERN.test(accountId)) {
-    return `${ACCOUNT_VARIABLE} is "${accountId}", which is not a Hedera account id. It should look like 0.0.12345.`;
+    // The value is described, never quoted. These two variables are set on
+    // adjacent lines of one install command, so the likeliest reason this one
+    // is not an account id is that the key was pasted into it — and a refusal
+    // that echoes it would put the key in the agent's context, in the
+    // transcript, and on its way to a model provider.
+    return [
+      `${ACCOUNT_VARIABLE} is set to ${withoutQuoting(accountId)}, which is not a Hedera account id. It should look like 0.0.12345.`,
+      looksLikeKey(accountId)
+        ? `That value has the shape of a private key. Check that ${ACCOUNT_VARIABLE} and ${KEY_VARIABLE} have not been swapped, and treat the key as exposed if it has been anywhere it should not be.`
+        : "Nothing was bought and nothing was simulated.",
+    ].join(" ");
   }
   return null;
 };

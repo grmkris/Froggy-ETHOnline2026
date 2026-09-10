@@ -34,10 +34,12 @@ import type {
 } from "@froggy/payments";
 
 import {
+  boundedText,
   describeCatalogue,
   formatAmount,
   readCatalogue,
   refuse,
+  SELLER_TIMEOUT_MS,
 } from "./catalogue";
 import type { DoorFetch, Read, Resource, ServiceCard } from "./catalogue";
 import { ACCOUNT_VARIABLE, unconfigured } from "./config";
@@ -230,22 +232,31 @@ const readAnswer = async (input: {
   const settlement = decodeSettlementHeader(
     settlementHeaderFrom(input.response.headers)
   );
-  const body = await input.response.text();
+  const body = await boundedText(input.response);
+  // A seller running against a stub says so twice: in the header the app sets
+  // and in the shape of the id itself. Either is enough to stop this reading
+  // as a real settlement, which is the repository's loudest rule.
+  const stubbed =
+    input.response.headers.get("x-froggy-stubbed") === "true" ||
+    (settlement !== null && settlement.transactionId.startsWith("stub-"));
   const paidLine = [
     `Paid ${formatAmount(input.requirement.amount, input.requirement.asset, input.network)} to ${input.requirement.payTo} on ${input.network}.`,
     settlement === null
       ? "The seller returned no settlement id."
       : `Settlement ${settlement.transactionId} — check it with froggy_receipt.`,
   ].join(" ");
+  const stubLine = stubbed
+    ? "\n\nThis seller is running in stub mode: it says so itself, and the settlement id above is not a Hedera transaction. Nothing was really paid, and nothing here is evidence that it was."
+    : "";
 
   if (input.response.ok) {
-    return say(`${paidLine}\n\n${body}`);
+    return say(`${paidLine}${stubLine}\n\n${body}`, stubbed);
   }
   if (input.response.status === 402) {
     return say(
       [
-        `${input.url} asked for payment again after the proof was presented.`,
-        `That means the facilitator at ${input.card.facilitator} did not settle it — the settlement path, not the seller, is what did not work.`,
+        `${input.url} asked for payment again after the proof was presented, so the payment was not accepted.`,
+        `Either the facilitator at ${input.card.facilitator} could not settle it, or it settled nothing because the proof itself was refused — a key of the wrong type, an account that does not hold the asset, or an offer that had expired. The seller's own words are below.`,
         "This door will not try a different facilitator: the one named in the challenge is part of what is being sold.",
         "No money moved.",
         "",
@@ -282,8 +293,134 @@ const readAnswer = async (input: {
 export interface BuyInput {
   /** Optional in the wire schema, so `undefined` is a value it can carry. */
   readonly arguments?: Readonly<Record<string, string>> | undefined;
+  /** The most the caller will pay, in the asset's smallest units. */
+  readonly maxAmount?: string | undefined;
   readonly service: string;
 }
+
+/**
+ * What the caller was shown against what the seller is now asking.
+ *
+ * The catalogue is the only price a caller has agreed to before this call, so
+ * a 402 that asks for something else is a drift the caller has to hear about
+ * rather than a number to pay. This is what makes "the price is in the
+ * challenge, not in our documentation" safe: the two are compared, and the
+ * purchase stops when they disagree.
+ *
+ * A resource the caller named by full URL has no catalogue row to compare
+ * against, so only `maxAmount` applies there — and the refusal says so.
+ */
+const priceObjection = (input: {
+  readonly listed: Resource | null;
+  readonly maxAmount: string | undefined;
+  readonly network: string;
+  readonly requirement: PaymentChallenge["accepts"][number];
+}): string | null => {
+  const { listed, requirement } = input;
+  const asking = formatAmount(
+    requirement.amount,
+    requirement.asset,
+    input.network
+  );
+  if (input.maxAmount !== undefined && input.maxAmount.trim() !== "") {
+    let ceiling: bigint | null = null;
+    try {
+      ceiling = BigInt(input.maxAmount.trim());
+    } catch {
+      return `maxAmount is "${input.maxAmount}", which is not a whole number of the asset's smallest units. Nothing was paid.`;
+    }
+    if (BigInt(requirement.amount) > ceiling) {
+      return [
+        `${asking} is more than the ${formatAmount(ceiling.toString(), requirement.asset, input.network)} you said you would pay.`,
+        "Nothing was paid, and nothing was created on your behalf.",
+      ].join(" ");
+    }
+  }
+  if (listed === null || listed.price === "") {
+    return null;
+  }
+  if (
+    listed.price !== requirement.amount ||
+    listed.asset !== requirement.asset
+  ) {
+    return [
+      `The catalogue lists this at ${formatAmount(listed.price, listed.asset, listed.network)} and the seller is now asking ${asking}.`,
+      "This door will not pay a price the caller was not shown. Read froggy_catalogue again and ask for it by name if the new price is acceptable.",
+      "Nothing was paid.",
+    ].join(" ");
+  }
+  if (listed.payTo !== "" && listed.payTo !== requirement.payTo) {
+    return [
+      `The catalogue says this is paid to ${listed.payTo} and the seller is now asking to be paid to ${requirement.payTo}.`,
+      "That is a different recipient from the one advertised, so nothing was paid.",
+    ].join(" ");
+  }
+  return null;
+};
+
+/**
+ * Ask the seller for the thing, and come back with the price or with the
+ * sentence saying why there is not one.
+ *
+ * Redirects are not followed. The next request carries a signed payment, and
+ * following a redirect would hand it to a host the caller never named — so the
+ * new address is reported and the caller decides.
+ */
+type Priced =
+  | { readonly _tag: "priced"; readonly challenge: PaymentChallenge }
+  /** Answered without asking for payment. Not a failure; nothing was paid. */
+  | { readonly _tag: "free"; readonly text: string }
+  | { readonly _tag: "refused"; readonly reason: string };
+
+const askForPrice = async (input: {
+  readonly argued: boolean;
+  readonly fetch: DoorFetch;
+  readonly url: string;
+}): Promise<Priced> => {
+  const { url } = input;
+  const first = await input.fetch(url, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(SELLER_TIMEOUT_MS),
+  });
+  if (first.status >= 300 && first.status < 400) {
+    const location = first.headers.get("location");
+    return {
+      _tag: "refused",
+      reason: [
+        `${url} answered ${first.status} and pointed somewhere else${location === null ? "" : `: ${location}`}.`,
+        "This door does not follow a redirect while carrying a payment. Ask for that address directly if it is one you meant to buy from.",
+        "Nothing was paid.",
+      ].join(" "),
+    };
+  }
+  if (first.status === 402) {
+    const challenge = await challengeFrom(first);
+    return challenge === null
+      ? {
+          _tag: "refused",
+          reason: `${url} asked for payment but did not describe it in a way this door can read. Nothing was paid.`,
+        }
+      : { _tag: "priced", challenge };
+  }
+  const body = await boundedText(first);
+  if (first.ok) {
+    return {
+      _tag: "free",
+      text: `${url} answered without asking for payment. Nothing was paid.\n\n${body}`,
+    };
+  }
+  // Some resources take no arguments at all and answer 400 to any query
+  // string. The caller supplied them, so name that as the first thing to try
+  // rather than leaving them to read it out of the seller's prose.
+  const suspect =
+    first.status === 400 && input.argued
+      ? " This resource may take no arguments; try it again with none."
+      : "";
+  return {
+    _tag: "refused",
+    reason: `${url} answered ${first.status}. Nothing was paid.${suspect}\n\n${body}`,
+  };
+};
 
 /**
  * Buy it.
@@ -317,31 +454,35 @@ export const buyTool = async (
   }
 
   const url = withArguments(resource.value.url, input.arguments ?? {});
-  const first = await fetchImpl(url);
-  if (first.status !== 402) {
-    const body = await first.text();
-    return first.ok
-      ? say(
-          `${url} answered without asking for payment. Nothing was paid.\n\n${body}`
-        )
-      : say(
-          `${url} answered ${first.status}. Nothing was paid.\n\n${body}`,
-          true
-        );
+  const asked = await askForPrice({
+    argued: Object.keys(input.arguments ?? {}).length > 0,
+    fetch: fetchImpl,
+    url,
+  });
+  if (asked._tag === "refused") {
+    return say(asked.reason, true);
   }
-
-  const challenge = await challengeFrom(first);
-  if (challenge === null) {
-    return say(
-      `${url} asked for payment but did not describe it in a way this door can read. Nothing was paid.`,
-      true
-    );
+  if (asked._tag === "free") {
+    return say(asked.text);
   }
+  const { challenge } = asked;
   const chosen = pickRequirement(challenge, deps.door.network);
   if (chosen._tag === "refused") {
     return say(chosen.reason, true);
   }
   const requirement = chosen.value;
+
+  const objection = priceObjection({
+    listed: card.value.resources.includes(resource.value)
+      ? resource.value
+      : null,
+    maxAmount: input.maxAmount,
+    network: deps.door.network,
+    requirement,
+  });
+  if (objection !== null) {
+    return say(objection, true);
+  }
 
   const short = await shortfall({
     accountId: wallet.accountId,
@@ -359,7 +500,11 @@ export const buyTool = async (
     network: deps.door.network,
     privateKey: wallet.privateKey,
   });
-  const attempt = await payer.pay(challenge);
+  // Only the offer that was assessed, priced against the catalogue and
+  // balance-checked is handed on. The payer picks from `accepts` with a laxer
+  // rule than `assess`, so passing the whole challenge would let it sign an
+  // offer this function never looked at — and then report the one it did.
+  const attempt = await payer.pay({ ...challenge, accepts: [requirement] });
   if (attempt.header === null) {
     return say(
       `The payment could not be built: ${attempt.error ?? "no reason given"}. Nothing was paid.`,
@@ -372,14 +517,33 @@ export const buyTool = async (
   const proof = paymentHeaders(attempt.header);
   const paid = await fetchImpl(url, {
     headers: Object.fromEntries(Object.entries(proof)),
+    redirect: "manual",
+    signal: AbortSignal.timeout(SELLER_TIMEOUT_MS),
   });
   return await readAnswer({
     card: card.value,
     network: deps.door.network,
-    requirement,
+    // What was signed, not what was chosen. They are the same by construction
+    // above; saying so from the payer's own answer keeps it that way.
+    requirement: attempt.requirements ?? requirement,
     response: paid,
     url,
   });
+};
+
+/** Which of the three reasons there was no topic to search. */
+const whyNoTopic = (
+  cardUnreadable: boolean,
+  doorNetwork: string,
+  asked: string
+): string => {
+  if (cardUnreadable) {
+    return "this door could not read the seller's card, so it does not know which topic to look on";
+  }
+  if (asked !== doorNetwork) {
+    return `this door is configured for ${doorNetwork} and knows no topic for ${asked}`;
+  }
+  return "the seller publishes no consensus topic";
 };
 
 export interface ReceiptInput {
@@ -404,14 +568,26 @@ export const receiptTool = async (
     fetch: fetcher(deps),
     url: deps.door.url,
   });
+  // The topic comes from the card, and the card describes the network the
+  // door points at. Asked about the other network, there is no topic this
+  // door knows — and saying "no note was found" about a topic nobody looked
+  // at would be the receipt view telling the exact kind of half-truth it
+  // exists to expose.
+  const topicId =
+    card._tag === "refused" || network !== deps.door.network
+      ? null
+      : card.value.hcsTopic;
   const resolved = await resolveSettlement({
     fetch: mirrorer(deps),
     network,
-    topicId: card._tag === "refused" ? null : card.value.hcsTopic,
+    topicId,
     transactionId: settlementId,
   });
   return say(
-    describeSettlement(resolved, network),
+    describeSettlement(resolved, network, {
+      topicKnown: topicId !== null && topicId !== "",
+      why: whyNoTopic(card._tag === "refused", deps.door.network, network),
+    }),
     resolved.status === "failed"
   );
 };

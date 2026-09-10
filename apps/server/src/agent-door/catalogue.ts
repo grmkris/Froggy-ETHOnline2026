@@ -40,11 +40,75 @@ const decodeServiceCard = Schema.decodeUnknownResult(ServiceCard);
 
 const CARD_PATH = "/.well-known/x402.json";
 
+/**
+ * How the door asks a seller for something.
+ *
+ * `redirect` and `signal` are part of the shape rather than left to the
+ * default because the caller here is a stranger's URL: an unbounded wait is a
+ * tool call that never returns, and a followed redirect is the signed payment
+ * header being handed to a host the caller never named.
+ */
+export interface DoorRequest {
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly redirect?: "manual";
+  readonly signal?: AbortSignal;
+}
+
 /** The fetch shape the door uses, so a test can hand in a plain function. */
-export type DoorFetch = (
-  url: string,
-  init?: { readonly headers: Readonly<Record<string, string>> }
-) => Promise<Response>;
+export type DoorFetch = (url: string, init?: DoorRequest) => Promise<Response>;
+
+/** How long the door waits on a seller before calling it unreachable. */
+export const SELLER_TIMEOUT_MS = 20_000;
+
+/** How much of a seller's answer may reach the caller's context. */
+const MAX_BODY_BYTES = 64_000;
+
+/**
+ * Read a bounded prefix of a body and stop pulling.
+ *
+ * Whatever comes back here is put in front of a model, so the repository's
+ * rule about capping tool output applies to a stranger's server as much as to
+ * a page dump. The cut is announced rather than silent: a truncated answer a
+ * reader believes is whole is worse than a short one.
+ */
+export const boundedText = async (response: Response): Promise<string> => {
+  const reader = response.body?.getReader();
+  if (reader === undefined) {
+    return "";
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let truncated = false;
+  try {
+    while (size < MAX_BODY_BYTES) {
+      // eslint-disable-next-line no-await-in-loop -- a stream is read in order; there is no set of chunks to await together
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      chunks.push(value);
+      size += value.byteLength;
+    }
+    truncated = size >= MAX_BODY_BYTES;
+  } catch {
+    // A body that stops arriving is still worth whatever did arrive.
+  }
+  try {
+    await reader.cancel();
+  } catch {
+    // Already finished, or already broken. Either way there is nothing to do.
+  }
+  const joined = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  const text = new TextDecoder("utf-8").decode(joined);
+  return truncated
+    ? `${text.slice(0, MAX_BODY_BYTES)}\n\n[…the seller's answer was longer than ${MAX_BODY_BYTES} bytes and was cut here.]`
+    : text;
+};
 
 /** Either the thing, or the sentence saying why there is no thing. */
 export type Read<A> =
@@ -66,21 +130,30 @@ export const readCatalogue = async (input: {
   readonly fetch?: DoorFetch;
   readonly url: string;
 }): Promise<Read<ServiceCard>> => {
-  const fetchImpl: DoorFetch = input.fetch ?? (async (url) => await fetch(url));
+  const fetchImpl: DoorFetch =
+    input.fetch ?? (async (url, init) => await fetch(url, init));
   const url = `${input.url}${CARD_PATH}`;
-  let body: unknown;
+  let text: string;
   try {
-    const response = await fetchImpl(url);
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(SELLER_TIMEOUT_MS),
+    });
     if (!response.ok) {
       return refuse(
         `${url} answered ${response.status}. That is the service card, so there is nothing to sell from here right now.`
       );
     }
-    body = await response.json();
+    text = await boundedText(response);
   } catch (error) {
     return refuse(
       `${url} could not be reached (${error instanceof Error ? error.message : "unknown error"}).`
     );
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return refuse(`${url} answered something that is not a service card.`);
   }
   const decoded = decodeServiceCard(body);
   return decoded._tag === "Success"
