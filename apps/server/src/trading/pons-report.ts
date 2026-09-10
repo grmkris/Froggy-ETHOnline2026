@@ -25,7 +25,7 @@ const LIMITATIONS = [
   "Fee and tax figures are basis points read from the curve. A launch can still carry costs that are not expressed there.",
 ];
 
-export interface PonsLaunch {
+interface PonsLaunch {
   readonly curve: string;
   readonly deployer: string;
   readonly creatorFeeRecipient: string;
@@ -41,7 +41,7 @@ export interface PonsLaunch {
   readonly sweptTokens: string;
   readonly sweptAt: string;
 }
-export interface PonsCurve {
+interface PonsCurve {
   readonly quoteReserve: string;
   readonly tokenReserve: string;
   readonly realQuoteReserve: string;
@@ -51,7 +51,7 @@ export interface PonsCurve {
   readonly readyToGraduate: boolean;
   readonly graduated: boolean;
 }
-export interface PonsPoolState {
+interface PonsPoolState {
   readonly id: string;
   readonly currency0: string;
   readonly currency1: string;
@@ -62,7 +62,7 @@ export interface PonsPoolState {
   readonly tick: number;
   readonly liquidity: string;
 }
-export interface PonsReport {
+interface PonsReport {
   readonly v: 1;
   readonly operation: "pons_token";
   readonly network: string;

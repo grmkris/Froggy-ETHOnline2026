@@ -36,9 +36,8 @@ const RpcRequest = Schema.Struct({
 /** A Robinhood RPC that answers the head and hands back foreign runtime code. */
 const rpc: typeof fetch = Object.assign(
   async (_input: URL | RequestInfo, init?: RequestInit) => {
-    const request = Schema.decodeUnknownSync(RpcRequest)(
-      JSON.parse(String(init?.body))
-    );
+    const body = Schema.decodeUnknownSync(Schema.String)(init?.body);
+    const request = Schema.decodeUnknownSync(RpcRequest)(JSON.parse(body));
     const answer = (result: string | typeof BLOCK) =>
       Response.json({ jsonrpc: "2.0", id: request.id, result });
     if (request.method === "eth_chainId") {
