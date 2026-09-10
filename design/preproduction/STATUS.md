@@ -1,60 +1,55 @@
 # Status
 
-**Updated:** 10 September 2026 · **Phase A complete, Gate A answered** · **Phase B starting** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
+**Updated:** 10 September 2026 · **Phases A–C landed, E started** · **Full push: everything on the list** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
 
 ## Done
 
-- Read the brief and `references/README.md`; verified all three reference images against their manifest checksums and the archive with `unzip -t`. All match.
-- Audited the checkout: repository identity, nine worktrees, another session's uncommitted work (left untouched), instruction files, skills, tokens, components, nav, motion, existing design surfaces. Result: `INVENTORY.md`.
-- Audited the host: headless Linux over SSH, no graphical session, tool versions, tmux layout from metadata only, all ten MCP registrations. Result: `ENVIRONMENT.md`.
-- **Proved the browser review loop** — open, interact, resize across 1440/768/390/320, emulate reduced motion, capture, read console errors. Chromium 151, `oklch()` supported, zero errors, reduced motion confirmed by reading the document rather than trusting the flag. Evidence: `evidence/phase-a/harness/`. Harness: `tools/review-shot.mjs`.
-- **Found a real defect with it**: the existing FABLE51 board scrolls horizontally at 320 px. Recorded in `evidence/phase-a/existing-board/review.json`.
-- Established, by execution rather than assumption, that **Rive cannot run on this host** and that **no image-generation route exists here**. Both negatives are evidence, in `SOURCES.md`, with the vendor wording that explains them.
-- Priced the Rive question properly: `.riv` export from $9/seat/mo, editable `.rev` backup
-  only from $32/seat/mo. Recommendation and reasoning in `TOOLCHAIN.md`.
-- Wrote the initial records: `README.md`, `STATUS.md`, `ENVIRONMENT.md`, `INVENTORY.md`, `TOOLCHAIN.md`, `DECISIONS.md`, `SOURCES.md`.
-- **Gate A answered.** A Mac exists, so Rive re-enters the toolchain as the authoring seat with export still gated; the image route is confirmed manual at €0. Recorded in `DECISIONS.md`, with D-05 revised from "defer Rive" to a sequence that proves editing on the Free plan before any plan is bought.
-- Wrote `agents/RIVE_MAC_SETUP.md` — install, **probe the port before registering**, correct scope, a seven-step smoke test in a disposable file, and the plan trap laid out with real prices.
-- Wrote `motion/MOTION_CONTRACT.md` — the five states, and the mapping from the repository's **actual** eight-state `TaskStatus`. The load-bearing row is `uncertain`: it renders as neutral `stopped`, never as failure and never as success, because an uncertain payment is not a failed one.
+**Phase A — audit.** `ENVIRONMENT.md` (headless host, capability matrix, MCP registrations, tmux metadata), `INVENTORY.md` (keep/rework/replace/missing), `TOOLCHAIN.md`, `SOURCES.md`, `DECISIONS.md`. References verified against their manifest checksums.
+
+**Phase B — toolchain proof.**
+
+- Browser review **proven** and reusable: `tools/review-shot.mjs` runs 1440/768/390/320 and reduced motion, reads reduced motion back from the document rather than trusting the flag, and exits non-zero on a console error or a sideways scroll.
+- Rive **dropped for the submission** (D-11) on the CSP finding, not on price.
+- Branded motion **delivered without it**: `brand/frog-mark.svg` plus `prototype/motion-states.html`, all five contract states, verified by `tools/state-sweep.mjs`.
+- `tools/build-prototype.mjs` generates every board from the one mark, with a `--check` staleness gate, so geometry cannot drift across 24 stamps in three boards.
+
+**Phase C — visual system.** `screens/review-board.html`: mark from 128 to 16, app icon, wordmark and reversed variant, palette, type scale, one button in every state, one task card, one approval, and a quiet Home with the sidebar the clean reference uses. `system/TOKENS_PROPOSAL.md` adds the missing lime accent and namespaced frog roles without repainting the existing palette.
+
+**Phase E — first slice.** `screens/task-workspace.html`: one shell carrying conversation, status, a structured comparison, the decision, the browser affordance in all five modes, and four honest receipts — confirmed, uncertain, stubbed, price-changed.
+
+**Phase F — readiness.** `SERVICES.md` from repository evidence plus one live read of the deployed app's health endpoint. Every integration reports live, Telegram included. Nothing is claimed `journey-verified` on the strength of a health check.
+
+**Navigation.** `flows/NAVIGATION.md` maps today's six destinations onto the brief's three without deleting a capability.
+
+### Defects the review loop caught, in this workspace's own work
+
+Worth listing, because each one reported healthy while being broken:
+
+1. CSS cannot reach inside an SVG `<use>` shadow tree — every rig animation was dead.
+2. The generator suffixed `id="frog"`, silently breaking the working bob and success hop.
+3. Eyelid travel never reached the eye: the blink never blinked and `stopped` was identical to `idle`, both while reporting running animations.
+4. The review board's pending spinner ignored `prefers-reduced-motion`.
+5. The board scrolled sideways at 320 px.
+6. A Home mock labelled "desktop 1440" was rendered in a 400 px column.
+7. Task step markers collided with their own labels.
 
 ## Blocked
 
 | What | Blocked by | Effect |
 | --- | --- | --- |
-| Editable-design proof (Gate B) | `DesignSync` needs `/design-login` | Cannot read or write the design-system project yet |
-| ~~Rive editing proof~~ | **Dropped for the submission — see D-11** | 58 hours to internal cut, and Rive's WASM runtime would need `wasm-unsafe-eval` in a CSP that has a test guarding it. Runbook kept, unexecuted |
-| ~~Rive export~~ | **Not buying** | D-11. Branded motion ships as SVG + Motion: no new dependency, no second machine, no CSP change, €0 |
-| Mascot concept imagery | No image-generation route on this host | Resolved as a route, not a blocker: manual, €0, confirmed at Gate A. Prompts come at Gate C |
-| `cloudflare` MCP | `Insufficient scope: required "user:read account:read"` | Irrelevant to this assignment. Noted, not pursued. |
+| Editable-design proof | `DesignSync` needs `/design-login` | The one remaining capability of the four prioritized. Everything else routed around it. |
+| Mascot poses and illustrations | No image-generation route here | Route agreed: prompts from me, generation by you. Prompts are the next artifact. |
+| Merchant card checkout | No automated route exists at all | Designed as a human handoff, recorded in `SERVICES.md` |
 
-Nothing above is silently waiting. Each has a named remedy.
+## Next, in order
 
-## Next action — yours
-
-**One thing, and it is one command.**
-
-> **Step / purpose:** authorize `DesignSync` so the design system can be read and written as editable components — the last unproven capability of the four you prioritized.
->
-> **Already done:** confirmed `.design-sync/` targets `@froggy/ui` with project `09198294-daf5-4bb6-8d31-6ad66a8a9789`, 30 authored previews and 40 component docs; called `DesignSync` and captured its exact refusal; verified this host's Chromium is 151 so the `oklch()` trap in `.design-sync/NOTES.md` cannot bite.
->
-> **Your action:** type `/design-login` in this session and complete the browser authorization with your claude.ai account.
->
-> **Success looks like:** the command reports the account authorized with design-system scope granted.
->
-> **Then:** I run `list_projects` and `list_files`, diff the remote project against the 113 local components, and report the drift — **read-only**. No write happens until you have seen a plan naming every path.
-
-### The Mac is no longer needed
-
-D-11 drops Rive for the submission: 58 hours to internal cut, and its WASM runtime would require loosening an enforced CSP that has a test asserting it stays tight. `agents/RIVE_MAC_SETUP.md` stays in the repository, unexecuted, for after the hackathon. Branded motion ships as SVG + the Motion foundation already in the app.
-
-## Then — mine, no further approval needed
-
-1. On `/design-login`: reconnect `DesignSync`, list the project, diff it against `@froggy/ui`, prove one token-bound component reads back correctly. Closes Gate B's design half.
-2. Add the missing lime accent token as a proposal in `system/`, alongside the existing forest-green palette rather than repainting it.
-3. Rig the mascot from `FrogMark` as an SVG with separate eye, pupil, mouth and body groups — needed by both routes, since it is Rive's input and also the static fallback the contract requires.
-4. Build the five-state contract as a live isolated preview in `prototype/`, reviewed with the harness at every size in `MOTION_CONTRACT.md`. This proves the contract independently of whether Rive export ever unblocks.
-5. Draft the three-destination navigation as a **proposal** in `flows/` — how today's six items map to Home/Explore/Wallet, and where Activity, Agents, Services and `/browser` go. Proposal only; `apps/web` is not touched in preproduction.
-6. Write `SERVICES.md` from repository evidence for Phase F, with every status unclaimed until it is verified.
+1. **Mascot pose prompts** — exact, reference-anchored prompts for the six poses, ready to paste. Then verification and manifest records when the files come back.
+2. **Fixtures** — the five labelled scenarios in `fixtures/`, wired into the boards.
+3. **State matrix** — `flows/STATE_MATRIX.md`: empty, loading, partial, no result, provider unavailable, auth expired, blocked, needs-user, rejected, cancelled, failed, completed.
+4. **Copy deck** — onboarding, status, notification, permission, error, empty state.
+5. **Explore, Token detail, Wallet, Onboarding, Connections** screen families.
+6. **Icons** — the mapped `lucide` set plus the few custom brand/status marks.
+7. **Gallery and handoff** — one local index over assets, states and screens, then `handoff/` with the ordered implementation backlog.
 
 ## Deliberately not done
 
