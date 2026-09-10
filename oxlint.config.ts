@@ -57,6 +57,7 @@ export default defineConfig({
         "typescript/no-unsafe-call": "off",
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-return": "off",
+        "typescript/strict-boolean-expressions": "off",
       },
     },
     {
@@ -160,6 +161,21 @@ export default defineConfig({
       files: ["design/preproduction/tools/**/*.mjs"],
       rules: {
         "eslint/no-await-in-loop": "off",
+        /*
+         * These are standalone Node scripts, deliberately outside every
+         * tsconfig — they drive a browser and read files, and giving them a
+         * project just to satisfy a linter would be a tsconfig nobody builds.
+         * With no type information, type-aware lint sees `process` and every
+         * `page.evaluate` result as `error`/`any` and objects to all of it.
+         * Ordinary lint still applies in full; only the rules that need types
+         * they cannot have are off.
+         */
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/strict-boolean-expressions": "off",
       },
     },
     {

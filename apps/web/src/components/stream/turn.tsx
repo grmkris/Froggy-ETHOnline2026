@@ -173,7 +173,7 @@ export const Turn = ({
   return (
     <Message align="start" className="text-[15px] leading-relaxed">
       <MessageAvatar className="bg-primary shadow-card mt-1 size-7 min-w-7 self-start">
-        <FrogMark className="size-5" />
+        <FrogMark className="size-5" compact />
       </MessageAvatar>
       <MessageContent className="gap-2">
         <Blocks

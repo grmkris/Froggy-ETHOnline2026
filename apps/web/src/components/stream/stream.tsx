@@ -81,7 +81,7 @@ const Earlier = ({
 const ThinkingMarker = (): ReactElement => (
   <Marker className="px-1">
     <MarkerIcon>
-      <FrogMark />
+      <FrogMark compact />
     </MarkerIcon>
     <MarkerContent>Thinking…</MarkerContent>
   </Marker>

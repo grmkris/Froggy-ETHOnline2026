@@ -49,7 +49,7 @@ export const BrowserWindowPage = (): ReactElement => {
     <div className="flex h-dvh flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
         <span className="bg-primary shadow-card grid size-7 place-items-center rounded-lg">
-          <FrogMark className="size-5" />
+          <FrogMark className="size-5" compact />
         </span>
         <span className="font-display text-sm font-semibold">
           Froggy · the page

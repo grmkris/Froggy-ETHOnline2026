@@ -64,7 +64,7 @@ export const TopBar = ({
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-8">
         <div className="flex items-center gap-2">
           <span className="bg-brand-soft grid size-8 place-items-center rounded-lg">
-            <FrogMark className="size-6" />
+            <FrogMark className="size-6" compact />
           </span>
           <span className="font-display font-semibold">Froggy</span>
         </div>

@@ -696,6 +696,10 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
+  --color-frog-skin: var(--frog-skin);
+  --color-frog-belly: var(--frog-belly);
   --color-ink: var(--foreground);
   --color-drive-agent: var(--drive-agent);
   --color-drive-agent-foreground: var(--drive-agent-foreground);
@@ -797,9 +801,29 @@
   --radius-row: 12px;
   --r-cta: 14px;
   --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --eye: #f3f5f0;
-  --pupil: #15201a;
-  --mouth: #15201a;
+  /*
+   * The lime accent. An accent only: never text, never a surface, and never the
+   * sole signal for a state. It appears where the interface asks something of a
+   * person, and in the mascot's one moment of celebration.
+   */
+  --lime: #b4e04a;
+  --lime-ink: #24400a;
+  /*
+   * The mascot's own roles. Skin is deliberately lighter and livelier than
+   * --primary: the forest green is the interface's, this green is the animal's.
+   * `--eye`, `--pupil` and `--mouth` are the previous generic names, kept as
+   * aliases so nothing has to change in one go.
+   */
+  --frog-skin: #4f9e63;
+  --frog-skin-lo: #3d7f4e;
+  --frog-belly: #d3e9d6;
+  --frog-eye: #fcfdfb;
+  --frog-pupil: #15201a;
+  --frog-mouth: #24402e;
+  --frog-lime: var(--lime);
+  --eye: var(--frog-eye);
+  --pupil: var(--frog-pupil);
+  --mouth: var(--frog-mouth);
   --knob: #ffffff;
 }
 
@@ -841,9 +865,18 @@
   --r-cta: 999px;
   --machine:
     "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
-  --eye: #0d120f;
-  --pupil: #e9f0ea;
-  --mouth: #0d120f;
+  --lime: #c7ec63;
+  --lime-ink: #16250a;
+  --frog-skin: #5cb473;
+  --frog-skin-lo: #47935c;
+  --frog-belly: #2b4634;
+  --frog-eye: #f2f7f2;
+  --frog-pupil: #0b140e;
+  --frog-mouth: #0b140e;
+  --frog-lime: var(--lime);
+  --eye: var(--frog-eye);
+  --pupil: var(--frog-pupil);
+  --mouth: var(--frog-mouth);
   --knob: #eaf5ee;
 }
 

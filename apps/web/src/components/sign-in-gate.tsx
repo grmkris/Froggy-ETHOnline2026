@@ -28,7 +28,7 @@ const Wordmark = (): React.ReactElement => (
   <div className="mb-8">
     <div className="mb-7 flex items-center gap-3">
       <span className="bg-primary grid size-11 place-items-center rounded-2xl">
-        <FrogMark className="size-8" />
+        <FrogMark className="size-8" compact />
       </span>
       <span className="font-display text-xl font-semibold tracking-tight">
         Froggy
