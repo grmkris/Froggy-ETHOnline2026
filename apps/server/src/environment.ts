@@ -18,7 +18,7 @@
  * used, so a config dump or a log line cannot spill one.
  */
 
-import { decodeUserId } from "@froggy/domain";
+import { decodeUserId, KNOWN_ASSETS } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import {
   EVM_CHAIN_IDS,
@@ -64,6 +64,8 @@ const PLACEHOLDER = {
   privyAppSecret: "REPLACE_ME_PRIVY_APP_SECRET",
   privyAuthorizationKeyId: "REPLACE_ME_PRIVY_KEY_QUORUM_ID",
   privyAuthorizationPrivateKey: "REPLACE_ME_PRIVY_AUTHORIZATION_KEY",
+  privyEarnVaultId: "REPLACE_ME_PRIVY_EARN_VAULT_ID",
+  privyServicePayee: "0xREPLACE_ME_SERVICE_PAYEE",
   telegramBotToken: "REPLACE_ME_TELEGRAM_BOT_TOKEN",
   telegramWebhookSecret: "",
   treasuryEvmAddress: "0xREPLACE_ME_TREASURY",
@@ -383,6 +385,22 @@ export interface Environment {
    */
   readonly treasuryEvmAddress: string | null;
   /**
+   * What a person's own Privy policy is pinned to, or null while it is not
+   * configured.
+   *
+   * Null is a real state and not a failure: with no payee to pin, a person's
+   * policy would carry no rules, and a policy with no rules is a wallet the
+   * agent cannot sign for at all. The mint refuses instead, the person stays on
+   * the app-wide policy, and the pane says which one they are on.
+   */
+  readonly personPolicyPins: {
+    readonly chainId: string;
+    readonly servicePayee: string;
+    readonly treasury: string;
+    readonly usdc: string;
+    readonly vaultId: string | null;
+  } | null;
+  /**
    * The treasury as a Privy wallet the agent key may sign for, when it is
    * one: the address above plus its wallet id. Null when either is unset
    * or no agent key exists, and then Froggy pays nothing upstream itself.
@@ -650,6 +668,41 @@ const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
   }
 );
 
+/**
+ * What a person's own policy is pinned to, or null when it is not configured.
+ *
+ * Null is a real state rather than a failure: with no payee to pin, a person's
+ * policy would carry no rules, and a policy with no rules is a wallet the agent
+ * cannot sign for at all. Everyone stays on the app-wide policy until both a
+ * payee and a treasury exist.
+ */
+const personPolicyPins = (input: {
+  readonly evmNetwork: EvmNetwork;
+  readonly privyEarnVaultId: string;
+  readonly privyServicePayee: string;
+  readonly treasuryEvmAddress: string;
+}): Environment["personPolicyPins"] => {
+  if (
+    isPlaceholder(input.privyServicePayee, PLACEHOLDER.privyServicePayee) ||
+    isPlaceholder(input.treasuryEvmAddress, PLACEHOLDER.treasuryEvmAddress)
+  ) {
+    return null;
+  }
+  const vaultConfigured = !isPlaceholder(
+    input.privyEarnVaultId,
+    PLACEHOLDER.privyEarnVaultId
+  );
+  return {
+    // Decimal, because that is what Privy compares against: a number here
+    // matches nothing and refuses everything, quietly.
+    chainId: String(EVM_CHAIN_IDS[input.evmNetwork]),
+    servicePayee: input.privyServicePayee,
+    treasury: input.treasuryEvmAddress,
+    usdc: KNOWN_ASSETS[`${input.evmNetwork}:usdc`].id,
+    vaultId: vaultConfigured ? input.privyEarnVaultId : null,
+  };
+};
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
@@ -812,6 +865,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     ).pipe(Config.withDefault(PLACEHOLDER.privyHederaPolicyId));
     const treasuryWalletId = yield* Config.string("TREASURY_WALLET_ID").pipe(
       Config.withDefault(PLACEHOLDER.treasuryWalletId)
+    );
+    const privyServicePayee = yield* Config.string(
+      "PRIVY_PERSON_SERVICE_PAYEE"
+    ).pipe(Config.withDefault(PLACEHOLDER.privyServicePayee));
+    const privyEarnVaultId = yield* Config.string("PRIVY_EARN_VAULT_ID").pipe(
+      Config.withDefault(PLACEHOLDER.privyEarnVaultId)
     );
 
     const anthropicApiKey = yield* secret(
@@ -1003,6 +1062,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       telegramBotToken: Redacted.value(telegramBotToken),
       telegramBotUsername,
       telegramWebhookSecret: Redacted.value(telegramWebhookSecret),
+      personPolicyPins: personPolicyPins({
+        evmNetwork,
+        privyEarnVaultId,
+        privyServicePayee,
+        treasuryEvmAddress,
+      }),
       treasuryEvmAddress: isPlaceholder(
         treasuryEvmAddress,
         PLACEHOLDER.treasuryEvmAddress

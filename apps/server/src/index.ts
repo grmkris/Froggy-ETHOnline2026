@@ -25,10 +25,12 @@ import {
   loadEnvironment,
 } from "./environment";
 import { AgentGrants } from "./grants";
+import type { GrantDeps } from "./grants";
 import { recordHistoryWait } from "./history-sources";
 import { InteractionRegistry } from "./interactions";
 import { digestJob, promptJob, runScheduledFor } from "./jobs";
 import { createNotices } from "./notices";
+import { PersonPolicies } from "./person-policies";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import { ChatRunRegistry } from "./runs";
@@ -36,7 +38,7 @@ import { createScheduleTicker } from "./schedules";
 import { cspModeOf, withSecurityHeaders } from "./security-headers";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
-import type { SocketData } from "./sockets";
+import type { SocketData, SocketDeps } from "./sockets";
 import { resumeBrowseTask } from "./tasks";
 import { liveTelegramPager, stubTelegramPager } from "./telegram/pager";
 import type { TelegramPager } from "./telegram/pager";
@@ -262,13 +264,29 @@ class FroggyServer extends Context.Service<
         treasuryPayee: environment.treasuryEvmAddress,
       });
 
-      const grants = new AgentGrants({
+      // Null until a payee and a treasury are configured: with nothing to pin,
+      // a person's policy would carry no rules, and a policy with no rules is a
+      // wallet the agent cannot sign for at all. Everyone stays on the app-wide
+      // policy until then, and the pane says which one they are on.
+      const policies =
+        environment.personPolicyPins === null
+          ? undefined
+          : new PersonPolicies({
+              pins: environment.personPolicyPins,
+              privy: services.privy,
+              store: services.store,
+            });
+
+      const grantDeps: GrantDeps = {
         privy: services.privy,
         publishApp: (userId, message) => {
           sinks.publishApp?.(userId, message);
         },
         workspaces,
-      });
+      };
+      const grants = new AgentGrants(
+        policies === undefined ? grantDeps : { ...grantDeps, policies }
+      );
 
       // Turns and steps per person per day; the demo account is exempt so a
       // judge mid-recording is never told to come back tomorrow.
@@ -289,7 +307,7 @@ class FroggyServer extends Context.Service<
         },
       });
 
-      const sockets = createSocketHandlers({
+      const socketDeps: SocketDeps = {
         resumeBrowse: async (userId) => {
           await resumeBrowseTask(
             {
@@ -310,7 +328,10 @@ class FroggyServer extends Context.Service<
         runs,
         services,
         workspaces,
-      });
+      };
+      const sockets = createSocketHandlers(
+        policies === undefined ? socketDeps : { ...socketDeps, policies }
+      );
 
       // Browsers nobody is watching or driving are released on a slow clock.
       // The profile stays; only the process goes, so eight seats serve more
@@ -384,6 +405,28 @@ class FroggyServer extends Context.Service<
       const scheduleTick = setInterval(() => {
         detached("schedule tick", async () => {
           await ticker.tick();
+        });
+      }, SCHEDULE_TICK_MS);
+
+      // Telling people their agent is about to go quiet. The expiry itself
+      // needs nothing to run — it is a condition on every Privy rule and an
+      // expiry rule on the mandate — so a missed tick costs the warning, never
+      // the leash. Rides the schedule clock rather than adding a second one.
+      const nudgeTick = setInterval(() => {
+        detached("policy expiry nudge", async () => {
+          for (const due of (await policies?.dueForNudge(Date.now())) ?? []) {
+            // Sequential: these go to Telegram, and a burst of parallel sends
+            // is how a bot gets rate-limited into silence.
+            // eslint-disable-next-line no-await-in-loop
+            await notices.post(due.userId, {
+              // `reminder` rather than `scheduled_run`: the latter is
+              // suppressed on Telegram because its report already went as a
+              // card, and this one has no card behind it. The phone is where
+              // somebody who is not looking at Froggy will see it.
+              source: "reminder",
+              text: due.text,
+            });
+          }
         });
       }, SCHEDULE_TICK_MS);
 
@@ -505,6 +548,7 @@ class FroggyServer extends Context.Service<
           Effect.promise(async () => {
             clearInterval(sweep);
             clearInterval(scheduleTick);
+            clearInterval(nudgeTick);
             clearInterval(launchTick);
             await services.launches.close();
             await reactions.close();
