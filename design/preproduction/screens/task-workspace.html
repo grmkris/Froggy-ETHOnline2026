@@ -1,0 +1,724 @@
+<!-- GENERATED from brand/frog-mark.svg by tools/build-prototype.mjs. Edit the mark or the template, then rebuild. -->
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — task workspace and the first slice</title>
+<!--
+  The first vertical slice: Home → task → structured result → handoff →
+  receipt, in one task shell. Shopping is the worked example; travel and token
+  research reuse the same shell with a different result body.
+
+  All data is invented. Merchant domains use .example. No live provider,
+  no advice, no claim that any payment route works today.
+-->
+<style>
+  :root {
+    --bg: #eff1ec;
+    --card: #fcfdfb;
+    --paper: #f3f5f0;
+    --line: #dfe3df;
+    --line-soft: #ebeeeb;
+    --ink: #15201a;
+    --ink-2: #6b776f;
+    --ink-3: #8c968f;
+    --primary: #2f7a4c;
+    --primary-lo: #276a41;
+    --primary-fg: #f6fbf7;
+    --brand-soft: #e2efe6;
+    --destructive: #b3402f;
+    --lime: #b4e04a;
+    --lime-ink: #24400a;
+    --drive-agent: #c8892a;
+    --drive-human: #3b6ea8;
+    --frog-skin: #4f9e63;
+    --frog-skin-lo: #3d7f4e;
+    --frog-belly: #d3e9d6;
+    --frog-eye: #fcfdfb;
+    --frog-pupil: #15201a;
+    --frog-mouth: #24402e;
+    --frog-lime: var(--lime);
+    --radius: 20px;
+    --radius-row: 12px;
+    --shadow:
+      0 1px 2px rgb(21 32 26 / 5%), 0 10px 28px -18px rgb(21 32 26 / 28%);
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 32px 20px 80px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  h1 {
+    font: 600 26px/1.2 var(--sans);
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  h2 {
+    font: 600 12px/1 var(--sans);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-3);
+    margin: 44px 0 14px;
+  }
+  h3 {
+    font: 600 15px/1.3 var(--sans);
+    margin: 0 0 3px;
+  }
+  p {
+    margin: 0 0 12px;
+    color: var(--ink-2);
+    max-width: 68ch;
+  }
+  code,
+  .mono {
+    font-family: var(--mono);
+    font-size: 0.92em;
+  }
+  .num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .froggy {
+    display: block;
+    overflow: visible;
+  }
+  .froggy .halo {
+    display: none;
+  }
+  .froggy .lid {
+    transform: translateY(-2px);
+  }
+  .froggy[data-compact="true"] .detail {
+    display: none;
+  }
+  .fig {
+    font: 11px/1.4 var(--mono);
+    color: var(--ink-3);
+    margin: 8px 0 0;
+  }
+  .warn {
+    border-left: 2px solid var(--lime);
+    padding-left: 12px;
+    font-size: 13px;
+    color: var(--ink-2);
+    margin: 12px 0 0;
+  }
+  .btn {
+    font: 500 14px/1 var(--sans);
+    border-radius: var(--radius-row);
+    padding: 11px 17px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary);
+    color: var(--primary-fg);
+  }
+  .btn.secondary {
+    background: var(--card);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn.ghost {
+    background: transparent;
+    color: var(--ink-2);
+  }
+  .btn.danger {
+    background: transparent;
+    color: var(--destructive);
+    border-color: color-mix(in oklab, var(--destructive) 35%, transparent);
+  }
+  .btn.small {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .chip {
+    white-space: nowrap;
+    font: 500 11px/1 var(--sans);
+    padding: 5px 9px;
+    border-radius: 99px;
+    background: var(--paper);
+    color: var(--ink-2);
+    border: 1px solid var(--line-soft);
+  }
+  .chip.work {
+    background: var(--brand-soft);
+    color: var(--primary);
+    border-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  .chip.needs {
+    background: color-mix(in oklab, var(--lime) 28%, var(--card));
+    color: var(--lime-ink);
+    border-color: color-mix(in oklab, var(--lime) 45%, transparent);
+  }
+
+  /* ---------------- task shell ---------------- */
+  .shell {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+  }
+  .shell > .main {
+    padding: 18px 20px 22px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    min-width: 0;
+  }
+  .shell > aside {
+    border-left: 1px solid var(--line-soft);
+    background: var(--card);
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+  }
+  @media (width < 860px) {
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .shell > aside {
+      border-left: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+  }
+  .taskbar {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 13px 20px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line-soft);
+    grid-column: 1 / -1;
+  }
+  .steps {
+    display: grid;
+    gap: 7px;
+    font-size: 13px;
+  }
+  .steps div {
+    display: flex;
+    gap: 9px;
+    align-items: baseline;
+    color: var(--ink-3);
+  }
+  .steps div[data-done] {
+    color: var(--ink-2);
+  }
+  .steps div[data-now] {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  /* The marker is a word, not an icon, so status reads without colour. It needs
+     a gutter wide enough for the longest word or it collides with the label. */
+  .steps i {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex: none;
+    width: 42px;
+    text-align: right;
+    opacity: 0.75;
+  }
+
+  /* ---------------- comparison ---------------- */
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+    gap: 12px;
+  }
+  .opt {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-row);
+    padding: 13px;
+    display: grid;
+    gap: 7px;
+    align-content: start;
+  }
+  .opt[data-picked] {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+  .opt .price {
+    font: 600 17px/1 var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .opt ul {
+    margin: 0;
+    padding-left: 15px;
+    font-size: 13px;
+    color: var(--ink-2);
+    display: grid;
+    gap: 3px;
+  }
+  .opt .src {
+    font: 11px/1 var(--mono);
+    color: var(--ink-3);
+  }
+
+  /* ---------------- browser affordance ---------------- */
+  .drive {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-row);
+    padding: 11px 13px;
+    font-size: 13px;
+  }
+  .ring {
+    width: 13px;
+    height: 13px;
+    border-radius: 99px;
+    flex: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 22%, transparent);
+    background: currentColor;
+  }
+  .drive[data-mode="agent"] {
+    color: var(--drive-agent);
+  }
+  .drive[data-mode="human"] {
+    color: var(--drive-human);
+  }
+  .drive[data-mode="idle"] {
+    color: var(--ink-3);
+  }
+  .drive span.txt {
+    color: var(--ink);
+    flex: 1;
+  }
+  .drive .btn {
+    flex: none;
+  }
+
+  /* ---------------- ledger / receipt ---------------- */
+  .ledger {
+    display: grid;
+    gap: 7px;
+    font-size: 13px;
+  }
+  .ledger div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .ledger dt {
+    color: var(--ink-2);
+  }
+  .ledger .total {
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .receipt {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-row);
+    padding: 14px;
+    display: grid;
+    gap: 9px;
+  }
+  .stub {
+    font: 500 11px/1 var(--sans);
+    padding: 5px 9px;
+    border-radius: 99px;
+    background: color-mix(in oklab, var(--destructive) 12%, var(--card));
+    color: var(--destructive);
+    border: 1px solid color-mix(in oklab, var(--destructive) 32%, transparent);
+    white-space: nowrap;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+</style>
+
+<main>
+  <h1>Task workspace — the first vertical slice</h1>
+  <p>
+    One shell: conversation, status, structured output, the decision it needs,
+    browser context and receipts. Shopping is the worked example. Travel and
+    token research reuse this shell and swap the result body. All figures
+    invented.
+  </p>
+
+  <h2>1 · Task with a structured result and a decision</h2>
+  <div class="shell">
+    <div class="taskbar">
+      <svg
+        class="froggy"
+        width="30"
+        height="30"
+        viewBox="0 0 64 64"
+        data-compact="true"
+        aria-hidden="true"
+      >
+        <circle class="halo" cx="32" cy="34" r="30" />
+        <g id="frog-0" class="frog">
+        <g class="body">
+        <path class="skin" d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z" fill="var(--frog-skin, #4f9e63)"/>
+        <ellipse class="detail jaw" cx="32" cy="47.5" rx="16" ry="6.2" fill="var(--frog-belly, #d3e9d6)" opacity=".45"/>
+        <circle class="detail" cx="28" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+        <circle class="detail" cx="36" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+        </g>
+        <g class="eyes">
+        <g class="eye" data-eye="left">
+        <circle class="dome" cx="18" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="18" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+        <circle class="pupil" cx="18" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+        <circle class="glint" cx="16.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-left-0"><circle cx="18" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-left-0)"><rect class="lid" x="10" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+        </g>
+        <g class="eye" data-eye="right">
+        <circle class="dome" cx="46" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="46" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+        <circle class="pupil" cx="46" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+        <circle class="glint" cx="44.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-right-0"><circle cx="46" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-right-0)"><rect class="lid" x="38" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+        </g>
+        </g>
+        <path class="mouth mouth-neutral" d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="var(--frog-mouth, #24402e)" stroke-width="2.2" stroke-linecap="round"/>
+        <g class="mouth mouth-open" opacity="0">
+        <clipPath id="maw-0"><path d="M21.5 38Q32 52 42.5 38Z"/></clipPath>
+        <path d="M21.5 38Q32 52 42.5 38Z" fill="var(--frog-mouth, #24402e)"/>
+        <ellipse clip-path="url(#maw-0)" cx="32" cy="44.4" rx="5" ry="2.6" fill="var(--frog-lime, #b4e04a)"/>
+        </g>
+        </g>
+      </svg>
+      <div style="flex: 1; min-width: 0">
+        <h3 style="margin: 0">Running shoes under €150</h3>
+        <p class="mono" style="margin: 0; color: var(--ink-3); font-size: 11px">
+          started 11:04 CEST · checked 4 min ago · €0.12 research spend
+        </p>
+      </div>
+      <span class="chip needs">needs you</span>
+      <button class="btn danger small">Stop task</button>
+    </div>
+
+    <div class="main">
+      <div class="steps">
+        <div data-done>
+          <i>done</i> Understood: neutral sole, size 42, under €150
+        </div>
+        <div data-done><i>done</i> Searched three retailers</div>
+        <div data-now><i>now</i> Waiting for you to pick one</div>
+        <div><i>next</i> Prepare checkout</div>
+      </div>
+
+      <div class="compare">
+        <div class="opt" data-picked>
+          <h3>Cloudline 2</h3>
+          <span class="price">€129.00</span>
+          <ul>
+            <li>Neutral, daily</li>
+            <li>Size 42 in stock</li>
+            <li>Free returns</li>
+          </ul>
+          <span class="src">shop-a.example · seen 11:31</span>
+          <button class="btn small">Picked</button>
+        </div>
+        <div class="opt">
+          <h3>Trailwind 9</h3>
+          <span class="price">€145.00</span>
+          <ul>
+            <li>Neutral, cushioned</li>
+            <li>Size 42 — <b>needs a check</b></li>
+            <li>Returns within 14 days</li>
+          </ul>
+          <span class="src">shop-b.example · seen 11:29</span>
+          <button class="btn secondary small">Pick this</button>
+        </div>
+        <div class="opt">
+          <h3>Riverstone</h3>
+          <span class="price">€138.50</span>
+          <ul>
+            <li>Neutral, firmer</li>
+            <li>Size 42 in stock</li>
+            <li>Returns unclear</li>
+          </ul>
+          <span class="src">shop-c.example · seen 11:33</span>
+          <button class="btn secondary small">Pick this</button>
+        </div>
+      </div>
+      <p class="warn">
+        Three options, the reason each one qualified, where it came from and
+        when it was seen. "Returns unclear" stays unclear rather than being
+        rounded up to a benefit. Froggy has picked nothing — the outlined card
+        is <b>your</b> selection.
+      </p>
+
+      <div class="drive" data-mode="agent">
+        <span class="ring" aria-hidden="true"></span>
+        <span class="txt"
+          >Froggy is on shop-a.example, checking the size chart.</span
+        >
+        <button class="btn secondary small">View browser</button>
+        <button class="btn ghost small">Take control</button>
+      </div>
+      <p class="fig" style="max-width: none">
+        closing the browser view does not stop the task · only Stop task does
+      </p>
+    </div>
+
+    <aside>
+      <div>
+        <h3>Decision</h3>
+        <div class="ledger" style="padding-top: 8px">
+          <div>
+            <dt>Cloudline 2 · size 42</dt>
+            <dd class="num">€129.00</dd>
+          </div>
+          <div>
+            <dt>Delivery</dt>
+            <dd class="num">€4.90</dd>
+          </div>
+          <div>
+            <dt>Service fee</dt>
+            <dd class="num">€1.50</dd>
+          </div>
+          <div>
+            <dt>Research so far</dt>
+            <dd class="num">€0.12</dd>
+          </div>
+          <div class="total">
+            <dt>To pay now</dt>
+            <dd class="num">€135.40</dd>
+          </div>
+        </div>
+        <p class="fig">quote valid until 12:20 CEST · shop-a.example</p>
+        <div style="display: grid; gap: 8px; margin-top: 12px">
+          <button class="btn">Approve €135.40</button>
+          <button class="btn ghost">Reject</button>
+        </div>
+        <p class="warn">
+          Card payment is not something Froggy can complete. Approving hands you
+          the checkout with the basket already filled.
+        </p>
+      </div>
+    </aside>
+  </div>
+  <p class="fig">desktop · task shell · invented data</p>
+
+  <h2>2 · The browser affordance, in every mode</h2>
+  <div class="panel" style="display: grid; gap: 10px">
+    <div class="drive" data-mode="idle">
+      <span class="ring" aria-hidden="true"></span>
+      <span class="txt">No browser open. The task is still running.</span>
+      <button class="btn ghost small">Open</button>
+    </div>
+    <div class="drive" data-mode="agent">
+      <span class="ring" aria-hidden="true"></span>
+      <span class="txt">Froggy is driving. You are watching.</span>
+      <button class="btn ghost small">Take control</button>
+    </div>
+    <div class="drive" data-mode="human">
+      <span class="ring" aria-hidden="true"></span>
+      <span class="txt"
+        >You are driving. Froggy is paused and will not click.</span
+      >
+      <button class="btn ghost small">Give back</button>
+    </div>
+    <div class="drive" data-mode="human">
+      <span class="ring" aria-hidden="true"></span>
+      <span class="txt">
+        <b>Sign in to continue.</b> Froggy cannot see what you type here.
+      </span>
+      <button class="btn small">Open handoff</button>
+    </div>
+    <div class="drive" data-mode="idle">
+      <span class="ring" aria-hidden="true"></span>
+      <span class="txt">
+        Disconnected at 11:38. The task is paused, nothing was submitted.
+      </span>
+      <button class="btn secondary small">Retry</button>
+    </div>
+    <p class="warn">
+      Amber is the agent driving, blue is the person, neutral is idle — the same
+      signal on every surface, from <code>DrivingRing</code>, which already
+      exists. Colour is never the only cue: each row says it in words. Login and
+      card entry are redacted from recordings and never reach the model.
+    </p>
+  </div>
+
+  <h2>3 · Settlement, told honestly</h2>
+  <div class="cols">
+    <div class="receipt">
+      <div style="display: flex; gap: 9px; align-items: center">
+        <h3 style="margin: 0; flex: 1">Confirmed</h3>
+        <span class="chip work">receipt</span>
+      </div>
+      <div class="ledger">
+        <div>
+          <dt>Example Shoe Co.</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+        <div>
+          <dt>Method</dt>
+          <dd>your card, ending 4242</dd>
+        </div>
+        <div>
+          <dt>Settled</dt>
+          <dd class="num">11:47:03 CEST</dd>
+        </div>
+      </div>
+      <p class="fig">reference AB-24193 · task “Running shoes under €150”</p>
+    </div>
+
+    <div class="receipt">
+      <div style="display: flex; gap: 9px; align-items: center">
+        <h3 style="margin: 0; flex: 1">Outcome not yet known</h3>
+        <span class="chip">pending</span>
+      </div>
+      <div class="ledger">
+        <div>
+          <dt>Example Shoe Co.</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+        <div>
+          <dt>Submitted</dt>
+          <dd class="num">11:47:03 CEST</dd>
+        </div>
+        <div>
+          <dt>Last checked</dt>
+          <dd class="num">11:52:10 CEST</dd>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 13px">
+        The payment may have gone through. Froggy will not try again and will
+        not switch payment method until this is resolved.
+      </p>
+      <div style="display: flex; gap: 8px">
+        <button class="btn secondary small">Check again</button>
+        <button class="btn ghost small">Contact merchant</button>
+      </div>
+      <p class="warn" style="border-color: var(--line)">
+        No second debit offered. This is <b>not</b> a failure and is not styled
+        as one.
+      </p>
+    </div>
+
+    <div class="receipt">
+      <div style="display: flex; gap: 9px; align-items: center">
+        <h3 style="margin: 0; flex: 1">Simulated purchase</h3>
+        <span class="stub">stubbed</span>
+      </div>
+      <div class="ledger">
+        <div>
+          <dt>Example Shoe Co.</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+        <div>
+          <dt>Method</dt>
+          <dd>stub adapter</dd>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 13px">
+        Nothing was paid. This receipt exists so a demo cannot be mistaken for a
+        purchase.
+      </p>
+      <p class="fig">
+        stubbed: true · the server refuses stubs on a public origin
+      </p>
+    </div>
+
+    <div class="receipt">
+      <div style="display: flex; gap: 9px; align-items: center">
+        <h3 style="margin: 0; flex: 1">Price changed</h3>
+        <span class="chip needs">needs you</span>
+      </div>
+      <div class="ledger">
+        <div>
+          <dt>Approved</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+        <div>
+          <dt>Merchant now asks</dt>
+          <dd class="num">€142.90</dd>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 13px">
+        Your approval does not cover this. Nothing was paid.
+      </p>
+      <div style="display: flex; gap: 8px">
+        <button class="btn small">Approve €142.90</button>
+        <button class="btn ghost small">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>4 · The same shell, other task kinds</h2>
+  <div class="cols">
+    <div class="panel">
+      <h3>Travel</h3>
+      <p style="font-size: 13px">
+        Result body becomes an itinerary with options; one price is watched on a
+        stated cadence with an expiry. "Checked twice a day until 20 Sep" —
+        never "monitoring".
+      </p>
+    </div>
+    <div class="panel">
+      <h3>Token research</h3>
+      <p style="font-size: 13px">
+        Result body becomes evidence and risk findings with the chain and
+        contract shown, each claim sourced and timed. A proposed trade is a
+        review, not an action, and no screen claims a token is safe.
+      </p>
+    </div>
+    <div class="panel">
+      <h3>Paid service via MCP</h3>
+      <p style="font-size: 13px">
+        The task names the assistant that asked and the allowance it was
+        granted. The allowance is never wider than yours, and no tool can raise
+        it.
+      </p>
+    </div>
+  </div>
+
+  <h2>5 · What this is not</h2>
+  <div class="panel">
+    <p style="margin: 0">
+      Invented data throughout; merchant domains use <code>.example</code>. Not
+      live provider evidence, not advice, and not a claim that card checkout
+      works today — it is a human handoff, recorded as such in
+      <code>SERVICES.md</code>.
+    </p>
+  </div>
+</main>
