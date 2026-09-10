@@ -71,6 +71,7 @@ describe("trading environment", () => {
       { network: "eip155:84532", routerVersion: "2.1.1" },
       { network: "eip155:1", routerVersion: "2.1.1" },
       { network: "eip155:11155111", routerVersion: "2.1.1" },
+      { network: "eip155:4663", routerVersion: "2.1.1" },
     ]);
   });
 

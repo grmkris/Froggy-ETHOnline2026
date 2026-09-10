@@ -527,7 +527,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
     ).pipe(Config.withDefault("{}"));
     const uniswapChainsRaw = yield* Config.string("UNISWAP_CHAINS").pipe(
       Config.withDefault(
-        '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"}]'
+        '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"eip155:4663","routerVersion":"2.1.1"}]'
       )
     );
     const rpcEndpoints: Record<string, Redacted.Redacted> = {};
