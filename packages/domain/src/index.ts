@@ -15,6 +15,18 @@ export {
   ApprovalRecord,
   ApprovalResolution,
 } from "./approval";
+export {
+  ActionKind,
+  Allowance,
+  authorityFor,
+  AuthoritySide,
+  ceilingFor,
+  defaultAllowance,
+  GRANT_DAYS,
+  needsPerson,
+  STANDING_AUTHORITY,
+} from "./authority";
+export type { ActionAuthority } from "./authority";
 export { DigestSchedule, NO_DIGEST } from "./digest";
 export { DirectoryEntry } from "./directory";
 export { AGENT_TOKEN_PREFIX, AgentToken } from "./agent-token";
