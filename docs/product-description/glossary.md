@@ -77,7 +77,7 @@ Where Froggy's own interface has a word for something, that word wins and this e
 
 **Standing and ask.** Which side of the line an action kind sits on before any amount is considered. A _standing_ kind can run on a standing signature; an _ask_ kind gets no allow rule at all in the person's Privy policy, so the default refusal catches it and no standing signature can ever reach it.
 
-**Frozen.** The wallet's spending is halted. The interface says "The wallet is frozen"; a spend attempted while frozen is refused with the code `frozen`. Freezing outlives the run that was in flight when it happened, which is what makes it different from _stop_.
+**Frozen.** The wallet's spending is halted. The interface says "The wallet is frozen"; a spend attempted while frozen is refused with the code `frozen`. Freezing outlives the run that was in flight when it happened, which is what makes it different from _stop_. It does **not** currently reach the trading desk, which has a stop of its own; see [bug-triage](bug-triage.md).
 
 ## Approvals
 

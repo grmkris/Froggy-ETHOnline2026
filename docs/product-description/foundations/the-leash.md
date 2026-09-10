@@ -74,14 +74,18 @@ _Standing_ does not mean uncapped: the person's caps still apply, and where a ki
 
 A kind with no row is refused rather than assumed to be standing. A missing leash must never fail open.
 
+> Technical note: this table is **not consulted at runtime**. The judgement is never handed the person's allowance, and the kind-based half of the human line only runs when it is present — so "`transfer` asks at any amount", the $25 and $10 ceilings, and the rest of this table describe intent rather than behaviour. What actually decides is the numeric approval threshold in the mandate. See [Open questions](#open-questions-and-verification).
+
 ### Two enforcements of one decision
 
-The same four numbers are compiled into two places, from one shape, so they cannot drift apart:
+The same four numbers are **intended** to be compiled into two places, from one shape, so they cannot drift apart:
 
-- **The person's Privy policy.** A standing kind becomes an allow rule carrying the person's cap. An ask kind gets **no rule at all**, so Privy's default refusal catches it and no standing signature can ever reach it.
-- **Froggy's own mandate.** The same numbers become the per-transaction cap, the window cap, the expiry and the approval threshold, so the engine holds an identical ceiling synchronously.
+- **The person's Privy policy.** A standing kind becomes an allow rule carrying the person's cap. An ask kind gets **no rule at all**, so Privy's default refusal catches it and no standing signature can ever reach it. This half works: editing the numbers reaches Privy at once.
+- **Froggy's own mandate.** The same numbers are meant to become the per-transaction cap, the window cap, the expiry and the approval threshold, so the engine holds an identical ceiling synchronously.
 
-The failure this prevents is a leash that is tighter on the screen than it is in the signer. A Privy outage cannot widen what the agent may spend, because the mandate is checked first and locally; the rolling daily ceiling in particular is Froggy's to enforce, because Privy cannot group spends by wallet.
+The failure this is designed to prevent is a leash that is tighter on the screen than it is in the signer.
+
+> Technical note: **the second half is not wired.** The function that rebuilds the mandate's rules from an allowance is never called outside its own tests, and the judgement the engine performs is never given the person's allowance at all. The consequences are set out under [Open questions](#open-questions-and-verification) and in [bug-triage](../bug-triage.md). Read the rest of this document as what the leash is built to do; the entries there say which parts of it currently run.
 
 ### Denial codes
 
@@ -159,7 +163,10 @@ The one variant that cannot be changed at all is provenance: it is fixed when th
 
 ## Open questions and verification
 
-- The relationship between the mandate's `approval_threshold` rules and the newer four-number allowance is two regimes in one function: with an allowance the kind is asked first and the numeric threshold is the fallback; without one, the threshold rules decide alone. Which regime a live workspace is under has not been confirmed by hand.
+- **The allowance regime does not run.** `authorize` takes an optional allowance, and with one present the action kind decides the human line before any amount is considered. The judgement built in `apps/server/src/session.ts` never includes it, so every live spend is judged under the older regime where the numeric `approval_threshold` rules decide alone. Everything this document says about kinds asking at any amount, and about the per-kind ceilings, is therefore a description of the table rather than of what happens. **Worth treating as a bug, not documenting.**
+- **A person's edit does not reach the running mandate.** `applyAllowance` — the function that rebuilds the mandate's cap, window, expiry and threshold rules from an allowance — has no caller outside `session.test.ts`. An edit reaches Privy immediately and Froggy's own engine only on the next hydrate, which is precisely the drift the one-shape design exists to prevent.
+- **Freezing does not reach trading.** The trade path takes a `frozen` flag and both of its callers pass `false` literally, so a frozen wallet still trades. Only the trading desk's own Stop trading halts it.
+- Whether these three are known and deliberate for the hackathon build, or are genuine gaps, is a question for the owner rather than a reading of the code.
 - Whether the person's editor can produce a mandate with no expiry rule at all, and what the engine does then, is not established.
 - `unpriceable` is the one denial that carries no rule id. What a person is shown for it has not been checked.
 - The claim that a Privy outage cannot widen the leash rests on the mandate being checked first and locally. It has not been tested by taking Privy away.
