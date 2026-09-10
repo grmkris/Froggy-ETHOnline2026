@@ -62,7 +62,9 @@ Added as the foundations were written:
 - A turn's status is one of `accepted`, `running`, `waiting`, `completed`, `failed`, `stopped`, `interrupted`, `uncertain`. `stopped` means a person ended it; `interrupted` means something else did.
 - History has exactly four sources: `web`, `telegram`, `agent`, `schedule`.
 - The step cap within one turn is **twelve**. The model budget is separate, per person per UTC day, counts turns and steps, lives in memory, and exempts one demo account.
-- The five OAuth scopes are `brief`, `browse`, `pay`, `services`, `history`, in that order on the consent page. **No scope approves a ticket, raises a cap or adds a payee**; `services` is what every MCP tool call needs.
+- The five OAuth scopes are `brief`, `browse`, `pay`, `services`, `history`, in that order on the consent page. **No scope approves a ticket, raises a cap or adds a payee.**
+- **Each MCP tool needs exactly one scope**, decided by name: `pay` for the x402 and trading tools, `history` for `froggy_history`, `services` for everything else as the default. `packages/domain/src/oauth.ts` claims `services` "is what every MCP tool call needs" and the dispatcher does not agree with it — describe the dispatcher and raise the discrepancy, do not repeat the comment.
+- A caller whose scopes are `null` — a person, or a legacy `fgy_` token — **skips the scope check entirely and may do everything an agent may**.
 - An agent token's secret is shown once and only hashed; revocation is a **timestamp, not a deletion**, so past invocations stay attributable.
 - Browser arbitration has three modes — `agent`, `human`, `idle` — and `idle` is "nobody is currently acting", not "nobody connected".
 - Navigation is **three destinations** (Home, Explore, Wallet) with Connections and Account at the foot; a conversation and the browser are deliberately not destinations.

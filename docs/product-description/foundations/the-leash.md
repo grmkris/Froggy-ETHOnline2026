@@ -89,6 +89,20 @@ The code is the record; the sentence shown to a person is never the only thing k
 
 Two of these are not the leash refusing at all, and are worth telling apart: `pocket_exhausted` means the account the host pays its own fees from is dry and a top-up fixes it, and `conversion_failed` names who refused — the signer, the chain, or the balance.
 
+## Variants
+
+| Variant | Set before asking | Changed while it runs |
+| --- | --- | --- |
+| Who is asking | No effect on the judgement. A person's spend and an agent's spend meet the same rules; an agent gets no more room than the person would. What differs is who can be asked: a schedule has no screen, so an _ask_ resolves `unavailable`. | Cannot change mid-spend. |
+| The policy in force | The whole subject. Read at the moment of each judgement, never latched when the run started. | Applies from the next judgement. A spend already allowed is never revisited. |
+| Funds available | Not part of the judgement. The leash can allow a spend the balance cannot cover, and the refusal then comes from the pocket or the conversion, not from a rule. | A shortfall mid-run refuses that spend with `pocket_exhausted` or `conversion_failed`. |
+| What is being asked for | Decides the action kind, which decides the side of the human line and any ceiling of its own. `transfer` and `trade` ask at any amount. | Fixed when the intent is built. |
+| The asking agent's grant | Bounds what may be asked for, independently of what may be spent. Both apply and the narrower wins. | Revoking does not retroactively refuse a spend already allowed. |
+| The shared browser | Decides provenance: anything the browser read is `page` and never payable. | Taking the page does not change any judgement. |
+| Appearance and motion | No effect. A refusal is the same refusal in either theme. | Rendering only. |
+
+The one variant that cannot be changed at all is provenance: it is fixed when the payee enters the system, and no rule, cap or person can promote a `page` address to a payable one.
+
 ## Cancel and interrupt
 
 | Event | Before the spend is judged | After it is allowed |

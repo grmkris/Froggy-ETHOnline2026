@@ -103,7 +103,7 @@ Where Froggy's own interface has a word for something, that word wins and this e
 
 **Grant.** What a connected agent was given: its scopes, when it was granted, and whether it is still live. Disconnecting revokes it.
 
-**Scope.** One permission inside a grant. A grant's scopes bound what the agent may ask for; the leash independently bounds what it may spend. Both apply, and the narrower wins.
+**Scope.** One permission inside a grant. A grant's scopes bound what the agent may ask for; the leash independently bounds what it may spend. Both apply, and the narrower wins. Each MCP tool requires exactly one scope, chosen by the tool's name: `pay` for the payment and trading tools, `history` for reading history, `services` as the default for the rest. A caller carrying no scope set at all — a person, or a legacy token — is not checked against this list and may do everything an agent may.
 
 **Invocation.** One call a connected agent made — an MCP tool call, a task, or a payment — kept as a trail against the agent that made it.
 
@@ -124,3 +124,21 @@ Where Froggy's own interface has a word for something, that word wins and this e
 **Live.** The opposite of stubbed: the integration is running against real credentials. What `/health` reports per integration.
 
 **Provenance.** The trail that makes a spend checkable afterwards by someone who was not there: the settlement, the Hedera transaction, the consensus sequence number, and the evidence with its snapshot hash and deployment block numbers. A source URL alone is a claim about a gateway, not about the data.
+
+## The record and the pager
+
+**The archive.** The durable side of history: the conversations, messages, runs, tool executions and artifacts a person can read back after everything in memory is gone. Distinct from _replay_, which is a convenience over it and is bounded; the archive is not. It is written before work is attempted rather than after, which is what makes an interrupted run a fact rather than a gap.
+
+**Checkpoint.** One write of a running turn into the archive. A turn checkpoints at most once a second while it streams, with a ten-second heartbeat behind that so a turn producing nothing still proves it is alive. A checkpoint that cannot be written aborts the run, because an answer that cannot be recorded is worth less than the record when the answer may have spent money.
+
+**Lease.** The claim a run holds on its workspace while it works, renewed by every checkpoint and good for thirty seconds. One lease at a time, so two runs can never write the same workspace. A run whose lease expires is marked `interrupted` — nobody was there to end it properly.
+
+**Notice.** Something the agent says without being asked. It has exactly three sources: the `notify` tool inside a turn, a reminder coming due, and the report of an unattended turn. A notice always reaches the web stream and reaches the person's phone when Telegram is paired; the record says truthfully which of the two happened.
+
+**Marker.** An entry the tab files between turns for something that happened to the wallet while the conversation went on: a question asked, an answer given, money arriving, a turn started somewhere else, a notice. Markers are the tab's own memory and are not part of _the archive_.
+
+**The waiting badge.** The count of open approvals, carried on Home wherever the person is: a number beside Home on the rail, a dot on the phone's pill with the count in the accessible name, and a card on Home itself.
+
+**Schedule.** A reminder or a prompt on a clock, in the person's own timezone. A reminder posts a _notice_ and runs nothing. A prompt runs an unattended turn under the person's own leash, with nobody to ask.
+
+**Digest.** The daily report of what changed, what it cost and what was refused. One schedule with an hour and a timezone, or off.

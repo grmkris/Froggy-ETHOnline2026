@@ -31,10 +31,14 @@ Five, in the order the consent page shows them:
 | `brief` | A lending brief. |
 | `browse` | A run on the shared browser. |
 | `pay` | Signing an x402 payment header for a task the agent brings. |
-| `services` | Buying from the fixed-price catalog — and what **every** MCP tool call needs. |
+| `services` | Buying from the fixed-price catalog, and the **default** for any tool that is not a payment, trading or history tool. |
 | `history` | Reading back what happened. |
 
 Every one of them is a thing to _buy_ or _read_. None of them is a thing to _change_. An agent cannot answer its own approval, cannot raise the per-spend cap, cannot add a payee to the allowlist, and cannot unfreeze a wallet. Those are the person's, and the only way an agent gets more room is for the person to give it.
+
+**Each tool requires exactly one scope**, decided by its name: the x402 and trading tools need `pay`, reading history needs `history`, and everything else takes `services` as the default. A grant lacking the one it needs is refused with "This connection lacks the ... scope. Reconnect Froggy and allow it."
+
+> Technical note: the scope list's own description in the code says `services` "is what every MCP tool call needs". The dispatcher does not do that — it gives each tool one scope and checks only that one, so a grant holding only `services` is refused every payment and trading tool. See [Open questions](#open-questions-and-verification).
 
 Two bounds apply to everything an agent does, and the narrower always wins: its grant bounds what it may ask for, and [the leash](the-leash.md) independently bounds what it may spend.
 
@@ -121,7 +125,8 @@ The invocation is recorded with what it did and what it cost, and stays attribut
 - The person's identity comes from Privy, so an identity failure is a sign-in failure and not something the workspace can route around.
 - A token secret cannot be recovered. Losing it means making a new one; the old one is revoked, and its history stays.
 - A revoked grant's past invocations stay visible in Connections, which is the point of revoking by timestamp.
-- `services` is needed by every MCP tool call, so a grant without it is nearly inert whatever else it holds.
+- A grant without `services` is refused every tool that is not a payment, trading or history tool, which is most of them.
+- **A caller with no scopes is not checked at all.** A person, and a legacy token, carry no scope set, and the check is skipped rather than treated as holding none — so such a token may do everything an agent may. It is the one place here where a missing restriction fails open rather than closed.
 - A client's name is stored as it named itself at registration, so two clients can present the same name.
 - An agent that has been disconnected mid-run does not have its already-accepted run stopped.
 
@@ -132,5 +137,7 @@ The invocation is recorded with what it did and what it cost, and stays attribut
 - Whether a token and an OAuth grant appear in the same list in Connections, or in two, has not been confirmed.
 - The consent screen's exact wording per scope has not been read; only the order is established.
 - Whether a person can narrow an existing grant's scopes without disconnecting and reconnecting is not established.
+- **The scope list's description contradicts the dispatcher.** `packages/domain/src/oauth.ts` says `services` is "what every MCP tool call needs"; `classifyCall` in `apps/server/src/mcp.ts` gives each tool exactly one scope. Worth treating as a bug in whichever is wrong, since a person choosing on the consent screen chooses on the strength of that claim.
+- **The connection detail page displays a minted token's scopes as every scope except `history`**, synthesised for display in `apps/server/src/agent-invocations.ts`. A token carries no scope set and is not checked, so it can call history too. The display understates the token's power in the one direction a person would not expect.
 
 Verified against the Froggy tree at commit `5caed50`.
