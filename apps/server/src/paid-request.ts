@@ -301,6 +301,7 @@ export const paidRequest = async (
   const request: SpendRequest = {
     amount,
     host: target.host,
+    kind: "service_payment",
     idempotencyKey:
       input.idempotencyKey ?? `x402:${input.url}:${requirement.amount}`,
     budgetUsdMicros: deps.budgetUsdMicros,

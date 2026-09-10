@@ -817,6 +817,8 @@ export const buildTools = (deps: ToolDeps) => {
         const attempt = session.spend({
           amount: { asset: usdc, units },
           idempotencyKey: `send:${to}:${amountUsd}:${deps.run.id}`,
+          // Paying a person, which under an allowance always asks them first.
+          kind: "transfer",
           payeeId: to,
           payeeLabel: to,
           // Two layers, and this is the first. An address the model produced

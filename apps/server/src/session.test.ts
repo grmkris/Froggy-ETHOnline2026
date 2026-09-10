@@ -117,6 +117,9 @@ const request = (
     asset: KNOWN_ASSETS["hedera:testnet:hbar"],
     units: overrides.units ?? "100000000",
   },
+  // Buying from the oracle unless a test says otherwise; the kind only changes
+  // the answer once a person has an allowance, which these fixtures do not set.
+  kind: "service_payment",
   idempotencyKey: overrides.key,
   payeeId: "0.0.1",
   payeeLabel: "the oracle",
@@ -187,6 +190,7 @@ describe("spending with an unreadable ledger", () => {
 
     const attempt = session.spend({
       amount: { asset: KNOWN_ASSETS["hedera:testnet:hbar"], units: "1" },
+      kind: "service_payment",
       idempotencyKey: "k",
       payeeId: "0.0.1",
       payeeLabel: "the oracle",
@@ -229,6 +233,7 @@ describe("two tool calls with the same idempotency key", () => {
     const spend = async () =>
       await session.spend({
         amount: { asset: KNOWN_ASSETS["hedera:testnet:hbar"], units: "1" },
+        kind: "service_payment",
         idempotencyKey: "same-key",
         payeeId: "0.0.1",
         payeeLabel: "the oracle",
@@ -264,6 +269,7 @@ describe("two tool calls with the same idempotency key", () => {
     const spend = async () =>
       await session.spend({
         amount: { asset: KNOWN_ASSETS["hedera:testnet:hbar"], units: "1" },
+        kind: "service_payment",
         idempotencyKey: "retried",
         payeeId: "0.0.1",
         payeeLabel: "the oracle",

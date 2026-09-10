@@ -211,6 +211,7 @@ export const purchaseService = async (
         amount,
         host: new URL(resource).host,
         idempotencyKey: `service:${task.id}`,
+        kind: "service_payment",
         budgetUsdMicros: context.budgetUsdMicros,
         interactive: context.interactive ?? true,
         payeeId: services.oracle.payTo,

@@ -33,6 +33,7 @@ import {
   KNOWN_ASSETS,
 } from "@froggy/domain";
 import type {
+  ActionKind,
   SpendStatus,
   Amount,
   ApprovalKind,
@@ -90,6 +91,16 @@ export interface SpendRequest {
   readonly purchase?: PurchaseIntent;
   readonly budgetUsdMicros?: number | undefined;
   readonly amount: Amount;
+  /**
+   * What this money is for, as `STANDING_AUTHORITY` names it.
+   *
+   * Required here and optional on `SpendIntent`: the schema has to keep
+   * decoding receipts written before kinds existed, but nothing may *build* a
+   * new spend without saying what it is, and this is where the compiler can
+   * insist. Under a person's allowance the kind decides whether they are asked,
+   * so an unnamed one would quietly take the most permissive path.
+   */
+  readonly kind: ActionKind;
   /** The Graph answer this spend is justified by, when there is one. */
   evidence?: Evidence;
   readonly host?: string;
@@ -1057,6 +1068,7 @@ export class WorkspaceSession {
     const draft: Draft<SpendIntent, "host" | "usdMicros" | "purchase"> = {
       amount: request.amount,
       idempotencyKey: request.idempotencyKey,
+      kind: request.kind,
       payee: {
         id: request.payeeId,
         label: request.payeeLabel,
@@ -1191,6 +1203,7 @@ export class WorkspaceSession {
       {
         amount: { asset: convert.asset, units: String(amount) },
         idempotencyKey: `${CONVERSION_KEY_PREFIX}${request.idempotencyKey}`,
+        kind: "conversion",
         payeeId: convert.payeeId,
         payeeLabel: convert.payeeLabel,
         // The treasury is configuration, not something a page or the model

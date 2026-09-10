@@ -1002,6 +1002,7 @@ const performWalletPay = async (
   const spend: SpendRequest = {
     amount,
     host: new URL(deps.tasksUrl).host,
+    kind: "service_payment",
     idempotencyKey:
       body.success.quoteTaskId === undefined
         ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
