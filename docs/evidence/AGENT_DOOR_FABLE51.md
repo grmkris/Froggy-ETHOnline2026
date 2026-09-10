@@ -59,6 +59,12 @@ Each was produced by running the built bundle, not by reading the source:
 
 Five more are covered by unit tests against an injected seller, because they need a seller that misbehaves: a network this door cannot pay, an insufficient balance (named to the tinybar), a facilitator that refuses, a 409 while an earlier payment is open, and a 502 after money moved. 19 tests in `apps/server/src/agent-door/tools.test.ts`, plus 7 for the identifier and 7 for the mirror lookups.
 
+## The rest of the tree
+
+`bun run check` passes format, type-aware lint, typecheck, the dependency graph, the agent-file and name checks, and knip. Its test step reports three failures, all in `schedules.test.ts` and `jobs.test.ts`, all date formatting under Bun 1.4.2's ICU on this machine; they fail identically on a clean checkout. A fourth, `a paid brief … claims concurrent paid retries`, failed once in three runs on this branch and once in three runs on a clean checkout: flaky, and not new.
+
+`bun run e2e` — **136 passed**, after `bun run e2e:install`, which this machine had not been run before. The Observatory page and the service card are visible changes, so this was the gate that mattered.
+
 ## The facilitator
 
 Read directly, 10 September:
@@ -81,6 +87,10 @@ Neither host required an API key, though the published documentation says mainne
 ```
 
 A balance answer, not an allowlist one. The same call with `asset 0.0.0` answered `{"isValid":true}`. **HTS pricing works**; `HEDERA_ASSET` now exposes it, defaulting to HBAR. `/verify` moves no funds.
+
+## The skill
+
+`skills/froggy-door/SKILL.md`, served at `/door-skill.md`, kept byte-equal to what `door-skill.ts` renders by the same test that keeps the person's skill honest. Four tests: the byte equality, that a real origin is filled in and all three tools named, that it tells an agent to read a refusal rather than retry and to ask before spending, and that it carries no key.
 
 ## Pending
 
