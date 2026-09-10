@@ -30,9 +30,10 @@ for (const place of PLACES) {
       });
       await page.setViewportSize(size);
       await page.goto(place);
+      // Three destinations, plus the two demoted places once the rail is up.
       await expect(
         page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-      ).toHaveCount(3);
+      ).toHaveCount(size.width >= 768 ? 5 : 3);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
       await expect(
         page.getByText("reconnecting…", { exact: true })

@@ -1,0 +1,232 @@
+/**
+ * Home: what needs you, what came back, and what is still running.
+ *
+ * Priority, not recency. Items that need a person come first, then finished
+ * work, then a single quiet line for anything scheduled. The composer is here
+ * because a task starts with a sentence, but the page is not a chat log — a
+ * conversation is something a task *has*, and it lives at /chat.
+ *
+ * Approvals are surfaced as a count that opens the conversation holding the
+ * card, never as a second set of approve buttons. Two places to approve the
+ * same thing is how a person pays twice.
+ */
+
+import { ScheduleList as ScheduleListSchema } from "@froggy/protocol";
+import { Button } from "@froggy/ui/components/button";
+import { FrogMark } from "@froggy/ui/components/frog-mark";
+import type { FrogPose } from "@froggy/ui/components/frog-mark";
+import { Skeleton } from "@froggy/ui/components/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { Schema } from "effect";
+import { useMemo } from "react";
+import type { ReactElement } from "react";
+
+import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
+import { Composer } from "../components/composer";
+import { useChatSurface } from "../lib/chat-context";
+import { useHistoryPage } from "../lib/history-client";
+import { cadenceWords, nextRunWords } from "../lib/schedule-words";
+import { useSessionToken } from "../lib/session-token";
+import { useWorkspace } from "../lib/workspace-context";
+
+const decodeSchedules = Schema.decodeUnknownSync(ScheduleListSchema);
+
+/** The mascot carries the mood; the sentence beside it carries the fact. */
+const poseFor = (needsUser: number, busy: boolean): FrogPose => {
+  if (needsUser > 0) {
+    return "needs-user";
+  }
+  return busy ? "working" : "idle";
+};
+
+const greeting = (needsUser: number, busy: boolean): string => {
+  if (needsUser > 0) {
+    return needsUser === 1
+      ? "One thing needs you."
+      : `${needsUser} things need you.`;
+  }
+  return busy ? "Working on it." : "Nothing needs you.";
+};
+
+const Card = ({
+  children,
+  tone = "plain",
+}: {
+  readonly children: ReactElement | readonly ReactElement[];
+  readonly tone?: "plain" | "needs";
+}): ReactElement => (
+  <div
+    className={
+      tone === "needs"
+        ? "bg-card rounded-[var(--radius)] border border-[color-mix(in_oklab,var(--lime)_45%,transparent)] p-4"
+        : "bg-card border-border rounded-[var(--radius)] border p-4"
+    }
+  >
+    {children}
+  </div>
+);
+
+export const HomePage = (): ReactElement => {
+  const { app, pendingPurchases } = useWorkspace();
+  const { busy, send, stopRun } = useChatSurface();
+  const navigate = useNavigate();
+  const { getToken } = useSessionToken();
+
+  const needsUser = app.approvals.length + pendingPurchases;
+  const pose = poseFor(needsUser, busy);
+
+  const conversations = useHistoryPage("/api/conversations?limit=4&q=");
+  const recent = useMemo(
+    () =>
+      conversations.records
+        .filter((record) => record.kind === "conversation")
+        .slice(0, 3),
+    [conversations.records]
+  );
+
+  const schedules = useQuery({
+    queryFn: async () => {
+      const token = await getToken();
+      const response = await fetch("/api/schedules", {
+        headers: token === null ? {} : { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(`schedules: ${response.status}`);
+      }
+      return decodeSchedules(await response.json());
+    },
+    queryKey: ["schedules"],
+    retry: false,
+  });
+  const watching = (schedules.data?.schedules ?? []).filter(
+    (schedule) => schedule.status === "active"
+  );
+
+  // One quiet line, and it never says "monitoring": these run on a stated
+  // cadence with an expiry, which is a different promise from continuously.
+  const [firstWatch] = watching;
+  const backgroundLine = ((): string | null => {
+    if (firstWatch === undefined) {
+      return null;
+    }
+    if (watching.length === 1) {
+      return `One watch, ${cadenceWords(firstWatch.cadence)}. ${nextRunWords(firstWatch)}`;
+    }
+    return `${watching.length} watches, each on its own schedule.`;
+  })();
+
+  const openChat = (): void => {
+    void navigate({ to: "/chat" });
+  };
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3.5 px-4 py-6 sm:py-10">
+        <div className="flex items-center gap-3">
+          <FrogMark className="size-12 shrink-0" pose={pose} />
+          <div>
+            <h1 className="text-[20px] font-semibold tracking-[-0.02em]">
+              {greeting(needsUser, busy)}
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Ask Froggy to look into something, or pick up where you left off.
+            </p>
+          </div>
+        </div>
+
+        <Composer
+          asking={needsUser > 0}
+          busy={busy}
+          disabledReason={app.connected ? null : "Connecting…"}
+          onCommand={(command) => {
+            // Slash commands belong to the conversation, so hand them over
+            // rather than answering half of them here.
+            if (command.kind === "stop") {
+              stopRun.stop();
+            } else {
+              openChat();
+            }
+          }}
+          onSend={(text) => {
+            send(text);
+            openChat();
+          }}
+          onStop={() => {
+            stopRun.stop();
+          }}
+          suggestions={[]}
+        />
+
+        {needsUser > 0 ? (
+          <Card tone="needs">
+            <h2 className="text-[15px] font-semibold">
+              {needsUser === 1
+                ? "A decision is waiting"
+                : `${needsUser} decisions are waiting`}
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-sm">
+              Froggy will not spend anything until you answer.
+            </p>
+            <div className="mt-3">
+              <Button onClick={openChat}>Review</Button>
+            </div>
+          </Card>
+        ) : null}
+
+        {conversations.isPending ? <Skeleton className="h-24 w-full" /> : null}
+
+        {recent.map((record) => (
+          <Card key={record.id}>
+            <h2 className="text-[15px] font-semibold">
+              {record.kind === "conversation" && record.title !== null
+                ? record.title
+                : "Untitled task"}
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
+              {new Date(
+                record.kind === "conversation"
+                  ? record.updatedAt
+                  : record.createdAt
+              ).toLocaleString()}
+            </p>
+            <div className="mt-3">
+              <Button
+                onClick={() => {
+                  void navigate({
+                    params: { conversationId: record.id },
+                    to: "/chat/$conversationId",
+                  });
+                }}
+                variant="outline"
+              >
+                Open task
+              </Button>
+            </div>
+          </Card>
+        ))}
+
+        {!conversations.isPending && recent.length === 0 && needsUser === 0 ? (
+          <Card>
+            <h2 className="text-[15px] font-semibold">Nothing yet</h2>
+            <p className="text-muted-foreground mt-0.5 text-sm">
+              Ask Froggy to compare something, research a token, or plan a trip.
+            </p>
+          </Card>
+        ) : null}
+
+        <AgentOnboarding />
+
+        {backgroundLine === null ? null : (
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <span
+              aria-hidden
+              className="bg-brand size-[7px] shrink-0 rounded-full"
+            />
+            {backgroundLine}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};

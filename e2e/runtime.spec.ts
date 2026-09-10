@@ -13,19 +13,19 @@ test("boots the workspace with the primary pill and no browser errors", async ({
     browserErrors.push(error.message);
   });
 
-  await page.goto("/");
+  await page.goto("/chat");
 
   await expect(page.getByText("Froggy", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+  // Three destinations plus the two demoted places, and nothing behind a More.
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-  ).toHaveCount(3);
-
+  ).toHaveCount(5);
   await expect(
     page
       .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-  ).toBeVisible();
+      .getByRole("button", { name: /^More/u })
+  ).toHaveCount(0);
   expect(browserErrors).toEqual([]);
 });
 

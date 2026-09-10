@@ -111,10 +111,7 @@ test.describe("URL purchases", () => {
       .getByRole("button", { name: "Pay once", exact: true })
       .click();
     await expect(approvalFor(page, purpose)).toHaveCount(0);
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Services", exact: true })
-      .click();
+    await page.goto("/services");
     const result = page
       .getByRole("region", { name: "URL purchases" })
       .locator('[data-slot="card"]')
@@ -204,7 +201,7 @@ test.describe("URL purchases", () => {
     page,
   }) => {
     const errors = watchErrors(page);
-    await page.goto("/");
+    await page.goto("/chat");
     await page.getByRole("button", { name: "Show the browser" }).click();
     await page
       .getByRole("textbox", { name: "Address", exact: true })
@@ -230,7 +227,7 @@ test.describe("URL purchases", () => {
     const listing = page.waitForResponse(
       (response) => new URL(response.url()).pathname === "/api/purchases"
     );
-    await page.goto("/");
+    await page.goto("/chat");
     const sessionResponse = await listing;
     const headers = {
       authorization: sessionResponse.request().headers()["authorization"] ?? "",

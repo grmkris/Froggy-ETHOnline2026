@@ -22,7 +22,7 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
     browserErrors.push(error.message);
   });
 
-  await page.goto("/");
+  await page.goto("/chat");
   await page
     .getByRole("textbox", { name: "Message" })
     .fill("What's the cheapest USDC borrow right now?");
@@ -69,7 +69,7 @@ test("while an approval is open the log is busy and the paying tool says it is w
   page,
 }) => {
   const leash = await lowerApprovalThreshold(page, 0.001);
-  await page.goto("/");
+  await page.goto("/chat");
   await leash.applied;
 
   await page.getByText("Buy the lending snapshot").click();
@@ -91,7 +91,7 @@ test("while an approval is open the log is busy and the paying tool says it is w
 test("a tool card sums up its answer and opens to the raw exchange", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/chat");
   await page
     .getByRole("textbox", { name: "Message" })
     .fill("What's the cheapest USDC borrow right now?");

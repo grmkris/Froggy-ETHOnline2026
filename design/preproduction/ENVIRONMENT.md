@@ -57,10 +57,10 @@ Left untouched. Nothing in this session stages, stashes, reverts or reformats th
 | Session                 | Window     | Directory                      |
 | ----------------------- | ---------- | ------------------------------ |
 | `ethglobal-online-2026` | `0:claude` | `~/code/ethglobal-online-2026` |
-| `invok`                 | `0:claude` | `~/code/invok`                 |
+| _another project_       | `0:claude` | _redacted_                     |
 | `trading-desk`          | `0:claude` | `~/code/trading-desk`          |
 
-One session per project, one `claude` window each, all attached. Sockets `heavyprobe` and `heavyprobe2` also exist under `/tmp/tmux-1000/`. **The convention is 1 session : 1 project, so preproduction work belongs in the existing `ethglobal-online-2026` session**, adding named windows only if parallel specialists are actually launched in Phase G. No existing session was created, renamed or killed.
+One session per project, one `claude` window each, all attached. Two rows are redacted: `tools/check-names.ts` makes it a gate that no earlier internal project is named anywhere in this tree, and it is right — a submission should not carry other projects' names. Sockets `heavyprobe` and `heavyprobe2` also exist under `/tmp/tmux-1000/`. **The convention is 1 session : 1 project, so preproduction work belongs in the existing `ethglobal-online-2026` session**, adding named windows only if parallel specialists are actually launched in Phase G. No existing session was created, renamed or killed.
 
 ## MCP registrations visible to this agent
 
@@ -68,7 +68,7 @@ Checked with `claude mcp list`. All are user-scope; the repository has no `.mcp.
 
 | Server | Transport | Health |
 | --- | --- | --- |
-| `invok` | HTTP `localhost:49000` | connected — includes browser + tmux/fleet tools |
+| _a local workspace tool_ | HTTP, loopback | connected — includes browser + tmux/fleet tools |
 | `railway` | stdio | connected |
 | `vercel` | HTTP | connected |
 | `Neon` | HTTP | connected |

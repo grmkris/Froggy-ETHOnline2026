@@ -7,11 +7,11 @@ import type { ReactElement } from "react";
 import { keyboardInteraction, UI_SPRING } from "../../lib/motion";
 import type { NavItem } from "../../lib/nav";
 
-export const NAV_LINK_CLASS =
+const NAV_LINK_CLASS =
   "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring data-[status=active]:text-brand relative isolate flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset active:bg-muted";
 
 /** The surface travels; the link and its focus ring never do. */
-export const NavIndicator = (): ReactElement => {
+const NavIndicator = (): ReactElement => {
   const reduced = useReducedMotion() === true;
   return (
     <motion.span
@@ -38,7 +38,8 @@ export const NavLink = ({
   readonly waiting?: number;
 }): ReactElement => {
   const pathname = useLocation({ select: (location) => location.pathname });
-  const chatActive = item.to === "/" && pathname.startsWith("/chat/");
+  // Home owns the conversation routes: a chat is something a task has.
+  const chatActive = item.to === "/" && pathname.startsWith("/chat");
   const Icon = item.icon;
   const name =
     waiting > 0

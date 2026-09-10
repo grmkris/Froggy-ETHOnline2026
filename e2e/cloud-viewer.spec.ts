@@ -81,7 +81,7 @@ test("Cloud viewer stays inert until takeover finishes and keeps the same page o
     });
     publish("agent");
   });
-  await page.goto("/");
+  await page.goto("/chat");
   await page
     .getByRole("button", { name: "Show the browser", exact: true })
     .click();

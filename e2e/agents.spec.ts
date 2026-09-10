@@ -69,11 +69,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("button", { name: /^More/u })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Agents" })
+    .getByRole("link", { name: "Connections" })
     .click();
   await expect(page).toHaveURL(/\/agents$/u);
   await expect(

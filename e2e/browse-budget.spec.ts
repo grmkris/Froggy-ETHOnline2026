@@ -30,7 +30,7 @@ const offer = async (page: Page): Promise<void> => {
       body: `${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")}data: [DONE]\n\n`,
     });
   });
-  await page.goto("/");
+  await page.goto("/chat");
   await page
     .getByRole("textbox", { name: "Message" })
     .fill("Read the fixture page");

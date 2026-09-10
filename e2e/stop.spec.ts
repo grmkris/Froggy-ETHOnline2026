@@ -18,7 +18,7 @@ for (const failure of ["http", "network"] as const) {
       }
     });
     const leash = await lowerApprovalThreshold(page, 0.001);
-    await page.goto("/");
+    await page.goto("/chat");
     await leash.applied;
     await page
       .getByRole("button", { name: "Buy the lending snapshot" })

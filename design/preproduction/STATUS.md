@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 10 September 2026 · **Gate C approved. Every phase complete.** · **Nothing is blocked** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
+**Updated:** 10 September 2026 · **Preproduction complete. Implementation authorized and under way.** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
 
 ## Done
 
@@ -51,15 +51,33 @@ Worth listing, because each one reported healthy while being broken:
 | **D asset pack** | **partly blocked** — motion, brand exports, icons and copy done; **mascot poses and illustrations need your image route** |
 | G parallel agents | not needed; one coordinator was enough |
 
-### Nothing is waiting on me, and nothing is waiting on you
+### Preproduction is finished; implementation was authorized on 10 Sep
 
-All generated assets are in. Seven poses (`brand/poses/`, two at revision 2 after a re-run) and five vignettes (`brand/vignettes/`), all verified for real alpha, dimensions, palette and checksums, with provenance read out of each file's own C2PA manifest — `gpt-image 2.0`, OpenAI Media Service API, `trainedAlgorithmicMedia`. Twenty assets recorded; nineteen single-file checksums re-verified against disk.
+All generated assets are in: seven poses (two at revision 2) and five vignettes, verified for real alpha, dimensions, palette and checksums, with provenance read from each file's own C2PA manifest (`gpt-image 2.0`). Twenty assets recorded.
 
-The vignettes are wired into the three empty states in `screens/families.html` and the three task kinds in `screens/task-workspace.html`.
+The owner authorized the implementation backlog. What has landed in the app:
 
-**One thing that did not work, recorded as such.** `tools/normalize-poses.mjs` gives all seven poses a common baseline and a uniform 1000px content height. It does **not** fix character scale: head-width spread measured 49.2% before and 49.1% after — unchanged. Scaling by bounding box cannot fix it, because a seated pose stretched to a standing pose's height just gets a bigger head. The premise was also partly wrong: the five in-app contract states are driven by `brand/frog-mark.svg`, not these PNGs, so nothing swaps them in place and the variance is cosmetic. The export set is kept because a common baseline is useful if a pose ever lands in a fixed slot, and the finding is in the manifest so nobody re-derives it.
+| Item | State |
+| --- | --- |
+| 1 · Adopt the tokens | done — `--lime`, `--lime-ink`, `--frog-*`, old names aliased |
+| 2 · Replace the favicon | done — the emoji favicon is gone |
+| 3 · `FrogMark` with poses | done — five-state `pose` prop, `compact` under 40px |
+| 4 · Three destinations | done — Home/Explore/Wallet, desktop rail, no More popover |
+| 5 · Task-driven Home | done — real approvals, conversations and schedules; `/chat` holds the conversation |
+| 6 · Contextual browser | already true — not a destination, lives inside the task |
+| 8 · Four settlement outcomes | **already implemented before this work** — `uncertain` and `pending` are handled honestly, with tests named "never calls an uncertain sent payment free" |
+| 10 · Background work | done — schedules in Explore, cadence stated, never "monitoring" |
+| 11 · Connections | done — `/agents` is Connections in the rail |
+| **7 · Four-line approval ledger** | **not landed — needs a protocol change.** `ApprovalRequest` carries one `amountLabel` and a `detail` string; separating product, delivery, fees and agent spend means a new field on the money path. Flagged rather than pushed 48 hours before submission. |
+| 12 · Poses and vignettes in the app | in progress |
 
-**The only open item is a decision, not work:** whether to start the implementation backlog in `handoff/README.md`. That touches the production app and needs a new authorization.
+Three real defects were found by the e2e suite while doing this, all of them mine:
+
+1. `newChat` navigated to `/`, which is Home now, so "New chat" no longer opened a chat.
+2. An effect redirected `/` to the last saved conversation — written when `/` _was_ the conversation. It would have made **Home unreachable for every returning person.**
+3. Two "Froggy" wordmarks at desktop width, one in the rail and one in the top bar.
+
+Thirteen e2e specs moved with the change, because the conversation moved to `/chat`. That is the specs following the app, not the tests being bent to pass.
 
 ### Everything else is done and gated
 

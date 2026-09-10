@@ -213,11 +213,12 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await observeMotion(page);
     await page.emulateMedia({ reducedMotion });
     await page.setViewportSize({ width: 390, height: 844 });
+    // This measures travel between destinations, so it starts on one.
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Primary" });
     const wallet = nav.getByRole("link", { name: "Wallet", exact: true });
     const start = await nav
-      .getByRole("link", { name: "Chat", exact: true })
+      .getByRole("link", { name: "Home", exact: true })
       .boundingBox();
     const destination = await wallet.boundingBox();
     await wallet.click();
@@ -232,8 +233,8 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
           )
       )
       .toContain(reducedMotion === "reduce" ? "surface-in" : "page-in-right");
-    await nav.getByRole("link", { name: "Chat", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+    await nav.getByRole("link", { name: "Home", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/u);
     if (reducedMotion === "no-preference") {
       await expect
         .poll(
@@ -298,7 +299,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
   });
 }
 
-test("primary presses in place, More and Add funds spring from 0.94", async ({
+test("primary presses in place and Add funds springs from 0.94", async ({
   page,
 }) => {
   await observeMotion(page);
@@ -325,19 +326,6 @@ test("primary presses in place, More and Add funds spring from 0.94", async ({
     .toBe(true);
   await page.keyboard.press("Escape");
   await expect(add).toBeFocused();
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "More places" })).toBeVisible();
-  await expect
-    .poll(
-      async () =>
-        await page.evaluate(() =>
-          window.motionSamples.some(
-            (sample) =>
-              sample.slot === "popover-content" && sample.duration === 300
-          )
-        )
-    )
-    .toBe(true);
 });
 
 test("wallet digits roll on first value and update while the funding target stays still", async ({
@@ -415,7 +403,7 @@ test("stream arrivals rise and approvals spring even after typing", async ({
 }) => {
   await observeMotion(page);
   const leash = await lowerApprovalThreshold(page, 0.001);
-  await page.goto("/");
+  await page.goto("/chat");
   await leash.applied;
   await page
     .getByRole("textbox", { name: "Message" })
@@ -538,7 +526,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
         },
       });
     });
-    await page.goto("/");
+    await page.goto("/chat");
     await page
       .getByRole("textbox", { name: "Message" })
       .fill("Show the motion fixture");

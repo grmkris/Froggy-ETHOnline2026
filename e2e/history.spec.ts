@@ -20,7 +20,7 @@ for (const width of [1440, 390]) {
         errors.push(message.text());
       }
     });
-    await page.goto("/");
+    await page.goto("/chat");
     await page
       .getByRole("textbox", { name: "Message" })
       .fill("Remember this history fixture about USDC.");
@@ -50,13 +50,10 @@ for (const width of [1440, 390]) {
       .getByRole("navigation", { name: "Primary" })
       .getByRole("link", { name: "Wallet", exact: true })
       .click();
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Chat", exact: true })
-      .click();
+    await page.goto(url);
     await expect(page).toHaveURL(url);
     await page.getByRole("button", { name: "New chat", exact: true }).click();
-    await expect(page).toHaveURL(/\/$/u);
+    await expect(page).toHaveURL(/\/chat$/u);
     await expect(page.getByRole("log")).toHaveCount(0);
     await page.getByRole("button", { name: "Recent", exact: true }).click();
     await page
@@ -191,7 +188,7 @@ test("another tab restores the same waiting run and its one receipt", async ({
   context,
 }) => {
   const leash = await lowerApprovalThreshold(page, 0.001);
-  await page.goto("/");
+  await page.goto("/chat");
   await leash.applied;
   await page.getByText("Buy the lending snapshot").click();
   await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
@@ -224,7 +221,7 @@ test("a failed recent-history request stays an error instead of an empty list", 
       json: { v: 1, error: "History unavailable" },
     });
   });
-  await page.goto("/");
+  await page.goto("/chat");
   await page.getByRole("button", { name: "Recent", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "History could not be loaded"

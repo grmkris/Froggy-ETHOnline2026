@@ -16,6 +16,23 @@ import { WorkspaceLayout } from "./routes/workspace-layout";
 const rootRoute = createRootRoute({ component: AppShell });
 
 /**
+ * Where a path sits in the nav order, for the direction of a page transition.
+ *
+ * A conversation is something Home has, so /chat travels from Home's slot.
+ * Without that, every move out of a conversation fell outside the order and
+ * silently lost its transition.
+ */
+const slot = (path: string | undefined): number => {
+  if (path === undefined) {
+    return -1;
+  }
+  if (path === "/" || path.startsWith("/chat")) {
+    return 0;
+  }
+  return NAV_ITEMS.findIndex((item) => item.to === path);
+};
+
+/**
  * The workspace holds the sockets and the conversation; its pages are the
  * routes beneath it. Not lazy: it is the first thing every page needs.
  */
@@ -36,8 +53,14 @@ const page = <const Path extends string, Name extends string>(
     path,
   });
 
-const chatRoute = page(
+const homeRoute = page(
   "/",
+  async () => await import("./routes/home-page"),
+  "HomePage"
+);
+/** The current conversation. Home starts one and sends the person here. */
+const chatRoute = page(
+  "/chat",
   async () => await import("./routes/chat-page"),
   "ChatPage"
 );
@@ -60,6 +83,11 @@ const activityRoute = createRoute({
     return decoded._tag === "Success" ? decoded.success : {};
   },
 });
+const exploreRoute = page(
+  "/explore",
+  async () => await import("./routes/explore-page"),
+  "ExplorePage"
+);
 const walletRoute = page(
   "/wallet",
   async () => await import("./routes/wallet-page"),
@@ -142,8 +170,10 @@ const oauthManualRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   workspaceRoute.addChildren([
+    homeRoute,
     chatRoute,
     conversationRoute,
+    exploreRoute,
     activityRoute,
     walletRoute,
     servicesRoute,
@@ -163,10 +193,8 @@ export const router = createRouter({
       if (!pathChanged || keyboardInteraction()) {
         return false;
       }
-      const from = NAV_ITEMS.findIndex(
-        (item) => item.to === fromLocation?.pathname
-      );
-      const to = NAV_ITEMS.findIndex((item) => item.to === toLocation.pathname);
+      const from = slot(fromLocation?.pathname);
+      const to = slot(toLocation.pathname);
       if (from === -1 || to === -1) {
         return false;
       }

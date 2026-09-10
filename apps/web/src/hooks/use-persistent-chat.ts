@@ -47,8 +47,12 @@ export const usePersistentChat = (client: HistoryClient) => {
   const [records, setRecords] = useState<readonly HistoryMessage[]>([]);
   const [receipts, setReceipts] = useState<readonly Receipt[]>([]);
   const hydrated = useRef<string | null>(null);
+  // The bare conversation URL upgrades itself to the canonical one. This used
+  // to key on "/" because "/" was the conversation; "/" is Home now, and
+  // keying on it here dragged every returning person off Home and into their
+  // last chat.
   useEffect(() => {
-    if (pathname === "/" && saved) {
+    if (pathname === "/chat" && saved) {
       void navigate({
         to: "/chat/$conversationId",
         params: { conversationId: id },
@@ -276,7 +280,8 @@ export const usePersistentChat = (client: HistoryClient) => {
     setReceipts([]);
     setOlder(null);
     hydrated.current = null;
-    void navigate({ to: "/" });
+    // "/" is Home now; a new chat belongs in the conversation.
+    void navigate({ to: "/chat" });
   };
   return {
     newChat,

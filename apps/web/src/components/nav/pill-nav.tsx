@@ -1,23 +1,18 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@froggy/ui/components/popover";
-import { useLocation } from "@tanstack/react-router";
-import { EllipsisIcon } from "lucide-react";
 import { LayoutGroup, motion, useReducedMotion } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import type { ReactElement } from "react";
 
 import { UI_SPRING } from "../../lib/motion";
 import { NAV_ITEMS } from "../../lib/nav";
-import { NAV_LINK_CLASS, NavIndicator, NavLink } from "./nav-link";
+import { NavLink } from "./nav-link";
 
-const PRIMARY = NAV_ITEMS.slice(0, 3);
-const MORE = NAV_ITEMS.slice(3);
-
-/** One landmark at every width; the popover stays inside it for assistive technology. */
+/**
+ * The phone navigation: three destinations, and nothing behind a "More".
+ *
+ * It had four slots and a popover holding three further places. With three
+ * primary destinations there is nothing left to hide, so the popover is gone
+ * and every destination is one tap away.
+ */
 export const PillNav = ({
   waiting,
 }: {
@@ -25,12 +20,6 @@ export const PillNav = ({
 }): ReactElement => {
   const reduced = useReducedMotion() === true;
   const nav = useRef<HTMLElement>(null);
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const [openPath, setOpenPath] = useState<string | null>(null);
-  const open = openPath === pathname;
-  const currentMore = MORE.find(
-    (item) => item.to === pathname || pathname.startsWith(`${item.to}/`)
-  );
   return (
     <nav
       aria-label="Primary"
@@ -46,58 +35,15 @@ export const PillNav = ({
           }}
           transition={reduced ? { duration: 0.125 } : UI_SPRING}
           data-slot="navigation-pill"
-          className="bg-paper-deep/95 shadow-float pointer-events-auto grid w-full max-w-sm grid-cols-4 gap-1 rounded-full p-1.5 backdrop-blur-md"
+          className="bg-paper-deep/95 shadow-float pointer-events-auto grid w-full max-w-xs grid-cols-3 gap-1 rounded-full p-1.5 backdrop-blur-md"
         >
-          {PRIMARY.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <NavLink
               item={item}
               key={item.to}
               waiting={item.to === "/" ? waiting : 0}
             />
           ))}
-          <Popover
-            onOpenChange={(next) => {
-              setOpenPath(next ? pathname : null);
-            }}
-            open={open}
-          >
-            <PopoverTrigger
-              aria-current={
-                currentMore !== undefined && !open ? "page" : undefined
-              }
-              aria-label={
-                currentMore === undefined
-                  ? "More"
-                  : `More, ${currentMore.label}`
-              }
-              className={NAV_LINK_CLASS}
-              data-status={currentMore === undefined ? "inactive" : "active"}
-            >
-              {currentMore === undefined ? null : <NavIndicator />}
-              <EllipsisIcon aria-hidden className="size-5" />
-              <span aria-hidden>More</span>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              container={nav}
-              side="top"
-              sideOffset={12}
-            >
-              <PopoverTitle className="text-muted-foreground px-3 pt-1 pb-2 text-xs">
-                More places
-              </PopoverTitle>
-              {MORE.map((item) => (
-                <NavLink
-                  item={item}
-                  key={item.to}
-                  more
-                  onNavigate={() => {
-                    setOpenPath(null);
-                  }}
-                />
-              ))}
-            </PopoverContent>
-          </Popover>
         </motion.div>
       </LayoutGroup>
     </nav>

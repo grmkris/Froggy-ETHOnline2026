@@ -11,7 +11,7 @@ import { captureResponsive, captureScreen } from "./capture";
 
 test("the page can go to a split pane and back", async ({ page }, testInfo) => {
   await page.setViewportSize({ height: 860, width: 1400 });
-  await page.goto("/");
+  await page.goto("/chat");
   // Ask for the card without starting a Chrome: the card, with its "nothing
   // open yet" explanation, is all the layout needs.
   await page.getByRole("button", { name: "Show the browser" }).click();
@@ -40,7 +40,7 @@ test("the page can go to its own window, and the tab knows", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ height: 860, width: 1400 });
-  await page.goto("/");
+  await page.goto("/chat");
   await page.getByRole("button", { name: "Show the browser" }).click();
   const opened = context.waitForEvent("page");
   await page

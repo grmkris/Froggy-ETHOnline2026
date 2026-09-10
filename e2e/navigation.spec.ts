@@ -3,9 +3,18 @@ import { expect, test } from "@playwright/test";
 import { captureScreen } from "./capture";
 import { lowerApprovalThreshold } from "./mandate";
 
+/**
+ * Three destinations, one primary landmark, at every width.
+ *
+ * The rail replaces the pill above 768px rather than hiding it, so assistive
+ * technology never sees two primary navigations. Below that the pill carries
+ * the same three destinations and there is no "More" popover, because with
+ * three destinations there is nothing left to hide.
+ */
 for (const theme of ["passbook", "lilypad"] as const) {
   for (const width of [1440, 768, 390, 320]) {
-    test(`${theme} pill reaches every page at ${width}px`, async ({
+    const rail = width >= 768;
+    test(`${theme} navigation reaches every destination at ${width}px`, async ({
       page,
     }, testInfo) => {
       const errors: string[] = [];
@@ -17,103 +26,93 @@ for (const theme of ["passbook", "lilypad"] as const) {
       });
       await page.setViewportSize({ width, height: width === 320 ? 568 : 900 });
       await page.goto(`/wallet?theme=${theme}`);
+
       const nav = page.getByRole("navigation", { name: "Primary" });
-      const more = nav.getByRole("button", { name: /^More/u });
       await expect(nav).toHaveCount(1);
-      await expect(nav.getByRole("link")).toHaveCount(3);
+      // Three destinations, plus the two demoted places when the rail is up.
+      await expect(nav.getByRole("link")).toHaveCount(rail ? 5 : 3);
+      await expect(nav.getByRole("button", { name: /^More/u })).toHaveCount(0);
       await expect(
         nav.getByRole("link", { name: "Wallet", exact: true })
       ).toHaveAttribute("aria-current", "page");
-      const targets = await nav.locator("a, button").evaluateAll((nodes) =>
+      // One wordmark per screen: the rail owns it where the rail is up, and
+      // the top bar carries it only when it is not.
+      await expect(
+        page.getByRole("banner").getByText("Froggy", { exact: true })
+      ).toHaveCount(rail ? 0 : 1);
+
+      const targets = await nav.getByRole("link").evaluateAll((nodes) =>
         nodes.map((node) => {
           const box = node.getBoundingClientRect();
           return (
-            box.width >= 44 &&
-            box.height >= 44 &&
-            box.left >= 0 &&
-            box.right <= window.innerWidth
+            box.height >= 44 && box.left >= 0 && box.right <= window.innerWidth
           );
         })
       );
-      expect(targets).toEqual([true, true, true, true]);
-      await captureScreen(page, testInfo, `${theme}-pill`);
+      expect(targets.every(Boolean)).toBe(true);
+      await captureScreen(page, testInfo, `${theme}-navigation`);
 
-      await more.focus();
-      await page.keyboard.press("Enter");
-      const popup = nav.getByRole("dialog", { name: "More places" });
-      await expect(popup).toBeVisible();
-      await expect(
-        nav.getByRole("link", { name: "Agents", exact: true })
-      ).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(
-        nav.getByRole("link", { name: "Activity", exact: true })
-      ).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(
-        nav.getByRole("link", { name: "Settings", exact: true })
-      ).toBeFocused();
-      await page.keyboard.press("Enter");
-      await expect(page).toHaveURL(/\/settings$/u);
-      await expect(popup).toHaveCount(0);
-      await expect(more).toHaveAttribute("aria-current", "page");
-      await expect(more).toBeFocused();
+      // Unrolled on purpose: this walks one browser through three
+      // destinations in order, so the steps cannot run in parallel.
+      await nav.getByRole("link", { name: "Home", exact: true }).click();
+      await expect(page).toHaveURL(/\/$/u);
+      await nav.getByRole("link", { name: "Explore", exact: true }).click();
+      await expect(page).toHaveURL(/\/explore$/u);
+      await nav.getByRole("link", { name: "Wallet", exact: true }).click();
+      await expect(page).toHaveURL(/\/wallet$/u);
 
-      await more.click();
-      await expect(
-        nav.getByRole("link", { name: "Settings", exact: true })
-      ).toHaveAttribute("aria-current", "page");
-      await captureScreen(page, testInfo, `${theme}-more`);
-      await page.keyboard.press("Escape");
-      await expect(popup).toHaveCount(0);
-      await expect(more).toBeFocused();
-      await more.click();
-      await nav.getByRole("link", { name: "Agents", exact: true }).click();
-      await expect(page).toHaveURL(/\/agents$/u);
-      await expect(popup).toHaveCount(0);
-      await more.click();
-      await page.getByRole("heading", { name: "Agents", exact: true }).click();
-      await expect(popup).toHaveCount(0);
-
-      await nav.getByRole("link", { name: "Services", exact: true }).click();
-      await expect(page).toHaveURL(/\/services$/u);
-      await nav.getByRole("link", { name: "Chat", exact: true }).click();
-      await expect(
-        page.getByRole("textbox", { name: "Message" })
-      ).toBeVisible();
-      const composer = await page
-        .getByRole("textbox", { name: "Message" })
-        .boundingBox();
-      const pill = await page
-        .locator('[data-slot="navigation-pill"]')
-        .boundingBox();
-      expect(composer).not.toBeNull();
-      expect(pill).not.toBeNull();
-      expect((composer?.y ?? 0) + (composer?.height ?? 0)).toBeLessThan(
-        pill?.y ?? 0
-      );
+      if (rail) {
+        // Secondary places are reachable and visibly not destinations.
+        await nav.getByRole("link", { name: "Connections" }).click();
+        await expect(page).toHaveURL(/\/agents$/u);
+        await nav.getByRole("link", { name: "Account" }).click();
+        await expect(page).toHaveURL(/\/settings$/u);
+      } else {
+        // The composer must clear the pill rather than sit under it.
+        await page.goto("/chat");
+        await expect(
+          page.getByRole("textbox", { name: "Message" })
+        ).toBeVisible();
+        const composer = await page
+          .getByRole("textbox", { name: "Message" })
+          .boundingBox();
+        const pill = await page
+          .locator('[data-slot="navigation-pill"]')
+          .boundingBox();
+        expect(composer).not.toBeNull();
+        expect(pill).not.toBeNull();
+        expect((composer?.y ?? 0) + (composer?.height ?? 0)).toBeLessThan(
+          pill?.y ?? 0
+        );
+      }
       expect(errors).toEqual([]);
     });
   }
 }
 
-test("the home badge follows a waiting approval across page changes", async ({
+test("Home counts a waiting approval, and stops when it is answered", async ({
   page,
 }) => {
   const leash = await lowerApprovalThreshold(page, 0.001);
-  await page.goto("/");
+  await page.goto("/chat");
   await leash.applied;
   await page.getByText("Buy the lending snapshot").click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
+
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(
-    nav.getByRole("link", { name: "Chat, 1 approval waiting" })
-  ).toBeVisible();
+  const waiting = nav.getByRole("link", { name: /^Home, 1 approval waiting/u });
+  await expect(waiting).toBeVisible();
+
+  // The count survives leaving the conversation and coming back.
   await nav.getByRole("link", { name: "Wallet", exact: true }).click();
-  await nav.getByRole("link", { name: "Chat, 1 approval waiting" }).click();
+  await expect(waiting).toBeVisible();
+  // While something waits, Home is named for it — so this is the link to click.
+  await waiting.click();
+  // Home offers a route to the decision, never a second set of answer buttons.
+  await page.getByRole("button", { name: "Review" }).click();
   await ticket.getByRole("button", { name: "Not this time" }).click();
   await expect(
-    nav.getByRole("link", { name: "Chat", exact: true })
+    nav.getByRole("link", { name: "Home", exact: true })
   ).toBeVisible();
 });

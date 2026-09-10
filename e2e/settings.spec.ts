@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
 test("deleting my data wipes the receipts and starts over", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/chat");
   await page.getByText("Buy the lending snapshot").click();
   await page.goto("/wallet");
   const activity = page.getByRole("region", { name: "Activity" });
