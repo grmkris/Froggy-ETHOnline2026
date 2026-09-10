@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { selectModelProvider } from "./environment";
+import { Cause, ConfigProvider, Effect, Exit } from "effect";
+
+import {
+  loadEnvironment,
+  refuseStubbedBoot,
+  selectModelProvider,
+  stubbedNames,
+} from "./environment";
 
 const PLACEHOLDER_ANTHROPIC = "sk-ant-REPLACE_ME";
 const compatible = {
@@ -56,5 +63,82 @@ describe("selectModelProvider", () => {
         openAiCompatibleModel: "",
       })
     ).toBe("stub");
+  });
+});
+
+const STUB_TRADING = {
+  ensoMode: "stub",
+  jupiterMode: "stub",
+  ponsMode: "unavailable",
+  pumpMode: "unavailable",
+  uniswapMode: "stub",
+} as const;
+
+describe("refuseStubbedBoot", () => {
+  test("allows stub adapters on loopback", () => {
+    expect(() => {
+      refuseStubbedBoot("http://localhost:3000", ["birdeye", "hedera"]);
+    }).not.toThrow();
+  });
+
+  test("allows a public origin when nothing is stubbed", () => {
+    expect(() => {
+      refuseStubbedBoot("https://app.example.com", []);
+    }).not.toThrow();
+  });
+
+  test("refuses a public origin that would still attach a stub", () => {
+    expect(() => {
+      refuseStubbedBoot("https://app.example.com", ["birdeye", "pons"]);
+    }).toThrow(
+      /Refusing to boot with stub adapters on https:\/\/app\.example\.com: birdeye, pons/u
+    );
+  });
+});
+
+describe("loadEnvironment", () => {
+  test("refuses a public origin that would still attach stub adapters", async () => {
+    const result = await Effect.runPromiseExit(
+      loadEnvironment().pipe(
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromUnknown({
+            APP_ORIGIN: "https://app.example.com",
+          })
+        )
+      )
+    );
+    if (!Exit.isFailure(result)) {
+      throw new Error("expected boot refusal");
+    }
+    const rendered = Cause.pretty(result.cause);
+    expect(rendered).toContain(
+      "Refusing to boot with stub adapters on https://app.example.com"
+    );
+    expect(rendered).toContain("birdeye");
+    expect(rendered).not.toContain("pons");
+    expect(rendered).not.toContain("pump");
+  });
+});
+
+describe("stubbedNames", () => {
+  test("names header stubs and execution stubs, not unavailable venues", () => {
+    expect(
+      stubbedNames(
+        {
+          birdeye: "stub",
+          browser: "live",
+          database: "live",
+          graph: "live",
+          hedera: "live",
+          model: "live",
+          privy: "live",
+          quicknode: "live",
+          telegram: "live",
+          uniswap: "live",
+        },
+        STUB_TRADING
+      )
+    ).toEqual(["birdeye", "enso", "jupiter", "uniswapExecution"]);
   });
 });

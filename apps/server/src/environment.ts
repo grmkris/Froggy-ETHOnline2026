@@ -141,6 +141,44 @@ const isLoopback = (origin: string): boolean => {
   }
 };
 
+/** Names that would attach a stub adapter. Empty means every integration is live or unavailable. */
+export const stubbedNames = (
+  modes: ServiceModes,
+  trading: Pick<
+    TradingEnvironment,
+    "ensoMode" | "jupiterMode" | "ponsMode" | "pumpMode" | "uniswapMode"
+  >
+): readonly string[] => [
+  ...Object.entries(modes).flatMap(([name, mode]) =>
+    mode === "stub" ? [name] : []
+  ),
+  ...(
+    [
+      ["enso", trading.ensoMode],
+      ["jupiter", trading.jupiterMode],
+      ["pons", trading.ponsMode],
+      ["pump", trading.pumpMode],
+      ["uniswapExecution", trading.uniswapMode],
+    ] as const
+  ).flatMap(([name, mode]) => (mode === "stub" ? [name] : [])),
+];
+
+/**
+ * A public origin that would still select a stub adapter is a fake settlement
+ * waiting to be screenshotted. Loopback keeps the keyless demo and Playwright.
+ */
+export const refuseStubbedBoot = (
+  appOrigin: string,
+  names: readonly string[]
+): void => {
+  if (names.length === 0 || isLoopback(appOrigin)) {
+    return;
+  }
+  throw new Error(
+    `Refusing to boot with stub adapters on ${appOrigin}: ${names.join(", ")}.`
+  );
+};
+
 const secret = (name: string, fallback: string) =>
   Config.redacted(name).pipe(Config.withDefault(Redacted.make(fallback)));
 
@@ -218,6 +256,12 @@ export interface Environment {
   /** Trusted browser origins for WebSocket upgrades. See `ws-router.ts`. */
   readonly allowedOrigins: readonly string[];
   readonly appOrigin: string;
+  /**
+   * Loopback may attach stub adapters so a keyless laptop and Playwright still
+   * boot. A public origin must not: missing config is unavailable or a refused
+   * boot, never a fixture that could pass for settlement.
+   */
+  readonly allowStubs: boolean;
   /**
    * Whether the agent's Chrome refuses the private network. On everywhere the
    * app is not itself on a loopback address — which is to say, everywhere but
@@ -392,6 +436,12 @@ const nativeLaunchModeFor = (
   }
   return enabled && rpc ? "live" : "unavailable";
 };
+
+/** Public origins never advertise a simulated Pump/Pons venue. */
+const demoteStub = <M extends "live" | "stub" | "unavailable">(
+  mode: M,
+  allowStubs: boolean
+): M | "unavailable" => (!allowStubs && mode === "stub" ? "unavailable" : mode);
 
 export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
   function* loadTradingEnvironment() {
@@ -829,7 +879,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       }
       supplierPayees[host] = payee;
     }
-    const trading = yield* loadTradingEnvironment();
+    const loadedTrading = yield* loadTradingEnvironment();
+    const allowStubs = isLoopback(appOrigin);
+    const trading = {
+      ...loadedTrading,
+      ponsMode: demoteStub(loadedTrading.ponsMode, allowStubs),
+      pumpMode: demoteStub(loadedTrading.pumpMode, allowStubs),
+    };
     const modes: ServiceModes = {
       ...tradingModes(trading),
       browser: browserMode,
@@ -861,6 +917,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       ),
     };
 
+    refuseStubbedBoot(appOrigin, stubbedNames(modes, trading));
+
     return {
       trading,
       xApiBearer,
@@ -868,6 +926,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       allowedOrigins: allowedOrigins(appOrigin, extraOrigins),
       anthropicApiKey: anthropicKey,
       appOrigin,
+      allowStubs,
       blockPrivateNetwork: !isLoopback(appOrigin),
       browserIdleMs,
       browserUseApiKey,
@@ -964,3 +1023,12 @@ export const describeModes = (modes: ServiceModes): string =>
   Object.entries(modes)
     .map(([name, mode]) => `${name}=${mode}`)
     .join(" ");
+
+export const describeTradingModes = (trading: TradingEnvironment): string =>
+  [
+    `uniswapExecution=${trading.uniswapMode}`,
+    `jupiter=${trading.jupiterMode}`,
+    `enso=${trading.ensoMode}`,
+    `pump=${trading.pumpMode}`,
+    `pons=${trading.ponsMode}`,
+  ].join(" ");

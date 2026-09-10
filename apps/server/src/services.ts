@@ -68,6 +68,7 @@ import { liveBirdeye, stubBirdeye } from "./trading/birdeye";
 import { TradeCoordinator } from "./trading/coordinator";
 import { tradeEvmClient } from "./trading/evm-chain";
 import { executionProviders } from "./trading/execution-providers";
+import type { ChainLaunchReader } from "./trading/launch-chain";
 import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
 import { LaunchCoordinator } from "./trading/launches";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
@@ -175,74 +176,115 @@ export interface ServiceOptions {
 
 export const createServices = (options: ServiceOptions): Services => {
   const { environment } = options;
-  const trading: TradingProviders = {
-    market:
-      environment.modes.birdeye === "live"
-        ? liveBirdeye({ apiKey: environment.trading.birdeyeApiKey })
-        : stubBirdeye(),
-    rpc:
-      environment.modes.quicknode === "live"
-        ? liveTradingRpc({ endpoints: environment.trading.rpcEndpoints })
-        : stubTradingRpc(),
-    quotes:
-      environment.modes.uniswap === "live"
-        ? liveUniswap({
-            apiKey: environment.trading.uniswapApiKey,
-            chains: environment.trading.uniswapChains,
-          })
-        : stubUniswap(),
+  const liveOr = <T>(
+    live: boolean,
+    name: string,
+    makeLive: () => T,
+    makeStub: () => T
+  ): T => {
+    if (live) {
+      return makeLive();
+    }
+    if (!environment.allowStubs) {
+      throw new Error(
+        `${name} is not live; refusing a stub adapter off loopback.`
+      );
+    }
+    return makeStub();
   };
 
-  const graph =
-    environment.modes.graph === "live"
-      ? liveGraphClient({
-          apiKey: environment.graphApiKey,
-          gatewayUrl: environment.graphGatewayUrl,
-        })
-      : stubGraphClient();
+  const trading: TradingProviders = {
+    market: liveOr(
+      environment.modes.birdeye === "live",
+      "birdeye",
+      () => liveBirdeye({ apiKey: environment.trading.birdeyeApiKey }),
+      stubBirdeye
+    ),
+    rpc: liveOr(
+      environment.modes.quicknode === "live",
+      "quicknode",
+      () => liveTradingRpc({ endpoints: environment.trading.rpcEndpoints }),
+      stubTradingRpc
+    ),
+    quotes: liveOr(
+      environment.modes.uniswap === "live",
+      "uniswap",
+      () =>
+        liveUniswap({
+          apiKey: environment.trading.uniswapApiKey,
+          chains: environment.trading.uniswapChains,
+        }),
+      stubUniswap
+    ),
+  };
 
-  const oracle =
-    environment.modes.hedera === "live"
-      ? liveOracleGate({
-          facilitatorUrl: environment.hederaFacilitatorUrl,
-          network: environment.hederaNetwork,
-          payTo: environment.hederaPayTo,
-        })
-      : stubOracleGate();
+  const graph = liveOr(
+    environment.modes.graph === "live",
+    "graph",
+    () =>
+      liveGraphClient({
+        apiKey: environment.graphApiKey,
+        gatewayUrl: environment.graphGatewayUrl,
+      }),
+    stubGraphClient
+  );
 
-  const payer =
-    environment.modes.hedera === "live"
-      ? liveHederaPayer({
-          accountId: environment.hederaAccountId,
-          network: environment.hederaNetwork,
-          privateKey: environment.hederaPrivateKey,
-        })
-      : stubHederaPayer();
+  const oracle = liveOr(
+    environment.modes.hedera === "live",
+    "hedera",
+    () =>
+      liveOracleGate({
+        facilitatorUrl: environment.hederaFacilitatorUrl,
+        network: environment.hederaNetwork,
+        payTo: environment.hederaPayTo,
+      }),
+    stubOracleGate
+  );
 
-  const hcs =
-    environment.modes.hedera === "live"
-      ? liveHcsWriter({
-          accountId: environment.hederaAccountId,
-          network: environment.hederaNetwork,
-          privateKey: environment.hederaPrivateKey,
-          topicId: environment.hederaHcsTopicId,
-        })
-      : stubHcsWriter();
+  const payer = liveOr(
+    environment.modes.hedera === "live",
+    "hedera",
+    () =>
+      liveHederaPayer({
+        accountId: environment.hederaAccountId,
+        network: environment.hederaNetwork,
+        privateKey: environment.hederaPrivateKey,
+      }),
+    stubHederaPayer
+  );
 
-  const rates =
-    environment.modes.hedera === "live"
-      ? liveHbarRates({ mirrorNodeUrl: environment.hederaMirrorNodeUrl })
-      : stubHbarRates();
+  const hcs = liveOr(
+    environment.modes.hedera === "live",
+    "hedera",
+    () =>
+      liveHcsWriter({
+        accountId: environment.hederaAccountId,
+        network: environment.hederaNetwork,
+        privateKey: environment.hederaPrivateKey,
+        topicId: environment.hederaHcsTopicId,
+      }),
+    stubHcsWriter
+  );
 
-  const privy =
-    environment.modes.privy === "live"
-      ? livePrivyServer({
-          agent: environment.privyAgent,
-          appId: environment.privyAppId,
-          appSecret: environment.privyAppSecret,
-          hederaPolicyId: environment.privyHederaPolicyId,
-        })
-      : stubPrivyServer();
+  const rates = liveOr(
+    environment.modes.hedera === "live",
+    "hedera",
+    () => liveHbarRates({ mirrorNodeUrl: environment.hederaMirrorNodeUrl }),
+    stubHbarRates
+  );
+
+  const privy = liveOr(
+    environment.modes.privy === "live",
+    "privy",
+    () =>
+      livePrivyServer({
+        agent: environment.privyAgent,
+        appId: environment.privyAppId,
+        appSecret: environment.privyAppSecret,
+        hederaPolicyId: environment.privyHederaPolicyId,
+      }),
+    stubPrivyServer
+  );
 
   // No `DATABASE_URL` means the ledger lives in memory: correct for one
   // process, lost on restart, and loudly reported as `database=stub` in the
@@ -372,20 +414,29 @@ export const createServices = (options: ServiceOptions): Services => {
     privy,
     backend: executionProviders(
       environment.trading,
-      environment.modes.privy === "live"
+      environment.modes.privy === "live",
+      environment.allowStubs
     ),
     now: Date.now,
   });
 
   const ponsRpc = environment.trading.rpcEndpoints["eip155:4663"];
-  const ponsReader =
-    ponsRpc === undefined
-      ? stubPonsLaunchReader(Date.now)
-      : ponsLaunchReader(tradeEvmClient({ endpoint: ponsRpc }), Date.now);
+  let ponsReader: ChainLaunchReader | null = null;
+  if (ponsRpc !== undefined) {
+    ponsReader = ponsLaunchReader(
+      tradeEvmClient({ endpoint: ponsRpc }),
+      Date.now
+    );
+  } else if (environment.allowStubs) {
+    ponsReader = stubPonsLaunchReader(Date.now);
+  }
   const adapters: Omit<Services, "purchases" | "createBrowser"> = {
     launches: new LaunchCoordinator({
       store: store.launches,
-      chainReaders: new Map([[ponsReader.network, ponsReader]]),
+      chainReaders:
+        ponsReader === null
+          ? new Map()
+          : new Map([[ponsReader.network, ponsReader]]),
       market: trading.market,
       providerStubbed: environment.modes.birdeye === "stub",
       now: Date.now,
@@ -456,6 +507,11 @@ export const createServices = (options: ServiceOptions): Services => {
     ...adapters,
     createBrowser: (browserOptions, userId) => {
       if (environment.browserUseApiKey === null) {
+        if (!environment.allowStubs) {
+          throw new Error(
+            "browser is not live; refusing a stub adapter off loopback."
+          );
+        }
         return new StubCloudBrowser(browserOptions);
       }
       return new CloudBrowser({

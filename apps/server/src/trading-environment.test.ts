@@ -235,6 +235,7 @@ test("live rollup execution stays unavailable even with configured providers, wh
   expect(executionProviders(environment, true)(input)).toBeNull();
   const stub = await load();
   expect(executionProviders(stub, false)(input)?.stubbed).toBe(true);
+  expect(executionProviders(stub, false, false)(input)).toBeNull();
 });
 
 test("Enso execution requires complete credentials and remains an explicit fixture otherwise", async () => {

@@ -184,7 +184,8 @@ const supportsExecution = (
 
 export const executionProviders = (
   environment: TradingEnvironment,
-  privyLive: boolean
+  privyLive: boolean,
+  allowStubs = true
 ): ((input: TradeInput) => TradeBackend | null) => {
   const backends = new Map<string, TradeBackend>();
   const stub = stubTradeBackend(Date.now);
@@ -194,7 +195,7 @@ export const executionProviders = (
     }
     const mode = routeMode(environment, input.venue, input.network, privyLive);
     if (mode === "stub") {
-      return stub;
+      return allowStubs ? stub : null;
     }
     const endpoint = environment.rpcEndpoints[input.network];
     if (mode !== "live" || endpoint === undefined) {

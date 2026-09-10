@@ -127,6 +127,13 @@ type ResponseBody =
       readonly modes: Environment["modes"];
       readonly runtime: string;
       readonly status: string;
+      readonly trading: {
+        readonly enso: Environment["trading"]["ensoMode"];
+        readonly jupiter: Environment["trading"]["jupiterMode"];
+        readonly pons: Environment["trading"]["ponsMode"];
+        readonly pump: Environment["trading"]["pumpMode"];
+        readonly uniswap: Environment["trading"]["uniswapMode"];
+      };
     }
   | { readonly deleted: true }
   | { readonly asked: true }
@@ -926,6 +933,13 @@ export const handleRequest = async (
       /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
+      trading: {
+        enso: deps.environment.trading.ensoMode,
+        jupiter: deps.environment.trading.jupiterMode,
+        pons: deps.environment.trading.ponsMode,
+        pump: deps.environment.trading.pumpMode,
+        uniswap: deps.environment.trading.uniswapMode,
+      },
       runtime: "bun",
       status: "ok",
     });

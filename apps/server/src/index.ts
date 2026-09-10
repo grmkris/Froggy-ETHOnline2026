@@ -19,7 +19,11 @@ import { authenticate, bearerFromProtocols } from "./auth";
 import { ModelBudget } from "./budget";
 import { createConversion } from "./conversion";
 import { detached } from "./detached";
-import { describeModes, loadEnvironment } from "./environment";
+import {
+  describeModes,
+  describeTradingModes,
+  loadEnvironment,
+} from "./environment";
 import { AgentGrants } from "./grants";
 import { recordHistoryWait } from "./history-sources";
 import { InteractionRegistry } from "./interactions";
@@ -513,7 +517,7 @@ class FroggyServer extends Context.Service<
       );
 
       yield* Effect.log(
-        `Froggy listening on ${server.url.toString()} — ${describeModes(environment.modes)}`
+        `Froggy listening on ${server.url.toString()} — ${describeModes(environment.modes)} ${describeTradingModes(environment.trading)}`
       );
 
       return FroggyServer.of({ url: server.url.toString() });
