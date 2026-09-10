@@ -156,3 +156,33 @@ await window.froggySpikePolicyOwner()            # browser console
 ```
 
 It answers PASS or FAIL on its own. Everything up to the signature is already exercised: `/mint` returns a well-formed signing payload, and `/patch` with a deliberately bogus signature earns the same `401` from Privy, proving the header reaches the policy engine. Note that a wrong signature and a missing one are indistinguishable in Privy's reply, so a FAIL is not by itself proof that the person's key may not do this — it must be separated from a payload that differs by a byte before it is recorded as a verdict.
+
+## Earn is switched off at the app, before any policy or owner question — 10 September 2026
+
+Spike 0b of [the user-owned policy plan](../plan/PLAN_USER_OWNED_POLICIES.md). `tools/spikes/privy-earn-additional-signer.ts`.
+
+The open question from 9 September was whether an _additional signer_, rather than the wallet's owner, may call an Earn action once a rule exists. Asking it looked like it needed a funded wallet and a vault id from the dashboard. It does not: the question is about authorisation, and authorisation and execution fail at different stages, so a differential asks it for nothing. Two app-owned throwaway wallets, one under a policy with a pinned `earn_deposit` rule and one under a policy with no Earn rule at all, each sent the same deposit authorised by the agent's key alone. A `policy_violation` on the control and anything else on the test would have proved the signer is judged by its policy exactly like a signing method.
+
+Both came back the same, and before either question was reached:
+
+```text
+[rule present] 403 {"error":"Yield features are not enabled for this app"}
+[rule absent ] 403 {"error":"Yield features are not enabled for this app"}
+```
+
+**This is a blocker, not a verdict.** The app-level gate fires ahead of the policy engine and ahead of any owner check, so nothing here says whether a signer may call Earn. The 9 September entry's "still unproven" stands unchanged.
+
+**What unblocks it is one dashboard toggle** — Yield/Earn on this Privy app — and nothing else. No funds, no vault id, no fee wrapper: re-run the spike immediately after the toggle and the differential answers itself. That is a smaller ask than [the Privy flow PRD](../plan/PRD_PRIVY_FLOW_FABLE51.md) row 0 assumed, and it is also a prerequisite that row 0 does not list, so stage 2 of that PRD is blocked on it too.
+
+### What Privy will accept in an Earn or transfer rule, which was worth the trip
+
+Rules for the high-level actions read their conditions from a field source none of our policies use, `action_request_body`. Asking Privy to validate a deliberately wrong field name made it enumerate the whole vocabulary:
+
+```text
+earn_deposit / earn_withdraw   vault_id, amount, raw_amount
+transfer                       source.asset, source.asset_address, source.amount,
+                               source.chain, destination.address, destination.asset,
+                               destination.chain
+```
+
+Both Earn methods also refuse a rule with no conditions ("must have at least one condition"), exactly as `signRawMessageBytes` does. So the vault **can** be pinned and the amount **can** be capped inside Privy, and a transfer rule **can** pin the source asset, the destination chain and the destination address — every leash the Privy flow PRD's stages 2 to 4 assume it can express. That much is confirmed from Privy's own validator rather than from its documentation.
