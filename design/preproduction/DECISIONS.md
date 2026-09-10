@@ -38,12 +38,26 @@ Status: `carried` (from the brief, not up for debate) · `agent` (made under exi
 | D-09 | Large review screenshots are not committed. Findings and `review.json` are. | The brief says keep large duplicate exports and ephemeral recordings out of routine source commits. The existing-board run produced 18 MB; the defect it found is recorded, the pixels are not. |
 | D-10 | Fixture data obeys the repository's loud-stub rule. | `AGENTS.md`: every stub is marked and every receipt it touches carries `stubbed: true`. A simulated design state must never be able to pass for a real one — the same failure mode the brief warns about for concept images. |
 
-## Pending — needs you
+## Gate A — answered 10 September 2026
 
-| ID | Question | Recommended default | Blocks |
+| ID | Question | Answer | Consequence |
 | --- | --- | --- | --- |
-| P-01 | Run `/design-login` to authorize `DesignSync`? | Yes — it is the design workflow, €0, one command. | Gate B's editable-design proof |
-| P-02 | Do you have a **macOS or Windows** machine you can run an agent on, for Rive? | If yes: we register Rive MCP there in Phase B and prove editing before spending anything on export. If no: D-05 stands and branded motion ships as SVG + Motion. | Whether Rive appears in the toolchain at all |
-| P-03 | Confirm the €0 generation budget and the manual image route (I write prompts, you generate in the app you already pay for). | Confirm as-is. Revisit only if the manual loop becomes the bottleneck. | Gate C's mascot concepts |
+| P-01 | Authorize `DesignSync`? | **Still open** — needs you to run `/design-login` | Gate B's editable-design proof is the one thing still blocked |
+| P-02 | Is there a macOS or Windows host for Rive? | **Yes, a Mac** | Rive is in the toolchain as the authoring seat. **D-05 is revised below.** Runbook: `agents/RIVE_MAC_SETUP.md` |
+| P-03 | Image route and budget | **Manual route confirmed, €0** | I write prompts at Gate C; you generate in the subscription you already have; I verify and record provenance |
 
-**Gate A is these three answers.** Nothing else is waiting on you.
+### D-05 revised — Rive is in, export stays gated
+
+The original D-05 deferred Rive because no eligible host was known. A Mac exists, so the decision changes to a **sequence** rather than a refusal:
+
+1. Prove Rive editing on the **Free** plan, on the Mac, against a disposable file. Free allows editing through MCP and no export, which is exactly the brief's anticipated "editing verified; export blocked" state — an honest outcome, not a failure.
+2. Report how far the smoke test actually got, step by step.
+3. **Then** decide the plan, with the result in hand: `.riv` needs Cadet $9/seat/mo,
+   editable `.rev` backup needs Voyager $32/seat/mo. Nothing is bought before step 2.
+4. `motion/MOTION_CONTRACT.md` is authored first, so the Mac session builds a specified contract instead of exploring. The same contract governs the SVG fallback, so the work is not wasted in either outcome.
+
+What has **not** changed: no purchase is authorized, `.riv` and `.rev` remain behind a separate approval, and the SVG + Motion route stays the fallback rather than being deleted.
+
+### D-06 unchanged, and worth repeating
+
+Motion's AI Kit installer is still not run. `motion@13.2.0` plus the existing `lib/motion.ts` covers UI motion, and Rive covers branded artwork. Neither needs Motion+.
