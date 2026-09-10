@@ -1,4 +1,4 @@
-Read FROGGY_PREPRODUCTION_SPEC.md and references/README.md. Treat this as the working brief for Froggy, not Invok.
+Read FROGGY_PREPRODUCTION_SPEC.md and references/README.md. Treat this as the working brief for Froggy, not [another project].
 
 Act as my hands-on setup and design-production lead. First inspect the current repository, machine/remote setup, available agent tools, MCP connections, and existing tmux workflow. Preserve other work and never expose secrets.
 
