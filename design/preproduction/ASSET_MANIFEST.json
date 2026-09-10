@@ -1,0 +1,42 @@
+{
+  "$comment": "Approved-asset records. Missing fields are left null rather than invented; a null means not yet established, never a guess. Status: draft | needs-review | approved | superseded.",
+  "assets": [
+    {
+      "id": "brand.frog-mark",
+      "revision": 4,
+      "role": "Compact mascot mark and the rig every motion state drives",
+      "source": "design/preproduction/brand/frog-mark.svg",
+      "exports": [],
+      "format": "svg",
+      "dimensions": {
+        "viewBox": "0 0 64 64",
+        "testedAt": [24, 32, 64, 128]
+      },
+      "bytes": 3025,
+      "checksum": "sha256:da2e0e9055724773fbf1857dee0d037b5c94e460b6e3a67ef5aeb32a7df74ac1",
+      "provenance": "Hand-authored SVG. Original geometry, not generated and not traced from any reference image. Informed by packages/ui/src/components/frog-mark.tsx, which already separated eye, pupil and mouth into token roles.",
+      "tool": "hand-written; no image model involved",
+      "license": "Original work for Froggy. No third-party mark or mascot reproduced.",
+      "review": "needs-review",
+      "runtimeContract": "design/preproduction/motion/MOTION_CONTRACT.md",
+      "notes": "Revision 4. r2 removed a lime rim light that read as a drip on the cheek at 128px. r3 lowered and softened the jaw shading, which had been reading as a second chin under the mouth, and added the lime tongue for success. r4 fixed the eyelid travel: the lid rect bottom sits at y=13 and the sclera starts at y=12.8, so the earlier open/closed/half values all left the lid above the eye and both the blink and the stopped pose were invisible."
+    },
+    {
+      "id": "prototype.motion-states",
+      "revision": 1,
+      "role": "Isolated preview proving the five-state contract",
+      "source": "design/preproduction/prototype/motion-states.template.html",
+      "exports": ["design/preproduction/prototype/motion-states.html"],
+      "format": "html",
+      "dimensions": null,
+      "bytes": 13859,
+      "checksum": "sha256:6feacd51d2bcbf304d4601e18b8a3b46d55f4965aa93bf6d67dbab69250a7a9a",
+      "provenance": "Generated from the mark by design/preproduction/tools/build-prototype.mjs, seven stamps with per-instance clip ids.",
+      "tool": "hand-written; generator in tools/",
+      "license": "Original work for Froggy.",
+      "review": "needs-review",
+      "runtimeContract": "design/preproduction/motion/MOTION_CONTRACT.md",
+      "notes": "No dependency, no network, no production endpoint, no secret. Geometry is generated, never hand-copied, because CSS cannot reach inside an SVG <use> shadow tree and a hand-copy would drift."
+    }
+  ]
+}

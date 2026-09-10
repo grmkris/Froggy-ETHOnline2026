@@ -17,3 +17,10 @@ docs/plan/archive/IDEAS_V3_KIMI.md
 .claude/
 .codex/
 .grok/
+
+# Generated from design/preproduction/brand/frog-mark.svg by
+# design/preproduction/tools/build-prototype.mjs. The generator owns this file's
+# bytes: formatting it after generation makes `build-prototype.mjs --check`
+# report the prototype stale on every run, which is a gate failing over
+# whitespace nobody wrote. Format the template instead.
+design/preproduction/prototype/motion-states.html

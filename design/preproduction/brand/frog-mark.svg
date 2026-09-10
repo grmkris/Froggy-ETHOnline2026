@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Froggy">
+  <!--
+    Froggy — the compact mark. Original geometry; no borrowed frog.
+
+    Every colour is a custom property with a literal fallback, so the same file
+    works inline in a themed app and standalone in a browser or an image tag.
+
+    Groups are named because motion drives them: the rig animates `eyes`,
+    `pupils`, `lids`, `mouth-*` and the whole `frog` group, and nothing else.
+    Detail that cannot survive 24px — nostrils, rim light, belly — carries the
+    `detail` class so the prototype can drop it at small sizes.
+  -->
+  <g id="frog" class="frog">
+    <g class="body">
+      <path class="skin" d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z" fill="var(--frog-skin, #4f9e63)"/>
+      <ellipse class="detail jaw" cx="32" cy="47.5" rx="16" ry="6.2" fill="var(--frog-belly, #d3e9d6)" opacity=".45"/>
+      <circle class="detail" cx="28" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+      <circle class="detail" cx="36" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+    </g>
+    <g class="eyes">
+      <g class="eye" data-eye="left">
+        <circle class="dome" cx="18" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="18" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+          <circle class="pupil" cx="18" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+          <circle class="glint" cx="16.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-left"><circle cx="18" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-left)"><rect class="lid" x="10" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+      </g>
+      <g class="eye" data-eye="right">
+        <circle class="dome" cx="46" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="46" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+          <circle class="pupil" cx="46" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+          <circle class="glint" cx="44.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-right"><circle cx="46" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-right)"><rect class="lid" x="38" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+      </g>
+    </g>
+    <path class="mouth mouth-neutral" d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="var(--frog-mouth, #24402e)" stroke-width="2.2" stroke-linecap="round"/>
+    <g class="mouth mouth-open" opacity="0">
+      <clipPath id="maw"><path d="M21.5 38Q32 52 42.5 38Z"/></clipPath>
+      <path d="M21.5 38Q32 52 42.5 38Z" fill="var(--frog-mouth, #24402e)"/>
+      <ellipse clip-path="url(#maw)" cx="32" cy="44.4" rx="5" ry="2.6" fill="var(--frog-lime, #b4e04a)"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,582 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — motion states</title>
+<!--
+  Isolated preview for the five-state motion contract. No dependencies, no
+  network, no production endpoint, no secret. Generated from the mark by
+  design/preproduction/tools/build-prototype.mjs — do not edit the frog
+  geometry here.
+
+  What this is for: proving the contract in motion/MOTION_CONTRACT.md is real
+  before any of it reaches the app. Every claim on the page is something you
+  can see or something the review harness reads back.
+-->
+<style>
+  :root {
+    --bg: #eff1ec;
+    --card: #fcfdfb;
+    --line: #dfe3df;
+    --ink: #15201a;
+    --ink-2: #6b776f;
+    --primary: #2f7a4c;
+    --brand-soft: #e2efe6;
+    /* Proposed, not yet approved — see system/TOKENS_PROPOSAL.md */
+    --lime: #b4e04a;
+    --lime-ink: #24400a;
+    --frog-skin: #4f9e63;
+    --frog-skin-lo: #3d7f4e;
+    --frog-belly: #d3e9d6;
+    --frog-eye: #fcfdfb;
+    --frog-pupil: #15201a;
+    --frog-mouth: #24402e;
+    --frog-lime: var(--lime);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .dark {
+    --bg: #0d120f;
+    --card: #171f19;
+    --line: #26332b;
+    --ink: #e9f0ea;
+    --ink-2: #8e9d92;
+    --primary: #4fb87a;
+    --brand-soft: #16301f;
+    --lime: #c7ec63;
+    --frog-skin: #5cb473;
+    --frog-skin-lo: #47935c;
+    --frog-belly: #2b4634;
+    --frog-eye: #f2f7f2;
+    --frog-pupil: #0b140e;
+    --frog-mouth: #0b140e;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      15px/1.55 "Inter Tight",
+      system-ui,
+      sans-serif;
+  }
+  main {
+    max-width: 940px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  h2 {
+    font-size: 15px;
+    margin: 32px 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-2);
+  }
+  p {
+    margin: 0 0 14px;
+    max-width: 62ch;
+    color: var(--ink-2);
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 20px;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  button {
+    font: inherit;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button[aria-pressed="true"] {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #f6fbf7;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .sizes {
+    display: flex;
+    align-items: flex-end;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  .sizes figure {
+    margin: 0;
+    text-align: center;
+  }
+  .sizes figcaption {
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .grounds {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ground {
+    flex: 1 1 180px;
+    border-radius: 16px;
+    padding: 18px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+  }
+  .ground.cream {
+    background: #eff1ec;
+  }
+  .ground.white {
+    background: #fcfdfb;
+  }
+  .ground.deep {
+    background: #0d120f;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--ink-2);
+  }
+  [data-state="working"] .dot {
+    background: var(--primary);
+  }
+  [data-state="needs-user"] .dot {
+    background: var(--lime);
+  }
+  [data-state="success"] .dot {
+    background: var(--primary);
+  }
+  [data-state="stopped"] .dot {
+    background: var(--ink-2);
+  }
+  .note {
+    font-size: 13px;
+    color: var(--ink-2);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+    margin: 12px 0 0;
+  }
+  .spacer {
+    height: 120vh;
+    display: grid;
+    place-items: center;
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+
+  /* ============================ the rig ============================ */
+
+  .froggy {
+    display: block;
+    overflow: visible;
+  }
+  .froggy .lid {
+    /* open: bottom edge at y=11, just clear of the eye */
+    transform: translateY(-2px);
+  }
+  .froggy .halo {
+    fill: none;
+    stroke: var(--lime);
+    stroke-width: 2;
+    opacity: 0;
+    transform-origin: 32px 34px;
+  }
+
+  /* Detail that cannot survive small sizes is dropped, not shrunk. */
+  .froggy[data-compact="true"] .detail {
+    display: none;
+  }
+
+  /* --- idle: breathing, with an occasional blink --- */
+  [data-state="idle"] .body {
+    animation: breathe 4s var(--ease) infinite;
+    transform-origin: 32px 55px;
+  }
+  [data-state="idle"] .lid {
+    animation: blink 5.2s steps(1, end) infinite;
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scaleY(1);
+    }
+    50% {
+      transform: scaleY(1.022);
+    }
+  }
+  @keyframes blink {
+    0%,
+    92%,
+    100% {
+      transform: translateY(-2px);
+    }
+    95%,
+    97% {
+      /* closed: bottom edge past y=27, covering the whole sclera */
+      transform: translateY(15px);
+    }
+  }
+
+  /* --- working: a purposeful bob, eyes scanning --- */
+  [data-state="working"] .frog {
+    animation: bob 0.9s ease-in-out infinite alternate;
+  }
+  [data-state="working"] .pupils {
+    animation: scan 1.9s ease-in-out infinite alternate;
+  }
+  @keyframes bob {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-1.6px);
+    }
+  }
+  @keyframes scan {
+    from {
+      transform: translateX(-1.7px);
+    }
+    to {
+      transform: translateX(1.7px);
+    }
+  }
+
+  /* --- needs-user: attentive, and a lime halo that asks --- */
+  [data-state="needs-user"] .sclera {
+    transform: scale(1.06);
+    transform-origin: center;
+  }
+  [data-state="needs-user"] .eyes {
+    animation: lean 2.4s ease-in-out infinite alternate;
+    transform-origin: 32px 34px;
+  }
+  [data-state="needs-user"] .halo {
+    animation: ask 1.8s ease-out infinite;
+  }
+  @keyframes lean {
+    from {
+      transform: rotate(-1.6deg);
+    }
+    to {
+      transform: rotate(1.6deg);
+    }
+  }
+  @keyframes ask {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.94);
+    }
+    70% {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+  }
+
+  /* --- success: one hop, then it settles. Never loops. --- */
+  [data-state="success"] .frog {
+    animation: hop 0.62s var(--ease) 1;
+  }
+  [data-state="success"] .mouth-neutral {
+    opacity: 0;
+  }
+  [data-state="success"] .mouth-open {
+    opacity: 1;
+  }
+  @keyframes hop {
+    0% {
+      transform: translateY(0) scaleY(1);
+    }
+    22% {
+      transform: translateY(0) scaleY(0.94);
+    }
+    55% {
+      transform: translateY(-7px) scaleY(1.04);
+    }
+    100% {
+      transform: translateY(0) scaleY(1);
+    }
+  }
+
+  /* --- stopped: still. Neutral, not sad — it also means "outcome unknown". --- */
+  [data-state="stopped"] .lid {
+    /* half-mast: bottom edge at the eye's centre. Neutral, not sad. */
+    transform: translateY(7px);
+  }
+
+  /* Offscreen and hidden tabs pause every loop. */
+  [data-visible="false"] * {
+    animation-play-state: paused !important;
+  }
+
+  /* Reduced motion: no loops anywhere, and each state keeps a distinct pose. */
+  @media (prefers-reduced-motion: reduce) {
+    .froggy * {
+      animation: none !important;
+    }
+    [data-state="working"] .pupils {
+      transform: translateX(1.7px);
+    }
+    [data-state="needs-user"] .halo {
+      opacity: 0.5;
+    }
+  }
+  body[data-force-still="true"] .froggy * {
+    animation: none !important;
+  }
+  body[data-force-still="true"] [data-state="working"] .pupils {
+    transform: translateX(1.7px);
+  }
+  body[data-force-still="true"] [data-state="needs-user"] .halo {
+    opacity: 0.5;
+  }
+</style>
+
+<main>
+  <h1>Froggy — motion states</h1>
+  <p>
+    The five-state contract from <code>motion/MOTION_CONTRACT.md</code>,
+    running. Simulated states, driven by these buttons — in the app they are
+    driven by <code>TaskStatus</code>, never by a timer.
+  </p>
+
+  <h2>States</h2>
+  <div class="panel" id="stage" data-state="idle" data-visible="true">
+    <div class="controls" role="group" aria-label="Motion state">
+      <button id="state-idle" data-set="idle" aria-pressed="true">idle</button>
+      <button id="state-working" data-set="working" aria-pressed="false">
+        working
+      </button>
+      <button id="state-needs-user" data-set="needs-user" aria-pressed="false">
+        needs-user
+      </button>
+      <button id="state-success" data-set="success" aria-pressed="false">
+        success
+      </button>
+      <button id="state-stopped" data-set="stopped" aria-pressed="false">
+        stopped
+      </button>
+    </div>
+    <div class="sizes">
+      <figure>
+        <svg
+          class="froggy"
+          width="128"
+          height="128"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>128</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="64"
+          height="64"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>64</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="32"
+          height="32"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>32</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="24"
+          height="24"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>24</figcaption>
+      </figure>
+    </div>
+    <p class="status">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="label">Resting. Nothing is running.</span>
+    </p>
+    <p class="note" id="note">
+      The mascot carries mood; the sentence carries the fact. At 24 and 32 px
+      the belly, rim light and nostrils are dropped rather than shrunk.
+    </p>
+  </div>
+
+  <h2>Grounds</h2>
+  <div class="grounds">
+    <div class="ground cream">
+      <svg
+        class="froggy"
+        width="64"
+        height="64"
+        viewBox="0 0 64 64"
+        aria-hidden="true"
+      >
+        <!-- FROG -->
+      </svg>
+    </div>
+    <div class="ground white">
+      <svg
+        class="froggy"
+        width="64"
+        height="64"
+        viewBox="0 0 64 64"
+        aria-hidden="true"
+      >
+        <!-- FROG -->
+      </svg>
+    </div>
+    <div class="ground deep dark">
+      <svg
+        class="froggy"
+        width="64"
+        height="64"
+        viewBox="0 0 64 64"
+        aria-hidden="true"
+      >
+        <!-- FROG -->
+      </svg>
+    </div>
+  </div>
+
+  <h2>Honesty checks</h2>
+  <div class="panel">
+    <div class="controls">
+      <button id="toggle-still" aria-pressed="false">
+        Force reduced motion
+      </button>
+      <button id="toggle-fallback" aria-pressed="false">
+        Simulate asset failure
+      </button>
+      <button id="toggle-theme" aria-pressed="false">Dark</button>
+    </div>
+    <p class="note">
+      <strong>Reduced motion</strong> stops every loop and keeps each state a
+      distinct pose. <strong>Asset failure</strong> replaces the rig with a
+      still pose, so a runtime that never loads costs decoration and nothing
+      else. <strong>Success</strong> plays once and settles to idle on its own;
+      it is the only automatic transition, and in the app it is entered on a
+      confirmed <code>done</code> — never on a timer or a click.
+    </p>
+  </div>
+
+  <div class="spacer">
+    scroll back up — the loops above are paused while they are offscreen
+  </div>
+</main>
+
+<script>
+  const LABEL = {
+    idle: "Resting. Nothing is running.",
+    working: "Working. No percentage, because none is known.",
+    "needs-user": "Needs you. A decision is waiting.",
+    success: "Done, and confirmed.",
+    stopped: "Stopped, failed, or outcome not yet known — the words say which.",
+  };
+  const stage = document.getElementById("stage");
+  const label = document.getElementById("label");
+  let settle;
+
+  const set = (state) => {
+    clearTimeout(settle);
+    stage.dataset["state"] = state;
+    label.textContent = LABEL[state];
+    for (const button of document.querySelectorAll("[data-set]")) {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset["set"] === state)
+      );
+    }
+    // The contract: success plays once, then settles into idle by itself.
+    if (state === "success") {
+      settle = setTimeout(() => set("idle"), 900);
+    }
+  };
+  for (const button of document.querySelectorAll("[data-set]")) {
+    button.addEventListener("click", () => set(button.dataset["set"]));
+  }
+
+  // Loops stop when offscreen, and when the tab is hidden.
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      stage.dataset["visible"] = String(entry.isIntersecting);
+    },
+    { threshold: 0.1 }
+  );
+  observer.observe(stage);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stage.dataset["visible"] = "false";
+    }
+  });
+
+  const toggle = (button, apply) => {
+    button.addEventListener("click", () => {
+      const next = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(next));
+      apply(next);
+    });
+  };
+  toggle(document.getElementById("toggle-still"), (on) => {
+    document.body.dataset["forceStill"] = String(on);
+  });
+  toggle(document.getElementById("toggle-theme"), (on) => {
+    document.body.classList.toggle("dark", on);
+  });
+  toggle(document.getElementById("toggle-fallback"), (on) => {
+    for (const svg of document.querySelectorAll("#stage .froggy")) {
+      svg.style.opacity = on ? "0.35" : "";
+      svg.style.filter = on ? "grayscale(1)" : "";
+    }
+    document.getElementById("note").textContent = on
+      ? "Asset failure simulated: a still pose, no motion, nothing else lost."
+      : "The mascot carries mood; the sentence carries the fact.";
+  });
+</script>

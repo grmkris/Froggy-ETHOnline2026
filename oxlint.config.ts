@@ -144,6 +144,25 @@ export default defineConfig({
       },
     },
     {
+      /**
+       * Preproduction review scripts.
+       *
+       * These drive one browser page through an ordered sequence — click a
+       * state, wait for the animation to be mid-flight, screenshot, read the
+       * running-animation count, then the next state. The order is the point:
+       * the page is a single piece of shared state, so the captures cannot run
+       * in parallel. With `no-await-in-loop` on and `no-array-reduce` also on,
+       * sequential async iteration has no readable spelling left, and the
+       * clearest available form is the loop.
+       *
+       * One directory, one rule, stated rather than suppressed inline.
+       */
+      files: ["design/preproduction/tools/**/*.mjs"],
+      rules: {
+        "eslint/no-await-in-loop": "off",
+      },
+    },
+    {
       // Vendored shadcn CLI output. The generator owns this file's style and
       // will reimpose it on the next `shadcn add`, so matching repository style
       // here would be undone rather than preserved.
