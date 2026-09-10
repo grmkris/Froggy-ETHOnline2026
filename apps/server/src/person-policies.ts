@@ -38,6 +38,23 @@ export interface PersonPolicyDeps {
   readonly store: Pick<Store, "privyPolicy">;
 }
 
+/** Three days: long enough to act on, short enough not to be noise. */
+const NUDGE_WINDOW_MS = 3 * 86_400_000;
+/** At most one warning a day per person, however often the tick runs. */
+const NUDGE_EVERY_MS = 86_400_000;
+
+/** What the person is told, in days rather than a timestamp nobody can read. */
+const nudgeText = (expiresAt: number, now: number): string => {
+  const days = Math.floor((expiresAt - now) / 86_400_000);
+  if (days <= 0) {
+    return expiresAt <= now
+      ? "Your agent's permission to spend has run out. It can sign nothing until you renew it in Settings."
+      : "Your agent's permission to spend runs out today. Renew it in Settings, or it will stop being able to pay for anything.";
+  }
+  const when = days === 1 ? "tomorrow" : `in ${days} days`;
+  return `Your agent's permission to spend runs out ${when}. Renew it in Settings whenever suits; nothing changes until then.`;
+};
+
 export class PersonPolicies {
   private readonly deps: PersonPolicyDeps;
   /** In flight per person, so two tabs on a cold start mint one policy. */
@@ -45,6 +62,8 @@ export class PersonPolicies {
     UserId,
     Promise<PersonPolicyRecord | null>
   >();
+  /** When each person was last warned. In memory; see `dueForNudge`. */
+  private readonly nudged = new Map<UserId, number>();
 
   constructor(deps: PersonPolicyDeps) {
     this.deps = deps;
@@ -142,6 +161,47 @@ export class PersonPolicies {
     const next: PersonPolicyRecord = { allowance, policyId: stored.policyId };
     await this.deps.store.privyPolicy.save(userId, next);
     return next;
+  }
+
+  /**
+   * Who to warn that their agent is about to go quiet, and what to say.
+   *
+   * The expiry itself needs nothing to run: it is a condition on every Privy
+   * rule and an `expiry` rule on the mandate, so the agent stops being able to
+   * sign whether or not this ever fires. This is only the courtesy of saying so
+   * beforehand — which matters because the failure it prevents is a person
+   * discovering mid-purchase that their agent went silent overnight.
+   *
+   * Whom it has already told is held in memory, like the daily budget's counts
+   * and for the same reason: a redeploy forgetting is a duplicate message, and
+   * a duplicate message is a much smaller harm than a column that has to be
+   * migrated and can go stale. Once a day per person, inside the window.
+   */
+  async dueForNudge(
+    now: number
+  ): Promise<readonly { readonly text: string; readonly userId: UserId }[]> {
+    const horizon = now + NUDGE_WINDOW_MS;
+    const due = await this.deps.store.privyPolicy.expiringBefore(horizon);
+    const out: { text: string; userId: UserId }[] = [];
+    for (const id of due) {
+      const last = this.nudged.get(id) ?? 0;
+      if (now - last < NUDGE_EVERY_MS) {
+        continue;
+      }
+      // Loaded rather than carried by the query: the message names the day, and
+      // a message that says the wrong day is worse than no message.
+      // eslint-disable-next-line no-await-in-loop
+      const record = await this.deps.store.privyPolicy.load(id);
+      if (record === null) {
+        continue;
+      }
+      this.nudged.set(id, now);
+      out.push({
+        text: nudgeText(record.allowance.expiresAt, now),
+        userId: id,
+      });
+    }
+    return out;
   }
 }
 

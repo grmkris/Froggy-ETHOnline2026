@@ -25,6 +25,7 @@ import {
  * silently rewrites history.
  */
 import {
+  userId as toUserId,
   Allowance,
   AgentInvocation,
   DirectoryId,
@@ -47,6 +48,7 @@ import {
   asc,
   desc,
   eq,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -1250,6 +1252,18 @@ export const postgresStore = (sql: Sql): Store => {
             privyPolicyId: null,
           })
           .where(eq(users.did, userId));
+      },
+      expiringBefore: async (at) => {
+        const rows = await database
+          .select({ did: users.did })
+          .from(users)
+          .where(
+            and(
+              isNotNull(users.privyPolicyId),
+              lt(users.privyPolicyExpiresAt, new Date(at))
+            )
+          );
+        return rows.map((row) => toUserId(row.did));
       },
       load: async (userId) => {
         const rows = await database

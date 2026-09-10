@@ -13,6 +13,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  defaultAllowance,
+  LIMIT_RULES,
   ApprovalId,
   KNOWN_ASSETS,
   PurchaseId,
@@ -25,7 +27,7 @@ import {
   usdMicros,
   userId,
 } from "@froggy/domain";
-import type { Purchase } from "@froggy/domain";
+import type { Mandate, Purchase } from "@froggy/domain";
 import type { ServiceModes } from "@froggy/protocol";
 import { memoryLedger, memoryStore } from "@froggy/wallet";
 import type { SpendLedger, Store } from "@froggy/wallet";
@@ -1284,4 +1286,48 @@ test("declined, expired, and cancelled purchases file the original human decisio
       });
     })
   );
+});
+
+const allowanceOf = () => ({
+  allowance: defaultAllowance(Date.now()),
+  policyId: "pol_person_1",
+});
+
+const capsIn = (mandate: Mandate): number =>
+  mandate.rules.filter((rule) => LIMIT_RULES.has(rule._tag)).length;
+
+describe("a person's own limits are not the deployment's", () => {
+  test("survive a mandate edit on a deployment that imposes none", async () => {
+    // The bug this guards, which would have been found on stage: SPENDING_LIMITS
+    // decides whether *Froggy* imposes caps nobody asked for. Letting it strip
+    // caps a person set for themselves widens their agent, silently, the first
+    // time anything edits their mandate — and editing the mandate is what
+    // saving a payee, answering "allow for this session" and reconnecting all do.
+    const session = sessionWith(memoryLedger());
+    await session.hydrate();
+    const withCaps = session.applyAllowance(allowanceOf());
+    expect(capsIn(withCaps)).toBeGreaterThan(0);
+
+    const after = session.updateMandate(withCaps);
+    expect(capsIn(after)).toBe(capsIn(withCaps));
+  });
+
+  test("are still stripped for somebody who set none", async () => {
+    // The other half of the contract: a deployment with no limits still gives a
+    // person without an allowance a mandate with no caps, exactly as before.
+    const session = sessionWith(memoryLedger());
+    await session.hydrate();
+    const imposed = {
+      ...session.currentMandate,
+      rules: [
+        ...session.currentMandate.rules,
+        {
+          _tag: "per_tx_cap" as const,
+          id: RuleId.generate(),
+          maxUsdMicros: usdMicros(1),
+        },
+      ],
+    };
+    expect(capsIn(session.updateMandate(imposed))).toBe(0);
+  });
 });

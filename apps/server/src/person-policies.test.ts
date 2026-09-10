@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { defaultAllowance, userId } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 import type { PersonPolicyRecord } from "@froggy/wallet";
 
 import { PersonPolicies, signerStanding } from "./person-policies";
@@ -20,7 +21,7 @@ const PINS = {
 const harness = (
   answers: (() => Promise<{ policyId: string | null; reason: string | null }>)[]
 ) => {
-  const saved = new Map<string, PersonPolicyRecord>();
+  const saved = new Map<UserId, PersonPolicyRecord>();
   let mints = 0;
   const deps: PersonPolicyDeps = {
     now: () => NOW,
@@ -40,6 +41,12 @@ const harness = (
         clear: async (id) => {
           await Promise.resolve();
           saved.delete(id);
+        },
+        expiringBefore: async (at) => {
+          await Promise.resolve();
+          return [...saved.entries()]
+            .filter(([, record]) => record.allowance.expiresAt < at)
+            .map(([id]) => id);
         },
         load: async (id) => await Promise.resolve(saved.get(id) ?? null),
         save: async (id, record) => {
@@ -101,6 +108,59 @@ describe("PersonPolicies", () => {
     const h = harness([minted("pol_1")]);
     expect(await h.policies.current(ALICE)).toBeNull();
     expect(h.mints()).toBe(0);
+  });
+});
+
+describe("the expiry nudge", () => {
+  const DAY = 86_400_000;
+
+  const withPolicy = async (expiresAt: number) => {
+    const h = harness([minted("pol_1")]);
+    await h.policies.ensure(ALICE, {
+      ...defaultAllowance(NOW),
+      expiresAt,
+    });
+    return h;
+  };
+
+  it("says nothing while the expiry is far off", async () => {
+    const h = await withPolicy(NOW + 10 * DAY);
+    expect(await h.policies.dueForNudge(NOW)).toEqual([]);
+  });
+
+  it("warns once inside the three-day window", async () => {
+    const h = await withPolicy(NOW + 2 * DAY);
+    const due = await h.policies.dueForNudge(NOW);
+    expect(due).toHaveLength(1);
+    expect(due[0]?.userId).toBe(ALICE);
+    expect(due[0]?.text).toContain("in 2 days");
+  });
+
+  it("does not repeat itself on the next tick a minute later", async () => {
+    // The tick runs every minute; a warning every minute is not a warning.
+    const h = await withPolicy(NOW + 2 * DAY);
+    expect(await h.policies.dueForNudge(NOW)).toHaveLength(1);
+    expect(await h.policies.dueForNudge(NOW + 60_000)).toEqual([]);
+  });
+
+  it("says it again the next day, while it is still true", async () => {
+    const h = await withPolicy(NOW + 2 * DAY);
+    expect(await h.policies.dueForNudge(NOW)).toHaveLength(1);
+    expect(await h.policies.dueForNudge(NOW + DAY)).toHaveLength(1);
+  });
+
+  it("speaks plainly on the last day and after it has gone", async () => {
+    const today = await withPolicy(NOW + 3_600_000);
+    const todayDue = await today.policies.dueForNudge(NOW);
+    expect(todayDue[0]?.text).toContain("runs out today");
+    const gone = await withPolicy(NOW - DAY);
+    const goneDue = await gone.policies.dueForNudge(NOW);
+    expect(goneDue[0]?.text).toContain("has run out");
+  });
+
+  it("says nothing for somebody with no policy of their own", async () => {
+    const h = harness([]);
+    expect(await h.policies.dueForNudge(NOW)).toEqual([]);
   });
 });
 

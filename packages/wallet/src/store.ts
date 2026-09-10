@@ -420,6 +420,15 @@ export interface Store {
    */
   readonly privyPolicy: {
     readonly clear: (userId: UserId) => Promise<void>;
+    /**
+     * Everyone whose policy stops allowing anything before `at`.
+     *
+     * Reads the denormalised expiry column rather than decoding every person's
+     * allowance, which is why that column exists. Used to warn people before
+     * their agent goes quiet; the expiry itself is enforced by Privy's own rule
+     * condition and by the mandate, not by anything that has to run.
+     */
+    readonly expiringBefore: (at: number) => Promise<readonly UserId[]>;
     readonly load: (userId: UserId) => Promise<PersonPolicyRecord | null>;
     readonly save: (
       userId: UserId,
@@ -1231,6 +1240,16 @@ export const memoryStore = (): Store => {
       clear: async (userId) => {
         await Promise.resolve();
         personPolicies.delete(userId);
+      },
+      expiringBefore: async (at) => {
+        await Promise.resolve();
+        const due: UserId[] = [];
+        for (const [id, record] of personPolicies) {
+          if (record.allowance.expiresAt < at) {
+            due.push(id);
+          }
+        }
+        return due;
       },
       load: async (userId) => {
         await Promise.resolve();

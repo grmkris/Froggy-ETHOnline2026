@@ -111,6 +111,26 @@ const suite = (name: string, make: () => Backend): void => {
       expect(await other.privyPolicy.load(owner)).toBeNull();
     });
 
+    test("finds only the policies that expire before the horizon", async () => {
+      const { store, other } = make();
+      const soon = userId(`did:privy:policy-soon-${crypto.randomUUID()}`);
+      const later = userId(`did:privy:policy-later-${crypto.randomUUID()}`);
+      const now = Date.now();
+      const base = defaultAllowance(now);
+      await store.privyPolicy.save(soon, {
+        allowance: { ...base, expiresAt: now + 86_400_000 },
+        policyId: "pol_soon",
+      });
+      await store.privyPolicy.save(later, {
+        allowance: { ...base, expiresAt: now + 20 * 86_400_000 },
+        policyId: "pol_later",
+      });
+      // Read through the other connection: the tick runs wherever it runs.
+      const due = await other.privyPolicy.expiringBefore(now + 3 * 86_400_000);
+      expect(due).toContain(soon);
+      expect(due).not.toContain(later);
+    });
+
     test("forgetting a person takes their standing authority with them", async () => {
       // Unlike the Hedera account, which is money and is kept: a policy is
       // authority, and a person who asked to be forgotten must not leave a
