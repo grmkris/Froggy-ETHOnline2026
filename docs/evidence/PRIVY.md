@@ -246,3 +246,25 @@ GET  .../actions/35ec60bc-55ca-4206-aea5-b1d9258f105d
 Topping up gas credits is already row 0 of [the Privy flow PRD](../plan/PRD_PRIVY_FLOW_FABLE51.md) and has not been done. It is a dashboard and billing action, so it is the owner's.
 
 **The fallback, and its limit.** Uniswap's SwapRouter02 on Base — `0x2626664c2603336E57B271c5C0b26F421741e481`, pinned in the treasury policy since 6 September and used for a real swap then — pays gas from the wallet's own ETH and needs no credits. It would get USDC into the wallet. It would not help the Earn deposit if that is sponsored, so it solves half the problem and the half it solves is not the one holding up the verdict.
+
+## Earn is judged by the policy — 10 September 2026, the verdict
+
+Spike 0b, answered. `tools/spikes/privy-earn-verdict.ts`, against the live app.
+
+Getting here took four attempts, each blocked before the question: the app gate (`403 Yield features are not enabled`), a fabricated vault id (`404 Vault not found`), an empty wallet (`400 Insufficient balance`), and sponsored gas with no credits. With Yield enabled, sponsorship off, a real vault and a wallet holding both the money and the gas to move it, the question was finally reachable.
+
+The arm that answers it is a funded wallet whose signer is held to a policy naming **no Earn method at all**, asked to deposit into Gauntlet USDC Prime:
+
+```text
+target wallet funded: usdc=500000 eth=80000000000000
+deposit under a policy with no Earn rule
+  -> 400 {"error":"RPC request denied due to policy violation","code":"policy_violation"}
+```
+
+**Privy judges an Earn action against the signer's policy, and refuses it by default-deny.** The leash covers Earn. Taken with the earlier finding that an additional signer is not structurally barred from Earn, and with the condition vocabulary Privy's validator enumerated — `vault_id`, `amount`, `raw_amount` — the picture is complete: an agent may sweep, only into a vault a rule names, only up to an amount a rule caps, and not at all unless the person's policy says so.
+
+That is the answer the Privy bounty story wanted. Had it gone the other way the submission would have had to say that Earn is outside the leash and the caps on it are ours alone.
+
+**How the wallets had to be arranged, which is a finding in itself.** The funded wallet could not be reused for this: it is owned by the test person, so attaching a policy to it is a wallet _edit_, and the app secret is refused for that with `401 No valid authorization keys or user signing keys available` — the same wall ADR 0015 hit, reached from the other side. A policy can only be attached at creation, so a second wallet was minted with one and the money moved across with two Privy transfers.
+
+Two details worth keeping for whoever writes stage 2. Transfers name the chain as `chain: "base"` while swaps name it `caip2: "eip155:8453"`; the same field spelled the other way is a `400`. And the ordering established across these attempts is **vault → balance → policy**: a spike run against an unfunded wallet or a fabricated vault learns nothing about authorisation, whatever its policy says.
