@@ -58,6 +58,7 @@ import {
   sendErc20Transfer,
   stubPrivyServer,
 } from "@froggy/wallet";
+import type { Redacted } from "effect";
 import postgres from "postgres";
 
 import type { Environment } from "./environment";
@@ -71,6 +72,8 @@ import { executionProviders } from "./trading/execution-providers";
 import type { ChainLaunchReader } from "./trading/launch-chain";
 import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
 import { LaunchCoordinator } from "./trading/launches";
+import type { PonsReports } from "./trading/pons-report";
+import { livePonsReports, stubPonsReports } from "./trading/pons-report";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
 import type { TradingProviders } from "./trading/services";
 import { liveUniswap, stubUniswap } from "./trading/uniswap";
@@ -193,6 +196,22 @@ export const createServices = (options: ServiceOptions): Services => {
     return makeStub();
   };
 
+  const ponsRpc = environment.trading.rpcEndpoints["eip155:4663"];
+  // Same guarantee as `liveOr`, written out because the endpoint has to narrow
+  // before it reaches the client rather than inside a thunk.
+  const ponsReportsFor = (
+    endpoint: Redacted.Redacted | undefined
+  ): PonsReports => {
+    if (endpoint !== undefined) {
+      return livePonsReports(tradeEvmClient({ endpoint }), Date.now);
+    }
+    if (!environment.allowStubs) {
+      throw new Error(
+        "pons is not live; refusing a stub adapter off loopback."
+      );
+    }
+    return stubPonsReports(Date.now);
+  };
   const trading: TradingProviders = {
     market: liveOr(
       environment.modes.birdeye === "live",
@@ -216,6 +235,7 @@ export const createServices = (options: ServiceOptions): Services => {
         }),
       stubUniswap
     ),
+    pons: ponsReportsFor(ponsRpc),
   };
 
   const graph = liveOr(
@@ -421,7 +441,6 @@ export const createServices = (options: ServiceOptions): Services => {
     now: Date.now,
   });
 
-  const ponsRpc = environment.trading.rpcEndpoints["eip155:4663"];
   let ponsReader: ChainLaunchReader | null = null;
   if (ponsRpc !== undefined) {
     ponsReader = ponsLaunchReader(

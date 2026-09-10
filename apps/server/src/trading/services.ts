@@ -21,6 +21,7 @@ import type { Services } from "../services";
 import { std } from "../std";
 import { BIRDEYE_NETWORKS } from "./birdeye";
 import type { liveBirdeye } from "./birdeye";
+import type { PonsReports } from "./pons-report";
 import { preflightRpcRead } from "./rpc";
 import type { TradingRpc } from "./rpc";
 import { preflightSwapQuote, supportsUniswapChain } from "./uniswap";
@@ -30,6 +31,8 @@ export interface TradingProviders {
   readonly market: ReturnType<typeof liveBirdeye>;
   readonly rpc: TradingRpc;
   readonly quotes: UniswapQuotes;
+  /** Read-only Pons launch state on Robinhood. Never an input to a trade. */
+  readonly pons: PonsReports;
 }
 
 export interface TradingServiceContext {

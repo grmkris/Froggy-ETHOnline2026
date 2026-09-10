@@ -141,6 +141,7 @@ const fixture = async () => {
           return await services.trading.quotes.quote(input);
         },
       },
+      pons: services.trading.pons,
     },
   };
   const person = userId(`did:privy:trading-test-${crypto.randomUUID()}`);

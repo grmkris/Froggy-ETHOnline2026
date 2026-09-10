@@ -10,13 +10,13 @@ The defaults in [.env.example](../.env.example) are:
 BIRDEYE_API_KEY=REPLACE_ME_BIRDEYE_KEY
 UNISWAP_API_KEY=REPLACE_ME_UNISWAP_KEY
 TRADING_RPC_ENDPOINTS={}
-UNISWAP_CHAINS='[{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"}]'
+UNISWAP_CHAINS='[{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:4663","routerVersion":"2.1.1"}]'
 TRADING_PRICES_USD_MICROS={}
 ```
 
 Birdeye supplies search and inspection. Uniswap supplies quotes and approval checks. `TRADING_RPC_ENDPOINTS` maps each supported CAIP-2 network to its Quicknode HTTPS endpoint, for example `{"eip155:8453":"https://YOUR_ENDPOINT.quiknode.pro/YOUR_TOKEN/"}`. Replace that illustrative URL through server configuration. API keys and credential-bearing URLs are held as redacted configuration and never belong in tool arguments or browser code. Restart the server after configuration changes.
 
-`UNISWAP_CHAINS` selects configured networks and router versions. The default enables Ethereum, Sepolia, Base and Base Sepolia with version `2.1.1`; the adapter filters out unsupported network/version combinations. Data-network support is separate from the wallet and payment networks.
+`UNISWAP_CHAINS` selects configured networks and router versions. The default enables Ethereum, Sepolia, Base, Base Sepolia and Robinhood with version `2.1.1`; the adapter filters out unsupported network/version combinations. Data-network support is separate from the wallet and payment networks.
 
 `TRADING_PRICES_USD_MICROS` sets the price of each operation. Keys are `market_search`, `token_inspect`, `rpc_read`, `quote_action` and `watch_launches`; values are positive integers up to `100000000`. One dollar is `1000000` USD micros. For example, `{"rpc_read":10000}` sets a one-cent RPC service fee. Choose prices after reviewing provider costs and quotas; this example is not a measured cost recommendation.
 
@@ -136,6 +136,23 @@ A failed paid task is not automatically refunded or purchased again. An uncertai
 - Solana RPC allows `getSlot`, `getBalance`, `getAccountInfo`, mint-filtered `getTokenAccountsByOwner` and `getSignatureStatuses`. Account reads require `confirmed` or `finalized`; account data uses a base64 slice of at most 1024 bytes. Account lists and signature lists are capped at 20. Signature lookup uses the recent cache; null means unknown.
 - RPC verifies the endpoint's chain ID or genesis before the first read. Provider responses are capped at 64,000 bytes and normalized results at 48,000 serialized characters. Unsafe numeric account amounts are refused. Arbitrary endpoints, sending, signing, debug methods, broad account scans and log queries are unavailable.
 - Quotes use Uniswap Classic routing with V2/V3 and no-hook V4 routes. Approval and permit information is an unsigned summary; Froggy obtains no trade signature and returns no execution capability. Native wrapping, order routes, hook-dependent pools and launch-curve builders are unsupported. Any provider simulation result is explicitly not independent verification; token taxes are not assessed and gas estimates exclude approvals.
+
+## Robinhood Chain coverage
+
+`eip155:4663` is supported by `market_search`, `token_inspect`, `rpc_read`, `quote_action` and `watch_launches`, and by the unpaid `pons_token` read described below. Each still requires its provider to be configured and its price to be set.
+
+Two consequences are worth knowing before reading a result:
+
+- **Birdeye reports no security facts here.** Its `token_security` endpoint answers 401 for Robinhood on this plan, so `token_inspect` returns `security.status = "unavailable"` with no facts. That is an absence of evidence, not a clean screen.
+- **`quote_action` cannot quote a Pons token.** Quotes exclude hook-bearing V4 pools, and every graduated Pons pool carries the Pons hook, so the router answers `NoRouteFoundError` for those pairs. It quotes ordinary Robinhood pools such as USDG/WETH normally. Pons pricing comes from the Pons quoter inside trade preparation instead.
+
+### Read Pons launch state
+
+`pons_token` takes one token address and reports what the Pons V2 factory and the launch's own contracts say at a single pinned block: whether a launch is registered at all, its phase, curve address, deployer, creator fee recipient, creator tax, graduation threshold and buyback flag, then either the curve's reserves, sellable supply and fee basis points, or the graduated pool's key, price, tick and active liquidity.
+
+Every reviewed Pons dependency's runtime hash is checked before anything else is read. If one has changed, the read stops and says so rather than answering through a contract nobody reviewed.
+
+It is chain state and nothing more. It does not count holders, does not describe distribution, is not a quote, and creates no trading authority.
 
 ## Controlled trade execution
 

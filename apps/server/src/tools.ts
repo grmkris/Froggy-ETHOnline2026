@@ -23,6 +23,7 @@ import type { BrowserHandle } from "@froggy/browser";
  * string "NaN" as an amount.
  */
 import {
+  EvmAddress,
   LaunchWatchInput,
   formatUsd,
   KNOWN_ASSETS,
@@ -426,6 +427,13 @@ export const buildTools = (deps: ToolDeps) => {
             await getTradingPositions(services, session.userId, input.network)
           )
         ),
+    }),
+    pons_token: tool({
+      description:
+        "Read Pons launch state for one token on Robinhood: whether the factory registered it, its phase, deployer, creator fee recipient and tax, curve reserves and sellable supply, or the graduated pool's price and active liquidity. Pinned to one block, with every reviewed Pons dependency's runtime hash checked first. This is chain state only: it does not count holders, and it is not a quote or a trade.",
+      inputSchema: std(Schema.Struct({ token: EvmAddress })),
+      execute: async ({ token }) =>
+        cap(JSON.stringify(await services.trading.pons.read(token))),
     }),
     trade_capabilities: tool({
       description:

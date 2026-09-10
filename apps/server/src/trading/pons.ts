@@ -81,7 +81,7 @@ export const PONS_ABI = parseAbi([
   "event CurveSell(address indexed seller,address indexed recipient,uint256 tokensIn,uint256 quoteOut,uint256 fee,uint256 tax)",
 ]);
 
-interface PonsPool {
+export interface PonsPool {
   readonly currency0: Address;
   readonly currency1: Address;
   readonly fee: number;
@@ -217,7 +217,7 @@ const curveState = async (
   };
 };
 
-const ponsPoolId = (pool: PonsPool) =>
+export const ponsPoolId = (pool: PonsPool) =>
   keccak256(
     encodeAbiParameters(
       parseAbiParameters("address,address,uint24,int24,address"),
