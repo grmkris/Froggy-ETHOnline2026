@@ -125,20 +125,6 @@ export const AppClientMessage = Schema.Union([
     mandate: Mandate,
     type: Schema.Literals(["mandate.update"]),
   }),
-  /**
-   * The person changing the numbers their agent is held to.
-   *
-   * On the socket rather than over HTTP, and deliberately: this is the same
-   * class of thing as an approval and a mandate edit — authority arriving from
-   * a human, never from a tool. `froggy-leash` says a capability that changes
-   * what may be spent must not be reachable by the model, and the socket is
-   * where the product already draws that line.
-   */
-  Schema.Struct({
-    ...Envelope,
-    allowance: Allowance,
-    type: Schema.Literals(["allowance.update"]),
-  }),
   Schema.Struct({
     ...Envelope,
     sentAt: Schema.Int,

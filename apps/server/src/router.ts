@@ -73,6 +73,8 @@ import {
   PRICE_TINYBARS,
   SALES_PATH,
 } from "./oracle-route";
+import type { PersonPolicies } from "./person-policies";
+import { handlePolicyRoutes } from "./policy-routes";
 import { handlePurchases } from "./purchase-routes";
 import type { ChatRunRegistry } from "./runs";
 import { handleDigest, handleSchedules } from "./schedule-routes";
@@ -183,6 +185,8 @@ export interface RouterDeps {
   readonly notices: Notices;
   readonly oracleUrl: string;
   readonly pager: TelegramPager;
+  /** Each person's own Privy policy, when this deployment mints them. */
+  readonly policies?: Pick<PersonPolicies, "adjust" | "current">;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
@@ -738,6 +742,37 @@ const browserViewer = async (
   );
 };
 
+/**
+ * What a person has granted: tokens to outside agents, and the policy their own
+ * agent signs under.
+ *
+ * `userId` is the authenticated person and is the only thing deciding whose
+ * anything is touched. Nothing in either request body names a policy or a
+ * person, and nothing here should ever be changed so that it does.
+ */
+const handleGranted = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId,
+  pathname: string
+): Promise<Response | null> => {
+  const agents = await handleAgents(deps, request, userId, pathname);
+  if (agents !== null) {
+    return agents;
+  }
+  return await handlePolicyRoutes(
+    {
+      appId: deps.services.environment.privyAppId,
+      appSecret: deps.services.environment.privyAppSecret,
+      pins: deps.services.environment.personPolicyPins,
+      policies: deps.policies ?? null,
+    },
+    request,
+    userId,
+    pathname
+  );
+};
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -784,9 +819,12 @@ const handleApi = async (
   if (tasks !== null) {
     return tasks;
   }
-  const agents = await handleAgents(deps, request, userId, pathname);
-  if (agents !== null) {
-    return agents;
+  // Both are "what this person has granted": the tokens they hand to outside
+  // agents, and the policy their own agent signs under. Dispatched together so
+  // adding the second did not add a branch to a function already at its limit.
+  const granted = await handleGranted(deps, request, userId, pathname);
+  if (granted !== null) {
+    return granted;
   }
   // The consent decision and the client's name for the page. A person's
   // Privy token only: `agentMayCall` never lists `/api/oauth`, so no agent,

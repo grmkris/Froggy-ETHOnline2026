@@ -20,7 +20,7 @@
  * process it would hand one person another person's receipts.
  */
 
-import type { Allowance, UserId } from "@froggy/domain";
+import type { UserId } from "@froggy/domain";
 import {
   decodeAppClientMessage,
   decodeBrowserClientMessage,
@@ -136,30 +136,6 @@ export const seizesPage = (
   (control !== undefined && control !== "human" && HUMAN_DRIVING.has(type));
 
 /**
- * A person changing the numbers their agent is held to, applied to both leashes.
- *
- * The mandate is rewritten here and now because that is the layer this process
- * enforces. The Privy policy is the other half and may need the person's own
- * browser to sign it, so a half-applied change leaves the agent held to the
- * *tighter* of the two — the safe direction to fail in.
- */
-const applyAllowance = (
-  deps: SocketDeps,
-  publishApp: (userId: UserId, message: AppServerMessage) => void,
-  userId: UserId,
-  allowance: Allowance
-): void => {
-  const workspace = deps.workspaces.for(userId);
-  detached("allowance update", async () => {
-    const record = await deps.policies?.adjust(userId, allowance);
-    const mandate = workspace.session.applyAllowance(record ?? null);
-    publishApp(userId, { mandate, type: "mandate.state", v: 1 });
-    const wallet = await workspace.session.walletSummary();
-    publishApp(userId, { type: "wallet.state", v: 1, wallet });
-  });
-};
-
-/**
  * Everything the app socket accepts from a person.
  *
  * Pulled out of the message handler rather than added to it: that function
@@ -193,10 +169,6 @@ const handleAppMessage = (
         .for(ws.data.userId)
         .session.updateMandate(message.mandate);
       publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
-      return;
-    }
-    case "allowance.update": {
-      applyAllowance(deps, publishApp, ws.data.userId, message.allowance);
       return;
     }
     case "approval.resolve": {

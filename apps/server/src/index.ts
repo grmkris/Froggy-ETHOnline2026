@@ -33,6 +33,7 @@ import { createNotices } from "./notices";
 import { PersonPolicies } from "./person-policies";
 import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
+import type { RouterDeps } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createScheduleTicker } from "./schedules";
 import { cspModeOf, withSecurityHeaders } from "./security-headers";
@@ -462,7 +463,7 @@ class FroggyServer extends Context.Service<
       }, 15_000);
       detached("trade recovery at startup", tradeRecovery.tick);
 
-      const routerDeps = {
+      const baseRouterDeps: RouterDeps = {
         budget,
         environment,
         unlocks,
@@ -476,6 +477,10 @@ class FroggyServer extends Context.Service<
         services,
         workspaces,
       };
+      const routerDeps =
+        policies === undefined
+          ? baseRouterDeps
+          : { ...baseRouterDeps, policies };
 
       // Privy's wallet iframe and nothing else may be framed; `CSP_MODE=report`
       // turns the policy into a report-only header without a code change.

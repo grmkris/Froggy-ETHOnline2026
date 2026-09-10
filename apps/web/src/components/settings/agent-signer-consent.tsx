@@ -11,10 +11,10 @@ import { Button } from "@froggy/ui/components/button";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
+import { changeAllowance } from "../../lib/agent-policy";
 import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import { useSessionToken } from "../../lib/session-token";
-import { useWorkspace } from "../../lib/workspace-context";
 import { AllowanceForm } from "./allowance-form";
 
 const dollars = (micros: number): string =>
@@ -36,7 +36,6 @@ export const AgentSignerConsent = ({
   readonly wallet: WalletSummary | null;
 }): ReactElement | null => {
   const identity = useIdentity();
-  const { app } = useWorkspace();
   const { agentSignerId, policyId } = useSessionIds();
   const { getToken } = useSessionToken();
   const [outcome, setOutcome] = useState<string | null>(null);
@@ -81,10 +80,21 @@ export const AgentSignerConsent = ({
       method: "POST",
     }).catch(() => null);
     if (chosen !== null) {
-      // Sent after the grant rather than before it: until the signer exists
-      // there is nothing for these numbers to hold, and a change that arrived
-      // first would be applied to a policy the person had not yet accepted.
-      app.send({ allowance: chosen, type: "allowance.update", v: 1 });
+      // After the grant rather than before it: until the signer exists there is
+      // nothing for these numbers to hold. The policy was minted with the
+      // defaults, so this is a change to it like any other and goes the same way.
+      const changed = await changeAllowance({
+        allowance: chosen,
+        sign: identity.signPrivyRequest,
+        token,
+      });
+      if (changed.kind === "refused") {
+        setOutcome(
+          `Granted, but your numbers were not saved: ${changed.reason}`
+        );
+        setBusy(false);
+        return;
+      }
     }
     setOutcome("Granted. The wallet updates in a moment.");
     setBusy(false);

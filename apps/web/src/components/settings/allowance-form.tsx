@@ -102,9 +102,9 @@ export const AllowanceForm = ({
   saveLabel,
 }: {
   readonly allowance: Allowance;
-  readonly busyLabel?: string;
+  readonly busyLabel?: string | undefined;
   readonly onSave: (next: Allowance) => void;
-  readonly saveLabel?: string;
+  readonly saveLabel?: string | undefined;
 }): ReactElement => {
   const [draft, setDraft] = useState<Draft>(() => toDraft(allowance));
   const [touched, setTouched] = useState(false);

@@ -393,6 +393,16 @@ export interface Environment {
    * agent cannot sign for at all. The mint refuses instead, the person stays on
    * the app-wide policy, and the pane says which one they are on.
    */
+  /**
+   * Whether a person's own policy is owned by them rather than by our app
+   * secret.
+   *
+   * Owned by them is the design: the rules holding their agent stop being ours
+   * to widen. It is a variable rather than a constant so it can be turned off
+   * in one place if Privy will not let their key edit what our secret cannot —
+   * in which case Change and Extend would be buttons nobody can press.
+   */
+  readonly privyPersonOwnedPolicies: boolean;
   readonly personPolicyPins: {
     readonly chainId: string;
     readonly servicePayee: string;
@@ -872,6 +882,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const privyEarnVaultId = yield* Config.string("PRIVY_EARN_VAULT_ID").pipe(
       Config.withDefault(PLACEHOLDER.privyEarnVaultId)
     );
+    // Off unless asked for: minting a policy nobody can edit is worse than
+    // minting one we can, so this turns on deliberately and turns off in one
+    // variable.
+    const privyPersonOwnedPolicies = yield* Config.boolean(
+      "PRIVY_PERSON_OWNED_POLICIES"
+    ).pipe(Config.withDefault(false));
 
     const anthropicApiKey = yield* secret(
       "ANTHROPIC_API_KEY",
@@ -1062,6 +1078,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       telegramBotToken: Redacted.value(telegramBotToken),
       telegramBotUsername,
       telegramWebhookSecret: Redacted.value(telegramWebhookSecret),
+      privyPersonOwnedPolicies,
       personPolicyPins: personPolicyPins({
         evmNetwork,
         privyEarnVaultId,

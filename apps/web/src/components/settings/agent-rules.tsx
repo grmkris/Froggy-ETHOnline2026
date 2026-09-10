@@ -7,12 +7,15 @@
  * first anyway.
  */
 
+import type { Allowance } from "@froggy/domain";
 import type { WalletSummary } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { useWorkspace } from "../../lib/workspace-context";
+import { changeAllowance } from "../../lib/agent-policy";
+import { useIdentity } from "../../lib/privy";
+import { useSessionToken } from "../../lib/session-token";
 import { AllowanceForm } from "./allowance-form";
 
 const money = (micros: number): string => `$${(micros / 1_000_000).toFixed(2)}`;
@@ -34,8 +37,31 @@ export const AgentRules = ({
 }: {
   readonly wallet: WalletSummary | null;
 }): ReactElement | null => {
-  const { app } = useWorkspace();
+  const identity = useIdentity();
+  const { getToken } = useSessionToken();
   const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<string | null>(null);
+
+  const apply = async (next: Allowance): Promise<void> => {
+    setBusy(true);
+    setOutcome(null);
+    const result = await changeAllowance({
+      allowance: next,
+      sign: identity.signPrivyRequest,
+      token: await getToken(),
+    });
+    setBusy(false);
+    if (result.kind === "refused") {
+      // Shown rather than swallowed. If Privy will not let a person edit a
+      // policy they own, this is where everyone finds out, and a button that
+      // silently does nothing would hide exactly the thing worth knowing.
+      setOutcome(result.reason);
+      return;
+    }
+    setEditing(false);
+    setOutcome("Saved. Your agent is held to these from now on.");
+  };
   const allowance = wallet?.agentAllowance ?? null;
   // Only once the agent can actually pay. A person's policy is minted before
   // they grant, so without this the card would say "your agent may pay up to
@@ -50,11 +76,14 @@ export const AgentRules = ({
       <div className="flex flex-col gap-3">
         <AllowanceForm
           allowance={allowance}
+          busyLabel={busy ? "Asking Privy…" : undefined}
           onSave={(next) => {
-            app.send({ allowance: next, type: "allowance.update", v: 1 });
-            setEditing(false);
+            void apply(next);
           }}
         />
+        {outcome === null ? null : (
+          <output className="text-muted-foreground text-xs">{outcome}</output>
+        )}
         <Button
           className="self-start"
           onClick={() => {
@@ -75,10 +104,15 @@ export const AgentRules = ({
         and {money(allowance.dailyUsdMicros)} a day, and asks you above{" "}
         {money(allowance.askOverUsdMicros)}. {left(allowance.expiresAt)}
       </p>
+      {outcome === null ? null : (
+        <output className="text-muted-foreground text-xs">{outcome}</output>
+      )}
       <div className="flex flex-wrap gap-2">
         <Button
           className="min-h-11"
+          disabled={busy}
           onClick={() => {
+            setOutcome(null);
             setEditing(true);
           }}
           size="sm"
@@ -92,13 +126,9 @@ export const AgentRules = ({
             // Thirty days from today, not thirty on top of what is left:
             // Privy's ceiling is thirty, so adding to a live grant would ask
             // for something it refuses. The label says "to" for that reason.
-            app.send({
-              allowance: {
-                ...allowance,
-                expiresAt: Date.now() + 30 * 86_400_000,
-              },
-              type: "allowance.update",
-              v: 1,
+            void apply({
+              ...allowance,
+              expiresAt: Date.now() + 30 * 86_400_000,
             });
           }}
           size="sm"

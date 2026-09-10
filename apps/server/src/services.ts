@@ -282,6 +282,7 @@ export const createServices = (options: ServiceOptions): Services => {
         appId: environment.privyAppId,
         appSecret: environment.privyAppSecret,
         hederaPolicyId: environment.privyHederaPolicyId,
+        personOwnedPolicies: environment.privyPersonOwnedPolicies,
       }),
     stubPrivyServer
   );
