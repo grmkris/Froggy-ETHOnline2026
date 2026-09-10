@@ -127,6 +127,7 @@ const INSTRUCTIONS = [
   "Start with froggy_catalogue, which is free. froggy_buy spends real money from the account in FROGGY_HEDERA_ACCOUNT_ID. froggy_receipt checks any settlement against the public ledger and is also free.",
   "The facilitator pays the Hedera transaction fee, so you need no HBAR for gas — only the amount being paid.",
   "A refusal from this door says what is wrong and what to do about it. Read it rather than retrying: buying twice costs twice.",
+  "Money leaving an account is the person's decision. Show them the price from froggy_catalogue and get an answer before calling froggy_buy, unless they have already asked for that specific thing.",
 ].join(" ");
 
 /** Everything this door can put in a JSON-RPC `result`. */

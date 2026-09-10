@@ -52,6 +52,7 @@ import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
+import { doorSkillText } from "./door-skill";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import { handleHistory } from "./history-routes";
@@ -1035,6 +1036,15 @@ const handleInstallation = async (
   ) {
     const render = pathname === "/llm.md" ? llmText : skillText;
     return new Response(render({ url: origin }), {
+      headers: { "content-type": "text/markdown; charset=utf-8" },
+    });
+  }
+  // The door's own skill, for an agent with no Froggy account at all.
+  if (
+    ["/door-skill.md", "/froggy-door/SKILL.md"].includes(pathname) &&
+    request.method === "GET"
+  ) {
+    return new Response(doorSkillText({ url: origin }), {
       headers: { "content-type": "text/markdown; charset=utf-8" },
     });
   }
