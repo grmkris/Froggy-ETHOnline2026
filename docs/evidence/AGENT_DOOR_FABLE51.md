@@ -154,7 +154,7 @@ The two that differed changed the bytes being hashed, so the identifier we publi
 
 ## The gate
 
-`bun run check` passes format, type-aware lint, typecheck, the dependency graph, the agent-file and name checks, and knip. Its test step reports the same three pre-existing failures as before, all date formatting under Bun 1.4.2's ICU on this machine (`schedules.test.ts`, `jobs.test.ts`), which fail identically on a clean checkout. 45 tests were added: the JSON-RPC layer, the receipt's success path, the discovery documents, the origin stamping, the price guards, the payment header the buy actually sends, and the mirror-node changes — none of which had any coverage before.
+`bun run check` passes format, type-aware lint, typecheck, the dependency graph, the agent-file and name checks, and knip. Its test step reports the same three pre-existing failures as before, all date formatting under Bun 1.4.2's ICU on this machine (`schedules.test.ts`, `jobs.test.ts`), which fail identically on a clean checkout. 46 tests were added — 30 in four new files, 16 to existing ones: the JSON-RPC layer, the receipt's success path, the discovery documents, the origin stamping, the price guards, the payment header the buy actually sends, and the mirror-node changes — none of which had any coverage before.
 
 ## Still pending, unchanged
 
