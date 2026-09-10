@@ -22,11 +22,11 @@ Everything above needs a Froggy account. This does not.
 Froggy sells over x402 on Hedera mainnet, and any agent can buy from it directly, paying from its own Hedera account. No signup, no API key, no subscription: the price arrives in the seller's 402 challenge and the payment is a transfer the caller signs themselves. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the 0.05 HBAR being paid.
 
 ```bash
-curl -fsSL https://app-production-58dd.up.railway.app/froggy-mcp.js -o froggy-mcp.js
+curl -fsSL https://app-production-58dd.up.railway.app/froggy-mcp.mjs -o froggy-mcp.mjs
 claude mcp add froggy \
   -e FROGGY_HEDERA_ACCOUNT_ID=0.0.your-account \
   -e FROGGY_HEDERA_PRIVATE_KEY=0xyour-ecdsa-key \
-  -- node ./froggy-mcp.js
+  -- node ./froggy-mcp.mjs
 ```
 ````
 
@@ -70,8 +70,12 @@ Built and served from this repository: `apps/server/src/agent-door/`, `docs/deci
 To add to `## On-chain and live evidence`:
 
 ```markdown
-| The agent door, and what was verified of it | `GET /froggy-mcp.js`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
+| The agent door, and what was verified of it | `GET /froggy-mcp.mjs`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
 ````
+
+## Updated after review
+
+The section as applied differs from the draft above in three places, all from the review recorded in `docs/evidence/AGENT_DOOR_FABLE51.md`: the install saves `.mjs`, because Node refuses to start an ES module named `.js` in a CommonJS directory; the paragraph on refusals now also states that the 402 is checked against the catalogue before anything is signed; and the discovery sentence says what the listing carries, because it previously dropped the one field a Hedera payment cannot be built without.
 
 ## What the section deliberately does not claim
 

@@ -2,7 +2,7 @@
 
 10 September 2026
 
-Froggy sells three things over x402 on Hedera mainnet and buys over the same rail, and until now both halves worked only through the app: a person signs in, is given a wallet, and watches an agent browse. There was nothing an outside agent could install. This adds one: a small stdio MCP server, served at `/froggy-mcp.js`, that lets a caller buy from Froggy using their own Hedera account. It is a client of routes that already exist and owns no domain logic of its own; if it ever needs any, the design is wrong.
+Froggy sells three things over x402 on Hedera mainnet and buys over the same rail, and until now both halves worked only through the app: a person signs in, is given a wallet, and watches an agent browse. There was nothing an outside agent could install. This adds one: a small stdio MCP server, served at `/froggy-mcp.mjs`, that lets a caller buy from Froggy using their own Hedera account. It is a client of routes that already exist and owns no domain logic of its own; if it ever needs any, the design is wrong.
 
 ## Why a second door instead of widening the first
 
@@ -40,14 +40,38 @@ A fourth view would mean this had stopped being a door onto Froggy and started b
 
 Built from its own source by `Bun.build({ target: "node" })` on the first request and cached in a module-level promise, exactly as `/froggy-cli.js` already is, for the same reason: an outside agent's sandbox has Node and curl and nothing of ours, and the repository may be private on the day. Building at request time rather than at image build time means there is no artefact to forget. The bundle is about six megabytes, almost all of it the Hedera SDK, and runs under plain Node with no install step.
 
+Served under `.mjs`, and saved under `.mjs` by the install command. The bundle is an ES module, and Node reads a bare `.js` as CommonJS wherever the nearest `package.json` says so — which is most of the directories an agent works in. `/froggy-mcp.js` still answers, for anyone who has the old link.
+
+The one line that differs per request is the serving origin, stamped in below the shebang. A door downloaded from a testnet deployment, a preview, or somebody's fork should buy from that deployment; a constant compiled in at build time would have sent all of them at our mainnet.
+
 ## What this changed elsewhere
 
 Three small things, each of which stands on its own:
 
 `lookupHcsNote` reads a settlement's note back off the topic through the public mirror node. `lookupHederaTransactionDetails` now also returns the transfer legs, because a receipt has to name who paid whom and `SUCCESS` does not say that. And waiting in `reconcileHederaPayment` became a port, like the `fetch` beside it, because the door is bundled for plain Node where `Bun` does not exist.
 
-`HEDERA_ASSET` makes the price's asset configuration rather than a literal. That the facilitator accepts an HTS token was verified on 10 September rather than assumed: a `/verify` of a USDC-denominated payload signed from an account holding none came back `insufficient_balance: payer holds 0 of 0.0.456858`, which is a balance answer and not an allowlist one. The default stays HBAR, because a stranger who holds HBAR does not necessarily hold anything else, and arriving with what you already have is the point.
+`HEDERA_ASSET` makes the price's asset configuration rather than a literal. That the facilitator accepts an HTS token was verified on 10 September rather than assumed: a `/verify` of a USDC-denominated payload signed from an account holding none came back `insufficient_balance: payer holds 0 of 0.0.456858`, which is a balance answer and not an allowlist one. The default stays HBAR, because a stranger who holds HBAR does not necessarily hold anything else, and arriving with what you already have is the point — and the boot refuses a token outright until the price has been written for it, because the price is in the asset's own smallest units and the decimals are not the same.
 
 ## Known rough edge
 
 `signerHederaPayer`'s token branch coerces a `bigint` amount through `Number()` where the HBAR branch beside it uses `Hbar.fromTinybars` on the string. It is safe below 2^53 — about nine billion USDC at six decimals — and wrong above it. Recorded here rather than fixed in the same change, because it predates this work and is not on its path.
+
+## What the review changed, 10 September
+
+The door was reviewed after it was built, by nine independent readers and by running the built bundle rather than reading it. Forty-five findings survived an adversarial check. The decisions above all stand; these are the ones that were wrong in the implementation of them, grouped by the promise each one broke.
+
+**"A refusal from this door says what is wrong."** It did not, for the failures nobody wrote a branch for. A throw inside a tool — a seller that drops the connection, a key the SDK cannot parse — was caught by the read loop, written to stderr, and answered with nothing at all, so the caller waited forever on a request that would never be answered. The dangerous case is a throw from the retry, after the signed payment has gone out: silence there is indistinguishable from a purchase still in progress. Every path out of a tool is now a sentence, and the one after the money may have moved says that it does not know.
+
+**"The key never leaves the process."** It could leave in a refusal. The two variables sit on adjacent lines of the install command, and a caller who swapped them got the value of `FROGGY_HEDERA_ACCOUNT_ID` quoted back in a tool result — into the agent's context, its transcript, and its model provider. The refusal now describes the value and never repeats it, and says outright when the value has the shape of a key.
+
+**"The price is in the challenge, not in our documentation."** True, and not sufficient: nothing compared the challenge against the catalogue the caller had been shown, so a seller could advertise one price and charge another, to another account. The 402 is now checked against the catalogue row before anything is signed, `maxAmount` lets a caller set their own ceiling, and only the offer that passed those checks is handed to the payer — previously the payer re-picked from `accepts` under a laxer rule than the one the door had assessed and reported.
+
+**"Two independent sources."** The receipt named the wrong parties for any settlement priced in an HTS token, because it picked the largest transfer leg across assets and Hedera's network fee is larger than a cent-scale payment. It now chooses the asset first and looks for the balanced pair, which is also what makes a settlement priced below its own fee read correctly. And it said "no matching note was found on the consensus topic" in cases where it had not looked at one — the view that exists to expose unverified claims should not make one.
+
+**"Every settlement leaves a public note."** The Observatory report was added to the service card in this same change and had no HCS writer at all, so buying it produced a settlement the receipt could not find a note for. It writes one now.
+
+Three things were wrong that were not about a promise. The bundle was an ES module served under a `.js` name, so `node ./froggy-mcp.js` failed to start in any directory whose `package.json` says `"type": "commonjs"` — the CLI beside it had always saved as `.mjs`, and the door now does too. The published `/discovery/resources` listing dropped `extra.feePayer`, the one field a Hedera payment cannot be built without, which left the endpoint decorative. And `Bun.build` rejects rather than answering `{ success: false }`, so a single failed build cached a rejected promise and took `/froggy-mcp.js` out until the process restarted; the same shape was in `cli-route.ts` and is fixed in both.
+
+The HCS-14 identifier was checked against `hashgraph-online/standards-sdk` rather than only against the prose. The canonical JSON puts `skills` first, not in alphabetical order, and `uid` is `"0"` where no registry assigned one. Ours did neither, so the identifier we published could not be recomputed by anyone using the reference implementation — which was the only thing it was for.
+
+`HEDERA_ASSET` now fails the boot rather than mispricing quietly. The price is a number of the asset's own smallest units and the decimals differ, so switching the asset alone would have charged about five hundred times the intended amount with nothing anywhere saying so.

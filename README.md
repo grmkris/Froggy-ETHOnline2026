@@ -138,11 +138,11 @@ Everything above needs a Froggy account. This does not.
 Froggy sells over x402 on Hedera mainnet, and any agent can buy from it directly, paying from its own Hedera account. No signup, no API key, no subscription: the price arrives in the seller's 402 challenge and the payment is a transfer the caller signs themselves. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the 0.05 HBAR being paid.
 
 ```bash
-curl -fsSL https://app-production-58dd.up.railway.app/froggy-mcp.js -o froggy-mcp.js
+curl -fsSL https://app-production-58dd.up.railway.app/froggy-mcp.mjs -o froggy-mcp.mjs
 claude mcp add froggy \
   -e FROGGY_HEDERA_ACCOUNT_ID=0.0.your-account \
   -e FROGGY_HEDERA_PRIVATE_KEY=0xyour-ecdsa-key \
-  -- node ./froggy-mcp.js
+  -- node ./froggy-mcp.mjs
 ```
 
 Three tools, and no fourth:
@@ -150,7 +150,7 @@ Three tools, and no fourth:
 | Tool | What it does | Costs |
 | --- | --- | --- |
 | `froggy_catalogue` | What is for sale, at what price, on which network, settled by whom | Nothing, and needs no key |
-| `froggy_buy` | Takes the 402, signs a transfer with your key, retries, returns what you bought and the settlement id | The listed price |
+| `froggy_buy` | Takes the 402, signs a transfer with your key, retries, returns what you bought and the settlement id | The listed price, or less than `maxAmount` if you set one |
 | `froggy_receipt` | Takes any settlement id and answers whether it really happened | Nothing, and needs no key |
 
 `froggy_receipt` works for settlements you did not make, including ours. Nothing in this repository has to be taken on our word:
@@ -172,9 +172,11 @@ Public note #1 on topic 0.0.10847557, written by 0.0.10847552.
 
 Your key never leaves your machine. The door holds nothing, opens no account for you, and never signs with anything but your own credentials. Prefer `.mcp.json` with `${FROGGY_HEDERA_PRIVATE_KEY}` expansion so the key lives in your shell rather than in a file you might commit.
 
-When it cannot buy, it says why: what you are short and by how much, or which network the seller offered that this door cannot pay, or that the facilitator and not the seller is what did not work. It will not substitute a different facilitator — the one in the challenge is part of what is being sold. When it is not configured it refuses and says so; it never returns something that could pass for a settlement.
+The price you were shown is the price that gets paid. The door compares the 402 against the catalogue and refuses when the amount, the asset or the recipient has moved, so a seller cannot advertise one number and charge another; `maxAmount` sets your own ceiling on top of that. It will not follow a redirect while carrying your signed payment, and it will not substitute a different facilitator — the one in the challenge is part of what is being sold.
 
-Also published for agents that have never heard of Froggy: `GET /discovery/resources`, the x402 listing in the standard's own shape, carrying an HCS-14 identifier derived from facts printed beside it.
+When it cannot buy, it says why: what you are short and by how much, or which network the seller offered that this door cannot pay, or that the settlement path and not the seller is what did not work. When it is not configured it refuses and says so; it never returns something that could pass for a settlement, and if a seller is running in stub mode the answer says so beside the settlement id.
+
+Also published for agents that have never heard of Froggy: `GET /discovery/resources`, the x402 listing in the standard's own shape, readable cross-origin, where every `accepts` entry is the whole requirement the 402 carries — including the facilitator in `extra.feePayer`, without which a Hedera payment cannot be built at all. It carries an HCS-14 identifier derived, as the reference implementation derives it, from the facts printed beside it, so a reader can recompute it and disagree.
 
 Built and served from this repository: `apps/server/src/agent-door/`, `docs/decisions/0020-agent-door.md`, and what was actually checked — including what was not — in `docs/evidence/AGENT_DOOR_FABLE51.md`. No stranger has bought through it yet.
 
@@ -193,7 +195,7 @@ Built and served from this repository: `apps/server/src/agent-door/`, `docs/deci
 | Privy refusals and one allowed signature, verbatim | `docs/evidence/PRIVY.md` | transcript of 5 Sep |
 | The Graph, twelve deployments at one block each | `docs/evidence/GRAPH.md` | blocks of 6 Sep 06:09 UTC |
 | The service card | `GET /.well-known/x402.json` on the live URL | — |
-| The agent door, and what was verified of it | `GET /froggy-mcp.js`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
+| The agent door, and what was verified of it | `GET /froggy-mcp.mjs`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
 
 ```bash
 curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
