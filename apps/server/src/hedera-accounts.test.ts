@@ -273,7 +273,12 @@ describe("funding recovery", () => {
     const restarted = createHederaAccounts({
       ...options,
       transaction: async () =>
-        await Promise.resolve({ status: "success", entityId: "0.0.101" }),
+        await Promise.resolve({
+          consensusTimestamp: null,
+          entityId: "0.0.101",
+          status: "success",
+          transfers: [],
+        }),
     });
     expect(await restarted.reconcile(ALICE, submission)).toBe("success");
     const saved = await store.hedera.load(ALICE);

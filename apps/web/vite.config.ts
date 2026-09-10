@@ -18,7 +18,15 @@ export default defineConfig({
       "/.well-known": { changeOrigin: true, target: API_TARGET },
       "/api": { changeOrigin: true, target: API_TARGET },
       "/demo/x402": { changeOrigin: true, target: API_TARGET },
+      // The agent door and its documents. Without these the dev server answers
+      // the SPA for all four, which is a 200 of HTML where an outside agent
+      // expects a program — a failure that looks like a broken download.
+      "/discovery": { changeOrigin: true, target: API_TARGET },
+      "/door-skill.md": { changeOrigin: true, target: API_TARGET },
       "/froggy-cli.js": { changeOrigin: true, target: API_TARGET },
+      "/froggy-door/SKILL.md": { changeOrigin: true, target: API_TARGET },
+      "/froggy-mcp.js": { changeOrigin: true, target: API_TARGET },
+      "/froggy-mcp.mjs": { changeOrigin: true, target: API_TARGET },
       "/froggy/SKILL.md": { changeOrigin: true, target: API_TARGET },
       "/llm.md": { changeOrigin: true, target: API_TARGET },
       "/skill.md": { changeOrigin: true, target: API_TARGET },

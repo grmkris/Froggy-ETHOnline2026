@@ -13,14 +13,34 @@ import { Schema } from "effect";
 
 export type MirrorVerdict = "failed" | "success" | "unknown";
 
+const Transfer = Schema.Struct({
+  account: Schema.String,
+  amount: Schema.Finite,
+});
+const TokenTransfer = Schema.Struct({
+  account: Schema.String,
+  amount: Schema.Finite,
+  token_id: Schema.String,
+});
 const Transactions = Schema.Struct({
   transactions: Schema.Array(
     Schema.Struct({
+      consensus_timestamp: Schema.optional(Schema.String),
       result: Schema.String,
       entity_id: Schema.optional(Schema.NullOr(Schema.String)),
+      token_transfers: Schema.optional(Schema.Array(TokenTransfer)),
+      transfers: Schema.optional(Schema.Array(Transfer)),
     })
   ),
 });
+
+/** One leg of a settlement: negative debits the account, positive credits it. */
+export interface LedgerTransfer {
+  readonly accountId: string;
+  readonly amount: bigint;
+  /** `"0.0.0"` for HBAR, an HTS token id otherwise. */
+  readonly asset: string;
+}
 const decodeTransactions = Schema.decodeUnknownResult(Transactions);
 
 /**
@@ -57,10 +77,18 @@ export interface MirrorLookup {
 export const lookupHederaTransactionDetails = async (
   input: MirrorLookup
 ): Promise<{
-  readonly status: MirrorVerdict;
+  readonly consensusTimestamp: string | null;
   readonly entityId: string | null;
+  readonly status: MirrorVerdict;
+  /** Every leg the ledger recorded, so a receipt can name who paid whom. */
+  readonly transfers: readonly LedgerTransfer[];
 }> => {
-  const unknown = { status: "unknown", entityId: null } as const;
+  const unknown = {
+    consensusTimestamp: null,
+    entityId: null,
+    status: "unknown",
+    transfers: [],
+  } as const;
   const fetchImpl: MirrorFetch = input.fetch ?? fetch;
   const url = `${mirrorNodeUrlForNetwork(input.network)}/api/v1/transactions/${mirrorTransactionId(input.transactionId)}`;
   try {
@@ -80,8 +108,21 @@ export const lookupHederaTransactionDetails = async (
       return unknown;
     }
     return {
-      status: first.result === "SUCCESS" ? "success" : "failed",
+      consensusTimestamp: first.consensus_timestamp ?? null,
       entityId: first.entity_id ?? null,
+      status: first.result === "SUCCESS" ? "success" : "failed",
+      transfers: [
+        ...(first.transfers ?? []).map((row) => ({
+          accountId: row.account,
+          amount: BigInt(Math.round(row.amount)),
+          asset: "0.0.0",
+        })),
+        ...(first.token_transfers ?? []).map((row) => ({
+          accountId: row.account,
+          amount: BigInt(Math.round(row.amount)),
+          asset: row.token_id,
+        })),
+      ],
     };
   } catch {
     return unknown;
@@ -101,16 +142,29 @@ export const lookupHederaTransaction = async (
  * Sequential on purpose; asking in parallel would only ask too early thrice.
  */
 export const reconcileHederaPayment = async (
-  input: MirrorLookup & { readonly attempts?: number; readonly waitMs?: number }
+  input: MirrorLookup & {
+    readonly attempts?: number;
+    /**
+     * Waiting is a port because this function also runs inside the agent door,
+     * which is bundled for plain Node where `Bun` does not exist.
+     */
+    readonly sleep?: (ms: number) => Promise<void>;
+    readonly waitMs?: number;
+  }
 ): Promise<MirrorVerdict> => {
   const attempts = input.attempts ?? 3;
   const waitMs = input.waitMs ?? 2000;
+  const sleep =
+    input.sleep ??
+    (async (ms: number) => {
+      await Bun.sleep(ms);
+    });
   const ask = async (attempt: number): Promise<MirrorVerdict> => {
     const verdict = await lookupHederaTransaction(input);
     if (verdict !== "unknown" || attempt + 1 >= attempts) {
       return verdict;
     }
-    await Bun.sleep(waitMs);
+    await sleep(waitMs);
     return await ask(attempt + 1);
   };
   return await ask(0);
@@ -147,4 +201,159 @@ export const hederaAccountBalance = async (input: {
   } catch {
     return null;
   }
+};
+
+const TopicMessages = Schema.Struct({
+  links: Schema.optional(
+    Schema.Struct({ next: Schema.optional(Schema.NullOr(Schema.String)) })
+  ),
+  messages: Schema.Array(
+    Schema.Struct({
+      consensus_timestamp: Schema.String,
+      message: Schema.String,
+      payer_account_id: Schema.String,
+      sequence_number: Schema.Finite,
+    })
+  ),
+});
+const decodeTopicMessages = Schema.decodeUnknownResult(TopicMessages);
+
+/**
+ * A note as read back from the topic, rather than as written.
+ *
+ * The topic carries no submit key, so a message may be anything at all. Only
+ * the transaction id is required, because that is what a note is for; the rest
+ * is optional so that a note written by an older version, or by a stranger,
+ * still reads rather than disappearing.
+ */
+const TopicNote = Schema.Struct({
+  amount: Schema.optional(Schema.String),
+  asset: Schema.optional(Schema.String),
+  at: Schema.optional(Schema.Finite),
+  kind: Schema.optional(Schema.String),
+  network: Schema.optional(Schema.String),
+  ref: Schema.optional(Schema.NullOr(Schema.String)),
+  transactionId: Schema.String,
+});
+type TopicNote = typeof TopicNote.Type;
+
+const decodeNoteJson = Schema.decodeUnknownResult(
+  Schema.fromJsonString(TopicNote)
+);
+
+/** Base64 in, note out. Both steps are a stranger's input, so both may fail. */
+const readNote = (message: string): TopicNote | null => {
+  const decoded = decodeNoteJson(
+    Buffer.from(message, "base64").toString("utf-8")
+  );
+  return decoded._tag === "Success" ? decoded.success : null;
+};
+
+/** One page of topic messages, or null for anything that is not one. */
+const readPage = async (
+  fetchImpl: MirrorFetch,
+  url: string
+): Promise<typeof TopicMessages.Type | null> => {
+  try {
+    const response = await fetchImpl(url, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const decoded = decodeTopicMessages(await response.json());
+    return decoded._tag === "Success" ? decoded.success : null;
+  } catch {
+    return null;
+  }
+};
+
+/** A settlement note as it sits on the topic, with the coordinates to cite it. */
+export interface HcsNoteRecord {
+  readonly consensusTimestamp: string;
+  readonly note: TopicNote;
+  readonly payerAccountId: string;
+  readonly sequenceNumber: number;
+  readonly topicId: string;
+}
+
+export interface HcsNoteLookup {
+  readonly fetch?: MirrorFetch;
+  /** Messages per page. The mirror node caps this at 100. */
+  readonly limit?: number;
+  /**
+   * The settlement's own consensus timestamp, when the caller has it.
+   *
+   * A note is written moments after the settlement it describes, so this turns
+   * the search from "walk back from the newest message until you find it" into
+   * "start where it must be". Without it a topic that has taken more messages
+   * than `pages * limit` since the settlement hides its own older notes — the
+   * receipt view's whole point is that it keeps working, so this is how it
+   * keeps working.
+   */
+  readonly near?: string | null;
+  readonly network: string;
+  /** How far back to look before giving up. */
+  readonly pages?: number;
+  readonly topicId: string;
+  readonly transactionId: string;
+}
+
+/**
+ * Find the public note that matches a settlement.
+ *
+ * The receipt view is the one place a stranger can check our audit trail
+ * without trusting us, so this reads the topic the way they would: the public
+ * mirror node, newest first, matching on the transaction id the settlement
+ * header carried.
+ *
+ * A note is evidence that someone claimed a settlement; the transaction lookup
+ * beside it is evidence that one happened. Neither stands alone, because the
+ * topic has no submit key.
+ */
+export const lookupHcsNote = async (
+  input: HcsNoteLookup
+): Promise<HcsNoteRecord | null> => {
+  const fetchImpl: MirrorFetch = input.fetch ?? fetch;
+  const base = mirrorNodeUrlForNetwork(input.network);
+  const wanted = mirrorTransactionId(input.transactionId);
+  const limit = input.limit ?? 100;
+
+  const read = async (
+    path: string,
+    remaining: number
+  ): Promise<HcsNoteRecord | null> => {
+    if (remaining <= 0) {
+      return null;
+    }
+    const page = await readPage(fetchImpl, `${base}${path}`);
+    if (page === null) {
+      return null;
+    }
+    for (const row of page.messages) {
+      const note = readNote(row.message);
+      if (note !== null && mirrorTransactionId(note.transactionId) === wanted) {
+        return {
+          consensusTimestamp: row.consensus_timestamp,
+          note,
+          payerAccountId: row.payer_account_id,
+          sequenceNumber: Math.round(row.sequence_number),
+          topicId: input.topicId,
+        };
+      }
+    }
+    const next = page.links?.next;
+    return next === undefined || next === null || next === ""
+      ? null
+      : await read(next, remaining - 1);
+  };
+
+  const topic = `/api/v1/topics/${encodeURIComponent(input.topicId)}/messages`;
+  const near = input.near ?? null;
+  return await read(
+    near === null || near === ""
+      ? `${topic}?limit=${limit}&order=desc`
+      : `${topic}?limit=${limit}&order=asc&timestamp=gte:${encodeURIComponent(near)}`,
+    input.pages ?? 5
+  );
 };

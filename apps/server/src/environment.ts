@@ -22,6 +22,7 @@ import { decodeUserId, KNOWN_ASSETS } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import {
   EVM_CHAIN_IDS,
+  HBAR_ASSET,
   isEvmNetwork,
   isHederaNetwork,
   isSolanaNetwork,
@@ -291,6 +292,11 @@ export interface Environment {
    * configuration cannot sell anything for real money by accident.
    */
   readonly hederaNetwork: HederaNetwork;
+  /**
+   * What our own paid endpoints are priced in: `"0.0.0"` for native HBAR, or
+   * an HTS token id. The facilitator accepts either.
+   */
+  readonly hederaAsset: string;
   /** The account our own paid endpoint is paid *to*. */
   readonly hederaPayTo: string;
   /** Where the HBAR/USD rate every cap is computed from comes from. */
@@ -713,6 +719,33 @@ const personPolicyPins = (input: {
   };
 };
 
+/**
+ * Refuse a `HEDERA_ASSET` this build cannot price, and refuse a token whose
+ * decimals do not match the price that was written for HBAR.
+ *
+ * The price lives in `oracle-route.ts` as a number of smallest units. HBAR has
+ * eight decimals and Hedera's USDC has six, so the same literal is two
+ * different amounts of money — and a deployment that flipped the asset alone
+ * would sell at roughly five hundred times the intended price with nothing
+ * anywhere saying so. Pricing in a token is supported; doing it by accident is
+ * not.
+ */
+const assertPriceableAsset = (asset: string, network: HederaNetwork): void => {
+  const known = Object.values(KNOWN_ASSETS).find(
+    (entry) => entry.network === network && entry.id === asset
+  );
+  if (known === undefined) {
+    throw new Error(
+      `HEDERA_ASSET is ${asset}, which is not an asset this build knows how to price on ${network}. Use 0.0.0 for HBAR, or add the token to KNOWN_ASSETS with its decimals.`
+    );
+  }
+  if (known.id !== HBAR_ASSET) {
+    throw new Error(
+      `HEDERA_ASSET is ${asset} (${known.symbol}, ${known.decimals} decimals) while the price is written in tinybars. Set the price for ${known.symbol} in apps/server/src/oracle-route.ts before selling in it, and remove this check when the two are read from one place.`
+    );
+  }
+};
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
@@ -804,6 +837,14 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
       Config.withDefault("")
     );
+    // What the services are priced in. `0.0.0` is native HBAR; an HTS token
+    // id prices in that token instead. The facilitator was verified on
+    // 10 Sep 2026 to accept an HTS asset, so this is a real switch and not a
+    // placeholder — but a buyer holding HBAR does not necessarily hold a
+    // token, so the default stays where a stranger can reach it.
+    const hederaAsset = yield* Config.string("HEDERA_ASSET").pipe(
+      Config.withDefault("0.0.0")
+    );
     const hederaNetworkRaw = yield* Config.string("HEDERA_NETWORK").pipe(
       Config.withDefault("hedera:testnet")
     );
@@ -814,6 +855,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       );
     }
     const hederaNetwork: HederaNetwork = hederaNetworkRaw;
+    // Fail closed here too, and for a sharper reason than a typo. The price is
+    // a number of the asset's own smallest units, so changing the asset
+    // without changing the price silently changes what is charged: the 5000000
+    // that is 0.05 HBAR is 5 USDC at six decimals, about five hundred times
+    // more. Nothing downstream can tell those apart, so the check is here,
+    // once, before anything is sold.
+    assertPriceableAsset(hederaAsset, hederaNetwork);
     // The facilitator host follows the network unless told otherwise, so
     // switching networks is one variable, not two that can disagree.
     const hederaFacilitatorUrl = yield* Config.string(
@@ -1025,6 +1073,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
         : Redacted.value(hederaKek),
       hederaMirrorNodeUrl,
       hederaNetwork,
+      hederaAsset,
       hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,

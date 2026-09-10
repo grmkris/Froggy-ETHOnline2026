@@ -254,6 +254,7 @@ export const createServices = (options: ServiceOptions): Services => {
     "hedera",
     () =>
       liveOracleGate({
+        asset: environment.hederaAsset,
         facilitatorUrl: environment.hederaFacilitatorUrl,
         network: environment.hederaNetwork,
         payTo: environment.hederaPayTo,

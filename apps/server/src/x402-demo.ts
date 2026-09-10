@@ -1,5 +1,5 @@
 /** A small seller whose original HTML page opens after an x402 payment. */
-import { SaleId } from "@froggy/domain";
+import { KNOWN_ASSETS, SaleId } from "@froggy/domain";
 import type { Sale } from "@froggy/domain";
 import { snapshotHash } from "@froggy/graph";
 import type { GraphSnapshot, LendingMarket } from "@froggy/graph";
@@ -12,6 +12,7 @@ import {
 import type { OracleGate, SettleOutcome } from "@froggy/payments";
 import { Schema } from "effect";
 
+import { detached } from "./detached";
 import { PRICE_TINYBARS } from "./oracle-route";
 import type { Services } from "./services";
 
@@ -21,7 +22,10 @@ const MAX_HTML_BYTES = 65_536;
 const MAX_PAYMENT_HEADER = 32_768;
 const SETTLEMENT_TIMEOUT_MS = 15_000;
 
-interface DemoServices extends Pick<Services, "graph" | "oracle" | "store"> {
+interface DemoServices extends Pick<
+  Services,
+  "graph" | "hcs" | "oracle" | "store"
+> {
   readonly environment: Pick<Services["environment"], "appOrigin" | "modes">;
 }
 
@@ -84,6 +88,39 @@ const paymentBadge = (stubbed: boolean): string =>
     ? '<span class="seal stub">STUB · simulated payment</span>'
     : '<span class="seal live">Live Hedera payment</span>';
 
+/**
+ * The price as the offer states it, in whatever asset the offer is in.
+ *
+ * `KNOWN_ASSETS` carries the decimals and the symbol for everything this build
+ * can price; anything else keeps its base units rather than being rendered
+ * with a decimal point it has not earned.
+ */
+const priceLabel = (
+  offer:
+    | {
+        readonly amount: string;
+        readonly asset: string;
+        readonly network: string;
+      }
+    | undefined
+): string => {
+  if (offer === undefined) {
+    return `${Number(PRICE_TINYBARS) / 100_000_000} HBAR`;
+  }
+  const known = Object.values(KNOWN_ASSETS).find(
+    (asset) => asset.network === offer.network && asset.id === offer.asset
+  );
+  if (known === undefined) {
+    return `${offer.amount} units of token ${offer.asset}`;
+  }
+  const digits = offer.amount.padStart(known.decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - known.decimals);
+  const fraction = digits
+    .slice(digits.length - known.decimals)
+    .replace(/0+$/u, "");
+  return `${fraction === "" ? whole : `${whole}.${fraction}`} ${known.symbol}`;
+};
+
 const challengeFor = (services: DemoServices) => {
   const issued = services.oracle.challenge({
     description:
@@ -109,9 +146,22 @@ const landing = (services: DemoServices, locked: boolean): Response => {
   const [offer] = challenge.accepts;
   const { url } = challenge.resource;
   const paymentStubbed = services.oracle.mode === "stub";
-  const price = `${Number(offer?.amount ?? PRICE_TINYBARS) / 100_000_000} HBAR`;
+  // Read from the offer rather than divided by a constant: when HEDERA_ASSET
+  // prices this in a token, `/ 100_000_000` and the word HBAR are both wrong,
+  // and a page that advertises a price the 402 does not ask for is the one
+  // thing the card and the challenge were built from one source to prevent.
+  const price = priceLabel(offer);
   const network = offer?.network ?? services.environment.modes.hedera;
   const prompt = `Open ${url} in the shared browser and buy the USDC lending report for at most $0.05. Ask me to approve the purchase, then explain the result.`;
+  // The door needs no Froggy account, so it is the only one of the three
+  // routes below that a stranger can take without us doing anything first.
+  const doorInstall = [
+    `curl -fsSL ${services.environment.appOrigin}/froggy-mcp.mjs -o froggy-mcp.mjs`,
+    "claude mcp add froggy \\",
+    "  -e FROGGY_HEDERA_ACCOUNT_ID=0.0.your-account \\",
+    "  -e FROGGY_HEDERA_PRIVATE_KEY=0xyour-ecdsa-key \\",
+    "  -- node ./froggy-mcp.mjs",
+  ].join("\n");
   const example = JSON.stringify(
     {
       url,
@@ -134,7 +184,8 @@ const landing = (services: DemoServices, locked: boolean): Response => {
 <section class="hero"><div><p class="eyebrow">Field report 01 / USDC lending</p><h1>A lending report,<br><em>one request away.</em></h1><p class="lede">Compare USDC borrowing and supply rates across lending markets. Open the report in Froggy, approve the purchase, and watch this page become your report.</p><div class="badges">${paymentBadge(paymentStubbed)}<span class="seal">The Graph · market data</span></div>${locked ? '<p class="note">Payment required. Froggy can detect this page and bring you an approval request. Approving opens the report here.</p>' : ""}</div>
 <aside class="offer" aria-label="Report price"><p class="eyebrow">Inside the report</p><h2>Where USDC<br>meets the market.</h2><p>Borrow and supply comparisons, market liquidity, and the exact indexes behind every observation.</p><p class="price">${escaped(price)} <small>/ report</small></p><p class="quiet">${escaped(network)} · one exact payment</p><hr class="rule"><a class="button" href="${X402_DEMO_REPORT_PATH}">${locked ? "Check the paid report" : "Open the paid report"} →</a><p class="quiet">${paymentStubbed ? "No real charge in this deployment. Payment and receipt are explicitly marked STUB." : "This deployment uses real Hedera settlement. Froggy shows the quote and spending permission before sending payment."}</p></aside></section>
 <section class="steps" aria-label="How the purchase works"><article><span class="step-number">01 / DISCOVER</span><h3>Open a paid resource</h3><p>The report answers with an HTTP 402 and its exact price, recipient and network.</p></article><article><span class="step-number">02 / APPROVE</span><h3>Keep the decision yours</h3><p>Froggy asks for permission when this purchase has no matching grant. Pay once approves this exact request.</p></article><article><span class="step-number">03 / RECEIVE</span><h3>Read it where you opened it</h3><p>The report loads in the same Chrome tab. Your purchase and settlement stay in Froggy.</p></article></section>
-<section class="try"><article><h2>Try it in Froggy</h2><p>Select and copy this prompt into the chat. Open the demo inside the shared browser to exercise detection.</p><textarea readonly aria-label="Froggy chat prompt">${escaped(prompt, 8192)}</textarea></article><article><h2>Try it from Claude Code</h2><p>With Froggy connected over MCP, call <code>froggy_x402_request</code> with these arguments.</p><details><summary>Show the MCP request</summary><pre>${escaped(example, 12_000)}</pre><p>Approve the ticket in Froggy. Retrieve it with <code>froggy_x402_status</code> and <code>{"purchaseId":"the returned id"}</code>. Keep the same idempotency key when retrying.</p></details></article></section>`
+<section class="try"><article><h2>Try it in Froggy</h2><p>Select and copy this prompt into the chat. Open the demo inside the shared browser to exercise detection.</p><textarea readonly aria-label="Froggy chat prompt">${escaped(prompt, 8192)}</textarea></article><article><h2>Try it from Claude Code</h2><p>With Froggy connected over MCP, call <code>froggy_x402_request</code> with these arguments.</p><details><summary>Show the MCP request</summary><pre>${escaped(example, 12_000)}</pre><p>Approve the ticket in Froggy. Retrieve it with <code>froggy_x402_status</code> and <code>{"purchaseId":"the returned id"}</code>. Keep the same idempotency key when retrying.</p></details></article></section>
+<section class="try" id="for-agents"><article><h2>For agents · no account needed</h2><p>Install the door and your own agent buys this from your own Hedera account. There is no signup, no API key and no subscription: the price comes from the 402 above, and the payment is a transfer you sign. The facilitator pays the network fee, so you need no HBAR for gas — only the ${escaped(price)}.</p><pre>${escaped(doorInstall, 2000)}</pre><p class="quiet">Your key stays in your environment. Nothing here holds it, and nothing here opens an account for you.</p></article><article><h2>Three tools, and no fourth</h2><p><code>froggy_catalogue</code> lists what is for sale and costs nothing. <code>froggy_buy</code> pays for one of them. <code>froggy_receipt</code> takes any settlement id and answers whether it really happened — the transfer as the ledger recorded it, and the matching public note on the consensus topic.</p><p>The last one works for settlements you did not make, including ours. Nothing in this demonstration has to be taken on our word.</p></article></section>`
     ),
     locked ? 402 : 200,
     headers
@@ -188,7 +239,7 @@ ${dataStubbed || paymentStubbed ? `<p class="note stub"><strong>STUB demonstrati
 <section class="stats" aria-label="Market observations"><article class="stat"><p class="eyebrow">Lowest observed borrow</p><strong>${apr(borrow.borrowApr)}</strong><small>${escaped(borrow.name, 120)} · ${escaped(borrow.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Highest observed supply</p><strong>${apr(supply.supplyApr)}</strong><small>${escaped(supply.name, 120)} · ${escaped(supply.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Markets compared</p><strong>${markets.length.toString().padStart(2, "0")}</strong><small>${dataStubbed ? "Recorded fixture · block 0" : `${fresh} of ${snapshot.deployments.length} indexes fresh`}</small></article></section>
 <section><div class="section-heading"><h2>The market sheet</h2><span>USDC · lowest borrowing APR first</span></div><div class="table-scroll" role="region" aria-label="USDC lending market comparison" tabindex="0"><table><thead><tr><th scope="col">Market / network</th><th scope="col">Borrow APR</th><th scope="col">Supply APR</th><th scope="col">Supplied</th><th scope="col">Borrowed</th><th scope="col">Indexed block</th></tr></thead><tbody>${markets.map(marketRow).join("")}</tbody></table></div><p class="quiet">Rates are observations at the indexed blocks shown. They do not include an assessment of protocol risk, collateral requirements or transaction costs.</p></section>
 <section><div class="section-heading"><h2>Where the observations came from</h2><span>${escaped(snapshot.source, 300)}</span></div><ul class="index-list">${indexes}</ul></section>
-<section class="receipt" aria-label="Purchase receipt"><h2>A receipt, kept with the report.</h2><dl><dt>Sale</dt><dd>${sale.id}</dd><dt>Payment</dt><dd>${Number(sale.amount) / 100_000_000} HBAR · ${escaped(sale.network, 80)}</dd><dt>Transaction</dt><dd>${escaped(sale.transactionId ?? "No transaction reference returned", 256)}</dd><dt>Snapshot hash</dt><dd>${snapshotHash(snapshot)}</dd><dt>Captured</dt><dd>${escaped(captured)}</dd></dl><p class="quiet"><a href="/oracle/sales/${sale.id}">Open the durable sale record ↗</a></p></section>`
+<section class="receipt" aria-label="Purchase receipt"><h2>A receipt, kept with the report.</h2><dl><dt>Sale</dt><dd>${sale.id}</dd><dt>Payment</dt><dd>${escaped(priceLabel({ amount: sale.amount, asset: sale.asset, network: sale.network }), 80)} · ${escaped(sale.network, 80)}</dd><dt>Transaction</dt><dd>${escaped(sale.transactionId ?? "No transaction reference returned", 256)}</dd><dt>Snapshot hash</dt><dd>${snapshotHash(snapshot)}</dd><dt>Captured</dt><dd>${escaped(captured)}</dd></dl><p class="quiet"><a href="/oracle/sales/${sale.id}">Open the durable sale record ↗</a></p></section>`
   );
 };
 
@@ -457,6 +508,24 @@ const purchaseReport = async (
     stubbed: accepted.stubbed,
     transactionId: accepted.transactionId,
   });
+  // The same public note the snapshot writes, for the same reason: the card
+  // says every settlement leaves one, and this resource is on the card. Not
+  // awaited — the buyer paid and is owed the report now; the note is for
+  // whoever audits later.
+  if (accepted.transactionId !== null) {
+    const { transactionId } = accepted;
+    detached("hcs demo sale note", async () => {
+      await services.hcs.record({
+        amount: requirements.amount,
+        asset: requirements.asset,
+        at: Date.now(),
+        kind: "sold",
+        network: requirements.network,
+        ref: accepted.id,
+        transactionId,
+      });
+    });
+  }
   return await deliver(services, accepted);
 };
 

@@ -10,7 +10,7 @@
 
 import { Schema } from "effect";
 
-import { HEDERA_TESTNET, isHederaNetwork } from "./types";
+import { HBAR_ASSET, HEDERA_TESTNET, isHederaNetwork } from "./types";
 import type { PaymentChallenge } from "./types";
 import { challengeFrom } from "./wire";
 
@@ -107,7 +107,10 @@ export const assess = (
   }
   if (!WHOLE_POSITIVE.test(requirement.amount)) {
     return {
-      reason: "the amount is not a whole, positive number of tinybars",
+      reason:
+        requirement.asset === HBAR_ASSET
+          ? "the amount is not a whole, positive number of tinybars"
+          : `the amount is not a whole, positive number of ${requirement.asset}'s smallest units`,
       supported: false,
     };
   }

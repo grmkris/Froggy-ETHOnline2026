@@ -81,10 +81,11 @@ const requirementsFor = (
   payTo: string,
   resource: PaidResource,
   feePayer: string | null,
-  network: HederaNetwork
+  network: HederaNetwork,
+  asset: string
 ): PaymentRequirements => ({
   amount: resource.units,
-  asset: HBAR_ASSET,
+  asset,
   // Hedera's exact scheme pays fees from the facilitator's account, not the
   // payer's, so the payer has to be told which one — without this the payment
   // cannot be constructed at all.
@@ -99,9 +100,10 @@ const challengeFor = (
   payTo: string,
   resource: PaidResource,
   feePayer: string | null,
-  network: HederaNetwork
+  network: HederaNetwork,
+  asset: string
 ): PaymentRequired => ({
-  accepts: [requirementsFor(payTo, resource, feePayer, network)],
+  accepts: [requirementsFor(payTo, resource, feePayer, network, asset)],
   error: "Payment required.",
   resource: {
     description: resource.description,
@@ -144,6 +146,18 @@ const decodeHeader = (paymentHeader: string): PaymentEnvelope | null => {
 };
 
 export interface LiveOracleOptions {
+  /**
+   * What the service is priced in: `"0.0.0"` for native HBAR, or an HTS token
+   * id such as USDC's `0.0.456858`.
+   *
+   * The facilitator was verified on 10 Sep 2026 to accept an HTS asset: a
+   * `/verify` of a USDC-denominated payload was refused for
+   * `insufficient_balance: payer holds 0 of 0.0.456858`, which is a balance
+   * answer and not an allowlist one. Pricing in a token therefore works and
+   * is configuration; it is left at HBAR because a buyer who holds HBAR does
+   * not necessarily hold anything else.
+   */
+  readonly asset?: string;
   /** Which Hedera the service is paid on; the facilitator host must match. */
   readonly network: HederaNetwork;
   /** Blocky402. Testnet: https://api.testnet.blocky402.com */
@@ -198,7 +212,13 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
 
   return {
     challenge: (resource) =>
-      challengeFor(options.payTo, resource, feePayer, options.network),
+      challengeFor(
+        options.payTo,
+        resource,
+        feePayer,
+        options.network,
+        options.asset ?? HBAR_ASSET
+      ),
     mode: "live",
     payTo: options.payTo,
     refresh: async () => {
@@ -275,7 +295,13 @@ const STUB_FEE_PAYER = "0.0.0";
 
 export const stubOracleGate = (): OracleGate => ({
   challenge: (resource) =>
-    challengeFor(STUB_PAY_TO, resource, STUB_FEE_PAYER, HEDERA_TESTNET),
+    challengeFor(
+      STUB_PAY_TO,
+      resource,
+      STUB_FEE_PAYER,
+      HEDERA_TESTNET,
+      HBAR_ASSET
+    ),
   mode: "stub",
   payTo: STUB_PAY_TO,
   // Nothing to learn: the stub's fee payer is a constant, and saying it
