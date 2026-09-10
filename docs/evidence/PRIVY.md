@@ -108,3 +108,51 @@ The control refusal is what makes the second line evidence: Privy validates thes
 **Verdict: no.** A per-wallet rolling cap is not expressible at Privy, and the sentence above stands as written rather than as an assumption. Rolling caps stay host-side and every document that says so is correct. Two further limits bound this permanently: `AggregationMethod` is only `eth_signTransaction | eth_signUserOperation`, so the typed-data x402 leg could never carry an aggregation whatever the grouping, and Privy updates an aggregation's value _after_ a request is signed, so two simultaneous signatures can both pass a cap they jointly exceed.
 
 Both requests were refused, so no aggregation object was created and the app is as it was. The probe is `tools/spikes/privy-aggregation-groupby.ts`.
+
+## A policy can be owned by the person, and then we cannot touch it — 10 September 2026
+
+Spike 0a of [the user-owned policy plan](../plan/PLAN_USER_OWNED_POLICIES.md), server half, against the live production app. `tools/spikes/privy-person-owned-policy.ts`.
+
+The plan turns on an asymmetry read from the SDK types: `PolicyCreateParams` carries no authorization-signature header, while `PolicyUpdateParams`, `PolicyDeleteParams` and the per-rule params all do. If that holds against the live API, the server can mint a policy the person owns using nothing but the app secret — and from that moment cannot change it.
+
+A control ran first, so that a refusal below could not be a malformed body rather than a permissions answer:
+
+```text
+--- control: a policy with no owner ---
+  create:    200   id ie3kaesh79ccluu82bdq5ugl, owner_id null
+  patch:     200   rules replaced
+  delete:    200   {"success":true}
+
+--- candidate: owner { user_id: did:privy:cmtq98t70006g0cjrgjhm3oxj } ---
+  create:    200   id nq6wgzda7e0r8t6afu1waaph, owner_id "xxlunyp4g9kkvlgelelnlq2t"
+  patch:     401   {"error":"No valid authorization keys or user signing keys available","code":"invalid_data"}
+  delete:    401   {"error":"No valid authorization keys or user signing keys available","code":"invalid_data"}
+```
+
+Same secret, same body, same endpoint; the only difference is the owner. **Person-owned policies are real, and ownership is not cosmetic.**
+
+Reading the owner Privy created is what tells us how the other half must work:
+
+```text
+GET /v1/key_quorums/xxlunyp4g9kkvlgelelnlq2t
+{"id":"xxlunyp4g9kkvlgelelnlq2t","display_name":null,"authorization_threshold":1,
+ "authorization_keys":[],"user_ids":["did:privy:cmtq98t70006g0cjrgjhm3oxj"],"key_quorum_ids":[]}
+```
+
+Privy minted a quorum whose only member is the **user**, with no authorization keys at all. So the sole way to authorize a change is a _user signing key_ — exactly the second half of the 401's wording — which is the same class of credential the browser already uses successfully for `addSigners`, and the same one the server-side `user_jwts` exchange has been refused on this app since 7 September. That is why the remaining question can only be asked from a signed-in browser.
+
+**What is still open, and it is the gate on the whole approach:** that the person's own key _can_ edit a policy the person owns. Until that passes, a person-owned policy is a policy **nobody** can change.
+
+**Cost of asking, recorded honestly.** The control was deleted. The candidate cannot be deleted by us — that is the finding — so policy `nq6wgzda7e0r8t6afu1waaph` and, from a later harness test, `obvo4d48po1d1po4lgdgpdvm` remain on the app, owned by the test person, attached to no wallet and governing nothing.
+
+### The browser half, ready to run
+
+Harness: `tools/spikes/privy-policy-owner-relay.ts` plus one dev-only function exposed in `apps/web/src/lib/privy.tsx`. The browser holds the user's signing key but must never hold the app secret, so the browser signs and the relay sends; they meet over loopback. Both are deleted once the verdict is written.
+
+```
+bun tools/spikes/privy-policy-owner-relay.ts     # terminal 1
+bun run dev:web                                  # terminal 2, then sign in
+await window.froggySpikePolicyOwner()            # browser console
+```
+
+It answers PASS or FAIL on its own. Everything up to the signature is already exercised: `/mint` returns a well-formed signing payload, and `/patch` with a deliberately bogus signature earns the same `401` from Privy, proving the header reaches the policy engine. Note that a wrong signature and a missing one are indistinguishable in Privy's reply, so a FAIL is not by itself proof that the person's key may not do this — it must be separated from a payload that differs by a byte before it is recorded as a verdict.

@@ -265,11 +265,117 @@ interface PrivyModule {
     logout: () => Promise<void>;
     ready: boolean;
     user: {
+      id?: string;
       smartWallet?: { address: string };
       wallet?: { address: string };
     } | null;
   };
+  // SPIKE 0a (docs/plan/PLAN_USER_OWNED_POLICIES.md). Delete with the spike.
+  readonly useAuthorizationSignature: () => {
+    generateAuthorizationSignature: (input: {
+      body: unknown;
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+      version: number;
+    }) => Promise<{ signature: string }>;
+  };
 }
+
+/**
+ * SPIKE 0a: can the person's own key change a policy the person owns?
+ *
+ * The server half proved our app secret cannot (`401 No valid authorization
+ * keys or user signing keys available`). Only a signed-in browser holds the
+ * user's signing key, so the question can be asked nowhere else. This exposes
+ * exactly one function on `window`, only in a dev build, and only so the
+ * question can be asked once by a human at a console.
+ *
+ * It is not a feature and must not become one: the whole block, the hook call
+ * that drives it and the two `PrivyModule` additions above are deleted the
+ * moment `docs/evidence/PRIVY.md` carries the verdict. It never signs anything
+ * that moves money — the policy it edits is attached to no wallet.
+ */
+const RELAY = "http://127.0.0.1:8899";
+
+const useSpikePolicyOwner = (
+  did: string | null,
+  sign: (input: {
+    body: unknown;
+    headers: Record<string, string>;
+    method: string;
+    url: string;
+    version: number;
+  }) => Promise<{ signature: string }>
+): void => {
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    const run = async (): Promise<string> => {
+      if (did === null) {
+        return "FAIL: sign in first — no Privy user on this session.";
+      }
+      const minted = await fetch(`${RELAY}/mint`, {
+        body: JSON.stringify({ did }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const mint: {
+        error?: string;
+        expiry?: number;
+        payload?: Parameters<typeof sign>[0];
+        policyId?: string;
+      } = await minted.json();
+      if (
+        mint.payload === undefined ||
+        mint.policyId === undefined ||
+        mint.expiry === undefined
+      ) {
+        return `FAIL at mint: ${mint.error ?? "the relay returned nothing usable"}`;
+      }
+      // The payload is signed exactly as the relay will send it; a mismatch of
+      // one byte is a refusal that would look like a permissions answer.
+      const { signature } = await sign(mint.payload);
+      const patched = await fetch(`${RELAY}/patch`, {
+        body: JSON.stringify({
+          expiry: mint.expiry,
+          policyId: mint.policyId,
+          signature,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const result: { ok?: boolean; status?: number; text?: string } =
+        await patched.json();
+      if (result.ok === true) {
+        return `PASS: the person's own key edited policy ${mint.policyId}, which the app secret could not. User-owned policies are reachable.\n${result.text ?? ""}`;
+      }
+      // A wrong signature and a missing one earn the same 401 from Privy, so a
+      // failure here is not yet a verdict: it is either "the person's key may not
+      // do this" or "the payload we signed differs by a byte from the one we
+      // sent". Say so, rather than recording the stronger claim.
+      return `FAIL (${result.status ?? "?"}): Privy did not accept the person's signature. This is not yet proof that it cannot — an identical 401 comes back when the signed payload and the sent payload disagree. ${result.text ?? ""}`;
+    };
+    // `Reflect.set` rather than an assertion on `globalThis`: this is a console
+    // affordance, not a typed part of the app's surface, and widening the global
+    // type for a spike would outlive the spike.
+    Reflect.set(globalThis, "froggySpikePolicyOwner", async () => {
+      try {
+        const verdict = await run();
+        console.warn(verdict);
+        return verdict;
+      } catch (error) {
+        const verdict = `FAIL, threw: ${error instanceof Error ? error.message : String(error)}`;
+        console.warn(verdict);
+        return verdict;
+      }
+    });
+    return () => {
+      Reflect.deleteProperty(globalThis, "froggySpikePolicyOwner");
+    };
+  }, [did, sign]);
+};
 
 /**
  * Reads Privy's hooks and publishes them upward.
@@ -290,6 +396,8 @@ const PrivyBridge = ({
   const { fund } = mod.useFiatOnramp();
   const { addSigners } = mod.useSigners();
   const { createDepositAddress } = mod.useDepositAddress();
+  const { generateAuthorizationSignature } = mod.useAuthorizationSignature();
+  useSpikePolicyOwner(user?.id ?? null, generateAuthorizationSignature);
 
   /**
    * Privy's callbacks, held rather than depended on.
