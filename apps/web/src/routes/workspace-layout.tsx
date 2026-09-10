@@ -24,6 +24,7 @@ import { usePopOut } from "../hooks/use-pop-out";
 import { usePurchases } from "../hooks/use-purchases";
 import { useReceipts } from "../hooks/use-receipts";
 import { useTrades } from "../hooks/use-trades";
+import { useWalletArrival } from "../hooks/use-wallet-arrival";
 import { useWebMcp } from "../hooks/use-webmcp";
 import type { Notice } from "../lib/app-state";
 import { createBrowserPainter } from "../lib/browser-painter";
@@ -31,6 +32,7 @@ import { ChatContext } from "../lib/chat-context";
 import type { ChatSurface } from "../lib/chat-context";
 import { CHAT_ERROR_ID, chatErrorText } from "../lib/chat-error";
 import { HistoryContext, useWorkspaceHistory } from "../lib/history-client";
+import { useIdentity } from "../lib/privy";
 import { SessionIdsContext } from "../lib/session-ids";
 import { useSessionToken } from "../lib/session-token";
 import { WorkspaceContext } from "../lib/workspace-context";
@@ -61,7 +63,15 @@ export const WorkspaceLayout = (): ReactElement => {
     ).length ?? 0;
   // While a window holds the page this tab has no screencast of its own.
   const browser = useBrowserSocket(painter, popOut.mode !== "window");
+  const identity = useIdentity();
   const { getToken } = useSessionToken();
+  // The browser hears about the wallet before the server can read it. Without
+  // this, a person who signs in and sits still waits for a request nobody makes.
+  useWalletArrival({
+    getToken,
+    privyAddress: identity.address,
+    serverAddress: app.wallet?.address ?? null,
+  });
   const receiptHistory = useReceipts(app.sessionId, app.dispatch);
 
   const history = useWorkspaceHistory(app);

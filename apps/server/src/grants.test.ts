@@ -118,6 +118,17 @@ const attached = async (): Promise<AgentGrant> => {
   return { attached: true, policyIds: [], reason: null, wallet: WALLET };
 };
 
+/** Privy has not linked the wallet yet: nothing to grant, and nothing refused. */
+const noWalletYet = async (): Promise<AgentGrant> => {
+  await Promise.resolve();
+  return {
+    attached: false,
+    policyIds: [],
+    reason: "No embedded wallet on this account yet.",
+    wallet: null,
+  };
+};
+
 const refused = async (): Promise<AgentGrant> => {
   await Promise.resolve();
   return {
@@ -222,6 +233,57 @@ describe("AgentGrants", () => {
     h.grants.note(ALICE, "token");
     await flush();
     expect(h.calls.at(-1)).toBe("signer:granted:");
+  });
+
+  it("shows the wallet as soon as Privy links it, with no reload and no minute's wait", async () => {
+    // The failure this encodes, from production on 10 Sep: Privy creates the
+    // wallet in the browser a moment after our first authenticated request
+    // looks for it. The look finding nothing is survivable; sharing a refusal's
+    // sixty-second backoff was not, because a person who has just signed in and
+    // is sitting still makes no further requests, so nothing ever looked again
+    // and they watched an empty wallet page.
+    const h = harness([noWalletYet, attached]);
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.calls).toEqual([
+      "policy:none",
+      "signer:absent:No embedded wallet on this account yet.",
+    ]);
+
+    // Seconds, not a minute.
+    h.advance(3000);
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.calls).toContain("addresses:0xabc");
+    expect(h.calls.at(-1)).toBe("signer:granted:");
+    expect(h.published.map((message) => message.type)).toContain(
+      "wallet.state"
+    );
+  });
+
+  it("does not ask again the instant it is told there is no wallet", async () => {
+    // The window is real rather than zero: a busy tab must not turn "not yet"
+    // into a request per page load.
+    const h = harness([noWalletYet, attached]);
+    h.grants.note(ALICE, "token");
+    await flush();
+    h.advance(500);
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.asks()).toBe(1);
+  });
+
+  it("still backs off a full minute from an actual refusal", async () => {
+    // Two states, two windows. A refusal is worth waiting on; a wallet that is
+    // about to exist is not, and collapsing them either hammers Privy or
+    // strands the person.
+    const h = harness([refused, attached]);
+    h.grants.note(ALICE, "token");
+    await flush();
+    h.advance(RETRY_WINDOW_MS - 1);
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.asks()).toBe(1);
   });
 
   it("treats a grant that threw as a refusal to retry, and touches nothing", async () => {

@@ -62,11 +62,6 @@ export interface AgentGrantRequest {
   /** The caller's own Privy access token. It is what authorizes the change. */
   readonly accessToken: string;
   readonly did: string;
-  /**
-   * The policy to attach the signer under. Omitted, the app-wide policy is
-   * used, which is what every grant did before people had their own.
-   */
-  readonly policyId?: string;
 }
 
 export interface PrivyServer {
@@ -208,18 +203,12 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
       if (agent === null) {
         return NO_AGENT_KEY;
       }
-      const grant: Parameters<typeof grantAgentSigner>[1] = {
+      return await grantAgentSigner(client, {
         accessToken: request.accessToken,
         agent,
         appId: options.appId,
         did: request.did,
-      };
-      return await grantAgentSigner(
-        client,
-        request.policyId === undefined
-          ? grant
-          : { ...grant, policyId: request.policyId }
-      );
+      });
     },
 
     mintPolicy: async (request) =>

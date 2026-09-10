@@ -30,7 +30,6 @@ import type { UserId } from "@froggy/domain";
 import type { AppServerMessage } from "@froggy/protocol";
 import type {
   AgentGrant,
-  AgentGrantRequest,
   PersonPolicyRecord,
   PrivyServer,
 } from "@froggy/wallet";
@@ -79,17 +78,32 @@ export interface GrantDeps {
  */
 const RETRY_AFTER_MS = 60_000;
 
+/**
+ * How long to wait before asking again when the answer was "no wallet yet".
+ *
+ * Privy mints the wallet in the browser and links it a moment later, so an
+ * early look sees nothing through no fault of anyone's. That is a different
+ * kind of "not attached" from a refusal, and waiting a minute on it is what
+ * left somebody watching an empty wallet page. The browser also says so the
+ * moment it knows; this is the floor under that, for callers with no browser.
+ */
+const RETRY_NO_WALLET_MS = 3000;
+
 interface Ask {
   readonly at: number;
   /** Privy answered, and the signer is on the wallet. */
   readonly attached: boolean;
+  /** Privy has not linked this person's wallet yet, so there was nothing to grant. */
+  readonly awaitingWallet: boolean;
   /** False while the request is still in flight. */
   readonly settled: boolean;
 }
 
-/** Worth asking again: settled, not attached, and older than the retry window. */
+/** Worth asking again: settled, not attached, and older than its retry window. */
 const isStale = (ask: Ask, now: number): boolean =>
-  ask.settled && !ask.attached && now - ask.at >= RETRY_AFTER_MS;
+  ask.settled &&
+  !ask.attached &&
+  now - ask.at >= (ask.awaitingWallet ? RETRY_NO_WALLET_MS : RETRY_AFTER_MS);
 
 export class AgentGrants {
   private readonly deps: GrantDeps;
@@ -112,7 +126,12 @@ export class AgentGrants {
     if (previous !== undefined && !isStale(previous, now)) {
       return;
     }
-    this.asked.set(userId, { at: now, attached: false, settled: false });
+    this.asked.set(userId, {
+      at: now,
+      attached: false,
+      awaitingWallet: false,
+      settled: false,
+    });
     detached("agent grant", async () => {
       const grant = await this.ask(userId, accessToken);
       if (grant !== null) {
@@ -146,14 +165,17 @@ export class AgentGrants {
       // under the person's own rules the first time rather than under the
       // shared policy and then moved. A refusal here is not fatal: the grant
       // still happens, under the app-wide policy, and the pane says so.
-      const own = (await this.deps.policies?.ensure(userId)) ?? null;
-      const request: AgentGrantRequest = { accessToken, did: userId };
-      const grant = await this.deps.privy.grantAgent(
-        own === null ? request : { ...request, policyId: own.policyId }
-      );
+      // Minted before the read, so the policy exists for the browser button to
+      // attach the signer under. Granting itself is the browser's job.
+      await this.deps.policies?.ensure(userId);
+      const grant = await this.deps.privy.grantAgent({
+        accessToken,
+        did: userId,
+      });
       this.asked.set(userId, {
         at: this.now(),
         attached: grant.attached,
+        awaitingWallet: grant.wallet === null,
         settled: true,
       });
       return grant;
@@ -161,6 +183,7 @@ export class AgentGrants {
       this.asked.set(userId, {
         at: this.now(),
         attached: false,
+        awaitingWallet: false,
         settled: true,
       });
       console.warn(

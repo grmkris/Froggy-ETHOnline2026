@@ -183,15 +183,8 @@ export const grantAgentSigner = async (
     readonly agent: AgentKey;
     readonly appId: string;
     readonly did: string;
-    /**
-     * The policy to attach the signer under. The person's own when they have
-     * one; the app-wide policy otherwise, which is what everyone granted
-     * before per-person policies existed.
-     */
-    readonly policyId?: string;
   }
 ): Promise<AgentGrant> => {
-  const policyId = input.policyId ?? input.agent.policyId;
   let wallet: UserWallet | null = null;
   try {
     wallet = await embeddedWalletFor(client, input.did);
@@ -215,17 +208,21 @@ export const grantAgentSigner = async (
       // this side reports what it found and lets them decide.
       return { attached: true, policyIds: existing, reason: null, wallet };
     }
-    await updateWallet(client, {
-      accessToken: input.accessToken,
-      appId: input.appId,
-      body: {
-        additional_signers: [
-          { override_policy_ids: [policyId], signer_id: input.agent.quorumId },
-        ],
-      },
-      walletId: wallet.id,
-    });
-    return { attached: true, policyIds: [policyId], reason: null, wallet };
+    // Not granted from here. The server-side grant needs Privy's JWT exchange,
+    // which this app has refused since 7 September behind a dashboard toggle
+    // that does not exist for it — every attempt answered `400 Invalid JWT
+    // token provided`, once per authenticated request, and put that sentence in
+    // front of the person as the reason their agent could not pay. The browser
+    // asks Privy directly and works; this side reads the answer.
+    //
+    // `updateWallet` is kept because revoking still uses it and would start
+    // working the day the toggle appears.
+    return {
+      attached: false,
+      policyIds: [],
+      reason: null,
+      wallet,
+    };
   } catch (error) {
     // Returned rather than thrown, and with whatever wallet was found: a
     // wallet the agent cannot sign for is a degraded workspace, not a missing
