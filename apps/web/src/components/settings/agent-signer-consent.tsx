@@ -26,8 +26,8 @@ const label = (busy: boolean, standing: string | null): string => {
     return "Asking Privy…";
   }
   return standing === "shared"
-    ? "Put the agent under your own rules"
-    : "Let the agent sign under policy";
+    ? "Move the agent onto these rules"
+    : "Let the agent pay under these rules";
 };
 
 export const AgentSignerConsent = ({
@@ -137,8 +137,9 @@ export const AgentSignerConsent = ({
       </p>
       {standing === "shared" ? (
         <p className="text-muted-foreground text-xs">
-          The agent signs under shared rules rather than rules you set. Moving
-          it takes one tap, and the agent cannot sign in between.
+          Moving it takes one tap. Privy allows a signer only one set of rules,
+          so the old ones are removed before yours are added, and the agent can
+          pay nothing for the moment in between.
         </p>
       ) : null}
       <Button

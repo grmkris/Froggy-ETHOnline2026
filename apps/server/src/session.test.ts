@@ -1312,6 +1312,24 @@ describe("a person's own limits are not the deployment's", () => {
     expect(capsIn(after)).toBe(capsIn(withCaps));
   });
 
+  test("survive a reconnect, which is when they were being lost", async () => {
+    // The gap a read of the whole feature found: `hydrate` runs `admit` on the
+    // saved mandate, so a session that had not yet learned the person has a
+    // policy stripped their caps off it — on every reconnect, silently, and the
+    // stored document was then rewritten without them.
+    const store = memoryStore();
+    const first = sessionWith(memoryLedger(), store);
+    await first.hydrate();
+    await store.privyPolicy.save(ALICE, allowanceOf());
+    const saved = first.applyAllowance(allowanceOf());
+    expect(capsIn(saved)).toBeGreaterThan(0);
+
+    // A new process, the same person: everything is read back from the store.
+    const second = sessionWith(memoryLedger(), store);
+    await second.hydrate();
+    expect(capsIn(second.currentMandate)).toBe(capsIn(saved));
+  });
+
   test("are still stripped for somebody who set none", async () => {
     // The other half of the contract: a deployment with no limits still gives a
     // person without an allowance a mandate with no caps, exactly as before.

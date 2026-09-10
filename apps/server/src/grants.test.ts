@@ -54,6 +54,9 @@ const harness = (
         setAddresses: (addresses) => {
           calls.push(`addresses:${addresses.signer ?? "none"}`);
         },
+        setAgentPolicy: (policy) => {
+          calls.push(`policy:${policy?.policyId ?? "none"}`);
+        },
         setAgentSigner: (state, note) => {
           calls.push(`signer:${state}:${note ?? ""}`);
         },
@@ -138,6 +141,7 @@ describe("AgentGrants", () => {
     expect(h.calls).toEqual([
       "addresses:0xabc",
       "wallet:wallet-1",
+      "policy:none",
       "signer:granted:",
     ]);
     h.advance(RETRY_WINDOW_MS * 10);
@@ -156,6 +160,7 @@ describe("AgentGrants", () => {
     expect(h.calls).toEqual([
       "addresses:0xabc",
       "wallet:wallet-1",
+      "policy:none",
       "signer:absent:Privy said no.",
     ]);
     expect(h.published).toHaveLength(1);

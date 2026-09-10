@@ -48,11 +48,11 @@ const nudgeText = (expiresAt: number, now: number): string => {
   const days = Math.floor((expiresAt - now) / 86_400_000);
   if (days <= 0) {
     return expiresAt <= now
-      ? "Your agent's permission to spend has run out. It can sign nothing until you renew it in Settings."
-      : "Your agent's permission to spend runs out today. Renew it in Settings, or it will stop being able to pay for anything.";
+      ? "Your agent's permission to spend has run out. It can pay nothing until you extend it in Settings."
+      : "Your agent's permission to spend runs out today. Extend it in Settings, or it will stop being able to pay for anything.";
   }
   const when = days === 1 ? "tomorrow" : `in ${days} days`;
-  return `Your agent's permission to spend runs out ${when}. Renew it in Settings whenever suits; nothing changes until then.`;
+  return `Your agent's permission to spend runs out ${when}. Extend it in Settings whenever suits you; nothing changes until then.`;
 };
 
 export class PersonPolicies {

@@ -680,11 +680,17 @@ export class WorkspaceSession {
    */
   async hydrate(): Promise<void> {
     this.hydration ??= (async () => {
-      const [saved, recent, pocket] = await Promise.all([
+      const [saved, recent, pocket, policy] = await Promise.all([
         this.deps.store.mandates.load(this.userId),
         this.deps.store.receipts.recent(this.userId, RECEIPT_HISTORY),
         this.deps.store.pocket.load(this.userId),
+        this.deps.store.privyPolicy.load(this.userId),
       ]);
+      // Before `admit` below, and that order is the whole point: `admit` keeps
+      // a person's own caps only if it knows they have a policy, so a session
+      // that learned about it afterwards would strip the caps off their saved
+      // mandate on every reconnect and quietly widen their agent.
+      this.agentPolicy = policy;
       if (this.deps.pocket !== undefined) {
         // Credited once. Null is "never had a pocket"; zero is a pocket that
         // was spent, and it stays zero until a top-up.

@@ -31,6 +31,7 @@ import type { AppServerMessage } from "@froggy/protocol";
 import type {
   AgentGrant,
   AgentGrantRequest,
+  PersonPolicyRecord,
   PrivyServer,
 } from "@froggy/wallet";
 
@@ -44,7 +45,11 @@ export interface GrantWorkspaces {
   readonly for: (userId: UserId) => {
     readonly session: Pick<
       WorkspaceSession,
-      "setAddresses" | "setAgentSigner" | "setWallet" | "walletSummary"
+      | "setAddresses"
+      | "setAgentPolicy"
+      | "setAgentSigner"
+      | "setWallet"
+      | "walletSummary"
     >;
   };
 }
@@ -112,7 +117,7 @@ export class AgentGrants {
       const grant = await this.ask(userId, accessToken);
       if (grant !== null) {
         const own = (await this.deps.policies?.current(userId)) ?? null;
-        this.apply(userId, grant, own?.policyId ?? null);
+        this.apply(userId, grant, own);
       }
     });
   }
@@ -169,7 +174,7 @@ export class AgentGrants {
   private apply(
     userId: UserId,
     grant: AgentGrant,
-    ownPolicyId: string | null
+    ownPolicy: PersonPolicyRecord | null
   ): void {
     const { session } = this.deps.workspaces.for(userId);
     if (grant.wallet !== null) {
@@ -182,9 +187,12 @@ export class AgentGrants {
       });
       session.setWallet(grant.wallet);
     }
+    // The session is told before the standing is computed and published, so the
+    // wallet the browser receives already names the policy it is talking about.
+    session.setAgentPolicy(ownPolicy);
     const standing = signerStanding({
       attached: grant.attached,
-      ownPolicyId,
+      ownPolicyId: ownPolicy?.policyId ?? null,
       perPerson: this.deps.policies !== undefined,
       policyIds: grant.policyIds,
     });

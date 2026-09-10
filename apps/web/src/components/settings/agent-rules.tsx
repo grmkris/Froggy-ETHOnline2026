@@ -21,12 +21,12 @@ const money = (micros: number): string => `$${(micros / 1_000_000).toFixed(2)}`;
 const left = (expiresAt: number): string => {
   const days = Math.floor((expiresAt - Date.now()) / 86_400_000);
   if (days < 0) {
-    return "It has expired, so the agent can sign nothing.";
+    return "This permission has expired, so the agent can pay nothing.";
   }
   if (days === 0) {
-    return "It runs out today.";
+    return "This permission runs out today.";
   }
-  return `It runs out in ${days} days.`;
+  return `This permission runs out in ${days} days.`;
 };
 
 export const AgentRules = ({
