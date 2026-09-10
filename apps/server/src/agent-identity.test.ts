@@ -26,9 +26,13 @@ describe("base58", () => {
 });
 
 describe("canonicalise", () => {
-  it("puts the six fields in one order whatever order they arrive in", () => {
+  it("writes the six fields in the reference implementation's order, skills first", () => {
+    // Byte-for-byte what `hashgraph-online/standards-sdk` hashes. The order is
+    // the contract: alphabetical keys would be a different digest and so a
+    // different identifier, and the point of publishing one is that a reader
+    // can recompute it with the SDK and get ours back.
     expect(canonicalise(FACTS)).toBe(
-      '{"name":"froggy-lending-oracle","nativeId":"hedera:mainnet:0.0.10847556","protocol":"x402","registry":"froggy","skills":[1,2,3],"version":"1.0.0"}'
+      '{"skills":[1,2,3],"name":"froggy-lending-oracle","nativeId":"hedera:mainnet:0.0.10847556","protocol":"x402","registry":"froggy","version":"1.0.0"}'
     );
   });
 
@@ -50,7 +54,8 @@ describe("universalAgentId", () => {
     const first = universalAgentId(FACTS);
     expect(first).toBe(universalAgentId(FACTS));
     expect(first).toStartWith("uaid:aid:");
-    expect(first).toContain(";registry=froggy;proto=x402;");
+    // `uid=0` is what the standard says when no registry assigned one.
+    expect(first).toContain(";uid=0;registry=froggy;proto=x402;");
     expect(first).toContain("nativeId=hedera:mainnet:0.0.10847556");
     expect(universalAgentId({ ...FACTS, version: "1.0.1" })).not.toBe(first);
   });

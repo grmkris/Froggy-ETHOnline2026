@@ -8,9 +8,20 @@
  * settlement receipts are held to.
  *
  * The specification is a draft (https://hol.org/docs/standards/hcs-14/) and
- * this implementation has not been checked against a reference one, so the
- * identifier is published as a claim about how it was computed — the inputs
- * are in the document beside it — and not as something a reader must accept.
+ * the identifier is published as a claim about how it was computed — the
+ * inputs are in the document beside it — and not as something a reader must
+ * accept. The point of the claim is that it can be checked, so on 10 Sep 2026
+ * it was checked, against `hashgraph-online/standards-sdk`.
+ *
+ * Two places where the prose and the reference implementation disagree, and
+ * this file follows the implementation, because that is what a reader who
+ * wants to disagree with us will actually run:
+ *
+ *   - the prose says the canonical JSON has its keys in alphabetical order;
+ *     the SDK writes `skills` first, then name, nativeId, protocol, registry,
+ *     version. Different bytes, different digest, different identifier.
+ *   - `uid` is `"0"` when there is no registry-assigned id, not the agent's
+ *     own name.
  *
  * Deterministic all the way down: no clock, no chain write, no registration.
  */
@@ -66,28 +77,32 @@ export interface AgentFacts {
 }
 
 /**
- * Canonical JSON: the six fields in alphabetical order, registry and protocol
- * lowercased, every string trimmed, the skills sorted numerically. Two parties
- * who agree on the facts must produce the same bytes.
+ * Canonical JSON: the six fields in the order the reference implementation
+ * writes them — `skills` first — registry and protocol lowercased, every
+ * string trimmed, the skills sorted numerically. `JSON.stringify` preserves
+ * insertion order, so this order is the bytes. Two parties who agree on the
+ * facts must produce the same ones.
  */
 export const canonicalise = (facts: AgentFacts): string =>
   JSON.stringify({
+    skills: facts.skills.toSorted((left, right) => left - right),
     name: facts.name.trim(),
     nativeId: facts.nativeId.trim(),
     protocol: facts.protocol.trim().toLowerCase(),
     registry: facts.registry.trim().toLowerCase(),
-    skills: facts.skills.toSorted((left, right) => left - right),
     version: facts.version.trim(),
   });
 
-/** The deterministic form: `uaid:aid:<id>;uid=…;registry=…;proto=…;nativeId=…` */
+/** The deterministic form: `uaid:aid:<id>;uid=0;registry=…;proto=…;nativeId=…` */
 export const universalAgentId = (facts: AgentFacts): string => {
   const digest = createHash("sha384")
     .update(canonicalise(facts), "utf-8")
     .digest();
   const id = base58(new Uint8Array(digest));
   const parameters = [
-    `uid=${facts.name.trim()}`,
+    // Nobody assigned us one, and the standard's answer for that is "0", not
+    // a name of our own choosing.
+    "uid=0",
     `registry=${facts.registry.trim().toLowerCase()}`,
     `proto=${facts.protocol.trim().toLowerCase()}`,
     `nativeId=${facts.nativeId.trim()}`,
