@@ -77,13 +77,13 @@ Where Froggy's own interface has a word for something, that word wins and this e
 
 **Standing and ask.** Which side of the line an action kind sits on before any amount is considered. A _standing_ kind can run on a standing signature; an _ask_ kind gets no allow rule at all in the person's Privy policy, so the default refusal catches it and no standing signature can ever reach it.
 
-**Frozen.** The wallet's spending is halted. The interface says "The wallet is frozen"; a spend attempted while frozen is refused with the code `frozen`. Freezing outlives the run that was in flight when it happened, which is what makes it different from _stop_. It does **not** currently reach the trading desk, which has a stop of its own; see [bug-triage](bug-triage.md).
+**Frozen.** A wallet whose spending is halted. **No such control exists in this build.** The denial code `frozen` is still declared, the interface still has the sentence "The wallet is frozen." ready to render it, and the signed-out page still promises "Freeze spending or disconnect an agent whenever you need" — but nothing in the tree ever produces the code, and there is no freeze or unfreeze anywhere. `mandate.ts` records why in passing: the kill-switch rule was removed. The word is kept in this glossary because the documents ask what freezing would do, and because the promise is still on the page; see [bug-triage](bug-triage.md).
 
 ## Approvals
 
 **Approval.** The question raised when the leash answers _ask_: the run parks and a person is asked. What the person says is recorded on the receipt with the same care as a rule id, because a receipt that says "allowed" without saying "because you said so at 14:02" has lost the fact that made the spend legitimate.
 
-**Approval answer.** One of four, and the interface's own words for them: **Allow once**, _allow for this session_ (which writes an _ask exemption_), **Deny**, and **Deny & stop**. "No, and stop the run" and "no, try something else" are different instructions, and the product keeps them apart. The primary yes sits last in the row, furthest from a stray click.
+**Approval answer.** One of four. The mandate ticket's own words, supplied by the server, are **Allow once**, allow for this session, **Not this time**, and **Stop the agent**. The separate ticket raised for a URL purchase uses a different pair for the same two refusals — **Deny** and **Deny & stop** — so one product has two vocabularies for one decision; see [bug-triage](bug-triage.md). Whichever wording is shown, "no, and stop the run" and "no, try something else" are different instructions and the product keeps them apart. The primary yes sits last in the row, furthest from a stray click.
 
 **Resolution.** How an approval ended: one of the four answers, or one of the three ways it ends without one — `timeout` (the clock ran out), `aborted` (the run was stopped underneath it), `unavailable` (there was nobody to ask, as when a scheduled job fires with no screen open).
 

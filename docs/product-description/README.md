@@ -75,6 +75,8 @@ The same thirteen rows in the same order in every document. Every cell filled, e
 
 Stop and freeze are separate rows because they are separate things: stop halts this run, freeze halts all spending and outlives the run.
 
+**Row 2 describes a control that is not present in this build.** Drafting established that nothing in the tree produces the refusal freezing would cause, and that there is no freeze anywhere — while the signed-out page still promises it. The row is kept, because asking the question of every feature is how that was found, and because the promise is still on the page; its cells say so. See [B-01](bug-triage.md).
+
 1. Stop — the person halts this run.
 2. Freeze — the wallet is frozen, mid-run.
 3. Denying a waiting approval, or leaving it unanswered.
@@ -113,7 +115,7 @@ Froggy has a verification rule of its own that overrides the usual one: **a stub
 
 ### Order of work
 
-1. **Pilot: [add funds](wallet/add-funds.md).** Small, self-contained, with a real decision in it and a refusal path. Used to settle the template, tone, and depth.
+1. **Pilot: [add funds](workspace/wallet/add-funds.md).** Small, self-contained, with a real decision in it and a refusal path. Used to settle the template, tone, and depth.
 2. **Foundations.** [The request](foundations/the-request.md) and [the leash](foundations/the-leash.md) first; everything else refers to them.
 3. **The conversation.** The bulk of the experience and the hardest part: the composer, the streaming answer, tool calls, approvals arriving mid-stream, and freeze. Written third so the template is already proven.
 4. **Everything else.** Drafted in parallel once the exemplars exist, followed by a consistency pass and a verification pass across the whole set.
@@ -214,67 +216,63 @@ cross-cutting/
 
 ## Coverage
 
-Status is one of `not started`, `drafted`, or `verified`.
+Status is one of `not started`, `drafted`, or `verified`. Every document is `drafted`: written from the code and the tests, and not yet checked against the running product. Nothing here is `verified`, and [verification/README.md](verification/README.md) says what that would take.
 
-| Document                                       | Status      |
-| ---------------------------------------------- | ----------- |
-| glossary.md                                    | not started |
-| bug-triage.md                                  | not started |
-| verification/README.md                         | not started |
-| verification/foundations.md                    | not started |
-| verification/workspace.md                      | not started |
-| verification/agent-surface.md                  | not started |
-| verification/cross-cutting.md                  | not started |
-| foundations/the-request.md                     | not started |
-| foundations/the-leash.md                       | not started |
-| foundations/money.md                           | not started |
-| foundations/the-conversation.md                | not started |
-| foundations/identity-and-agents.md             | not started |
-| foundations/navigation.md                      | not started |
-| foundations/the-shared-browser.md              | not started |
-| workspace/home.md                              | not started |
-| workspace/conversation/the-composer.md         | not started |
-| workspace/conversation/the-streaming-answer.md | drafted     |
-| workspace/conversation/tool-calls.md           | not started |
-| workspace/conversation/approvals.md            | not started |
-| workspace/conversation/freeze.md               | not started |
-| workspace/conversation/resuming.md             | not started |
-| workspace/explore.md                           | not started |
-| workspace/wallet/the-balance.md                | not started |
-| workspace/wallet/add-funds.md                  | not started |
-| workspace/wallet/receipts.md                   | not started |
-| workspace/wallet/the-policy-editor.md          | not started |
-| workspace/wallet/purchases.md                  | not started |
-| workspace/services/the-directory.md            | not started |
-| workspace/services/buying-a-service.md         | not started |
-| workspace/services/selling-a-service.md        | not started |
-| workspace/trades.md                            | not started |
-| workspace/connections/connecting-an-agent.md   | not started |
-| workspace/connections/the-agent-list.md        | not started |
-| workspace/connections/the-agent-detail.md      | not started |
-| workspace/account/appearance.md                | not started |
-| workspace/account/telegram.md                  | not started |
-| workspace/account/schedules.md                 | not started |
-| workspace/account/the-daily-digest.md          | not started |
-| workspace/activity.md                          | not started |
-| agent-surface/discovery.md                     | not started |
-| agent-surface/oauth-consent.md                 | not started |
-| agent-surface/froggy-login.md                  | not started |
-| agent-surface/asking-for-a-paid-task.md        | not started |
-| agent-surface/reading-results-and-receipts.md  | not started |
-| agent-surface/being-refused.md                 | not started |
-| cross-cutting/the-leash-everywhere.md          | not started |
-| cross-cutting/money-and-receipts.md            | not started |
-| cross-cutting/approvals-everywhere.md          | not started |
-| cross-cutting/provenance.md                    | not started |
-| cross-cutting/history-and-persistence.md       | not started |
-| cross-cutting/notifications.md                 | not started |
-| cross-cutting/url-state.md                     | not started |
-| cross-cutting/appearance-and-motion.md         | not started |
-| cross-cutting/accessibility.md                 | not started |
-| cross-cutting/offline-and-reconnection.md      | not started |
-| cross-cutting/stubs.md                         | not started |
-| cross-cutting/errors.md                        | not started |
+| Document                                       | Status  |
+| ---------------------------------------------- | ------- |
+| glossary.md                                    | drafted |
+| bug-triage.md                                  | drafted |
+| verification/README.md                         | drafted |
+| foundations/identity-and-agents.md             | drafted |
+| foundations/money.md                           | drafted |
+| foundations/navigation.md                      | drafted |
+| foundations/the-conversation.md                | drafted |
+| foundations/the-leash.md                       | drafted |
+| foundations/the-request.md                     | drafted |
+| foundations/the-shared-browser.md              | drafted |
+| workspace/account/appearance.md                | drafted |
+| workspace/account/schedules.md                 | drafted |
+| workspace/account/telegram.md                  | drafted |
+| workspace/account/the-daily-digest.md          | drafted |
+| workspace/activity.md                          | drafted |
+| workspace/connections/connecting-an-agent.md   | drafted |
+| workspace/connections/the-agent-detail.md      | drafted |
+| workspace/connections/the-agent-list.md        | drafted |
+| workspace/conversation/approvals.md            | drafted |
+| workspace/conversation/freeze.md               | drafted |
+| workspace/conversation/resuming.md             | drafted |
+| workspace/conversation/the-composer.md         | drafted |
+| workspace/conversation/the-streaming-answer.md | drafted |
+| workspace/conversation/tool-calls.md           | drafted |
+| workspace/explore.md                           | drafted |
+| workspace/home.md                              | drafted |
+| workspace/services/buying-a-service.md         | drafted |
+| workspace/services/selling-a-service.md        | drafted |
+| workspace/services/the-directory.md            | drafted |
+| workspace/trades.md                            | drafted |
+| workspace/wallet/add-funds.md                  | drafted |
+| workspace/wallet/purchases.md                  | drafted |
+| workspace/wallet/receipts.md                   | drafted |
+| workspace/wallet/the-balance.md                | drafted |
+| workspace/wallet/the-policy-editor.md          | drafted |
+| agent-surface/asking-for-a-paid-task.md        | drafted |
+| agent-surface/being-refused.md                 | drafted |
+| agent-surface/discovery.md                     | drafted |
+| agent-surface/froggy-login.md                  | drafted |
+| agent-surface/oauth-consent.md                 | drafted |
+| agent-surface/reading-results-and-receipts.md  | drafted |
+| cross-cutting/accessibility.md                 | drafted |
+| cross-cutting/appearance-and-motion.md         | drafted |
+| cross-cutting/approvals-everywhere.md          | drafted |
+| cross-cutting/errors.md                        | drafted |
+| cross-cutting/history-and-persistence.md       | drafted |
+| cross-cutting/money-and-receipts.md            | drafted |
+| cross-cutting/notifications.md                 | drafted |
+| cross-cutting/offline-and-reconnection.md      | drafted |
+| cross-cutting/provenance.md                    | drafted |
+| cross-cutting/stubs.md                         | drafted |
+| cross-cutting/the-leash-everywhere.md          | drafted |
+| cross-cutting/url-state.md                     | drafted |
 
 ## Reference
 

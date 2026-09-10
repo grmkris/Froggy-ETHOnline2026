@@ -18,10 +18,12 @@ They are in the same order on every surface, and the order is deliberate: **the 
 
 | Answer | What it does |
 | --- | --- |
-| **Deny & stop** | Refuses this spend and ends the run. Shown as the destructive option, and it is the one the keyboard lands on. |
-| **Deny** | Refuses this spend. The run continues and the model may try something else. |
-| Allow for this session | Allows it, and writes an _ask exemption_ — this payee, up to this ceiling, until this expiry — so the same thing is not asked again. The threshold rule stays. |
+| **Stop the agent** | Refuses this spend and ends the run. Shown as the destructive option, and it is the one the keyboard lands on. |
+| **Not this time** | Refuses this spend. The run continues and the model may try something else. |
+| allow for this session | Allows it, and writes an _ask exemption_ — this payee, up to this ceiling, until this expiry — so the same thing is not asked again. The threshold rule stays. |
 | **Allow once** | Allows exactly this spend. |
+
+These are the mandate ticket's words, supplied by the server. The separate ticket raised for a URL purchase says **Deny & stop** and **Deny** for the same two refusals — one product, two vocabularies for one decision. See [bug-triage](../../bug-triage.md).
 
 "No, and stop" and "no, try something else" are different instructions, and collapsing them would lose the ability to say the first.
 
@@ -92,7 +94,7 @@ Then the run continues or ends according to the answer.
 | Event | Before the ticket appears | While it is open |
 | --- | --- | --- |
 | Stop — the person halts this run | Nothing to answer. | The approval resolves `aborted` and the run ends. |
-| Freeze — the wallet is frozen, mid-run | The spend is refused before it can ask. | Open question: whether the ticket is withdrawn or answering it then fails. |
+| Freeze — the wallet is frozen, mid-run | Not possible: there is no freeze control in this build. | Not possible. |
 | Denying a waiting approval, or leaving it unanswered | This is the event. | Deny continues; Deny & stop ends; unanswered ends as `timeout`. |
 | Asking something else while this request is still in flight | Sent normally. | Held by the composer. The ticket is unaffected. |
 | Leaving the page, or switching to another conversation, mid-run | No effect. | The countdown keeps running. An unanswered ticket times out whether or not anyone is looking. |
@@ -143,7 +145,7 @@ Then the run continues or ends according to the answer.
 ## Open questions and verification
 
 - How long the countdown is has not been established; it comes from the request rather than a constant read here.
-- What happens to an open ticket when the wallet is frozen — withdrawn, or answerable but doomed — is not established and is worth checking, because it is the combination a nervous person is most likely to produce.
+- The four answers are labelled differently on the two kinds of ticket. Which pair a person sees depends on whether the spend came from the mandate path or a URL purchase, and nothing explains the difference.
 - Whether the ticket is shown anywhere other than the conversation, in particular on the Wallet, is not established.
 - Whether Telegram can answer an approval or only announce it is not established here; see the Telegram document.
 - The exact question wording was read from the policy engine, not seen rendered.

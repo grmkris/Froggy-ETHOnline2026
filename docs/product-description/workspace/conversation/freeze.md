@@ -2,9 +2,9 @@
 
 ## Summary
 
-Two controls end things, and they end different things. **Stop** halts the run that is going. **Freeze** halts spending, and outlives any run. A person reaching for "make it stop" needs to know which one they want, and the product keeps them apart rather than offering one button that does both.
+Two controls were meant to end things, and they end different things. **Stop** halts the run that is going. **Freeze** was to halt spending, and outlive any run.
 
-This document owns both, and what each leaves behind.
+**Only one of them exists.** Stop is real, and most of this document is about it. Freeze is not present in this build: there is no control, no endpoint, and nothing that produces the refusal it would cause. What remains of it is a declared denial code, a sentence ready to render, and a promise on the signed-out page. Because the description asks every feature what freezing would do, and because the promise is still on the page, this document says what freeze was to be and then says plainly that it is gone.
 
 ## The simple case
 
@@ -63,13 +63,21 @@ Briefly, "Requesting stop…". If the request fails — an error, or the network
 
 The run is aborted. The turn takes the status `stopped` and keeps everything it had already done. A spend that was reserved but never sent becomes `abandoned` and does **not** consume the person's allowance; one already sent settles or becomes `uncertain` on its own. Nothing is rolled back, because money cannot be.
 
-## Freezing
+## Freezing, which is not here
 
-Freezing is a state of the wallet, not of a run. While frozen, every spend is refused with the code `frozen` and the interface says "The wallet is frozen".
+Freezing was to be a state of the wallet rather than of a run: while frozen, every spend refused with the code `frozen` and the interface saying "The wallet is frozen." It would outlive the run in flight when it happened, which is the whole difference from stopping — a person who froze and walked away would have stopped their money being spent by anything, including an agent connecting an hour later.
 
-It outlives the run that was in flight when it happened, which is the whole difference: a person who freezes and then walks away has stopped their money being spent by anything — this run, the next one, an agent connecting an hour later. Stopping a run stops only that run.
+None of that runs. In the tree at this commit:
 
-A spend reserved but not yet sent when the wallet freezes becomes `abandoned`, so freezing mid-run does not consume allowance for a payment that never left.
+- The code `frozen` appears exactly once, as a literal in the list of denial codes. Nothing constructs a refusal carrying it.
+- There is no freeze, unfreeze, or frozen state anywhere in the server or the web app.
+- `apps/web/src/lib/denial.ts` maps the code to "The wallet is frozen." — a renderer for something never emitted.
+- The signed-out page still tells a prospective person: "Freeze spending or disconnect an agent whenever you need."
+- `packages/domain/src/mandate.ts` explains it in an aside, describing one field as absent "for `frozen` on receipts written before the kill switch was removed".
+
+So the kill switch was taken out and its remnants were left. Disconnecting an agent, which the same promise names, does exist. Stopping a run exists. A person who wants to halt everything has no single control that does it, and the trading desk keeps a stop of its own that nothing else reaches.
+
+> Technical note: the trade path still takes a `frozen` flag, and both of its callers pass `false` as a literal — a second remnant of the same removal, wired to nothing.
 
 ## Variants
 
@@ -88,7 +96,7 @@ A spend reserved but not yet sent when the wallet freezes becomes `abandoned`, s
 | Event | Before the stop is requested | After it is requested |
 | --- | --- | --- |
 | Stop — the person halts this run | This is the event. | Pressing again while unconfirmed retries. |
-| Freeze — the wallet is frozen, mid-run | Independent; both can be done. | Freezing after stopping protects against the _next_ run too. |
+| Freeze — the wallet is frozen, mid-run | Not possible: there is no freeze control in this build. | Not possible. |
 | Denying a waiting approval, or leaving it unanswered | **Deny & stop** ends the run without touching the Stop control. | No effect. |
 | Asking something else while this request is still in flight | Held by the composer, not sent. | The held message goes when the turn ends, including when it ended by being stopped. |
 | Leaving the page, or switching to another conversation, mid-run | The run keeps going. Leaving is not stopping. | The stop was already sent to the server and stands. |
@@ -140,10 +148,11 @@ After a stop the person stays in the conversation, which shows how far the turn 
 
 ## Open questions and verification
 
-- Where freeze is operated from in the interface, and whether unfreezing is the same control, was not established from the code read for this document.
-- Whether freezing also aborts the running turn, or only refuses its spends, is described here as the latter from the structure of the denial code, and has not been watched happen.
-- The panic path that aborts every run at once is called "before the browser gate flips"; what a person does to trigger it, and what they see, is not established.
+- **Freeze is absent and still promised.** Whether it was removed deliberately for this build or lost in a refactor is not recorded anywhere in the tree. Either way the signed-out page promises it, the glossary of denial codes declares it, and a person told "you can freeze spending whenever you need" cannot. **Worth treating as a bug rather than documenting**; see [bug-triage](../../bug-triage.md).
+- Where a person would operate freeze, if it returned, is therefore an open design question rather than a thing to check.
+- The panic path that aborts every run at once exists on the server and is called "before the browser gate flips"; what a person does to trigger it, and what they see, is not established. It may be the nearest surviving thing to a freeze.
 - Whether a person can stop a run started by a connected agent from the agent's page as well as from the conversation was not established.
 - The five stop states were read from the component. Whether all five are reachable in the running product has not been checked; `e2e/stop.spec.ts` exercises unconfirmed and requested.
+- "Payments already submitted may still settle" is shown after a stop on a stubbed run too, where it is not true.
 
 Verified against the Froggy tree at commit `5caed50`.

@@ -89,7 +89,7 @@ The failure this is designed to prevent is a leash that is tighter on the screen
 
 ### Denial codes
 
-The code is the record; the sentence shown to a person is never the only thing kept. `frozen`, `expired`, `per_tx_cap_exceeded`, `window_cap_exceeded`, `payee_not_allowed`, `host_not_allowed`, `network_not_allowed`, `untrusted_provenance`, `unpriceable`, `pocket_exhausted`, `conversion_failed`, `run_budget_exceeded`, `price_changed`, `approval_denied`, `approval_timeout`, `approval_unavailable`.
+The code is the record; the sentence shown to a person is never the only thing kept. **`frozen` is declared and never produced** — there is no freeze control in this build, and the code is a remnant of a kill switch that was removed; see [stopping and freezing](../workspace/conversation/freeze.md). The rest are live: `expired`, `per_tx_cap_exceeded`, `window_cap_exceeded`, `payee_not_allowed`, `host_not_allowed`, `network_not_allowed`, `untrusted_provenance`, `unpriceable`, `pocket_exhausted`, `conversion_failed`, `run_budget_exceeded`, `price_changed`, `approval_denied`, `approval_timeout`, `approval_unavailable`.
 
 Two of these are not the leash refusing at all, and are worth telling apart: `pocket_exhausted` means the account the host pays its own fees from is dry and a top-up fixes it, and `conversion_failed` names who refused — the signer, the chain, or the balance.
 
@@ -112,7 +112,7 @@ The one variant that cannot be changed at all is provenance: it is fixed when th
 | Event | Before the spend is judged | After it is allowed |
 | --- | --- | --- |
 | Stop — the person halts this run | The spend never happens. | Money already moved has moved. Stopping is not a rollback. |
-| Freeze — the wallet is frozen, mid-run | Everything from that moment is refused with `frozen`. | No effect on what already settled. |
+| Freeze — the wallet is frozen, mid-run | Not possible: there is no freeze control in this build. | Not possible. |
 | Denying a waiting approval, or leaving it unanswered | `approval_denied`, `approval_timeout`, or `approval_unavailable` — three different codes, kept apart because they are different facts. | Not applicable. |
 | Asking something else while this request is still in flight | The new run supersedes the old; a spend the old run had reached is the open question in [the request](the-request.md). | No effect. |
 | Leaving the page, or switching to another conversation, mid-run | No effect. The run keeps going and keeps being judged. | No effect. |
