@@ -413,6 +413,20 @@ const quoteBody = (key: string) => ({
 });
 const quoteView = (task: Task) => ({ ...task, approval: [], receipts: [] });
 
+/**
+ * These five pass under the gate and fail from the repository root.
+ *
+ * `bun run test` runs `bun test` with the working directory set to
+ * `apps/server`, which is how CI and `bun run check` run it and how these are
+ * meant to run. Invoking `bun test apps/server` from the root instead makes
+ * them answer 503 and "Missing key" rather than 402 — a working-directory
+ * sensitivity somewhere under the quote fixtures, not a real failure and not
+ * anything a caller changed.
+ *
+ * Noted here because it looks exactly like a regression you have just caused.
+ * If you are staring at five red browser-quote tests, check which directory you
+ * ran them from before you change anything.
+ */
 describe("bounded browser quotes", () => {
   const caller = {
     agentTokenId: null,
