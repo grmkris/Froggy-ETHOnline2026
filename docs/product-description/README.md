@@ -234,7 +234,7 @@ Status is one of `not started`, `drafted`, or `verified`.
 | foundations/the-shared-browser.md              | not started |
 | workspace/home.md                              | not started |
 | workspace/conversation/the-composer.md         | not started |
-| workspace/conversation/the-streaming-answer.md | not started |
+| workspace/conversation/the-streaming-answer.md | drafted     |
 | workspace/conversation/tool-calls.md           | not started |
 | workspace/conversation/approvals.md            | not started |
 | workspace/conversation/freeze.md               | not started |
