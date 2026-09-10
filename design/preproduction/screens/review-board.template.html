@@ -1,0 +1,1096 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — Gate C review board</title>
+<!--
+  Gate C review board. Mascot, icon at real sizes, wordmark, palette, type,
+  one button, one task card, one approval, and a quiet Home.
+
+  Everything on this page is real editable text and real tokens. Nothing is
+  cropped from a concept image. Every figure is invented and labelled as such.
+-->
+<style>
+  :root {
+    --bg: #eff1ec;
+    --card: #fcfdfb;
+    --paper: #f3f5f0;
+    --line: #dfe3df;
+    --line-soft: #ebeeeb;
+    --ink: #15201a;
+    --ink-2: #6b776f;
+    --ink-3: #8c968f;
+    --primary: #2f7a4c;
+    --primary-lo: #276a41;
+    --primary-fg: #f6fbf7;
+    --brand-soft: #e2efe6;
+    --destructive: #b3402f;
+    --lime: #b4e04a;
+    --lime-ink: #24400a;
+    --frog-skin: #4f9e63;
+    --frog-skin-lo: #3d7f4e;
+    --frog-belly: #d3e9d6;
+    --frog-eye: #fcfdfb;
+    --frog-pupil: #15201a;
+    --frog-mouth: #24402e;
+    --frog-lime: var(--lime);
+    --radius: 20px;
+    --radius-row: 12px;
+    --shadow:
+      0 1px 2px rgb(21 32 26 / 5%), 0 10px 28px -18px rgb(21 32 26 / 28%);
+    --display: "Inter Tight", system-ui, sans-serif;
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .dark {
+    --bg: #0d120f;
+    --card: #171f19;
+    --paper: #1f2921;
+    --line: #26332b;
+    --line-soft: #202b23;
+    --ink: #e9f0ea;
+    --ink-2: #8e9d92;
+    --ink-3: #6f7d74;
+    --primary: #4fb87a;
+    --primary-lo: #3ea468;
+    --primary-fg: #07130b;
+    --brand-soft: #16301f;
+    --destructive: #e26a5a;
+    --lime: #c7ec63;
+    --frog-skin: #5cb473;
+    --frog-skin-lo: #47935c;
+    --frog-belly: #2b4634;
+    --frog-eye: #f2f7f2;
+    --frog-pupil: #0b140e;
+    --frog-mouth: #0b140e;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 32px 20px 80px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  h1 {
+    font: 600 26px/1.2 var(--display);
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  h2 {
+    font: 600 12px/1 var(--sans);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-3);
+    margin: 44px 0 14px;
+  }
+  h3 {
+    font: 600 15px/1.3 var(--display);
+    margin: 0 0 4px;
+  }
+  p {
+    margin: 0 0 12px;
+    color: var(--ink-2);
+    max-width: 68ch;
+  }
+  .lede {
+    font-size: 16px;
+  }
+  code,
+  .mono {
+    font-family: var(--mono);
+    font-size: 0.92em;
+  }
+  .num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .grid {
+    display: grid;
+    gap: 14px;
+  }
+  .row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* ---------------- brand ---------------- */
+  .marks {
+    display: flex;
+    align-items: flex-end;
+    gap: 26px;
+    flex-wrap: wrap;
+  }
+  .marks figure {
+    margin: 0;
+    text-align: center;
+  }
+  .marks figcaption {
+    font: 11px/1 var(--mono);
+    color: var(--ink-3);
+    margin-top: 9px;
+  }
+  .froggy {
+    display: block;
+    overflow: visible;
+  }
+  .froggy .halo {
+    display: none;
+  }
+  .froggy .lid {
+    transform: translateY(-2px);
+  }
+  .froggy[data-compact="true"] .detail {
+    display: none;
+  }
+  .appicon {
+    width: 96px;
+    height: 96px;
+    border-radius: 24px;
+    background: linear-gradient(160deg, #f7faf5, #dceadf 55%, #c8e0cd);
+    display: grid;
+    place-items: center;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--line-soft);
+  }
+  .appicon.small {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+  .appicon.tiny {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+  }
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font: 600 25px/1 var(--display);
+    letter-spacing: -0.025em;
+    color: var(--ink);
+  }
+  .wordmark .froggy {
+    flex: none;
+  }
+  .wordmark.reversed {
+    color: var(--frog-eye);
+  }
+  .onink {
+    background: #15201a;
+    border-radius: 14px;
+    padding: 16px 20px;
+  }
+  .mono-mark .froggy path,
+  .mono-mark .froggy circle,
+  .mono-mark .froggy ellipse {
+    fill: currentColor !important;
+    stroke: none !important;
+  }
+  .mono-mark .froggy .sclera,
+  .mono-mark .froggy .glint {
+    fill: var(--card) !important;
+  }
+  .mono-mark {
+    color: var(--ink);
+  }
+
+  /* ---------------- palette ---------------- */
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(132px, 100%), 1fr));
+    gap: 10px;
+  }
+  .sw {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-row);
+    overflow: hidden;
+    background: var(--card);
+  }
+  .sw i {
+    display: block;
+    height: 52px;
+    box-shadow: inset 0 0 0 1px rgb(21 32 26 / 8%);
+  }
+  .sw b {
+    display: block;
+    font: 500 12px/1.3 var(--sans);
+    padding: 8px 10px 0;
+  }
+  .sw span {
+    display: block;
+    font: 11px/1.4 var(--mono);
+    color: var(--ink-3);
+    padding: 0 10px 9px;
+  }
+
+  /* ---------------- type ---------------- */
+  .type > div {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .type > div:last-child {
+    border-bottom: 0;
+  }
+  .type small {
+    display: block;
+    font: 11px/1 var(--mono);
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+
+  /* ---------------- controls ---------------- */
+  .btn {
+    font: 500 14px/1 var(--sans);
+    border-radius: var(--radius-row);
+    padding: 11px 17px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary);
+    color: var(--primary-fg);
+  }
+  .btn:hover {
+    background: var(--primary-lo);
+  }
+  .btn.secondary {
+    background: var(--card);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn.ghost {
+    background: transparent;
+    color: var(--ink-2);
+  }
+  /* A ghost button has no edge, so its padding reads as a stray indent when it
+     leads a row. Pull it back so the label aligns with the text above it. */
+  .actions .btn.ghost:first-child {
+    margin-left: -17px;
+  }
+  .btn.danger {
+    background: transparent;
+    color: var(--destructive);
+    border-color: color-mix(in oklab, var(--destructive) 35%, transparent);
+  }
+  .btn[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .spin {
+    width: 13px;
+    height: 13px;
+    border-radius: 99px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* A pending control must still read as pending without spinning. */
+    .spin {
+      animation: none;
+      border-top-color: currentColor;
+      opacity: 0.5;
+    }
+  }
+
+  /* ---------------- cards ---------------- */
+  .task {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: grid;
+    gap: 10px;
+  }
+  .task header {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+  }
+  .task .why {
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    font: 11px/1 var(--mono);
+    color: var(--ink-3);
+    align-items: center;
+  }
+  .meta a {
+    color: var(--primary);
+  }
+  .chip {
+    white-space: nowrap;
+    font: 500 11px/1 var(--sans);
+    padding: 5px 9px;
+    border-radius: 99px;
+    background: var(--paper);
+    color: var(--ink-2);
+    border: 1px solid var(--line-soft);
+  }
+  .chip.needs {
+    background: color-mix(in oklab, var(--lime) 28%, var(--card));
+    color: var(--lime-ink);
+    border-color: color-mix(in oklab, var(--lime) 45%, transparent);
+  }
+  .chip.work {
+    background: var(--brand-soft);
+    color: var(--primary);
+    border-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .ledger {
+    display: grid;
+    gap: 7px;
+    font-size: 13px;
+    padding: 12px 0 2px;
+  }
+  .ledger div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .ledger dt {
+    color: var(--ink-2);
+  }
+  .ledger .total {
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* ---------------- home ---------------- */
+  .home {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .home.mobile {
+    max-width: 390px;
+    width: 100%;
+  }
+  .home.desk {
+    display: grid;
+    grid-template-columns: 196px 1fr;
+  }
+  .rail {
+    border-right: 1px solid var(--line-soft);
+    background: var(--card);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rail .wordmark {
+    font-size: 17px;
+    padding: 4px 8px 14px;
+  }
+  .rail a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-row);
+    font: 500 14px/1 var(--sans);
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+  .rail a[aria-current] {
+    background: var(--brand-soft);
+    color: var(--primary);
+  }
+  .rail .later {
+    margin-top: auto;
+    display: grid;
+    gap: 2px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 10px;
+  }
+  .rail .later a {
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .stage {
+    padding: 24px 26px 28px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    max-width: 720px;
+  }
+  @media (width < 720px) {
+    .home.desk {
+      grid-template-columns: 1fr;
+    }
+    .rail {
+      border-right: 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+  }
+  .home-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--card);
+  }
+  .home-body {
+    padding: 20px 18px 22px;
+    display: grid;
+    gap: 14px;
+  }
+  .greet {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .greet h3 {
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+  .composer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 13px 15px;
+    color: var(--ink-3);
+    box-shadow: var(--shadow);
+  }
+  .summary {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 99px;
+    background: var(--primary);
+    flex: none;
+  }
+  .navbar {
+    display: flex;
+    gap: 5px;
+    background: var(--card);
+    border-top: 1px solid var(--line-soft);
+    padding: 9px;
+    justify-content: center;
+  }
+  .navbar span {
+    font: 500 12px/1 var(--sans);
+    padding: 9px 16px;
+    border-radius: 99px;
+    color: var(--ink-2);
+  }
+  .navbar span[aria-current] {
+    background: var(--brand-soft);
+    color: var(--primary);
+  }
+  .fig {
+    font: 11px/1.4 var(--mono);
+    color: var(--ink-3);
+    margin-top: 8px;
+  }
+  .warn {
+    border-left: 2px solid var(--lime);
+    padding-left: 12px;
+    font-size: 13px;
+    color: var(--ink-2);
+    margin: 10px 0 0;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+</style>
+
+<main>
+  <h1>Froggy — Gate C review board</h1>
+  <p class="lede">
+    The proposed direction, at the sizes it will actually be used. Every number,
+    name and price below is invented for review. Nothing here is live data, a
+    provider relationship, or advice.
+  </p>
+  <p>
+    <button class="btn secondary" id="theme">Dark</button>
+  </p>
+
+  <h2>1 · The mark, at real sizes</h2>
+  <div class="panel">
+    <div class="marks">
+      <figure>
+        <svg
+          class="froggy"
+          width="128"
+          height="128"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>128</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="64"
+          height="64"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>64</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="48"
+          height="48"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>48</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="32"
+          height="32"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>32</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="24"
+          height="24"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>24</figcaption>
+      </figure>
+      <figure>
+        <svg
+          class="froggy"
+          width="16"
+          height="16"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <figcaption>16</figcaption>
+      </figure>
+    </div>
+    <p class="warn">
+      Below 40px the jaw shading and nostrils are dropped rather than scaled, so
+      the silhouette and the eyes carry the identity. 16px is the favicon case:
+      it still reads as a frog, which the current 🐸 emoji favicon cannot
+      promise on every platform.
+    </p>
+  </div>
+
+  <h2>2 · App icon and wordmark</h2>
+  <div class="cols">
+    <div class="panel">
+      <div class="row" style="align-items: flex-end">
+        <figure class="marks" style="margin: 0">
+          <div class="appicon">
+            <svg
+              class="froggy"
+              width="62"
+              height="62"
+              viewBox="0 0 64 64"
+              aria-hidden="true"
+            >
+              <!-- FROG -->
+            </svg>
+          </div>
+        </figure>
+        <div class="appicon small">
+          <svg
+            class="froggy"
+            width="32"
+            height="32"
+            viewBox="0 0 64 64"
+            data-compact="true"
+            aria-hidden="true"
+          >
+            <!-- FROG -->
+          </svg>
+        </div>
+        <div class="appicon tiny">
+          <svg
+            class="froggy"
+            width="14"
+            height="14"
+            viewBox="0 0 64 64"
+            data-compact="true"
+            aria-hidden="true"
+          >
+            <!-- FROG -->
+          </svg>
+        </div>
+      </div>
+      <p class="fig">
+        icon master 1024 · shown 96 / 48 / 20 · squircle radius 25% · no text
+        inside the icon
+      </p>
+    </div>
+    <div class="panel">
+      <p class="wordmark">
+        <svg
+          class="froggy"
+          width="30"
+          height="30"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        Froggy
+      </p>
+      <div class="onink" style="margin-top: 12px">
+        <p class="wordmark reversed" style="margin: 0">
+          <svg
+            class="froggy"
+            width="30"
+            height="30"
+            viewBox="0 0 64 64"
+            data-compact="true"
+            aria-hidden="true"
+          >
+            <!-- FROG -->
+          </svg>
+          Froggy
+        </p>
+      </div>
+      <p class="fig">
+        Inter Tight 600, tracking −0.025em, mark at cap height. Reversed variant
+        on ink. Inter Tight is OFL and already vendored as
+        <code>@fontsource-variable/inter-tight</code>.
+      </p>
+    </div>
+  </div>
+
+  <h2>3 · Palette</h2>
+  <div class="panel">
+    <div class="swatches">
+      <div class="sw">
+        <i style="background: #eff1ec"></i><b>background</b><span>#eff1ec</span>
+      </div>
+      <div class="sw">
+        <i style="background: #fcfdfb"></i><b>card</b><span>#fcfdfb</span>
+      </div>
+      <div class="sw">
+        <i style="background: #2f7a4c"></i><b>primary</b><span>#2f7a4c</span>
+      </div>
+      <div class="sw">
+        <i style="background: #e2efe6"></i><b>brand-soft</b><span>#e2efe6</span>
+      </div>
+      <div class="sw">
+        <i style="background: #b4e04a"></i><b>lime · new</b><span>#b4e04a</span>
+      </div>
+      <div class="sw">
+        <i style="background: #4f9e63"></i><b>frog-skin · new</b
+        ><span>#4f9e63</span>
+      </div>
+      <div class="sw">
+        <i style="background: #15201a"></i><b>foreground</b><span>#15201a</span>
+      </div>
+      <div class="sw">
+        <i style="background: #b3402f"></i><b>destructive</b
+        ><span>#b3402f</span>
+      </div>
+    </div>
+    <p class="warn">
+      Only <b>lime</b> and the <b>frog-*</b> roles are new; everything else
+      already ships in <code>packages/ui/src/styles/globals.css</code>. Lime is
+      an accent, never text and never a surface — it appears in the needs-you
+      halo and the success smile, and nowhere that must be read. Status never
+      depends on colour alone.
+    </p>
+  </div>
+
+  <h2>4 · Type</h2>
+  <div class="panel type">
+    <div>
+      <small>display · Inter Tight 600 · −0.02em · 26/31</small>
+      <div style="font: 600 26px/1.2 var(--display); letter-spacing: -0.02em">
+        Morning, Kristjan. What should I look into?
+      </div>
+    </div>
+    <div>
+      <small>body · Inter Tight 400 · 15/23</small>
+      <div>
+        Froggy watched three wallets overnight and found one thing worth your
+        attention.
+      </div>
+    </div>
+    <div>
+      <small>numeric · IBM Plex Mono 500 · tabular</small>
+      <div class="num" style="font-size: 19px">
+        €1,204.50 · 0.0241 ETH · 12,500.00 USDC
+      </div>
+    </div>
+    <div>
+      <small>meta · IBM Plex Mono 400 · 11/15</small>
+      <div class="mono" style="color: var(--ink-3)">
+        observed 06:12 CEST · checked 4 min ago · scheduled, not continuous
+      </div>
+    </div>
+  </div>
+
+  <h2>5 · One button, every state</h2>
+  <div class="panel">
+    <div class="row">
+      <button class="btn">Approve €38.40</button>
+      <button class="btn" disabled><span class="spin"></span> Paying…</button>
+      <button class="btn secondary">Review options</button>
+      <button class="btn ghost">Not now</button>
+      <button class="btn danger">Stop this task</button>
+    </div>
+    <p class="warn">
+      The amount lives in the button, so nobody approves an unnamed number.
+      Pending is a real state, not a spinner over an already-committed action,
+      and
+      <b>Stop</b> is never disabled or delayed for an animation.
+    </p>
+  </div>
+
+  <h2>6 · One task card, and one approval</h2>
+  <div class="cols">
+    <div class="task">
+      <header>
+        <svg
+          class="froggy"
+          width="34"
+          height="34"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <div>
+          <h3>Running shoes under €150</h3>
+          <p class="why" style="margin: 0">
+            Three options left after your size and a neutral sole. Two need a
+            size check.
+          </p>
+        </div>
+        <span class="chip work" style="margin-left: auto">working</span>
+      </header>
+      <div class="meta">
+        <span>started 11:04</span><span>·</span><span>checked 4 min ago</span
+        ><span>·</span><a href="#0">3 sources</a>
+      </div>
+      <div class="actions">
+        <button class="btn secondary">Open task</button>
+        <button class="btn ghost">View browser</button>
+        <button class="btn ghost">Mute</button>
+      </div>
+    </div>
+
+    <div class="task">
+      <header>
+        <div>
+          <h3>Approve this purchase</h3>
+          <p class="why" style="margin: 0">
+            Froggy will pay <b>Example Shoe Co.</b> from your card. It cannot
+            change the amount after you approve.
+          </p>
+        </div>
+        <span class="chip needs" style="margin-left: auto">needs you</span>
+      </header>
+      <div class="ledger">
+        <div>
+          <dt>Product · Cloudline 2, size 42</dt>
+          <dd class="num">€129.00</dd>
+        </div>
+        <div>
+          <dt>Delivery</dt>
+          <dd class="num">€4.90</dd>
+        </div>
+        <div>
+          <dt>Service fee</dt>
+          <dd class="num">€1.50</dd>
+        </div>
+        <div>
+          <dt>Research spend so far</dt>
+          <dd class="num">€0.12</dd>
+        </div>
+        <div class="total">
+          <dt>Total to pay now</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+      </div>
+      <div class="meta">
+        <span>quote valid until 12:20 CEST</span><span>·</span
+        ><span>example-shoe-co.example</span>
+      </div>
+      <div class="actions">
+        <button class="btn">Approve €135.40</button>
+        <button class="btn ghost">Reject</button>
+      </div>
+      <p class="warn" style="border-color: var(--line)">
+        Product, delivery, fees and the agent's own research spend are
+        separated. If the merchant changes the price or the size, this asks
+        again rather than reusing the approval.
+      </p>
+    </div>
+  </div>
+
+  <h2>7 · A quiet Home</h2>
+  <p>
+    Three meaningful cards, a composer, one compact work summary. Three
+    destinations, and nothing that needs the person is more than one action
+    away.
+  </p>
+  <div class="home desk">
+    <nav class="rail" aria-label="Primary">
+      <span class="wordmark">
+        <svg
+          class="froggy"
+          width="22"
+          height="22"
+          viewBox="0 0 64 64"
+          data-compact="true"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        Froggy
+      </span>
+      <a aria-current="page" href="#0">Home</a>
+      <a href="#0">Explore</a>
+      <a href="#0">Wallet</a>
+      <span class="later">
+        <a href="#0">Notifications</a>
+        <a href="#0">Account</a>
+      </span>
+    </nav>
+    <div class="stage">
+      <div class="greet">
+        <svg
+          class="froggy"
+          width="52"
+          height="52"
+          viewBox="0 0 64 64"
+          aria-hidden="true"
+        >
+          <!-- FROG -->
+        </svg>
+        <div>
+          <h3>Morning, Kristjan.</h3>
+          <p style="margin: 0; font-size: 13px">
+            One thing needs you. Everything else is quiet.
+          </p>
+        </div>
+      </div>
+      <div class="composer">Ask Froggy to look into something…</div>
+
+      <div class="task">
+        <header>
+          <div>
+            <h3>Approve €135.40 to Example Shoe Co.</h3>
+            <p class="why" style="margin: 0">
+              You picked the Cloudline 2 in size 42. The quote expires at 12:20.
+            </p>
+          </div>
+          <span class="chip needs" style="margin-left: auto">needs you</span>
+        </header>
+        <div class="actions">
+          <button class="btn">Review and approve</button>
+          <button class="btn ghost">Not now</button>
+        </div>
+      </div>
+
+      <div class="task">
+        <header>
+          <div>
+            <h3>A wallet you watch moved</h3>
+            <p class="why" style="margin: 0">
+              Shown because you asked to watch this wallet on 6 Sep. Froggy has
+              not copied anything.
+            </p>
+          </div>
+          <span class="chip" style="margin-left: auto">finding</span>
+        </header>
+        <div class="meta">
+          <span>observed 06:12 CEST</span><span>·</span><span>4h ago</span
+          ><span>·</span><a href="#0">Open task</a>
+        </div>
+        <div class="actions">
+          <button class="btn secondary">Look into it</button>
+          <button class="btn ghost">Dismiss</button>
+          <button class="btn ghost">Stop watching</button>
+        </div>
+      </div>
+
+      <div class="task">
+        <header>
+          <div>
+            <h3>Tokyo trip · one price being watched</h3>
+            <p class="why" style="margin: 0">
+              Checked twice a day until 20 Sep. Not continuous.
+            </p>
+          </div>
+          <span class="chip" style="margin-left: auto">scheduled</span>
+        </header>
+        <div class="actions">
+          <button class="btn ghost">Pause watch</button>
+        </div>
+      </div>
+
+      <p class="summary">
+        <span class="dot"></span> 2 tasks running · 1 watch scheduled ·
+        <a href="#0" style="color: var(--primary)">see all</a>
+      </p>
+    </div>
+  </div>
+  <p class="fig">desktop · sidebar navigation · invented data</p>
+
+  <div class="row" style="margin-top: 18px">
+    <div>
+      <div class="home mobile">
+        <div class="home-top">
+          <span class="wordmark" style="font-size: 15px">
+            <svg
+              class="froggy"
+              width="20"
+              height="20"
+              viewBox="0 0 64 64"
+              data-compact="true"
+              aria-hidden="true"
+            >
+              <!-- FROG -->
+            </svg>
+            Froggy
+          </span>
+          <span class="chip needs">1 needs you</span>
+        </div>
+        <div class="home-body">
+          <div class="greet">
+            <svg
+              class="froggy"
+              width="40"
+              height="40"
+              viewBox="0 0 64 64"
+              aria-hidden="true"
+            >
+              <!-- FROG -->
+            </svg>
+            <h3 style="font-size: 17px">Morning, Kristjan.</h3>
+          </div>
+          <div class="composer" style="font-size: 13px">
+            Ask Froggy anything…
+          </div>
+          <div class="task">
+            <header>
+              <div>
+                <h3 style="font-size: 14px">Approve €135.40</h3>
+                <p class="why" style="margin: 0">
+                  Example Shoe Co. · expires 12:20
+                </p>
+              </div>
+            </header>
+            <div class="actions">
+              <button class="btn" style="width: 100%">Review</button>
+            </div>
+          </div>
+          <div class="task">
+            <header>
+              <div>
+                <h3 style="font-size: 14px">A wallet you watch moved</h3>
+                <p class="why" style="margin: 0">observed 06:12 · not copied</p>
+              </div>
+            </header>
+          </div>
+          <p class="summary">
+            <span class="dot"></span> 2 running · 1 scheduled
+          </p>
+        </div>
+        <div class="navbar">
+          <span aria-current="page">Home</span><span>Explore</span
+          ><span>Wallet</span>
+        </div>
+      </div>
+      <p class="fig">mobile 390 · pill navigation · invented data</p>
+    </div>
+  </div>
+
+  <h2>8 · What this board is not</h2>
+  <div class="panel">
+    <p style="margin: 0">
+      Not live data, not a provider relationship, not advice, and not a claim
+      that any payment route works today. Prices, wallets, merchants and timings
+      are invented for review; the merchant domain uses <code>.example</code> on
+      purpose. Readiness of each real integration is tracked separately in
+      <code>SERVICES.md</code>, where a status is only ever as strong as its
+      evidence.
+    </p>
+  </div>
+</main>
+
+<script>
+  document.getElementById("theme").addEventListener("click", (event) => {
+    const dark = document.body.classList.toggle("dark");
+    event.target.textContent = dark ? "Light" : "Dark";
+  });
+</script>

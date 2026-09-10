@@ -12,13 +12,15 @@
  * Each stamp gets its clipPath ids suffixed, because duplicated ids would make
  * every eyelid in the page clip against the first frog's.
  *
+ * Processes every `*.template.html` under prototype/ and screens/.
+ *
  *   node design/preproduction/tools/build-prototype.mjs [--check]
  *
- * --check exits 1 if the generated file is stale, so a gate can catch a mark
+ * --check exits 1 if any generated file is stale, so a gate can catch a mark
  * that was edited without rebuilding.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -33,13 +35,18 @@ if (found === null) {
 }
 const geometry = found[0].trimEnd();
 
-const template = await readFile(
-  path.join(root, "prototype/motion-states.template.html"),
-  "utf-8"
-);
-const stamps = template.split(MARKER).length - 1;
-if (stamps === 0) {
-  console.error(`template is missing the ${MARKER} marker`);
+/** Every board that stamps the mascot: prototype/ and screens/ templates. */
+const templates = [];
+for (const dir of ["prototype", "screens"]) {
+  const entries = await readdir(path.join(root, dir)).catch(() => []);
+  for (const name of entries) {
+    if (name.endsWith(".template.html")) {
+      templates.push(path.join(dir, name));
+    }
+  }
+}
+if (templates.length === 0) {
+  console.error("no *.template.html found under prototype/ or screens/");
   process.exit(2);
 }
 
@@ -59,29 +66,42 @@ const stamp = (index) => {
   return `<circle class="halo" cx="32" cy="34" r="30" />\n${body}`;
 };
 
-let index = 0;
-const generated = template.replaceAll(MARKER, () => {
-  index += 1;
-  return stamp(index - 1);
-});
 const header =
   "<!-- GENERATED from brand/frog-mark.svg by tools/build-prototype.mjs. " +
   "Edit the mark or the template, then rebuild. -->\n";
 
-const out = path.join(root, "prototype/motion-states.html");
-const content = header + generated;
-if (process.argv.includes("--check")) {
-  const current = await readFile(out, "utf-8").catch(() => "");
-  if (current !== content) {
-    console.error(
-      "prototype/motion-states.html is stale — run build-prototype.mjs"
-    );
-    process.exit(1);
+const check = process.argv.includes("--check");
+let stale = 0;
+for (const relative of templates) {
+  const template = await readFile(path.join(root, relative), "utf-8");
+  const stamps = template.split(MARKER).length - 1;
+  if (stamps === 0) {
+    console.error(`${relative}: missing the ${MARKER} marker`);
+    process.exit(2);
   }
-  console.log(`prototype is in sync with the mark (${stamps} stamps)`);
-} else {
-  await writeFile(out, content);
-  console.log(
-    `wrote ${path.relative(root, out)} — ${stamps} stamps, ${content.length} bytes`
-  );
+  // Ids are unique per file, so each board is self-contained.
+  let index = 0;
+  const content =
+    header +
+    template.replaceAll(MARKER, () => {
+      index += 1;
+      return stamp(index - 1);
+    });
+  const out = path.join(root, relative.replace(".template.html", ".html"));
+  const shown = path.relative(root, out);
+  if (check) {
+    const current = await readFile(out, "utf-8").catch(() => "");
+    if (current === content) {
+      console.log(`in sync: ${shown} (${stamps} stamps)`);
+    } else {
+      console.error(`STALE: ${shown} — run build-prototype.mjs`);
+      stale += 1;
+    }
+  } else {
+    await writeFile(out, content);
+    console.log(`wrote ${shown} — ${stamps} stamps, ${content.length} bytes`);
+  }
+}
+if (stale > 0) {
+  process.exit(1);
 }
