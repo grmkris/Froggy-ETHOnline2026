@@ -227,3 +227,22 @@ address  0xC87084BcB797Bb97BE22D71aA14a21E4A5fd498A
 Owned by the test person, carrying the agent as an additional signer, holding nothing. Put a few cents of USDC on Base into it and re-run with `PRIVY_SPIKE_DENIED_WALLET=lgptzgy5f25afb92mskj8d9e`; the spike re-points it at that run's no-Earn-rule policy rather than minting a fresh wallet. `policy_violation` proves the leash covers Earn; a successful deposit of 0.000001 USDC proves it does not. A third answer is possible and is not a verdict either way: if gas sponsorship does not cover Earn on this app, the refusal will name gas rather than policy, and the wallet needs a little ETH on Base before the question can be asked again. The spike now reuses a wallet named that way rather than minting a fresh one, so the funds are not stranded by the next run.
 
 Ordering, established along the way and worth keeping: **vault resolution → balance → policy.** A spike that pins a fabricated vault id, or that runs against an empty wallet, learns nothing about authorisation whatever its policy says.
+
+## Sponsored gas has no credits, which blocks more than it looks — 10 September 2026
+
+Kristjan funded the spike wallet with 0.0004 ETH on Base rather than USDC, so the Earn test needed a swap first. Privy's own swap accepted the request and then rejected the action:
+
+```text
+POST /v1/wallets/lgptzgy5f25afb92mskj8d9e/swap  ->  200 {"status":"pending", ...}
+GET  .../actions/35ec60bc-55ca-4206-aea5-b1d9258f105d
+  {"status":"rejected",
+   "failure_reason":{"message":"Insufficient gas credits balance. Please add more gas credits via the dashboard."}}
+```
+
+**Privy's swap pays gas from the app's sponsored-gas credits, not from the wallet's own ETH**, and this app has none. The wallet's 0.0004 ETH is irrelevant to it — the quote had already priced gas at 0.0000046 ETH, which the wallet could easily have covered, and it was never asked to.
+
+**Why this reaches further than the swap.** Privy's Earn documentation states that an app with gas sponsorship enabled has deposit, withdraw and incentive-claim gas sponsored automatically. The rejection above shows sponsorship _is_ enabled on this app and its credit balance _is_ empty. So the Earn deposit that the swap was meant to enable is likely to be rejected for the same reason, after the balance check it currently fails on and before the policy question it exists to answer. That is a likelihood rather than a finding: it has not been observed, because no wallet on this app has yet held the USDC needed to get that far.
+
+Topping up gas credits is already row 0 of [the Privy flow PRD](../plan/PRD_PRIVY_FLOW_FABLE51.md) and has not been done. It is a dashboard and billing action, so it is the owner's.
+
+**The fallback, and its limit.** Uniswap's SwapRouter02 on Base — `0x2626664c2603336E57B271c5C0b26F421741e481`, pinned in the treasury policy since 6 September and used for a real swap then — pays gas from the wallet's own ETH and needs no credits. It would get USDC into the wallet. It would not help the Earn deposit if that is sponsored, so it solves half the problem and the half it solves is not the one holding up the verdict.
