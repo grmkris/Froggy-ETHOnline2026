@@ -50,12 +50,18 @@ export { describePayment } from "./inspect";
 export type { PaymentDescription } from "./inspect";
 export {
   hederaAccountBalance,
+  lookupHcsNote,
   lookupHederaTransaction,
   mirrorTransactionId,
   lookupHederaTransactionDetails,
   reconcileHederaPayment,
 } from "./mirror";
-export type { MirrorFetch, MirrorLookup, MirrorVerdict } from "./mirror";
+export type {
+  HcsNoteRecord,
+  MirrorFetch,
+  MirrorLookup,
+  MirrorVerdict,
+} from "./mirror";
 export type { SettlementHeader } from "./settlement";
 export {
   liveHbarRates,
