@@ -209,10 +209,51 @@
       instead of the seated pose. Both are revision 2 and both now check out —
       the tongue measures 5,932 lime pixels and no salmon, and idle's widest
       point sits 79% down its silhouette, which is what seated looks like when
-      you measure it rather than eyeball it. One open item: content height still
-      varies 963&ndash;1095px across the set, which shows as the character
-      growing between states if they swap in place, so a normalised export set
-      is worth making before they go into the app.
+      you measure it rather than eyeball it. Content height varies
+      963&ndash;1098px across the set, and a normalised export sits in
+      <code>brand/poses/normalized/</code> giving all seven a common baseline
+      and a uniform 1000px height &mdash; but measurement says that
+      <b>does not</b> fix character scale: head-width spread was 49.2% before
+      and 49.1% after, unchanged, because stretching a seated pose to a standing
+      pose's height just gives it a bigger head. The in-app contract states are
+      driven by <code>brand/frog-mark.svg</code> rather than these PNGs, so
+      nothing swaps them in place and the variance is cosmetic rather than a
+      defect.
+    </p>
+  </div>
+
+  <h2>Vignettes</h2>
+  <div class="panel">
+    <div class="grid">
+      <figure style="margin: 0">
+        <img alt="shopping" class="shot" src="brand/vignettes/shopping.png" />
+        <figcaption class="fig">shopping</figcaption>
+      </figure>
+      <figure style="margin: 0">
+        <img alt="travel" class="shot" src="brand/vignettes/travel.png" />
+        <figcaption class="fig">travel</figcaption>
+      </figure>
+      <figure style="margin: 0">
+        <img alt="research" class="shot" src="brand/vignettes/research.png" />
+        <figcaption class="fig">research</figcaption>
+      </figure>
+      <figure style="margin: 0">
+        <img alt="services" class="shot" src="brand/vignettes/services.png" />
+        <figcaption class="fig">services</figcaption>
+      </figure>
+      <figure style="margin: 0">
+        <img alt="watch" class="shot" src="brand/vignettes/watch.png" />
+        <figcaption class="fig">watch</figcaption>
+      </figure>
+    </div>
+    <p class="warn">
+      Object still lifes, no frog in them &mdash; one focal illustration per
+      screen, not a mascot on every card. Alpha 0&ndash;255 with 60&ndash;68%
+      transparent; the only off-palette pixels are edge antialiasing. No text in
+      any of them: a label inside a reusable illustration is a claim that cannot
+      be translated or corrected. They live in the empty states in
+      <a href="screens/families.html">families</a> and the task kinds in
+      <a href="screens/task-workspace.html">the task workspace</a>.
     </p>
   </div>
 

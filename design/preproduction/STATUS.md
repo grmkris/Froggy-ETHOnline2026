@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 10 September 2026 · **Gate C approved. A–F and H complete; D partly blocked** · **Full push** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
+**Updated:** 10 September 2026 · **Gate C approved. Every phase complete.** · **Nothing is blocked** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
 
 ## Done
 
@@ -51,17 +51,15 @@ Worth listing, because each one reported healthy while being broken:
 | **D asset pack** | **partly blocked** — motion, brand exports, icons and copy done; **mascot poses and illustrations need your image route** |
 | G parallel agents | not needed; one coordinator was enough |
 
-### Waiting on you — one generation session
+### Nothing is waiting on me, and nothing is waiting on you
 
-Six poses arrived on 10 Sep and are installed at `brand/poses/`, recorded with checksums and their C2PA provenance (`gpt-image 2.0`). Two need a re-run and five vignettes are still to come; do them in one sitting, in the same conversation, so the character stays consistent.
+All generated assets are in. Seven poses (`brand/poses/`, two at revision 2 after a re-run) and five vignettes (`brand/vignettes/`), all verified for real alpha, dimensions, palette and checksums, with provenance read out of each file's own C2PA manifest — `gpt-image 2.0`, OpenAI Media Service API, `trainedAlgorithmicMedia`. Twenty assets recorded; nineteen single-file checksums re-verified against disk.
 
-| What | Prompt | Why |
-| --- | --- | --- |
-| `needs-user` re-run | `brand/POSE_PROMPTS.md` → Fixes | Tongue came back `#e07878`; the palette's accent is lime `#b4e04a`, which `completion` used correctly |
-| `idle` re-run | same | Came back a near-duplicate of `canonical` instead of the seated pose; the set has two masters and no distinct idle |
-| 5 vignettes | `brand/VIGNETTE_PROMPTS.md` | Object still lifes — shopping, travel, research, services, watch. No frog in them, deliberately: one focal illustration per screen, not a mascot on every card |
+The vignettes are wired into the three empty states in `screens/families.html` and the three task kinds in `screens/task-workspace.html`.
 
-Drop originals into `brand/poses/` and `brand/vignettes/`. I verify alpha, dimensions and checksums, read provenance out of each file's own C2PA manifest, record them, and wire the vignettes into the empty states already drawn in `screens/families.html`.
+**One thing that did not work, recorded as such.** `tools/normalize-poses.mjs` gives all seven poses a common baseline and a uniform 1000px content height. It does **not** fix character scale: head-width spread measured 49.2% before and 49.1% after — unchanged. Scaling by bounding box cannot fix it, because a seated pose stretched to a standing pose's height just gets a bigger head. The premise was also partly wrong: the five in-app contract states are driven by `brand/frog-mark.svg`, not these PNGs, so nothing swaps them in place and the variance is cosmetic. The export set is kept because a common baseline is useful if a pose ever lands in a fixed slot, and the finding is in the manifest so nobody re-derives it.
+
+**The only open item is a decision, not work:** whether to start the implementation backlog in `handoff/README.md`. That touches the production app and needs a new authorization.
 
 ### Everything else is done and gated
 

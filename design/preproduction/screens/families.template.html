@@ -43,6 +43,16 @@
   .swatch-risk {
     color: var(--destructive);
   }
+  /* One vignette per empty state, sized so it supports the words rather than
+     competing with them. Decorative, so it is hidden from assistive tech. */
+  .vig {
+    width: 96px;
+    height: 96px;
+    display: block;
+  }
+  .empty .vig {
+    margin-bottom: 2px;
+  }
 </style>
 
 <main>
@@ -202,11 +212,23 @@
 
   <div class="cols" style="margin-top: 16px">
     <div class="empty">
+      <img
+        alt=""
+        aria-hidden="true"
+        class="vig"
+        src="../brand/vignettes/research.png"
+      />
       <h3>Nothing matched</h3>
       <p class="why">Try a different name or address.</p>
       <button class="btn secondary small">Clear search</button>
     </div>
     <div class="empty">
+      <img
+        alt=""
+        aria-hidden="true"
+        class="vig"
+        src="../brand/vignettes/watch.png"
+      />
       <h3>You are not watching anything yet</h3>
       <p class="why">Watch a wallet and Froggy will tell you when it moves.</p>
       <button class="btn secondary small">Browse wallets</button>
@@ -584,6 +606,12 @@
         </div>
       </div>
       <div class="empty">
+        <img
+          alt=""
+          aria-hidden="true"
+          class="vig"
+          src="../brand/vignettes/services.png"
+        />
         <h3>No assistants connected</h3>
         <p class="why">Connect one to give it Froggy's abilities.</p>
         <button class="btn secondary small">Connect an assistant</button>
