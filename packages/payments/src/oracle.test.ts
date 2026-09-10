@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { stubOracleGate } from "./oracle";
+import { liveOracleGate, stubOracleGate } from "./oracle";
 import { stubHederaPayer } from "./payer";
-import { HEDERA_TESTNET, X402_VERSION } from "./types";
+import { assess } from "./probe";
+import { HBAR_ASSET, HEDERA_TESTNET, X402_VERSION } from "./types";
 
 const resource = {
   description: "Cross-protocol USDC lending snapshot.",
@@ -27,6 +28,50 @@ describe("the 402 challenge", () => {
     const challenge = stubOracleGate().challenge(resource);
 
     expect(challenge.resource.url).toBe(resource.url);
+  });
+});
+
+describe("what the service is priced in", () => {
+  it("prices in HBAR unless told otherwise", () => {
+    const gate = liveOracleGate({
+      facilitatorUrl: "https://api.blocky402.com",
+      network: "hedera:mainnet",
+      payTo: "0.0.10847556",
+    });
+    expect(gate.challenge(resource).accepts[0]?.asset).toBe(HBAR_ASSET);
+  });
+
+  it("puts an HTS token id in the challenge when configured with one", () => {
+    // The track's extra points name HTS tokens in the settlement path. The
+    // facilitator was checked on 10 Sep 2026 to accept a token payload; this
+    // is the half of it that lives here — that the offer really carries the
+    // token and is still a payable one.
+    const gate = liveOracleGate({
+      asset: "0.0.456858",
+      facilitatorUrl: "https://api.blocky402.com",
+      network: "hedera:mainnet",
+      payTo: "0.0.10847556",
+    });
+    const [offer] = gate.challenge(resource).accepts;
+    expect(offer?.asset).toBe("0.0.456858");
+    expect(offer?.amount).toBe("5000000");
+    expect(offer?.network).toBe("hedera:mainnet");
+  });
+
+  it("says which units are wrong when a token amount is not whole", () => {
+    const verdict = assess(
+      {
+        amount: "0.5",
+        asset: "0.0.456858",
+        extra: { feePayer: "0.0.10571514" },
+        network: "hedera:mainnet",
+        payTo: "0.0.10847556",
+        scheme: "exact",
+      },
+      { payable: ["hedera:mainnet"] }
+    );
+    expect(verdict.supported).toBe(false);
+    expect(verdict.reason).toContain("0.0.456858's smallest units");
   });
 });
 

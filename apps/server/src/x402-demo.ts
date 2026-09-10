@@ -1,5 +1,5 @@
 /** A small seller whose original HTML page opens after an x402 payment. */
-import { SaleId } from "@froggy/domain";
+import { KNOWN_ASSETS, SaleId } from "@froggy/domain";
 import type { Sale } from "@froggy/domain";
 import { snapshotHash } from "@froggy/graph";
 import type { GraphSnapshot, LendingMarket } from "@froggy/graph";
@@ -12,6 +12,7 @@ import {
 import type { OracleGate, SettleOutcome } from "@froggy/payments";
 import { Schema } from "effect";
 
+import { detached } from "./detached";
 import { PRICE_TINYBARS } from "./oracle-route";
 import type { Services } from "./services";
 
@@ -21,7 +22,10 @@ const MAX_HTML_BYTES = 65_536;
 const MAX_PAYMENT_HEADER = 32_768;
 const SETTLEMENT_TIMEOUT_MS = 15_000;
 
-interface DemoServices extends Pick<Services, "graph" | "oracle" | "store"> {
+interface DemoServices extends Pick<
+  Services,
+  "graph" | "hcs" | "oracle" | "store"
+> {
   readonly environment: Pick<Services["environment"], "appOrigin" | "modes">;
 }
 
@@ -84,6 +88,39 @@ const paymentBadge = (stubbed: boolean): string =>
     ? '<span class="seal stub">STUB · simulated payment</span>'
     : '<span class="seal live">Live Hedera payment</span>';
 
+/**
+ * The price as the offer states it, in whatever asset the offer is in.
+ *
+ * `KNOWN_ASSETS` carries the decimals and the symbol for everything this build
+ * can price; anything else keeps its base units rather than being rendered
+ * with a decimal point it has not earned.
+ */
+const priceLabel = (
+  offer:
+    | {
+        readonly amount: string;
+        readonly asset: string;
+        readonly network: string;
+      }
+    | undefined
+): string => {
+  if (offer === undefined) {
+    return `${Number(PRICE_TINYBARS) / 100_000_000} HBAR`;
+  }
+  const known = Object.values(KNOWN_ASSETS).find(
+    (asset) => asset.network === offer.network && asset.id === offer.asset
+  );
+  if (known === undefined) {
+    return `${offer.amount} units of token ${offer.asset}`;
+  }
+  const digits = offer.amount.padStart(known.decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - known.decimals);
+  const fraction = digits
+    .slice(digits.length - known.decimals)
+    .replace(/0+$/u, "");
+  return `${fraction === "" ? whole : `${whole}.${fraction}`} ${known.symbol}`;
+};
+
 const challengeFor = (services: DemoServices) => {
   const issued = services.oracle.challenge({
     description:
@@ -109,17 +146,21 @@ const landing = (services: DemoServices, locked: boolean): Response => {
   const [offer] = challenge.accepts;
   const { url } = challenge.resource;
   const paymentStubbed = services.oracle.mode === "stub";
-  const price = `${Number(offer?.amount ?? PRICE_TINYBARS) / 100_000_000} HBAR`;
+  // Read from the offer rather than divided by a constant: when HEDERA_ASSET
+  // prices this in a token, `/ 100_000_000` and the word HBAR are both wrong,
+  // and a page that advertises a price the 402 does not ask for is the one
+  // thing the card and the challenge were built from one source to prevent.
+  const price = priceLabel(offer);
   const network = offer?.network ?? services.environment.modes.hedera;
   const prompt = `Open ${url} in the shared browser and buy the USDC lending report for at most $0.05. Ask me to approve the purchase, then explain the result.`;
   // The door needs no Froggy account, so it is the only one of the three
   // routes below that a stranger can take without us doing anything first.
   const doorInstall = [
-    `curl -fsSL ${services.environment.appOrigin}/froggy-mcp.js -o froggy-mcp.js`,
+    `curl -fsSL ${services.environment.appOrigin}/froggy-mcp.mjs -o froggy-mcp.mjs`,
     "claude mcp add froggy \\",
     "  -e FROGGY_HEDERA_ACCOUNT_ID=0.0.your-account \\",
     "  -e FROGGY_HEDERA_PRIVATE_KEY=0xyour-ecdsa-key \\",
-    "  -- node ./froggy-mcp.js",
+    "  -- node ./froggy-mcp.mjs",
   ].join("\n");
   const example = JSON.stringify(
     {
@@ -198,7 +239,7 @@ ${dataStubbed || paymentStubbed ? `<p class="note stub"><strong>STUB demonstrati
 <section class="stats" aria-label="Market observations"><article class="stat"><p class="eyebrow">Lowest observed borrow</p><strong>${apr(borrow.borrowApr)}</strong><small>${escaped(borrow.name, 120)} · ${escaped(borrow.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Highest observed supply</p><strong>${apr(supply.supplyApr)}</strong><small>${escaped(supply.name, 120)} · ${escaped(supply.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Markets compared</p><strong>${markets.length.toString().padStart(2, "0")}</strong><small>${dataStubbed ? "Recorded fixture · block 0" : `${fresh} of ${snapshot.deployments.length} indexes fresh`}</small></article></section>
 <section><div class="section-heading"><h2>The market sheet</h2><span>USDC · lowest borrowing APR first</span></div><div class="table-scroll" role="region" aria-label="USDC lending market comparison" tabindex="0"><table><thead><tr><th scope="col">Market / network</th><th scope="col">Borrow APR</th><th scope="col">Supply APR</th><th scope="col">Supplied</th><th scope="col">Borrowed</th><th scope="col">Indexed block</th></tr></thead><tbody>${markets.map(marketRow).join("")}</tbody></table></div><p class="quiet">Rates are observations at the indexed blocks shown. They do not include an assessment of protocol risk, collateral requirements or transaction costs.</p></section>
 <section><div class="section-heading"><h2>Where the observations came from</h2><span>${escaped(snapshot.source, 300)}</span></div><ul class="index-list">${indexes}</ul></section>
-<section class="receipt" aria-label="Purchase receipt"><h2>A receipt, kept with the report.</h2><dl><dt>Sale</dt><dd>${sale.id}</dd><dt>Payment</dt><dd>${Number(sale.amount) / 100_000_000} HBAR · ${escaped(sale.network, 80)}</dd><dt>Transaction</dt><dd>${escaped(sale.transactionId ?? "No transaction reference returned", 256)}</dd><dt>Snapshot hash</dt><dd>${snapshotHash(snapshot)}</dd><dt>Captured</dt><dd>${escaped(captured)}</dd></dl><p class="quiet"><a href="/oracle/sales/${sale.id}">Open the durable sale record ↗</a></p></section>`
+<section class="receipt" aria-label="Purchase receipt"><h2>A receipt, kept with the report.</h2><dl><dt>Sale</dt><dd>${sale.id}</dd><dt>Payment</dt><dd>${escaped(priceLabel({ amount: sale.amount, asset: sale.asset, network: sale.network }), 80)} · ${escaped(sale.network, 80)}</dd><dt>Transaction</dt><dd>${escaped(sale.transactionId ?? "No transaction reference returned", 256)}</dd><dt>Snapshot hash</dt><dd>${snapshotHash(snapshot)}</dd><dt>Captured</dt><dd>${escaped(captured)}</dd></dl><p class="quiet"><a href="/oracle/sales/${sale.id}">Open the durable sale record ↗</a></p></section>`
   );
 };
 
@@ -467,6 +508,24 @@ const purchaseReport = async (
     stubbed: accepted.stubbed,
     transactionId: accepted.transactionId,
   });
+  // The same public note the snapshot writes, for the same reason: the card
+  // says every settlement leaves one, and this resource is on the card. Not
+  // awaited — the buyer paid and is owed the report now; the note is for
+  // whoever audits later.
+  if (accepted.transactionId !== null) {
+    const { transactionId } = accepted;
+    detached("hcs demo sale note", async () => {
+      await services.hcs.record({
+        amount: requirements.amount,
+        asset: requirements.asset,
+        at: Date.now(),
+        kind: "sold",
+        network: requirements.network,
+        ref: accepted.id,
+        transactionId,
+      });
+    });
+  }
   return await deliver(services, accepted);
 };
 

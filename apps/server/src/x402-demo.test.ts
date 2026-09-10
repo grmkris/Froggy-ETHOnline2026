@@ -4,7 +4,11 @@ import { SaleId } from "@froggy/domain";
 import { stubGraphClient } from "@froggy/graph";
 import type { GraphClient } from "@froggy/graph";
 import { challengeFrom, stubOracleGate } from "@froggy/payments";
-import type { OracleGate, SettleOutcome } from "@froggy/payments";
+import type {
+  OracleGate,
+  SettleOutcome,
+  SettlementNote,
+} from "@froggy/payments";
 import { memoryStore } from "@froggy/wallet";
 
 import {
@@ -14,6 +18,7 @@ import {
 } from "./x402-demo";
 
 const ORIGIN = "https://froggy.test";
+const TOPIC = "0.0.10847557";
 const proof = (nonce: string): string =>
   Buffer.from(
     JSON.stringify({
@@ -33,6 +38,7 @@ const fixture = (options: { graph?: GraphClient; gate?: OracleGate } = {}) => {
   const graph = options.graph ?? stubGraphClient();
   let settlements = 0;
   let queries = 0;
+  const notes: SettlementNote[] = [];
   const services: Parameters<typeof handleX402Demo>[0] = {
     environment: {
       appOrigin: ORIGIN,
@@ -51,6 +57,22 @@ const fixture = (options: { graph?: GraphClient; gate?: OracleGate } = {}) => {
         queries += 1;
         return await graph.lendingMarkets(symbol);
       },
+    },
+    // The report is on the service card, and the card says every settlement
+    // leaves a public note, so this seller writes one too. Counted here so a
+    // test can say whether it did.
+    hcs: {
+      ensure: async () => await Promise.resolve(TOPIC),
+      mode: "stub" as const,
+      record: async (note) => {
+        notes.push(note);
+        return await Promise.resolve({
+          sequenceNumber: notes.length,
+          topicId: TOPIC,
+          transactionId: note.transactionId,
+        });
+      },
+      topicId: () => TOPIC,
     },
     oracle: {
       ...gate,
@@ -85,6 +107,7 @@ const fixture = (options: { graph?: GraphClient; gate?: OracleGate } = {}) => {
     storedSale,
     settlements: () => settlements,
     queries: () => queries,
+    notes: () => notes,
   };
 };
 
@@ -145,6 +168,47 @@ describe("Pond Observatory x402 demo", () => {
     expect(await repeated.text()).toBe(html);
     expect(f.settlements()).toBe(1);
     expect(f.queries()).toBe(1);
+  });
+
+  test("a real settlement leaves the public note the service card promises", async () => {
+    // The report is listed on /.well-known/x402.json, and the card — and the
+    // door's catalogue, and the README — all say every settlement leaves a
+    // note. It used to leave none, so froggy_receipt answered "no matching
+    // note was found" for a purchase that had really happened.
+    const f = fixture({
+      gate: {
+        ...stubOracleGate(),
+        settle: async () =>
+          await Promise.resolve({
+            ok: true,
+            stubbed: false,
+            transactionId: "0.0.10571514@1788733693.213156813",
+          }),
+      },
+    });
+    const response = await f.handle(request(undefined, proof("noted")));
+    expect(response.status).toBe(200);
+    // The note is written detached, exactly as the snapshot seller writes its
+    // own: the buyer paid and is owed the report now, and the trail is for
+    // whoever audits later.
+    await Promise.resolve();
+    const [note] = f.notes();
+    expect(note?.transactionId).toBe("0.0.10571514@1788733693.213156813");
+    expect(note?.kind).toBe("sold");
+    expect(note?.amount).toBe("5000000");
+    const sale = await f.storedSale(response);
+    expect(note?.ref).toBe(sale.id);
+  });
+
+  test("writes the note through whichever HCS writer the deployment has", async () => {
+    // Same rule as the snapshot seller: the note follows the settlement id,
+    // and a stub deployment's stub writer is what makes a stub run harmless.
+    // Deciding here would put the loudness of a stub in two places.
+    const f = fixture();
+    await f.handle(request(undefined, proof("not-noted")));
+    await Promise.resolve();
+    expect(f.notes()).toHaveLength(1);
+    expect(f.notes()[0]?.kind).toBe("sold");
   });
 
   test("concurrent duplicate proofs claim the sale before contacting the facilitator", async () => {

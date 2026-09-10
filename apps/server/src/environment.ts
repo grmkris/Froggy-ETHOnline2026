@@ -22,6 +22,7 @@ import { decodeUserId, KNOWN_ASSETS } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import {
   EVM_CHAIN_IDS,
+  HBAR_ASSET,
   isEvmNetwork,
   isHederaNetwork,
   isSolanaNetwork,
@@ -718,6 +719,33 @@ const personPolicyPins = (input: {
   };
 };
 
+/**
+ * Refuse a `HEDERA_ASSET` this build cannot price, and refuse a token whose
+ * decimals do not match the price that was written for HBAR.
+ *
+ * The price lives in `oracle-route.ts` as a number of smallest units. HBAR has
+ * eight decimals and Hedera's USDC has six, so the same literal is two
+ * different amounts of money — and a deployment that flipped the asset alone
+ * would sell at roughly five hundred times the intended price with nothing
+ * anywhere saying so. Pricing in a token is supported; doing it by accident is
+ * not.
+ */
+const assertPriceableAsset = (asset: string, network: HederaNetwork): void => {
+  const known = Object.values(KNOWN_ASSETS).find(
+    (entry) => entry.network === network && entry.id === asset
+  );
+  if (known === undefined) {
+    throw new Error(
+      `HEDERA_ASSET is ${asset}, which is not an asset this build knows how to price on ${network}. Use 0.0.0 for HBAR, or add the token to KNOWN_ASSETS with its decimals.`
+    );
+  }
+  if (known.id !== HBAR_ASSET) {
+    throw new Error(
+      `HEDERA_ASSET is ${asset} (${known.symbol}, ${known.decimals} decimals) while the price is written in tinybars. Set the price for ${known.symbol} in apps/server/src/oracle-route.ts before selling in it, and remove this check when the two are read from one place.`
+    );
+  }
+};
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
@@ -827,6 +855,13 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       );
     }
     const hederaNetwork: HederaNetwork = hederaNetworkRaw;
+    // Fail closed here too, and for a sharper reason than a typo. The price is
+    // a number of the asset's own smallest units, so changing the asset
+    // without changing the price silently changes what is charged: the 5000000
+    // that is 0.05 HBAR is 5 USDC at six decimals, about five hundred times
+    // more. Nothing downstream can tell those apart, so the check is here,
+    // once, before anything is sold.
+    assertPriceableAsset(hederaAsset, hederaNetwork);
     // The facilitator host follows the network unless told otherwise, so
     // switching networks is one variable, not two that can disagree.
     const hederaFacilitatorUrl = yield* Config.string(
