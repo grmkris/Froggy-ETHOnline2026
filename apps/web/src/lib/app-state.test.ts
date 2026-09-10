@@ -124,7 +124,7 @@ describe("reduceApp", () => {
 const walletOf = (pocketUsdMicros: number | null): WalletSummary => ({
   address: null,
   agentNote: null,
-  agentPolicyExpiresAt: null,
+  agentAllowance: null,
   agentPolicyId: null,
   agentSigner: "absent",
   balanceLabel: "—",

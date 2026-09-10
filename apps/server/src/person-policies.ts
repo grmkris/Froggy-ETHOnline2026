@@ -116,6 +116,33 @@ export class PersonPolicies {
     await this.deps.store.privyPolicy.save(userId, record);
     return record;
   }
+
+  /**
+   * Change the numbers, on both leashes.
+   *
+   * The person's Privy policy and their mandate are generated from one
+   * allowance, so a change has to reach both or the two disagree — and the one
+   * that disagrees silently is the dangerous one. The mandate is updated first
+   * and synchronously, because that is the layer this process enforces: if the
+   * Privy edit then fails, the agent is held to the *tighter* of the two rather
+   * than the looser, which is the safe direction to fail in.
+   *
+   * Editing the policy at Privy is not done here. Where the person owns it, our
+   * app secret is refused and only their browser can sign the change; that path
+   * is the caller's. What this returns is the record to store once it lands.
+   */
+  async adjust(
+    userId: UserId,
+    allowance: Allowance
+  ): Promise<PersonPolicyRecord | null> {
+    const stored = await this.deps.store.privyPolicy.load(userId);
+    if (stored === null) {
+      return null;
+    }
+    const next: PersonPolicyRecord = { allowance, policyId: stored.policyId };
+    await this.deps.store.privyPolicy.save(userId, next);
+    return next;
+  }
 }
 
 /**

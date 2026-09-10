@@ -15,7 +15,7 @@ const WALLET = { address: "0xabc", id: "wallet-1" };
 const SUMMARY: WalletSummary = {
   address: WALLET.address,
   agentNote: null,
-  agentPolicyExpiresAt: null,
+  agentAllowance: null,
   agentPolicyId: null,
   agentSigner: "absent",
   balanceLabel: "—",

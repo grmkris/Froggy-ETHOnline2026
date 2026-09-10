@@ -27,6 +27,7 @@ import {
   SpendId,
   SpendIntent as SpendIntentSchema,
   defaultRules,
+  LIMIT_RULES,
   withoutLimits,
   formatUsd,
   priceInUsdMicros,
@@ -781,6 +782,11 @@ export class WorkspaceSession {
     this.agentPolicy = policy;
   }
 
+  /** The numbers this person's agent is held to, or null while they have none. */
+  get allowance(): PersonPolicyRecord["allowance"] | null {
+    return this.agentPolicy?.allowance ?? null;
+  }
+
   /** What is left to spend from the pocket, or null when there is no pocket. */
   get pocket(): number | null {
     return this.deps.pocket === undefined ? null : (this.pocketBalance ?? 0);
@@ -847,9 +853,50 @@ export class WorkspaceSession {
     return this.mandate;
   }
 
-  /** What this deployment keeps of a mandate that arrived from outside. */
+  /**
+   * What this deployment keeps of a mandate that arrived from outside.
+   *
+   * A person with an allowance keeps their caps whatever the deployment's own
+   * `SPENDING_LIMITS` says. That flag decides whether *Froggy* imposes limits
+   * nobody asked for; it was never meant to strip limits a person set for
+   * themselves, and letting it do so would quietly widen their agent the first
+   * time anything edited their mandate.
+   */
   private admit(mandate: Mandate): Mandate {
-    return this.deps.spendingLimits === true ? mandate : withoutLimits(mandate);
+    if (this.deps.spendingLimits === true || this.agentPolicy !== null) {
+      return mandate;
+    }
+    return withoutLimits(mandate);
+  }
+
+  /**
+   * The person's own numbers, applied to both leashes this process holds.
+   *
+   * The mandate's caps are rebuilt from the allowance rather than merged into,
+   * so the numbers on screen and the numbers enforced are the same object's —
+   * a merge would leave a stale cap behind on the path nobody looks at. The
+   * allowlists are kept: who may be paid is a different question from how much,
+   * and the person did not touch it.
+   */
+  applyAllowance(policy: PersonPolicyRecord | null): Mandate {
+    this.agentPolicy = policy;
+    if (policy === null) {
+      return this.mandate;
+    }
+    const kept = this.mandate.rules.filter(
+      (rule) => !LIMIT_RULES.has(rule._tag)
+    );
+    const limits = defaultRules({
+      allowance: policy.allowance,
+      hosts: [],
+      ids: () => RuleIdSchema.generate(),
+      limits: true,
+      now: this.now(),
+      payeeIds: [],
+    }).filter((rule) => LIMIT_RULES.has(rule._tag));
+    this.mandate = { ...this.mandate, rules: [...kept, ...limits] };
+    this.persistMandate();
+    return this.mandate;
   }
 
   /**
@@ -966,7 +1013,7 @@ export class WorkspaceSession {
       // wrong chain.
       address: this.addresses.signer,
       agentNote: this.agentNote,
-      agentPolicyExpiresAt: this.agentPolicy?.allowance.expiresAt ?? null,
+      agentAllowance: this.agentPolicy?.allowance ?? null,
       agentPolicyId: this.agentPolicy?.policyId ?? null,
       agentSigner: this.agentSigner,
       balanceLabel:

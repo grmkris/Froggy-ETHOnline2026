@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { shortAddress } from "../../lib/format";
 import { useSessionIds } from "../../lib/session-ids";
 import type { WebMcpStatus } from "../../lib/webmcp";
+import { AgentRules } from "./agent-rules";
 import { AgentSignerConsent } from "./agent-signer-consent";
 
 const SIGNER_WORDS: ReadonlyMap<WalletSummary["agentSigner"], string> = new Map(
@@ -35,7 +36,7 @@ const SignerPolicy = ({
   const { policyId } = useSessionIds();
   // The person's own policy when they have one, and the app-wide one otherwise.
   const shown = wallet?.agentPolicyId ?? policyId;
-  const expiresAt = wallet?.agentPolicyExpiresAt ?? null;
+  const expiresAt = wallet?.agentAllowance?.expiresAt ?? null;
   if (shown === null) {
     return null;
   }
@@ -81,6 +82,7 @@ export const ConnectionDetails = ({
       <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
     )}
     <AgentSignerConsent wallet={wallet} />
+    <AgentRules wallet={wallet} />
     <SignerPolicy wallet={wallet} />
   </div>
 );

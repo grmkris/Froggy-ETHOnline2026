@@ -20,7 +20,7 @@
  * process it would hand one person another person's receipts.
  */
 
-import type { UserId } from "@froggy/domain";
+import type { Allowance, UserId } from "@froggy/domain";
 import {
   decodeAppClientMessage,
   decodeBrowserClientMessage,
@@ -36,6 +36,7 @@ import { Result } from "effect";
 
 import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
+import type { PersonPolicies } from "./person-policies";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import { pauseBrowseTask } from "./tasks";
@@ -71,6 +72,12 @@ const MAX_BUFFERED_BYTES = 512 * 1024;
 export interface SocketDeps {
   readonly resumeBrowse?: (userId: UserId) => Promise<void>;
   readonly interactions: InteractionRegistry;
+  /**
+   * The person's own policy, when this deployment mints them. Optional so a
+   * deployment without it still runs: an allowance change then reaches the
+   * mandate and nothing else, which is honest rather than broken.
+   */
+  readonly policies?: Pick<PersonPolicies, "adjust">;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
@@ -127,6 +134,87 @@ export const seizesPage = (
 ): boolean =>
   type === "browser.take" ||
   (control !== undefined && control !== "human" && HUMAN_DRIVING.has(type));
+
+/**
+ * A person changing the numbers their agent is held to, applied to both leashes.
+ *
+ * The mandate is rewritten here and now because that is the layer this process
+ * enforces. The Privy policy is the other half and may need the person's own
+ * browser to sign it, so a half-applied change leaves the agent held to the
+ * *tighter* of the two — the safe direction to fail in.
+ */
+const applyAllowance = (
+  deps: SocketDeps,
+  publishApp: (userId: UserId, message: AppServerMessage) => void,
+  userId: UserId,
+  allowance: Allowance
+): void => {
+  const workspace = deps.workspaces.for(userId);
+  detached("allowance update", async () => {
+    const record = await deps.policies?.adjust(userId, allowance);
+    const mandate = workspace.session.applyAllowance(record ?? null);
+    publishApp(userId, { mandate, type: "mandate.state", v: 1 });
+    const wallet = await workspace.session.walletSummary();
+    publishApp(userId, { type: "wallet.state", v: 1, wallet });
+  });
+};
+
+/**
+ * Everything the app socket accepts from a person.
+ *
+ * Pulled out of the message handler rather than added to it: that function
+ * already carries the whole browser-input branch, and one more `case` took it
+ * past what the linter will hold. Splitting on the two protocols is the seam
+ * that was already there.
+ */
+const handleAppMessage = (
+  deps: SocketDeps,
+  ws: Socket,
+  publishApp: (userId: UserId, message: AppServerMessage) => void,
+  decoded: ReturnType<typeof decodeAppClientMessage>
+): void => {
+  if (Result.isFailure(decoded)) {
+    sendApp(ws, {
+      code: "decode_failed",
+      message: "Message did not match the app protocol.",
+      type: "protocol.error",
+      v: 1,
+    });
+    return;
+  }
+  const message = decoded.success;
+  switch (message.type) {
+    case "ping": {
+      sendApp(ws, { sentAt: message.sentAt, type: "pong", v: 1 });
+      return;
+    }
+    case "mandate.update": {
+      const mandate = deps.workspaces
+        .for(ws.data.userId)
+        .session.updateMandate(message.mandate);
+      publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
+      return;
+    }
+    case "allowance.update": {
+      applyAllowance(deps, publishApp, ws.data.userId, message.allowance);
+      return;
+    }
+    case "approval.resolve": {
+      // The registry checks the card is this user's and publishes the
+      // resolution itself; a stale or forged answer is simply ignored.
+      deps.interactions.resolve(
+        ws.data.userId,
+        message.requestId,
+        message.optionId,
+        ws.data.accessToken
+      );
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+};
 
 export const createSocketHandlers = (deps: SocketDeps) => {
   const appSockets = new Set<Socket>();
@@ -284,44 +372,7 @@ export const createSocketHandlers = (deps: SocketDeps) => {
         return;
       }
 
-      const decoded = decodeAppClientMessage(text);
-      if (Result.isFailure(decoded)) {
-        sendApp(ws, {
-          code: "decode_failed",
-          message: "Message did not match the app protocol.",
-          type: "protocol.error",
-          v: 1,
-        });
-        return;
-      }
-      const message = decoded.success;
-      switch (message.type) {
-        case "ping": {
-          sendApp(ws, { sentAt: message.sentAt, type: "pong", v: 1 });
-          return;
-        }
-        case "mandate.update": {
-          const mandate = deps.workspaces
-            .for(ws.data.userId)
-            .session.updateMandate(message.mandate);
-          publishApp(ws.data.userId, { mandate, type: "mandate.state", v: 1 });
-          return;
-        }
-        case "approval.resolve": {
-          // The registry checks the card is this user's and publishes the
-          // resolution itself; a stale or forged answer is simply ignored.
-          deps.interactions.resolve(
-            ws.data.userId,
-            message.requestId,
-            message.optionId,
-            ws.data.accessToken
-          );
-          break;
-        }
-        default: {
-          break;
-        }
-      }
+      handleAppMessage(deps, ws, publishApp, decodeAppClientMessage(text));
     },
 
     open(ws) {

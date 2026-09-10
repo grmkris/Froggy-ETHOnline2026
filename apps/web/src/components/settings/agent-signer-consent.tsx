@@ -4,6 +4,8 @@
  * while the agent has no signer and everything needed to ask is known.
  */
 
+import { defaultAllowance } from "@froggy/domain";
+import type { Allowance } from "@froggy/domain";
 import type { WalletSummary } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { useState } from "react";
@@ -12,6 +14,11 @@ import type { ReactElement } from "react";
 import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import { useSessionToken } from "../../lib/session-token";
+import { useWorkspace } from "../../lib/workspace-context";
+import { AllowanceForm } from "./allowance-form";
+
+const dollars = (micros: number): string =>
+  `$${(micros / 1_000_000).toFixed(2)}`;
 
 /** What the one button says, which depends on which of the three states this is. */
 const label = (busy: boolean, standing: string | null): string => {
@@ -29,10 +36,18 @@ export const AgentSignerConsent = ({
   readonly wallet: WalletSummary | null;
 }): ReactElement | null => {
   const identity = useIdentity();
+  const { app } = useWorkspace();
   const { agentSignerId, policyId } = useSessionIds();
   const { getToken } = useSessionToken();
   const [outcome, setOutcome] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [chosen, setChosen] = useState<Allowance | null>(null);
+  // Held rather than read during render: a clock called on every render makes
+  // the proposed expiry drift while the person reads it. Re-read when they open
+  // the form, so thirty days counts from when they act rather than from
+  // whenever this page happened to load.
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
   const grant = identity.grantAgentSigner;
   const address = wallet?.address ?? null;
   const standing = wallet?.agentSigner ?? null;
@@ -65,11 +80,61 @@ export const AgentSignerConsent = ({
       headers: token === null ? {} : { authorization: `Bearer ${token}` },
       method: "POST",
     }).catch(() => null);
+    if (chosen !== null) {
+      // Sent after the grant rather than before it: until the signer exists
+      // there is nothing for these numbers to hold, and a change that arrived
+      // first would be applied to a policy the person had not yet accepted.
+      app.send({ allowance: chosen, type: "allowance.update", v: 1 });
+    }
     setOutcome("Granted. The wallet updates in a moment.");
     setBusy(false);
   };
+  // The defaults are shown, not imposed: one tap still grants, and Adjust opens
+  // the same form Settings uses rather than a second version of it.
+  const proposed =
+    chosen ?? wallet?.agentAllowance ?? defaultAllowance(openedAt);
+  if (adjusting) {
+    return (
+      <div className="flex flex-col gap-3">
+        <AllowanceForm
+          allowance={proposed}
+          onSave={(next) => {
+            setChosen(next);
+            setAdjusting(false);
+          }}
+          saveLabel="Use these numbers"
+        />
+        <Button
+          className="self-start"
+          onClick={() => {
+            setAdjusting(false);
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          Never mind
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground text-xs">
+        Up to {dollars(proposed.perSpendUsdMicros)} a payment,{" "}
+        {dollars(proposed.dailyUsdMicros)} a day, asking you above{" "}
+        {dollars(proposed.askOverUsdMicros)}, for{" "}
+        {Math.round((proposed.expiresAt - openedAt) / 86_400_000)} days.{" "}
+        <button
+          className="underline underline-offset-2"
+          onClick={() => {
+            setOpenedAt(Date.now());
+            setAdjusting(true);
+          }}
+          type="button"
+        >
+          Adjust
+        </button>
+      </p>
       {standing === "shared" ? (
         <p className="text-muted-foreground text-xs">
           The agent signs under shared rules rather than rules you set. Moving

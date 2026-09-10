@@ -9,6 +9,7 @@
  */
 
 import {
+  Allowance,
   ApprovalKind,
   Mandate,
   NoticeId,
@@ -124,6 +125,20 @@ export const AppClientMessage = Schema.Union([
     mandate: Mandate,
     type: Schema.Literals(["mandate.update"]),
   }),
+  /**
+   * The person changing the numbers their agent is held to.
+   *
+   * On the socket rather than over HTTP, and deliberately: this is the same
+   * class of thing as an approval and a mandate edit — authority arriving from
+   * a human, never from a tool. `froggy-leash` says a capability that changes
+   * what may be spent must not be reachable by the model, and the socket is
+   * where the product already draws that line.
+   */
+  Schema.Struct({
+    ...Envelope,
+    allowance: Allowance,
+    type: Schema.Literals(["allowance.update"]),
+  }),
   Schema.Struct({
     ...Envelope,
     sentAt: Schema.Int,
@@ -164,13 +179,20 @@ export const WalletSummary = Schema.Struct({
   agentNote: Schema.NullOr(Schema.String),
   agentSigner: AgentSignerState,
   /**
+   * The numbers this person's agent is held to, when they have set any.
+   *
+   * The whole `Allowance` rather than the fields a screen happens to want: it
+   * is what their Privy policy and their mandate are both generated from, so
+   * anything that shows one of these numbers should be showing that object and
+   * not a copy that can drift from it.
+   */
+  agentAllowance: Schema.NullOr(Allowance),
+  /**
    * The Privy policy this person's agent signs under, when they have one of
    * their own. Null while they are on the app-wide policy, and the welcome's
    * `policyId` is what the screen falls back to.
    */
   agentPolicyId: Schema.NullOr(Schema.String),
-  /** When that policy stops allowing anything, in Unix milliseconds. */
-  agentPolicyExpiresAt: Schema.NullOr(Schema.Int),
   balanceLabel: Schema.String,
   /**
    * What the chains say the person holds, read for display and never spent
