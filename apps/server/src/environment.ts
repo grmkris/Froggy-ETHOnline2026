@@ -291,6 +291,11 @@ export interface Environment {
    * configuration cannot sell anything for real money by accident.
    */
   readonly hederaNetwork: HederaNetwork;
+  /**
+   * What our own paid endpoints are priced in: `"0.0.0"` for native HBAR, or
+   * an HTS token id. The facilitator accepts either.
+   */
+  readonly hederaAsset: string;
   /** The account our own paid endpoint is paid *to*. */
   readonly hederaPayTo: string;
   /** Where the HBAR/USD rate every cap is computed from comes from. */
@@ -804,6 +809,14 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
       Config.withDefault("")
     );
+    // What the services are priced in. `0.0.0` is native HBAR; an HTS token
+    // id prices in that token instead. The facilitator was verified on
+    // 10 Sep 2026 to accept an HTS asset, so this is a real switch and not a
+    // placeholder — but a buyer holding HBAR does not necessarily hold a
+    // token, so the default stays where a stranger can reach it.
+    const hederaAsset = yield* Config.string("HEDERA_ASSET").pipe(
+      Config.withDefault("0.0.0")
+    );
     const hederaNetworkRaw = yield* Config.string("HEDERA_NETWORK").pipe(
       Config.withDefault("hedera:testnet")
     );
@@ -1025,6 +1038,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
         : Redacted.value(hederaKek),
       hederaMirrorNodeUrl,
       hederaNetwork,
+      hederaAsset,
       hederaPayTo: hederaPayTo === "" ? hederaAccountId : hederaPayTo,
       hederaPrivateKey: Redacted.value(hederaPrivateKey),
       maxBrowsers,
