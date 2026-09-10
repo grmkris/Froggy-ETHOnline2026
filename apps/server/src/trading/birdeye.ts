@@ -21,6 +21,10 @@ const CHAINS = {
   "eip155:137": "polygon",
   "eip155:324": "zksync",
   "eip155:999": "hyperevm",
+  // Robinhood Chain. Birdeye answers overview, listings and trending here, but
+  // `token_security` returns 401 on this plan, so inspection reports security
+  // as unavailable rather than as a clean screen.
+  "eip155:4663": "robinhood",
   "eip155:5000": "mantle",
   "eip155:8453": "base",
   "eip155:42161": "arbitrum",
