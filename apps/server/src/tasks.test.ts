@@ -669,6 +669,24 @@ describe("bounded browser quotes", () => {
     Object.defineProperty(registry, "hydrate", {
       value: async () => await Promise.resolve(workspace()),
     });
+    // Resume takes a person, not a task: it picks the newest of their resumable
+    // browse tasks. Every test in this file shares one person and one store, so
+    // an earlier test's task left `paid` is also a candidate — and which of the
+    // two is "newest" comes down to whether they landed in the same millisecond,
+    // which is a property of the machine rather than of the code. Retiring the
+    // others first makes this test assert what its name says: that *this*
+    // exhausted task fails rather than sitting resumable.
+    const others = await services.store.tasks.list(ALICE, 100);
+    await Promise.all(
+      others
+        .filter((other) => other.id !== task.id && other.kind === "browse")
+        .map(async (other) => {
+          await services.store.tasks.update(ALICE, other.id, {
+            status: "done",
+            updatedAt: Date.now(),
+          });
+        })
+    );
     const before = session.pocket;
     await resumeBrowseTask({ ...deps, workspaces: registry }, ALICE);
     await settle();
