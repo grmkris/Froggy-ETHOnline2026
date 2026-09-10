@@ -69,7 +69,7 @@ The owner authorized the implementation backlog. What has landed in the app:
 | 10 · Background work | done — schedules in Explore, cadence stated, never "monitoring" |
 | 11 · Connections | done — `/agents` is Connections in the rail |
 | **7 · Four-line approval ledger** | **not landed — needs a protocol change.** `ApprovalRequest` carries one `amountLabel` and a `detail` string; separating product, delivery, fees and agent spend means a new field on the money path. Flagged rather than pushed 48 hours before submission. |
-| 12 · Poses and vignettes in the app | in progress |
+| 12 · Vignettes in the app | done — `watch` and `services` in the empty states they were drawn for, exported at 192px (136KB for five, against 2.6MB of originals) |
 
 Three real defects were found by the e2e suite while doing this, all of them mine:
 

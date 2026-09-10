@@ -11,7 +11,6 @@ import {
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BotIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
 import type { AgentToken, useAgentTokens } from "../../hooks/use-agent-tokens";
@@ -134,8 +133,15 @@ export const AgentList = ({
       {live?.length === 0 && grants?.length === 0 && !agents.isError ? (
         <Empty className="flex-none py-[26px]">
           <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <BotIcon aria-hidden />
+            <EmptyMedia>
+              <img
+                alt=""
+                aria-hidden
+                className="size-24"
+                height={96}
+                src="/vignettes/services.png"
+                width={96}
+              />
             </EmptyMedia>
             <EmptyTitle>No connections yet.</EmptyTitle>
             <EmptyDescription>

@@ -6,6 +6,7 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@froggy/ui/components/empty";
 import { Skeleton } from "@froggy/ui/components/skeleton";
@@ -78,6 +79,16 @@ export const ScheduleList = (): ReactElement => {
       {schedules.data !== undefined && active.length === 0 ? (
         <Empty>
           <EmptyHeader>
+            <EmptyMedia>
+              <img
+                alt=""
+                aria-hidden
+                className="size-24"
+                height={96}
+                src="/vignettes/watch.png"
+                width={96}
+              />
+            </EmptyMedia>
             <EmptyTitle>Nothing scheduled.</EmptyTitle>
             <EmptyDescription>
               Ask Froggy in the chat: “remind me in 20 minutes to…” or “every
