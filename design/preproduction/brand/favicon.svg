@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Froggy">
+  <!-- Favicon. Standalone: literal colours, no tokens, no detail layer. Replaces the
+       emoji favicon, which renders as whatever font the viewer happens to have. -->
+  <path d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z" fill="#4f9e63"/>
+  <circle cx="18" cy="20" r="10.5" fill="#4f9e63"/>
+  <circle cx="46" cy="20" r="10.5" fill="#4f9e63"/>
+  <circle cx="18" cy="20" r="7.2" fill="#fcfdfb"/>
+  <circle cx="46" cy="20" r="7.2" fill="#fcfdfb"/>
+  <circle cx="18" cy="20" r="3.6" fill="#15201a"/>
+  <circle cx="46" cy="20" r="3.6" fill="#15201a"/>
+  <path d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="#24402e" stroke-width="2.6" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,54 @@
+{
+  "scenario": "One decision across two surfaces",
+  "simulated": true,
+  "stubbed": true,
+  "currency": "EUR",
+  "demonstrates": [
+    "notify and reopen the same task",
+    "quiet hours",
+    "expired approval",
+    "duplicate decision prevented"
+  ],
+  "steps": [
+    {
+      "at": "2026-09-10T11:40:00+02:00",
+      "state": "needs-user",
+      "surface": "telegram",
+      "say": "One thing needs you: approve EUR 135.40 to Example Shoe Co. Expires 12:20."
+    },
+    {
+      "at": "2026-09-10T11:41:00+02:00",
+      "state": "needs-user",
+      "surface": "web",
+      "say": "Reopened the same task",
+      "sameTaskId": true
+    },
+    {
+      "at": "2026-09-10T11:42:00+02:00",
+      "state": "completed",
+      "surface": "web",
+      "decision": "approved"
+    },
+    {
+      "at": "2026-09-10T11:43:00+02:00",
+      "state": "rejected",
+      "surface": "telegram",
+      "say": "You already approved this from the app.",
+      "duplicatePrevented": true
+    },
+    {
+      "at": "2026-09-10T12:20:00+02:00",
+      "state": "cancelled",
+      "say": "This approval expired at 12:20. Nothing was paid.",
+      "expired": true
+    },
+    {
+      "at": "2026-09-10T23:15:00+02:00",
+      "state": "needs-user",
+      "surface": "telegram",
+      "say": "Held until 08:00 because of your quiet hours.",
+      "quietHours": true,
+      "delivered": false
+    }
+  ]
+}

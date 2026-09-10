@@ -1,0 +1,90 @@
+{
+  "scenario": "Running shoes under EUR 150",
+  "simulated": true,
+  "stubbed": true,
+  "currency": "EUR",
+  "demonstrates": [
+    "structured comparison",
+    "reauthorization on a changed detail",
+    "human checkout handoff",
+    "confirmed receipt"
+  ],
+  "steps": [
+    {
+      "at": "2026-09-10T11:04:00+02:00",
+      "state": "loading",
+      "say": "Understood: neutral sole, size 42, under EUR 150"
+    },
+    {
+      "at": "2026-09-10T11:33:00+02:00",
+      "state": "partial-result",
+      "say": "Three options found",
+      "options": [
+        {
+          "name": "Cloudline 2",
+          "price": 129.0,
+          "source": "shop-a.example",
+          "seenAt": "2026-09-10T11:31:00+02:00",
+          "sizeAvailable": true,
+          "returns": "free",
+          "note": "neutral, daily"
+        },
+        {
+          "name": "Trailwind 9",
+          "price": 145.0,
+          "source": "shop-b.example",
+          "seenAt": "2026-09-10T11:29:00+02:00",
+          "sizeAvailable": null,
+          "returns": "14 days",
+          "note": "size 42 needs a check"
+        },
+        {
+          "name": "Riverstone",
+          "price": 138.5,
+          "source": "shop-c.example",
+          "seenAt": "2026-09-10T11:33:00+02:00",
+          "sizeAvailable": true,
+          "returns": null,
+          "note": "returns unclear \u2014 stays unclear"
+        }
+      ]
+    },
+    {
+      "at": "2026-09-10T11:40:00+02:00",
+      "state": "needs-user",
+      "say": "You picked the Cloudline 2 in size 42",
+      "ledger": {
+        "product": 129.0,
+        "delivery": 4.9,
+        "serviceFee": 1.5,
+        "agentResearch": 0.12,
+        "total": 135.4
+      },
+      "quoteExpiresAt": "2026-09-10T12:20:00+02:00",
+      "payee": "shop-a.example"
+    },
+    {
+      "at": "2026-09-10T11:44:00+02:00",
+      "state": "needs-user",
+      "say": "Merchant now asks EUR 142.90. Your approval does not cover this. Nothing was paid.",
+      "reauthorizationRequired": true,
+      "approved": 135.4,
+      "requested": 142.9
+    },
+    {
+      "at": "2026-09-10T11:46:00+02:00",
+      "state": "blocked",
+      "say": "Card payment is not something Froggy can complete",
+      "handoff": "card-checkout",
+      "redactedFromRecording": true
+    },
+    {
+      "at": "2026-09-10T11:47:03+02:00",
+      "state": "completed",
+      "settlement": "confirmed",
+      "amount": 142.9,
+      "reference": "AB-24193",
+      "stubbed": true
+    }
+  ]
+}

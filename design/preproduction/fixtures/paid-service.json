@@ -1,0 +1,52 @@
+{
+  "scenario": "A paid report requested by an external assistant over MCP",
+  "simulated": true,
+  "stubbed": true,
+  "currency": "EUR",
+  "demonstrates": [
+    "delegated allowance narrower than owner's",
+    "limited purchase approval",
+    "result and receipt",
+    "no self-raised cap"
+  ],
+  "steps": [
+    {
+      "at": "2026-09-10T09:00:00+02:00",
+      "state": "needs-user",
+      "say": "Your assistant asked for a market report",
+      "origin": {
+        "assistant": "an external assistant",
+        "grantedAllowance": 50.0,
+        "ownerDailyLimit": 200.0,
+        "narrowerThanOwner": true
+      }
+    },
+    {
+      "at": "2026-09-10T09:02:00+02:00",
+      "state": "needs-user",
+      "ledger": {
+        "service": 12.0,
+        "agentResearch": 0.04,
+        "total": 12.04
+      },
+      "payee": "reports.example"
+    },
+    {
+      "at": "2026-09-10T09:03:10+02:00",
+      "state": "completed",
+      "settlement": "confirmed",
+      "amount": 12.04,
+      "reference": "SV-8891",
+      "stubbed": true,
+      "allowanceRemaining": 37.96
+    },
+    {
+      "at": "2026-09-10T09:40:00+02:00",
+      "state": "blocked",
+      "say": "This would exceed the allowance your assistant was given. Froggy cannot raise it.",
+      "requested": 60.0,
+      "allowanceRemaining": 37.96,
+      "selfRaised": false
+    }
+  ]
+}

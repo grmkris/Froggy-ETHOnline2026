@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Froggy">
+  <!--
+    Monochrome mark: one ink, everything else knocked out.
+
+    The eyes and mouth are HOLES, not strokes. A stroke in the same ink as the
+    silhouette is invisible, which turns the mark into a blob with two ears — so
+    the mask subtracts the sclera and the mouth, then puts the pupils back as ink
+    islands inside the holes.
+
+    Ink is `currentColor`, so one file serves normal and reversed use by
+    inheriting a colour. That inheritance only happens when the SVG is INLINE.
+    Loaded through <img> or as a CSS background it renders black, because an
+    external image has no parent to inherit from.
+  -->
+  <mask id="frog-mono-mask">
+    <rect width="64" height="64" fill="#fff"/>
+    <circle cx="18" cy="20" r="6.8" fill="#000"/>
+    <circle cx="46" cy="20" r="6.8" fill="#000"/>
+    <circle cx="18" cy="20" r="3.3" fill="#fff"/>
+    <circle cx="46" cy="20" r="3.3" fill="#fff"/>
+    <path d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
+  </mask>
+  <g fill="currentColor" mask="url(#frog-mono-mask)">
+    <path d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z"/>
+    <circle cx="18" cy="20" r="10.5"/>
+    <circle cx="46" cy="20" r="10.5"/>
+  </g>
+</svg>

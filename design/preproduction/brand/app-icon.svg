@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Froggy">
+  <!-- App icon master, 1024. No text inside the icon. Mark inset to a 78% safe area so
+       platform masking (squircle, circle, rounded square) cannot clip the eyes. -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#f7faf5"/>
+      <stop offset="0.55" stop-color="#dceadf"/>
+      <stop offset="1" stop-color="#c8e0cd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#ground)"/>
+  <g transform="translate(112 148) scale(12.5)">
+    <path d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z" fill="#4f9e63"/>
+    <ellipse cx="32" cy="47.5" rx="16" ry="6.2" fill="#d3e9d6" opacity=".45"/>
+    <circle cx="28" cy="32.5" r=".95" fill="#3d7f4e"/>
+    <circle cx="36" cy="32.5" r=".95" fill="#3d7f4e"/>
+    <circle cx="18" cy="20" r="10.5" fill="#4f9e63"/>
+    <circle cx="46" cy="20" r="10.5" fill="#4f9e63"/>
+    <circle cx="18" cy="20" r="7.2" fill="#fcfdfb"/>
+    <circle cx="46" cy="20" r="7.2" fill="#fcfdfb"/>
+    <circle cx="18" cy="20" r="3.6" fill="#15201a"/>
+    <circle cx="46" cy="20" r="3.6" fill="#15201a"/>
+    <circle cx="16.6" cy="18.4" r="1.35" fill="#fcfdfb" opacity=".92"/>
+    <circle cx="44.6" cy="18.4" r="1.35" fill="#fcfdfb" opacity=".92"/>
+    <path d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="#24402e" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+</svg>

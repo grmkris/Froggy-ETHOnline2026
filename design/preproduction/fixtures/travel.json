@@ -1,0 +1,49 @@
+{
+  "scenario": "Tokyo trip",
+  "simulated": true,
+  "stubbed": true,
+  "currency": "EUR",
+  "demonstrates": [
+    "itinerary result body",
+    "scheduled not continuous",
+    "finding with provenance",
+    "pause a watch"
+  ],
+  "steps": [
+    {
+      "at": "2026-09-08T09:12:00+02:00",
+      "state": "completed",
+      "say": "Five days, two neighbourhoods, three options per night"
+    },
+    {
+      "at": "2026-09-08T09:20:00+02:00",
+      "state": "needs-user",
+      "say": "Watch one price?",
+      "watch": {
+        "target": "flight AMS-HND, 12-20 Oct",
+        "cadence": "twice a day",
+        "expiresAt": "2026-09-20T00:00:00+02:00",
+        "copy": "Checked twice a day until 20 Sep. Not continuous."
+      }
+    },
+    {
+      "at": "2026-09-10T06:12:00+02:00",
+      "state": "partial-result",
+      "say": "Price moved",
+      "finding": {
+        "why": "You asked to watch this on 8 Sep",
+        "observedAt": "2026-09-10T06:12:00+02:00",
+        "freshness": "4h ago",
+        "source": "airline-a.example",
+        "nextAction": "Look into it",
+        "controls": ["dismiss", "mute", "stop watching"]
+      }
+    },
+    {
+      "at": "2026-09-10T11:00:00+02:00",
+      "state": "cancelled",
+      "say": "Paused. It will not resume on its own.",
+      "watchState": "paused"
+    }
+  ]
+}

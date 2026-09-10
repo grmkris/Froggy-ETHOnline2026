@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Spending policy">
+  <!-- A leash: an anchor, a slack line, and a ring that can travel only as far as the line.
+       Not a lock (which says nothing may happen) and not a shield (which says protection
+       from an attacker). Slack is the point — the agent may move, up to a limit. -->
+  <circle cx="5" cy="5" r="2"/>
+  <path d="M5 7c0 5.5 2.5 9 7.5 10.2"/>
+  <circle cx="17" cy="18" r="3.2"/>
+</svg>
