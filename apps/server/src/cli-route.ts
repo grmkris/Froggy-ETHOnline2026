@@ -12,17 +12,31 @@ const CLI_SOURCE = new URL("cli/froggy.ts", import.meta.url).pathname;
 
 let built: Promise<string | null> | null = null;
 
+/**
+ * `Bun.build` rejects on a bundling failure rather than answering
+ * `{ success: false }`. Without this catch the module-level promise caches the
+ * rejection, the reset below never runs, and one bad build takes the route out
+ * until the process restarts.
+ */
 const build = async (): Promise<string | null> => {
-  const result = await Bun.build({
-    entrypoints: [CLI_SOURCE],
-    minify: false,
-    target: "node",
-  });
-  const [output] = result.outputs;
-  if (!result.success || output === undefined) {
+  try {
+    const result = await Bun.build({
+      entrypoints: [CLI_SOURCE],
+      minify: false,
+      target: "node",
+    });
+    const [output] = result.outputs;
+    if (!result.success || output === undefined) {
+      return null;
+    }
+    return await output.text();
+  } catch (error) {
+    console.warn(
+      "[cli] could not be built:",
+      error instanceof Error ? error.message : error
+    );
     return null;
   }
-  return await output.text();
 };
 
 export const serveCli = async (): Promise<Response> => {

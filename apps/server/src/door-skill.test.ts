@@ -13,7 +13,10 @@ describe("the agent door's skill text", () => {
 
   it("fills a real origin in and names all three tools", () => {
     const mine = doorSkillText({ url: "https://froggy.test" });
-    expect(mine).toContain("https://froggy.test/froggy-mcp.js");
+    // `.mjs`, not `.js`: Node reads a bare `.js` as CommonJS wherever the
+    // nearest package.json says so, and this bundle is an ES module.
+    expect(mine).toContain("https://froggy.test/froggy-mcp.mjs");
+    expect(mine).toContain("node ./froggy-mcp.mjs");
     expect(mine).toContain("froggy_catalogue");
     expect(mine).toContain("froggy_buy");
     expect(mine).toContain("froggy_receipt");

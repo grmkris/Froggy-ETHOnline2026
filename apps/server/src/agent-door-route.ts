@@ -14,22 +14,56 @@
 
 const DOOR_SOURCE = new URL("agent-door/server.ts", import.meta.url).pathname;
 
+const SHEBANG = "#!/usr/bin/env node";
+
 let built: Promise<string | null> | null = null;
 
+/**
+ * `Bun.build` rejects on a bundling failure rather than answering
+ * `{ success: false }`, so the failure has to be caught here. Without the
+ * catch the module-level promise below caches a *rejection*: the recovery that
+ * clears it never runs, and every later request re-awaits the same failure
+ * until the process restarts.
+ */
 const build = async (): Promise<string | null> => {
-  const result = await Bun.build({
-    entrypoints: [DOOR_SOURCE],
-    minify: false,
-    target: "node",
-  });
-  const [output] = result.outputs;
-  if (!result.success || output === undefined) {
+  try {
+    const result = await Bun.build({
+      entrypoints: [DOOR_SOURCE],
+      minify: false,
+      target: "node",
+    });
+    const [output] = result.outputs;
+    if (!result.success || output === undefined) {
+      return null;
+    }
+    return await output.text();
+  } catch (error) {
+    console.warn(
+      "[agent-door] could not be built:",
+      error instanceof Error ? error.message : error
+    );
     return null;
   }
-  return await output.text();
 };
 
-export const serveAgentDoor = async (): Promise<Response> => {
+/**
+ * Tell the copy which server it came from.
+ *
+ * The bundle is the same bytes for everyone; only this line differs, so the
+ * build stays cached. A door downloaded from a testnet deployment or from
+ * somebody's fork then buys from that deployment by default rather than from
+ * whatever origin happened to be compiled in — which is also what the skill
+ * text beside it has always said happens.
+ */
+export const stamped = (source: string, origin: string): string =>
+  source.startsWith(SHEBANG)
+    ? source.replace(
+        SHEBANG,
+        `${SHEBANG}\nprocess.env.FROGGY_DEFAULT_URL ||= ${JSON.stringify(origin)};`
+      )
+    : `process.env.FROGGY_DEFAULT_URL ||= ${JSON.stringify(origin)};\n${source}`;
+
+export const serveAgentDoor = async (origin: string): Promise<Response> => {
   built ??= build();
   const source = await built;
   if (source === null) {
@@ -39,7 +73,7 @@ export const serveAgentDoor = async (): Promise<Response> => {
       { status: 500 }
     );
   }
-  return new Response(source, {
+  return new Response(stamped(source, origin), {
     headers: {
       "cache-control": "public, max-age=300",
       "content-type": "text/javascript; charset=utf-8",
