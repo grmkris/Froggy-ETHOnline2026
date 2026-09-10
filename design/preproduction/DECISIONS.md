@@ -61,3 +61,35 @@ What has **not** changed: no purchase is authorized, `.riv` and `.rev` remain be
 ### D-06 unchanged, and worth repeating
 
 Motion's AI Kit installer is still not run. `motion@13.2.0` plus the existing `lib/motion.ts` covers UI motion, and Rive covers branded artwork. Neither needs Motion+.
+
+## D-11 — Skip Rive for the submission. Revised again, 10 September 2026.
+
+**Recommendation: do not buy a Rive plan, and do not put Rive in the critical path.** D-05's sequence assumed a runway it does not have. Asked directly whether the paid option is worth the complication, the answer is no — and the cost is not the reason.
+
+### The runway
+
+Internal cut is **Sat 12 Sep 20:00 CEST**, submission **Sun 13 Sep 12:00 EDT**. That is roughly 58 hours from this decision. The Rive path inside it looks like:
+
+install the Early Access desktop app and resolve which channel serves the port → register MCP on the Mac → seven-step smoke test → design a mascot **that does not exist yet**, which itself needs the manual image loop → rig and animate five states → hit the export paywall and pay → ferry the `.riv` to netcup → add a WASM runtime to the web app → verify at five sizes, plus load failure and static fallback.
+
+Steps one and two are unknown-duration setup on a pre-release build. Everything after them is blocked on a mascot that has not been drawn.
+
+### The blocker that is not about time
+
+`apps/server/src/security-headers.ts` enforces `CSP_MODE=enforce` with `script-src 'self'` plus three named payment hosts, and `apps/server/src/security-headers.test.ts` **asserts** that the policy contains neither `unsafe-eval` nor `'unsafe-inline'`. Rive's web runtime is WebAssembly, and instantiating it under a strict policy generally needs `wasm-unsafe-eval` in `script-src`.
+
+So shipping Rive means loosening a security header and rewriting the test that guards it, two days before submitting a product whose entire pitch is _"a browser you can watch, on a leash you set"_. That trade is bad on its own terms, independently of the deadline. A judge reading the diff would be right to ask about it.
+
+### What is given up, honestly
+
+Real state machines, designer-editable timelines, data binding, and better squash-and-stretch character work. Those are genuine. They are also worth paying for when someone is going to sit in an editor and iterate on a character — not for five semantic states on a mark rendered between 24 and 128 px, which reduced motion collapses to static poses anyway, in a product the brief says should keep most of the interface still.
+
+### What replaces it
+
+`FrogMark` is already a token-driven SVG whose eyes, pupils and mouth are separate roles — the rig, already built. `motion@13.2.0` is already a dependency, already in production use, and already correct about reduced motion and keyboard focus. The five states in `motion/MOTION_CONTRACT.md` need **no new dependency, no second machine, no binary asset, no CSP change, and no purchase**, and they are verifiable on the host where the review harness already works.
+
+### What this does not close
+
+`motion/MOTION_CONTRACT.md` is deliberately tool-independent, so none of it is wasted. If Froggy continues past the hackathon and the character work wants a real animator's tool, buy **then** — with the mascot designed, the contract specified, and no deadline. That is also the point at which $9 or $32 a month actually buys something.
+
+`agents/RIVE_MAC_SETUP.md` stays in the repository, unexecuted, for that day.

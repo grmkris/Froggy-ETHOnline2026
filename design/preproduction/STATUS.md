@@ -22,8 +22,8 @@
 | What | Blocked by | Effect |
 | --- | --- | --- |
 | Editable-design proof (Gate B) | `DesignSync` needs `/design-login` | Cannot read or write the design-system project yet |
-| Rive editing proof | Needs the Mac session to run `agents/RIVE_MAC_SETUP.md` | Host now exists (Gate A: yes, a Mac). Editing is provable on the Free plan at €0 |
-| Rive export | Paid: `.riv` $9/seat/mo, `.rev` $32/seat/mo | Deliberately gated until the smoke test reports how far editing got. See revised D-05 |
+| ~~Rive editing proof~~ | **Dropped for the submission — see D-11** | 58 hours to internal cut, and Rive's WASM runtime would need `wasm-unsafe-eval` in a CSP that has a test guarding it. Runbook kept, unexecuted |
+| ~~Rive export~~ | **Not buying** | D-11. Branded motion ships as SVG + Motion: no new dependency, no second machine, no CSP change, €0 |
 | Mascot concept imagery | No image-generation route on this host | Resolved as a route, not a blocker: manual, €0, confirmed at Gate A. Prompts come at Gate C |
 | `cloudflare` MCP | `Insufficient scope: required "user:read account:read"` | Irrelevant to this assignment. Noted, not pursued. |
 
@@ -43,9 +43,9 @@ Nothing above is silently waiting. Each has a named remedy.
 >
 > **Then:** I run `list_projects` and `list_files`, diff the remote project against the 113 local components, and report the drift — **read-only**. No write happens until you have seen a plan naming every path.
 
-### And when you are next at the Mac
+### The Mac is no longer needed
 
-`agents/RIVE_MAC_SETUP.md` is the runbook: install, **probe port 9791 before registering anything**, register at the right scope, then a seven-step smoke test in a disposable file. Read `motion/MOTION_CONTRACT.md` first so the session builds the specified contract rather than exploring. Nothing in it costs money — export stays gated until the smoke test reports back.
+D-11 drops Rive for the submission: 58 hours to internal cut, and its WASM runtime would require loosening an enforced CSP that has a test asserting it stays tight. `agents/RIVE_MAC_SETUP.md` stays in the repository, unexecuted, for after the hackathon. Branded motion ships as SVG + the Motion foundation already in the app.
 
 ## Then — mine, no further approval needed
 
