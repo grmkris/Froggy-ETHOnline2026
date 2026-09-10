@@ -14,9 +14,9 @@ import { HEDERA_MAINNET, HEDERA_TESTNET } from "@froggy/payments";
 import type { HederaNetwork } from "@froggy/payments";
 
 /** Where the door points when the caller says nothing. */
-export const DEFAULT_URL = "https://app-production-58dd.up.railway.app";
+const DEFAULT_URL = "https://app-production-58dd.up.railway.app";
 
-export interface Wallet {
+interface Wallet {
   readonly accountId: string;
   readonly privateKey: string;
 }
@@ -30,7 +30,7 @@ export interface Door {
 }
 
 export const ACCOUNT_VARIABLE = "FROGGY_HEDERA_ACCOUNT_ID";
-export const KEY_VARIABLE = "FROGGY_HEDERA_PRIVATE_KEY";
+const KEY_VARIABLE = "FROGGY_HEDERA_PRIVATE_KEY";
 
 /** A Hedera account id, `0.0.x`. Anything else is not one. */
 const ACCOUNT_PATTERN = /^\d+\.\d+\.\d+$/u;

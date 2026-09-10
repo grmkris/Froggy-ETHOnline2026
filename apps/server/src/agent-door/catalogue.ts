@@ -38,7 +38,7 @@ const ServiceCard = Schema.Struct({
 export type ServiceCard = typeof ServiceCard.Type;
 const decodeServiceCard = Schema.decodeUnknownResult(ServiceCard);
 
-export const CARD_PATH = "/.well-known/x402.json";
+const CARD_PATH = "/.well-known/x402.json";
 
 /** The fetch shape the door uses, so a test can hand in a plain function. */
 export type DoorFetch = (
@@ -66,7 +66,7 @@ export const readCatalogue = async (input: {
   readonly fetch?: DoorFetch;
   readonly url: string;
 }): Promise<Read<ServiceCard>> => {
-  const fetchImpl: DoorFetch = input.fetch ?? ((url) => fetch(url));
+  const fetchImpl: DoorFetch = input.fetch ?? (async (url) => await fetch(url));
   const url = `${input.url}${CARD_PATH}`;
   let body: unknown;
   try {
@@ -132,7 +132,7 @@ export const formatAmount = (
 };
 
 /** One resource, as a line a caller can choose from. */
-export const describeResource = (resource: Resource): string =>
+const describeResource = (resource: Resource): string =>
   [
     `- ${resource.url}`,
     `  ${resource.description}`,

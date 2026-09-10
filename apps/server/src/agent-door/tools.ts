@@ -21,7 +21,6 @@
 import {
   assess,
   challengeFrom,
-  describePayment,
   hederaAccountBalance,
   liveHederaPayer,
   paymentHeaders,
@@ -68,10 +67,10 @@ export interface ToolDeps {
 }
 
 const fetcher = (deps: ToolDeps): DoorFetch =>
-  deps.fetch ?? ((url, init) => fetch(url, init));
+  deps.fetch ?? (async (url, init) => await fetch(url, init));
 
 const mirrorer = (deps: ToolDeps): MirrorFetch =>
-  deps.mirror ?? ((url, init) => fetch(url, init));
+  deps.mirror ?? (async (url, init) => await fetch(url, init));
 
 /** What's for sale. Free, and works before anything is configured. */
 export const catalogueTool = async (deps: ToolDeps): Promise<ToolResult> => {
@@ -416,7 +415,3 @@ export const receiptTool = async (
     resolved.status === "failed"
   );
 };
-
-/** Who paid, read back out of a proof this door built. Used by the tests. */
-export const payerOfHeader = (header: string): string | null =>
-  describePayment(header).payer;

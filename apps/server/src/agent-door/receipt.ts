@@ -38,16 +38,13 @@ export interface Settlement {
 const hashscanNetwork = (network: string): string =>
   network === "hedera:testnet" ? "testnet" : "mainnet";
 
-export const hashscanTransaction = (
-  transactionId: string,
-  network: string
-): string =>
+const hashscanTransaction = (transactionId: string, network: string): string =>
   `https://hashscan.io/${hashscanNetwork(network)}/transaction/${mirrorTransactionId(transactionId)}`;
 
 export const hashscanAccount = (accountId: string, network: string): string =>
   `https://hashscan.io/${hashscanNetwork(network)}/account/${accountId}`;
 
-export const hashscanTopic = (topicId: string, network: string): string =>
+const hashscanTopic = (topicId: string, network: string): string =>
   `https://hashscan.io/${hashscanNetwork(network)}/topic/${topicId}`;
 
 /**
@@ -64,7 +61,7 @@ export const resolveSettlement = async (input: {
   readonly transactionId: string;
 }): Promise<Settlement> => {
   const fetchImpl: MirrorFetch =
-    input.fetch ?? ((url, init) => fetch(url, init));
+    input.fetch ?? (async (url, init) => await fetch(url, init));
   const details = await lookupHederaTransactionDetails({
     fetch: fetchImpl,
     network: input.network,

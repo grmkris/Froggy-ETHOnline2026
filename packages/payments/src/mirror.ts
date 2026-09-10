@@ -226,7 +226,7 @@ const decodeTopicMessages = Schema.decodeUnknownResult(TopicMessages);
  * is optional so that a note written by an older version, or by a stranger,
  * still reads rather than disappearing.
  */
-export const TopicNote = Schema.Struct({
+const TopicNote = Schema.Struct({
   amount: Schema.optional(Schema.String),
   asset: Schema.optional(Schema.String),
   at: Schema.optional(Schema.Finite),
@@ -235,7 +235,7 @@ export const TopicNote = Schema.Struct({
   ref: Schema.optional(Schema.NullOr(Schema.String)),
   transactionId: Schema.String,
 });
-export type TopicNote = typeof TopicNote.Type;
+type TopicNote = typeof TopicNote.Type;
 
 const decodeNoteJson = Schema.decodeUnknownResult(
   Schema.fromJsonString(TopicNote)
