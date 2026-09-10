@@ -96,7 +96,7 @@ import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
-import { handleX402Demo } from "./x402-demo";
+import { handleX402Demo, X402_DEMO_REPORT_PATH } from "./x402-demo";
 
 export const ORACLE_PATH = "/oracle/snapshot";
 
@@ -887,6 +887,16 @@ const handleApi = async (
 };
 
 interface ServiceCard {
+  /**
+   * Where an outside agent gets the tool that buys these. Not an x402 field;
+   * it sits beside `facilitator` and `hcsTopic` for the same reason those do,
+   * which is that an agent that finds this card should be able to find
+   * everything it needs from here without being told.
+   */
+  readonly agentDoor: {
+    readonly install: string;
+    readonly url: string;
+  };
   readonly description: string;
   readonly facilitator: string;
   readonly hcsTopic: string | null;
@@ -912,7 +922,12 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
     units: PRICE_TINYBARS,
     url: deps.oracleUrl,
   }).accepts;
+  const doorUrl = `${environment.appOrigin}/froggy-mcp.js`;
   return {
+    agentDoor: {
+      install: `curl -fsSL ${doorUrl} -o froggy-mcp.js && claude mcp add froggy -e FROGGY_HEDERA_ACCOUNT_ID=0.0.x -e FROGGY_HEDERA_PRIVATE_KEY=0x... -- node ./froggy-mcp.js`,
+      url: doorUrl,
+    },
     description: `A live cross-protocol lending snapshot from The Graph, sold per query over x402 on ${environment.hederaNetwork === "hedera:mainnet" ? "Hedera mainnet" : "Hedera testnet"} and settled through a facilitator. Every settlement leaves a public note on a Hedera Consensus Service topic.`,
     facilitator: environment.hederaFacilitatorUrl,
     hcsTopic:
@@ -932,6 +947,20 @@ const serviceCard = (deps: RouterDeps): ServiceCard => {
               price: requirement.amount,
               scheme: "exact",
               url: deps.oracleUrl,
+            },
+            {
+              asset: requirement.asset,
+              description:
+                "The Pond Observatory report: market rates, liquidity and index provenance, as a page rather than a payload. Same challenge, same settlement.",
+              method: "GET",
+              network: requirement.network,
+              payTo: requirement.payTo,
+              price: requirement.amount,
+              scheme: "exact",
+              url: new URL(
+                X402_DEMO_REPORT_PATH,
+                environment.appOrigin
+              ).toString(),
             },
           ],
     source: "https://github.com/grmkris/Froggy-ETHOnline2026",
