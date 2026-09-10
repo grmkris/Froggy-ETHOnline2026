@@ -1,0 +1,640 @@
+<!-- GENERATED from brand/frog-mark.svg by tools/build-prototype.mjs. Edit the mark or the template, then rebuild. -->
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — screen families</title>
+<!--
+  The remaining screen families: Onboarding, Explore, Token detail, Wallet,
+  Background task setup, Connections. Home, Task workspace, Browser mode and
+  Approval/receipt live in review-board.html and task-workspace.html.
+
+  Content follows fixtures/. All figures invented; domains use .example.
+-->
+<link rel="stylesheet" href="board.css" />
+<style>
+  /* Board-only furniture. */
+  .frame {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .frame > .pad {
+    padding: 20px 18px;
+    display: grid;
+    gap: 13px;
+  }
+  .phone {
+    max-width: 390px;
+    width: 100%;
+  }
+  .evidence {
+    display: grid;
+    gap: 8px;
+  }
+  .evidence > div {
+    display: grid;
+    gap: 3px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .evidence > div:last-child {
+    border-bottom: 0;
+  }
+  .swatch-risk {
+    color: var(--destructive);
+  }
+</style>
+
+<main>
+  <h1>Screen families</h1>
+  <p class="lede">
+    The six families not already drawn. Home, task workspace, browser modes and
+    approval/receipt are in the other two boards. Content comes from
+    <code>fixtures/</code> — every figure is invented.
+  </p>
+
+  <!-- ============================ ONBOARDING ============================ -->
+  <h2>1 · Onboarding — ask late, not first</h2>
+  <p>
+    Nobody connects a wallet, adds funds, links Telegram and configures an
+    assistant before trying anything. Access is requested when the chosen task
+    needs it.
+  </p>
+  <div class="cols">
+    <div>
+      <div class="frame phone">
+        <div class="pad">
+          <div class="greet">
+            <svg
+              class="froggy"
+              width="46"
+              height="46"
+              viewBox="0 0 64 64"
+              aria-hidden="true"
+            >
+              <circle class="halo" cx="32" cy="34" r="30" />
+        <g id="frog-0" class="frog">
+        <g class="body">
+        <path class="skin" d="M32 23c15 0 27 7 27 16.5S47 55.5 32 55.5 5 49.5 5 39.5 17 23 32 23Z" fill="var(--frog-skin, #4f9e63)"/>
+        <ellipse class="detail jaw" cx="32" cy="47.5" rx="16" ry="6.2" fill="var(--frog-belly, #d3e9d6)" opacity=".45"/>
+        <circle class="detail" cx="28" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+        <circle class="detail" cx="36" cy="32.5" r=".95" fill="var(--frog-skin-lo, #3d7f4e)"/>
+        </g>
+        <g class="eyes">
+        <g class="eye" data-eye="left">
+        <circle class="dome" cx="18" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="18" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+        <circle class="pupil" cx="18" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+        <circle class="glint" cx="16.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-left-0"><circle cx="18" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-left-0)"><rect class="lid" x="10" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+        </g>
+        <g class="eye" data-eye="right">
+        <circle class="dome" cx="46" cy="20" r="10.5" fill="var(--frog-skin, #4f9e63)"/>
+        <circle class="sclera" cx="46" cy="20" r="7.2" fill="var(--frog-eye, #fcfdfb)"/>
+        <g class="pupils">
+        <circle class="pupil" cx="46" cy="20" r="3.6" fill="var(--frog-pupil, #15201a)"/>
+        <circle class="glint" cx="44.6" cy="18.4" r="1.35" fill="var(--frog-eye, #fcfdfb)" opacity=".92"/>
+        </g>
+        <clipPath id="lid-right-0"><circle cx="46" cy="20" r="7.2"/></clipPath>
+        <g clip-path="url(#lid-right-0)"><rect class="lid" x="38" y="-3" width="16" height="16" fill="var(--frog-skin, #4f9e63)"/></g>
+        </g>
+        </g>
+        <path class="mouth mouth-neutral" d="M22.5 39.5Q32 45.5 41.5 39.5" fill="none" stroke="var(--frog-mouth, #24402e)" stroke-width="2.2" stroke-linecap="round"/>
+        <g class="mouth mouth-open" opacity="0">
+        <clipPath id="maw-0"><path d="M21.5 38Q32 52 42.5 38Z"/></clipPath>
+        <path d="M21.5 38Q32 52 42.5 38Z" fill="var(--frog-mouth, #24402e)"/>
+        <ellipse clip-path="url(#maw-0)" cx="32" cy="44.4" rx="5" ry="2.6" fill="var(--frog-lime, #b4e04a)"/>
+        </g>
+        </g>
+            </svg>
+            <div>
+              <h3>Froggy</h3>
+              <p class="why">
+                Froggy does things on the web for you — research, comparisons,
+                purchases you approve.
+              </p>
+            </div>
+          </div>
+          <button class="btn block">Use Froggy here</button>
+          <button class="btn secondary block">
+            Connect your own assistant
+          </button>
+          <p class="fig">no account step, no funding step, no progress ring</p>
+        </div>
+      </div>
+      <p class="fig">welcome · two doors</p>
+    </div>
+
+    <div>
+      <div class="frame phone">
+        <div class="pad">
+          <h3>What should I look into?</h3>
+          <div class="composer">Ask Froggy anything…</div>
+          <div class="stack">
+            <span class="chip">Compare running shoes under €150</span>
+            <span class="chip">Research a token I keep seeing</span>
+            <span class="chip">Plan five days in Tokyo</span>
+          </div>
+          <p class="why">You can look around without adding funds.</p>
+        </div>
+      </div>
+      <p class="fig">first task · funding is not a gate</p>
+    </div>
+
+    <div>
+      <div class="frame phone">
+        <div class="pad">
+          <div class="task">
+            <header>
+              <div>
+                <h3>To buy this, Froggy needs a way to pay</h3>
+                <p class="why">
+                  You set the limit. You can change or stop it at any time.
+                </p>
+              </div>
+              <span class="chip needs" style="margin-left: auto"
+                >needs you</span
+              >
+            </header>
+            <div class="ledger">
+              <div>
+                <dt>Daily limit</dt>
+                <dd class="num">€200.00</dd>
+              </div>
+              <div>
+                <dt>This purchase</dt>
+                <dd class="num">€135.40</dd>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn">Add a payment method</button>
+              <button class="btn ghost">Not now</button>
+            </div>
+          </div>
+          <p class="fig">
+            asked at the moment the task needs it — not at welcome
+          </p>
+        </div>
+      </div>
+      <p class="fig">contextual access request</p>
+    </div>
+  </div>
+
+  <!-- ============================ EXPLORE ============================ -->
+  <h2>2 · Explore — tokens, wallets, services, in one place</h2>
+  <p>
+    Search and act without writing a chat message for every operation. Not a
+    destination per content type: one place with tabs.
+  </p>
+  <div class="frame">
+    <div class="pad">
+      <div class="search">Search tokens, wallets, services…</div>
+      <div class="tabs">
+        <span aria-current="page">Tokens</span><span>Wallets</span
+        ><span>Services</span>
+      </div>
+      <div class="list">
+        <div>
+          <div class="grow">
+            <strong>EXAMPLEFROG</strong>
+            <div class="sub">testnet-example · contract 0xEXAMPLE</div>
+          </div>
+          <span class="chip risk">unverified contract</span>
+          <button class="btn secondary small">Research</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>EXAMPLECOIN</strong>
+            <div class="sub">testnet-example · holders rising over 7 days</div>
+          </div>
+          <button class="btn secondary small">Research</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>0xEXAMPLE…a91c</strong>
+            <div class="sub">a wallet you watch · last moved 06:12 CEST</div>
+          </div>
+          <span class="chip">watching</span>
+          <button class="btn ghost small">Stop watching</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>Market report · reports.example</strong>
+            <div class="sub">paid service · €12.00 per report</div>
+          </div>
+          <button class="btn secondary small">Use</button>
+        </div>
+      </div>
+      <p class="note">
+        A risk chip names <b>what</b> is unverified, not a score. Nothing here
+        is ranked by anything Froggy would gain from, and "Research" starts a
+        task — it never buys.
+      </p>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top: 16px">
+    <div class="empty">
+      <h3>Nothing matched</h3>
+      <p class="why">Try a different name or address.</p>
+      <button class="btn secondary small">Clear search</button>
+    </div>
+    <div class="empty">
+      <h3>You are not watching anything yet</h3>
+      <p class="why">Watch a wallet and Froggy will tell you when it moves.</p>
+      <button class="btn secondary small">Browse wallets</button>
+    </div>
+  </div>
+
+  <!-- ============================ TOKEN DETAIL ============================ -->
+  <h2>3 · Token detail — evidence, and what is not known</h2>
+  <div class="cols">
+    <div class="frame">
+      <div class="pad">
+        <div class="row" style="justify-content: space-between">
+          <div>
+            <h3>EXAMPLEFROG</h3>
+            <div class="sub mono">testnet-example · 0xEXAMPLE…7f3a</div>
+          </div>
+          <span class="chip risk">2 risks</span>
+        </div>
+        <div class="evidence">
+          <div>
+            <strong>Holder count rose over 7 days</strong>
+            <span class="fig"
+              >explorer.example · 10 Sep 10:01 CEST · observed</span
+            >
+          </div>
+          <div>
+            <strong class="swatch-risk"
+              >Contract is unverified on the explorer</strong
+            >
+            <span class="fig"
+              >explorer.example · 10 Sep 10:01 CEST · observed</span
+            >
+          </div>
+          <div>
+            <strong class="swatch-risk">Liquidity depth unknown</strong>
+            <span class="fig">no source · unknown — stays unknown</span>
+          </div>
+        </div>
+        <p class="note">
+          Every claim carries a source and a time. "Unknown" is a result, not a
+          gap to fill with a guess. <b>Froggy does not say a token is safe</b>,
+          and there is no score, grade or traffic light anywhere on this screen.
+        </p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="pad">
+        <div class="task">
+          <header>
+            <div>
+              <h3>A trade you could make</h3>
+              <p class="why">
+                This is a review, not an action. Froggy has not placed anything.
+              </p>
+            </div>
+            <span class="chip needs" style="margin-left: auto">needs you</span>
+          </header>
+          <div class="ledger">
+            <div>
+              <dt>Spend</dt>
+              <dd class="num">€25.00</dd>
+            </div>
+            <div>
+              <dt>Network</dt>
+              <dd>testnet-example</dd>
+            </div>
+            <div>
+              <dt>Estimated fee</dt>
+              <dd class="num">€0.40</dd>
+            </div>
+            <div class="total">
+              <dt>Total</dt>
+              <dd class="num">€25.40</dd>
+            </div>
+          </div>
+          <p class="why">
+            Rates change. Fees and withdrawal conditions apply. This is what
+            Froggy found; it is not advice.
+          </p>
+          <div class="actions">
+            <button class="btn">Review and approve</button>
+            <button class="btn ghost">Discard</button>
+          </div>
+        </div>
+        <div class="receipt">
+          <div class="row" style="justify-content: space-between">
+            <h3 style="margin: 0">Outcome not yet known</h3>
+            <span class="chip">pending</span>
+          </div>
+          <p class="why">
+            Submitted 10:31. Froggy will not try again and will not switch
+            payment method until this is resolved.
+          </p>
+          <div class="actions">
+            <button class="btn secondary small">Check again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ WALLET ============================ -->
+  <h2>4 · Wallet — available, reserved, and who may spend</h2>
+  <div class="frame">
+    <div class="pad">
+      <div class="cols tight">
+        <div class="task">
+          <h3>Available</h3>
+          <div class="num" style="font-size: 24px">€612.08</div>
+          <p class="fig">free to spend now</p>
+        </div>
+        <div class="task">
+          <h3>Reserved</h3>
+          <div class="num" style="font-size: 24px">€135.40</div>
+          <p class="fig">held for one approval, expires 12:20</p>
+        </div>
+        <div class="task">
+          <h3>Spent today</h3>
+          <div class="num" style="font-size: 24px">€12.04</div>
+          <p class="fig">of a €200.00 daily limit</p>
+          <div class="bar"><i style="width: 6%"></i></div>
+        </div>
+      </div>
+
+      <div class="tabs" style="margin-top: 6px">
+        <span>Holdings</span><span aria-current="page">Permissions</span
+        ><span>Payment methods</span><span>History</span>
+      </div>
+
+      <div class="list">
+        <div>
+          <div class="grow">
+            <strong>Froggy can spend</strong>
+            <div class="sub">
+              up to €200.00 a day · card ending 4242 · ends 20 Sep
+            </div>
+          </div>
+          <button class="btn ghost small">Change</button>
+          <button class="btn danger small">Stop</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>An external assistant</strong>
+            <div class="sub">
+              granted €50.00 · €37.96 left · narrower than your limit
+            </div>
+          </div>
+          <button class="btn ghost small">Revoke</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>Card checkout</strong>
+            <div class="sub">
+              handed to you — Froggy cannot complete a card payment
+            </div>
+          </div>
+          <span class="chip">you do this</span>
+        </div>
+      </div>
+      <p class="note">
+        <b>Available and reserved are separate numbers.</b> A held approval is
+        not spendable and not spent. Every permission shows its cap, its payee,
+        its expiry and a way to stop it, and a delegated allowance is always
+        shown as narrower than the owner's.
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== BACKGROUND TASK SETUP ==================== -->
+  <h2>5 · Background work — cadence, expiry, limits, stop</h2>
+  <div class="cols">
+    <div class="frame">
+      <div class="pad">
+        <h3>Watch one price</h3>
+        <div class="list">
+          <div>
+            <div class="grow">
+              <strong>What</strong>
+              <div class="sub">flight AMS–HND, 12–20 Oct</div>
+            </div>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>How often</strong>
+              <div class="sub">twice a day</div>
+            </div>
+            <span class="chip">not continuous</span>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Until</strong>
+              <div class="sub">20 Sep, then it stops</div>
+            </div>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Tell me</strong>
+              <div class="sub">only if it drops more than €40</div>
+            </div>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Quiet hours</strong>
+              <div class="sub">22:00–08:00 CEST, held not dropped</div>
+            </div>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Spend cap</strong>
+              <div class="sub">research only · Froggy may not buy</div>
+            </div>
+            <span class="chip work">research</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn">Start watching</button>
+          <button class="btn ghost">Cancel</button>
+        </div>
+        <p class="note">
+          <b>Research and execute are separate permissions.</b> Asking Froggy to
+          watch a price never authorises it to buy at that price. The cadence
+          and the expiry are stated because "monitoring" would imply something
+          continuous that this is not.
+        </p>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="task">
+        <header>
+          <div>
+            <h3>Tokyo trip · watching one price</h3>
+            <p class="why">
+              Checked twice a day until 20 Sep. Last checked 4 min ago.
+            </p>
+          </div>
+          <span class="chip">scheduled</span>
+        </header>
+        <div class="actions">
+          <button class="btn ghost">Pause</button>
+          <button class="btn danger small">Stop watching</button>
+        </div>
+      </div>
+      <div class="task">
+        <header>
+          <div>
+            <h3>Stale watch</h3>
+            <p class="why">Last checked 3 days ago. This may be behind.</p>
+          </div>
+          <span class="chip risk">stale</span>
+        </header>
+        <div class="actions">
+          <button class="btn secondary small">Resume</button>
+          <button class="btn ghost">Stop</button>
+        </div>
+      </div>
+      <div class="task">
+        <header>
+          <div>
+            <h3>This watch ended</h3>
+            <p class="why">
+              It stopped on 20 Sep as you set. Nothing is running.
+            </p>
+          </div>
+          <span class="chip">expired</span>
+        </header>
+        <div class="actions">
+          <button class="btn secondary small">Start again</button>
+          <button class="btn ghost">Dismiss</button>
+        </div>
+      </div>
+      <p class="fig">
+        closing the app does not cancel an authorized task · cancelling the task
+        does
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================ CONNECTIONS ============================ -->
+  <h2>6 · Connections — consent, scope, expiry, revoke</h2>
+  <div class="cols">
+    <div class="frame">
+      <div class="pad">
+        <h3>An assistant is asking for access</h3>
+        <p class="why">
+          This lets your assistant use Froggy's abilities. It does not give
+          Froggy access to your assistant.
+        </p>
+        <div class="list">
+          <div>
+            <div class="grow">
+              <strong>Delegate tasks</strong>
+              <div class="sub">research, comparisons, browsing</div>
+            </div>
+            <span class="chip work">requested</span>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Use single services</strong>
+              <div class="sub">one paid call at a time</div>
+            </div>
+            <span class="chip work">requested</span>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Spend</strong>
+              <div class="sub">
+                up to €50.00, never more than your own limit
+              </div>
+            </div>
+            <span class="chip needs">you set this</span>
+          </div>
+          <div>
+            <div class="grow">
+              <strong>Access ends</strong>
+              <div class="sub">in 30 days, or when you revoke</div>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn">Allow</button>
+          <button class="btn ghost">Deny</button>
+        </div>
+        <p class="note">
+          <b>Delegate a task</b> and <b>use a service directly</b> are different
+          grants, asked separately. The allowance is always narrower than or
+          equal to yours, and no tool can raise its own cap.
+        </p>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="list">
+        <div>
+          <div class="grow">
+            <strong>An external assistant</strong>
+            <div class="sub">€37.96 of €50.00 left · ends 10 Oct</div>
+          </div>
+          <button class="btn ghost small">Revoke</button>
+        </div>
+        <div>
+          <div class="grow">
+            <strong>Telegram</strong>
+            <div class="sub">linked · quiet hours 22:00–08:00 CEST</div>
+          </div>
+          <button class="btn ghost small">Unlink</button>
+        </div>
+      </div>
+      <div class="task">
+        <header>
+          <div>
+            <h3>Allowance exhausted</h3>
+            <p class="why">
+              This would exceed the allowance your assistant was given. Froggy
+              cannot raise it.
+            </p>
+          </div>
+          <span class="chip risk">blocked</span>
+        </header>
+        <div class="ledger">
+          <div>
+            <dt>Requested</dt>
+            <dd class="num">€60.00</dd>
+          </div>
+          <div>
+            <dt>Left</dt>
+            <dd class="num">€37.96</dd>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary small">
+            Raise the allowance yourself
+          </button>
+        </div>
+      </div>
+      <div class="empty">
+        <h3>No assistants connected</h3>
+        <p class="why">Connect one to give it Froggy's abilities.</p>
+        <button class="btn secondary small">Connect an assistant</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>7 · What this board is not</h2>
+  <div class="panel">
+    <p style="margin: 0">
+      Invented data throughout; tokens, wallets, contracts, prices and merchants
+      are fictional and domains use <code>.example</code>. Not live data, not
+      provider evidence, not advice, and not a claim that any route works today.
+      Real readiness is tracked in <code>SERVICES.md</code>.
+    </p>
+  </div>
+</main>
