@@ -13,6 +13,16 @@ import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import { useSessionToken } from "../../lib/session-token";
 
+/** What the one button says, which depends on which of the three states this is. */
+const label = (busy: boolean, standing: string | null): string => {
+  if (busy) {
+    return "Asking Privy…";
+  }
+  return standing === "shared"
+    ? "Put the agent under your own rules"
+    : "Let the agent sign under policy";
+};
+
 export const AgentSignerConsent = ({
   wallet,
 }: {
@@ -25,18 +35,26 @@ export const AgentSignerConsent = ({
   const [busy, setBusy] = useState(false);
   const grant = identity.grantAgentSigner;
   const address = wallet?.address ?? null;
+  const standing = wallet?.agentSigner ?? null;
+  // The person's own policy when they have one; the app-wide policy otherwise,
+  // which is what a deployment that mints none still signs under.
+  const theirs = wallet?.agentPolicyId ?? policyId;
   if (
-    wallet?.agentSigner !== "absent" ||
+    (standing !== "absent" && standing !== "shared") ||
     address === null ||
     grant === null ||
     agentSignerId === null ||
-    policyId === null
+    theirs === null
   ) {
     return null;
   }
   const consent = async (): Promise<void> => {
     setBusy(true);
-    const result = await grant({ address, policyId, signerId: agentSignerId });
+    const result = await grant({
+      address,
+      policyId: theirs,
+      signerId: agentSignerId,
+    });
     if (result.kind === "refused") {
       setOutcome(`Privy refused: ${result.reason}`);
       setBusy(false);
@@ -52,6 +70,12 @@ export const AgentSignerConsent = ({
   };
   return (
     <div className="flex flex-col gap-2">
+      {standing === "shared" ? (
+        <p className="text-muted-foreground text-xs">
+          The agent signs under shared rules rather than rules you set. Moving
+          it takes one tap, and the agent cannot sign in between.
+        </p>
+      ) : null}
       <Button
         className="min-h-11 self-start"
         disabled={busy}
@@ -60,7 +84,7 @@ export const AgentSignerConsent = ({
         }}
         size="sm"
       >
-        {busy ? "Asking Privy…" : "Let the agent sign under policy"}
+        {label(busy, standing)}
       </Button>
       {outcome === null ? null : (
         <output className="text-muted-foreground text-xs">{outcome}</output>

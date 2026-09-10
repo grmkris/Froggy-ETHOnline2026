@@ -48,6 +48,18 @@ export interface UserWallet {
  */
 export interface AgentGrant {
   readonly attached: boolean;
+  /**
+   * The policies the agent's signer is actually held to on this wallet, read
+   * back from Privy rather than assumed from what we asked for.
+   *
+   * Empty when nothing is attached. It is read rather than remembered because
+   * the person can also grant from the browser, where Privy asks them directly
+   * and this process never sees it — and because the answer to "whose rules is
+   * the agent under" has to come from the side that enforces them. The caller
+   * compares this against the person's own policy id to tell a signer under
+   * their rules from one still under the app-wide policy.
+   */
+  readonly policyIds: readonly string[];
   readonly reason: string | null;
   readonly wallet: UserWallet | null;
 }
@@ -149,15 +161,19 @@ const UNRECOGNISED = "Privy refused the grant for an unrecognised reason.";
  * them directly; that path never passes through here, so the answer has to be
  * read from the wallet rather than remembered.
  */
-const alreadyAttached = async (
+const attachedPolicies = async (
   client: PrivyClient,
   walletId: string,
   quorumId: string
-): Promise<boolean> => {
+): Promise<readonly string[] | null> => {
   const wallet = await client.wallets().get(walletId);
-  return wallet.additional_signers.some(
-    (signer) => signer.signer_id === quorumId
+  const signer = wallet.additional_signers.find(
+    (candidate) => candidate.signer_id === quorumId
   );
+  // Null is "no signer at all", which is not the same as a signer with no
+  // policy override — the second would mean the agent signs under whatever the
+  // wallet's own policy is, and the caller has to be able to see that.
+  return signer === undefined ? null : (signer.override_policy_ids ?? []);
 };
 
 export const grantAgentSigner = async (
@@ -167,35 +183,49 @@ export const grantAgentSigner = async (
     readonly agent: AgentKey;
     readonly appId: string;
     readonly did: string;
+    /**
+     * The policy to attach the signer under. The person's own when they have
+     * one; the app-wide policy otherwise, which is what everyone granted
+     * before per-person policies existed.
+     */
+    readonly policyId?: string;
   }
 ): Promise<AgentGrant> => {
+  const policyId = input.policyId ?? input.agent.policyId;
   let wallet: UserWallet | null = null;
   try {
     wallet = await embeddedWalletFor(client, input.did);
     if (wallet === null) {
       return {
         attached: false,
+        policyIds: [],
         reason: "No embedded wallet on this account yet.",
         wallet: null,
       };
     }
-    if (await alreadyAttached(client, wallet.id, input.agent.quorumId)) {
-      return { attached: true, reason: null, wallet };
+    const existing = await attachedPolicies(
+      client,
+      wallet.id,
+      input.agent.quorumId
+    );
+    if (existing !== null) {
+      // Left exactly as it is, including when it names a policy other than the
+      // one asked for. Moving a signer from one policy to another means
+      // removing and re-adding it, which only the person's browser can do —
+      // this side reports what it found and lets them decide.
+      return { attached: true, policyIds: existing, reason: null, wallet };
     }
     await updateWallet(client, {
       accessToken: input.accessToken,
       appId: input.appId,
       body: {
         additional_signers: [
-          {
-            override_policy_ids: [input.agent.policyId],
-            signer_id: input.agent.quorumId,
-          },
+          { override_policy_ids: [policyId], signer_id: input.agent.quorumId },
         ],
       },
       walletId: wallet.id,
     });
-    return { attached: true, reason: null, wallet };
+    return { attached: true, policyIds: [policyId], reason: null, wallet };
   } catch (error) {
     // Returned rather than thrown, and with whatever wallet was found: a
     // wallet the agent cannot sign for is a degraded workspace, not a missing
@@ -204,6 +234,7 @@ export const grantAgentSigner = async (
     // about, is the agent's ability to pay.
     return {
       attached: false,
+      policyIds: [],
       reason: error instanceof Error ? describe(error) : UNRECOGNISED,
       wallet,
     };
@@ -228,7 +259,7 @@ export const revokeAgentSigner = async (
   try {
     const wallet = await embeddedWalletFor(client, input.did);
     if (wallet === null) {
-      return { attached: false, reason: null, wallet: null };
+      return { attached: false, policyIds: [], reason: null, wallet: null };
     }
     await updateWallet(client, {
       accessToken: input.accessToken,
@@ -236,11 +267,12 @@ export const revokeAgentSigner = async (
       body: { additional_signers: [] },
       walletId: wallet.id,
     });
-    return { attached: false, reason: null, wallet };
+    return { attached: false, policyIds: [], reason: null, wallet };
   } catch (error) {
     // A revocation that failed must not read as a revocation that worked.
     return {
       attached: true,
+      policyIds: [],
       reason:
         error instanceof Error
           ? describe(error)

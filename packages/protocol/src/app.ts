@@ -144,6 +144,16 @@ export const AgentSignerState = Schema.Literals([
   "granted",
   "pending",
   "absent",
+  /**
+   * The agent may sign, but under the app-wide policy every wallet used to
+   * share rather than under rules this person set.
+   *
+   * Deliberately not `granted`: the agent can spend either way, so collapsing
+   * the two would be technically true and would hide the only thing the person
+   * can act on — that the numbers holding their agent are not theirs yet. It is
+   * the state everybody who granted before per-person policies is in.
+   */
+  "shared",
 ]);
 export type AgentSignerState = typeof AgentSignerState.Type;
 
@@ -153,6 +163,14 @@ export const WalletSummary = Schema.Struct({
   /** Why the agent has no signature, when it has none. Shown verbatim. */
   agentNote: Schema.NullOr(Schema.String),
   agentSigner: AgentSignerState,
+  /**
+   * The Privy policy this person's agent signs under, when they have one of
+   * their own. Null while they are on the app-wide policy, and the welcome's
+   * `policyId` is what the screen falls back to.
+   */
+  agentPolicyId: Schema.NullOr(Schema.String),
+  /** When that policy stops allowing anything, in Unix milliseconds. */
+  agentPolicyExpiresAt: Schema.NullOr(Schema.Int),
   balanceLabel: Schema.String,
   /**
    * What the chains say the person holds, read for display and never spent

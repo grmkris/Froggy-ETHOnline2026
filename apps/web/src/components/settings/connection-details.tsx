@@ -11,19 +11,40 @@ import { AgentSignerConsent } from "./agent-signer-consent";
 const SIGNER_WORDS: ReadonlyMap<WalletSummary["agentSigner"], string> = new Map(
   [
     ["absent", "the agent has no signer"],
-    ["granted", "the agent may sign under policy"],
+    ["granted", "the agent may sign under your rules"],
     ["pending", "asking Privy for the agent's signer…"],
+    ["shared", "the agent signs under shared rules, not yours"],
   ]
 );
 
+/** How long a grant has left, in the coarsest unit that is still honest. */
+const remaining = (expiresAt: number): string => {
+  const days = Math.floor((expiresAt - Date.now()) / 86_400_000);
+  if (days < 0) {
+    return "expired";
+  }
+  return days === 0 ? "expires today" : `expires in ${days} days`;
+};
+
 /** The second layer, named: the policy Privy holds the agent's signer to. */
-const SignerPolicy = (): ReactElement | null => {
+const SignerPolicy = ({
+  wallet,
+}: {
+  readonly wallet: WalletSummary | null;
+}): ReactElement | null => {
   const { policyId } = useSessionIds();
-  return policyId === null ? null : (
+  // The person's own policy when they have one, and the app-wide one otherwise.
+  const shown = wallet?.agentPolicyId ?? policyId;
+  const expiresAt = wallet?.agentPolicyExpiresAt ?? null;
+  if (shown === null) {
+    return null;
+  }
+  return (
     <p className="text-muted-foreground text-xs">
       Beneath the allowlists the signer is held to Privy policy{" "}
-      <span className="text-machine text-foreground/80">{policyId}</span>: a
-      spend the mandate allows can still be refused there, and Privy says why.
+      <span className="text-machine text-foreground/80">{shown}</span>
+      {expiresAt === null ? "" : `, which ${remaining(expiresAt)}`}: a spend the
+      mandate allows can still be refused there, and Privy says why.
     </p>
   );
 };
@@ -60,6 +81,6 @@ export const ConnectionDetails = ({
       <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
     )}
     <AgentSignerConsent wallet={wallet} />
-    <SignerPolicy />
+    <SignerPolicy wallet={wallet} />
   </div>
 );

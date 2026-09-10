@@ -16,6 +16,8 @@ import { showsHeld, walletAmounts } from "./wallet-view";
 const wallet: WalletSummary = {
   address: null,
   agentNote: null,
+  agentPolicyExpiresAt: null,
+  agentPolicyId: null,
   agentSigner: "absent",
   balanceLabel: "test",
   hederaAccountId: null,

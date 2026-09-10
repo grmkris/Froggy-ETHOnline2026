@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { userId } from "@froggy/domain";
+import { defaultAllowance, userId } from "@froggy/domain";
 import type { AppServerMessage, WalletSummary } from "@froggy/protocol";
-import type { AgentGrant } from "@froggy/wallet";
+import type { AgentGrant, PersonPolicyRecord } from "@froggy/wallet";
 
 import { AgentGrants } from "./grants";
-import type { GrantWorkspaces } from "./grants";
+import type { GrantDeps, GrantWorkspaces } from "./grants";
 
 const ALICE = userId("did:privy:grants-test");
 /** Mirrors the module's retry window; a change there should be felt here. */
@@ -15,6 +15,8 @@ const WALLET = { address: "0xabc", id: "wallet-1" };
 const SUMMARY: WalletSummary = {
   address: WALLET.address,
   agentNote: null,
+  agentPolicyExpiresAt: null,
+  agentPolicyId: null,
   agentSigner: "absent",
   balanceLabel: "—",
   balances: {
@@ -38,7 +40,10 @@ const flush = async (): Promise<void> => {
   await Bun.sleep(0);
 };
 
-const harness = (answers: (() => Promise<AgentGrant>)[]) => {
+const harness = (
+  answers: (() => Promise<AgentGrant>)[],
+  ownPolicyId: string | null = null
+) => {
   const calls: string[] = [];
   const published: AppServerMessage[] = [];
   let asks = 0;
@@ -62,7 +67,11 @@ const harness = (answers: (() => Promise<AgentGrant>)[]) => {
       },
     }),
   };
-  const grants = new AgentGrants({
+  const record = (): PersonPolicyRecord => ({
+    allowance: defaultAllowance(clock),
+    policyId: ownPolicyId ?? "",
+  });
+  const deps: GrantDeps = {
     now: () => clock,
     privy: {
       grantAgent: async () => {
@@ -78,7 +87,18 @@ const harness = (answers: (() => Promise<AgentGrant>)[]) => {
       published.push(message);
     },
     workspaces,
-  });
+  };
+  const grants = new AgentGrants(
+    ownPolicyId === null
+      ? deps
+      : {
+          ...deps,
+          policies: {
+            current: async () => await Promise.resolve(record()),
+            ensure: async () => await Promise.resolve(record()),
+          },
+        }
+  );
   return {
     advance: (ms: number) => {
       clock += ms;
@@ -92,12 +112,17 @@ const harness = (answers: (() => Promise<AgentGrant>)[]) => {
 
 const attached = async (): Promise<AgentGrant> => {
   await Promise.resolve();
-  return { attached: true, reason: null, wallet: WALLET };
+  return { attached: true, policyIds: [], reason: null, wallet: WALLET };
 };
 
 const refused = async (): Promise<AgentGrant> => {
   await Promise.resolve();
-  return { attached: false, reason: "Privy said no.", wallet: WALLET };
+  return {
+    attached: false,
+    policyIds: [],
+    reason: "Privy said no.",
+    wallet: WALLET,
+  };
 };
 
 describe("AgentGrants", () => {
@@ -105,8 +130,11 @@ describe("AgentGrants", () => {
     const h = harness([attached, attached]);
     h.grants.note(ALICE, "token");
     h.grants.note(ALICE, "token");
-    expect(h.asks()).toBe(1);
+    // Flushed before counting: the person's policy is looked up before Privy is
+    // asked, so the ask is a microtask later than the synchronous `note`. The
+    // claim under test is unchanged — two notes must produce one ask.
     await flush();
+    expect(h.asks()).toBe(1);
     expect(h.calls).toEqual([
       "addresses:0xabc",
       "wallet:wallet-1",
@@ -114,6 +142,7 @@ describe("AgentGrants", () => {
     ]);
     h.advance(RETRY_WINDOW_MS * 10);
     h.grants.note(ALICE, "token");
+    await flush();
     expect(h.asks()).toBe(1);
     expect(h.published.map((message) => message.type)).toEqual([
       "wallet.state",
@@ -132,11 +161,12 @@ describe("AgentGrants", () => {
     expect(h.published).toHaveLength(1);
     h.advance(RETRY_WINDOW_MS - 1);
     h.grants.note(ALICE, "token");
+    await flush();
     expect(h.asks()).toBe(1);
     h.advance(1);
     h.grants.note(ALICE, "token");
-    expect(h.asks()).toBe(2);
     await flush();
+    expect(h.asks()).toBe(2);
     expect(h.calls.at(-1)).toBe("signer:granted:");
   });
 
@@ -146,7 +176,45 @@ describe("AgentGrants", () => {
     await flush();
     expect(h.asks()).toBe(1);
     h.grants.refresh(ALICE, "token");
+    await flush();
     expect(h.asks()).toBe(2);
+    expect(h.calls.at(-1)).toBe("signer:granted:");
+  });
+
+  it("reports a signer under the old shared policy as shared, not granted", async () => {
+    // The migration state. The agent can sign either way, so the pane must not
+    // call this done: the rules holding it are not the person's.
+    const h = harness(
+      [
+        async () =>
+          await Promise.resolve({
+            attached: true,
+            policyIds: ["the-app-wide-one"],
+            reason: null,
+            wallet: WALLET,
+          }),
+      ],
+      "theirs"
+    );
+    h.grants.note(ALICE, "token");
+    await flush();
+    expect(h.calls.at(-1)).toBe("signer:shared:");
+  });
+
+  it("treats a signer under a policy as granted when it is the person's own", async () => {
+    const h = harness(
+      [
+        async () =>
+          await Promise.resolve({
+            attached: true,
+            policyIds: ["theirs"],
+            reason: null,
+            wallet: WALLET,
+          }),
+      ],
+      "theirs"
+    );
+    h.grants.note(ALICE, "token");
     await flush();
     expect(h.calls.at(-1)).toBe("signer:granted:");
   });
@@ -165,6 +233,7 @@ describe("AgentGrants", () => {
     expect(h.published).toEqual([]);
     h.advance(RETRY_WINDOW_MS);
     h.grants.note(ALICE, "token");
+    await flush();
     expect(h.asks()).toBe(2);
   });
 });

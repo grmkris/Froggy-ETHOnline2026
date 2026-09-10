@@ -66,6 +66,7 @@ import {
 } from "@froggy/wallet";
 import type {
   AuthorizeInput,
+  PersonPolicyRecord,
   TradeClaimRequest,
   TradeSubmission,
   SpendLedger,
@@ -622,6 +623,7 @@ export class WorkspaceSession {
    */
   private agentSigner: AgentSignerState = "pending";
   private agentNote: string | null = null;
+  private agentPolicy: PersonPolicyRecord | null = null;
   /** The pocket balance as last read or written; null until hydrated. */
   private pocketBalance: number | null = null;
   /** A conversion in flight, so a second short spend waits for it rather than buying HBAR again. */
@@ -766,6 +768,17 @@ export class WorkspaceSession {
   setAgentSigner(state: AgentSignerState, note: string | null): void {
     this.agentSigner = state;
     this.agentNote = note;
+  }
+
+  /**
+   * The person's own policy, once one has been minted for them.
+   *
+   * Held here rather than read from the store on every summary: the summary is
+   * published on socket open and after every spend, and it must never throw or
+   * wait. Null is the honest answer for anyone still on the app-wide policy.
+   */
+  setAgentPolicy(policy: PersonPolicyRecord | null): void {
+    this.agentPolicy = policy;
   }
 
   /** What is left to spend from the pocket, or null when there is no pocket. */
@@ -953,6 +966,8 @@ export class WorkspaceSession {
       // wrong chain.
       address: this.addresses.signer,
       agentNote: this.agentNote,
+      agentPolicyExpiresAt: this.agentPolicy?.allowance.expiresAt ?? null,
+      agentPolicyId: this.agentPolicy?.policyId ?? null,
       agentSigner: this.agentSigner,
       balanceLabel:
         this.deps.modes.privy === "stub" ? "balance unavailable (stub)" : "—",

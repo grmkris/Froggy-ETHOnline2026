@@ -35,6 +35,11 @@ import {
   privyPaymentWallets,
 } from "./owner-payments";
 import type { OwnerPaymentRequest, PaymentWallets } from "./owner-payments";
+import { mintPersonPolicy } from "./person-policy-mint";
+import type {
+  PersonPolicyOutcome,
+  PersonPolicyRequest,
+} from "./person-policy-mint";
 import { privyHederaKeys } from "./privy-hedera-keys";
 import type { HederaKeys } from "./privy-hedera-keys";
 
@@ -57,6 +62,11 @@ export interface AgentGrantRequest {
   /** The caller's own Privy access token. It is what authorizes the change. */
   readonly accessToken: string;
   readonly did: string;
+  /**
+   * The policy to attach the signer under. Omitted, the app-wide policy is
+   * used, which is what every grant did before people had their own.
+   */
+  readonly policyId?: string;
 }
 
 export interface PrivyServer {
@@ -73,6 +83,13 @@ export interface PrivyServer {
    * policy for them is configured; then Froggy seals the keys itself.
    */
   readonly hederaKeys: HederaKeys | null;
+  /**
+   * Mint a policy of this person's own, owned by them, carrying the numbers
+   * they chose. Idempotent at Privy for 24 hours on the person's id.
+   */
+  readonly mintPolicy: (
+    request: PersonPolicyRequest
+  ) => Promise<PersonPolicyOutcome>;
   readonly mode: "live" | "stub";
   /** Embedded wallets resolved from Privy; callers supply an authenticated DID. */
   readonly createSolanaWallet: (
@@ -149,10 +166,18 @@ export interface LivePrivyOptions {
   readonly appSecret: string;
   /** The cosmos-type policy people's Hedera keys are created under, or null. */
   readonly hederaPolicyId?: string | null;
+  /**
+   * Whether a minted policy is owned by the person rather than the app secret.
+   *
+   * The design and the claim; a flag only because the browser half of spike 0a
+   * is unproven, and a policy nobody can change would be worse than one we can.
+   */
+  readonly personOwnedPolicies?: boolean;
 }
 
 const NO_AGENT_KEY: AgentGrant = {
   attached: false,
+  policyIds: [],
   reason: "No agent authorization key is configured on this deployment.",
   wallet: null,
 };
@@ -183,13 +208,27 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
       if (agent === null) {
         return NO_AGENT_KEY;
       }
-      return await grantAgentSigner(client, {
+      const grant: Parameters<typeof grantAgentSigner>[1] = {
         accessToken: request.accessToken,
         agent,
         appId: options.appId,
         did: request.did,
-      });
+      };
+      return await grantAgentSigner(
+        client,
+        request.policyId === undefined
+          ? grant
+          : { ...grant, policyId: request.policyId }
+      );
     },
+
+    mintPolicy: async (request) =>
+      await mintPersonPolicy(client, {
+        appId: options.appId,
+        appSecret: options.appSecret,
+        owned: options.personOwnedPolicies === true,
+        request,
+      }),
 
     hederaKeys:
       options.agent === null ||
@@ -283,6 +322,7 @@ export const stubPrivyServer = (): PrivyServer => ({
     await Promise.resolve();
     return {
       attached: false,
+      policyIds: [],
       reason: "Privy is stubbed; no wallet was granted a signer.",
       wallet: {
         address: `0x${digest(request.did).slice(0, 40)}`,
@@ -298,11 +338,20 @@ export const stubPrivyServer = (): PrivyServer => ({
   ownerTradeSigner: async () => await Promise.resolve(null),
   ownerSolanaSigner: async () => await Promise.resolve(null),
   hederaKeys: null,
+  // Loud, like every stub: a policy id that could pass for a real one would
+  // make the screen claim the agent is held to rules that do not exist.
+  mintPolicy: async (request) => {
+    await Promise.resolve();
+    return {
+      policyId: `stub-policy-${digest(request.did).slice(0, 16)}`,
+      reason: "Privy is stubbed; this policy does not exist.",
+    };
+  },
   signerFor: () => null,
   solanaSignerFor: () => null,
   revokeAgent: async () => {
     await Promise.resolve();
-    return { attached: false, reason: null, wallet: null };
+    return { attached: false, policyIds: [], reason: null, wallet: null };
   },
   verify: async (accessToken) => {
     await Promise.resolve();

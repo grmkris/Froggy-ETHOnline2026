@@ -28,9 +28,15 @@
 
 import type { UserId } from "@froggy/domain";
 import type { AppServerMessage } from "@froggy/protocol";
-import type { AgentGrant, PrivyServer } from "@froggy/wallet";
+import type {
+  AgentGrant,
+  AgentGrantRequest,
+  PrivyServer,
+} from "@froggy/wallet";
 
 import { detached } from "./detached";
+import type { PersonPolicies } from "./person-policies";
+import { signerStanding } from "./person-policies";
 import type { WorkspaceSession } from "./session";
 
 /** The part of a workspace a grant touches: the session it hands the wallet to. */
@@ -46,6 +52,16 @@ export interface GrantWorkspaces {
 export interface GrantDeps {
   /** The clock, injected so a test can move it. Defaults to the wall clock. */
   readonly now?: () => number;
+  /**
+   * The person's own policy, when this deployment mints them.
+   *
+   * Optional so that a deployment without it behaves exactly as before: the
+   * signer is attached under the app-wide policy and the pane says `granted`.
+   * With it, the signer goes under rules the person set, and a signer found
+   * under the old shared policy reports `shared` rather than being silently
+   * counted as done.
+   */
+  readonly policies?: Pick<PersonPolicies, "current" | "ensure">;
   readonly privy: Pick<PrivyServer, "grantAgent">;
   readonly publishApp: (userId: UserId, message: AppServerMessage) => void;
   readonly workspaces: GrantWorkspaces;
@@ -95,7 +111,8 @@ export class AgentGrants {
     detached("agent grant", async () => {
       const grant = await this.ask(userId, accessToken);
       if (grant !== null) {
-        this.apply(userId, grant);
+        const own = (await this.deps.policies?.current(userId)) ?? null;
+        this.apply(userId, grant, own?.policyId ?? null);
       }
     });
   }
@@ -120,10 +137,15 @@ export class AgentGrants {
     accessToken: string
   ): Promise<AgentGrant | null> {
     try {
-      const grant = await this.deps.privy.grantAgent({
-        accessToken,
-        did: userId,
-      });
+      // Minted before the grant is asked for, so the signer can be attached
+      // under the person's own rules the first time rather than under the
+      // shared policy and then moved. A refusal here is not fatal: the grant
+      // still happens, under the app-wide policy, and the pane says so.
+      const own = (await this.deps.policies?.ensure(userId)) ?? null;
+      const request: AgentGrantRequest = { accessToken, did: userId };
+      const grant = await this.deps.privy.grantAgent(
+        own === null ? request : { ...request, policyId: own.policyId }
+      );
       this.asked.set(userId, {
         at: this.now(),
         attached: grant.attached,
@@ -144,7 +166,11 @@ export class AgentGrants {
     }
   }
 
-  private apply(userId: UserId, grant: AgentGrant): void {
+  private apply(
+    userId: UserId,
+    grant: AgentGrant,
+    ownPolicyId: string | null
+  ): void {
     const { session } = this.deps.workspaces.for(userId);
     if (grant.wallet !== null) {
       // Both fields, same address: the embedded EOA is where the money is on
@@ -156,8 +182,14 @@ export class AgentGrants {
       });
       session.setWallet(grant.wallet);
     }
-    session.setAgentSigner(grant.attached ? "granted" : "absent", grant.reason);
-    if (!grant.attached) {
+    const standing = signerStanding({
+      attached: grant.attached,
+      ownPolicyId,
+      perPerson: this.deps.policies !== undefined,
+      policyIds: grant.policyIds,
+    });
+    session.setAgentSigner(standing, grant.reason);
+    if (standing === "absent") {
       // Privy's words, in the server log as well as on the person's screen:
       // a refusal here is otherwise invisible to whoever runs the service.
       console.warn(
