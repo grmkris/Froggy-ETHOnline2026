@@ -14,6 +14,8 @@
 import { Schema } from "effect";
 
 import { Payee } from "./address";
+import { ActionKind } from "./authority";
+import type { Allowance } from "./authority";
 import { MandateId, RuleId, SessionId } from "./id";
 import { Amount, Network, usd, UsdMicros } from "./money";
 import { PurchaseIntent } from "./purchase";
@@ -113,6 +115,17 @@ export const SpendIntent = Schema.Struct({
   purchase: Schema.optional(PurchaseIntent),
   amount: Amount,
   /**
+   * What this money is for, as `STANDING_AUTHORITY` names it.
+   *
+   * Optional in the schema and required by `SpendRequest`, which is not a
+   * contradiction: every *new* spend must name its kind and the compiler
+   * enforces that at the places spends are built, but a receipt written before
+   * kinds existed is still on disk and must still decode. A judge that meets an
+   * intent with no kind treats it as needing a person rather than assuming the
+   * most permissive answer.
+   */
+  kind: Schema.optional(ActionKind),
+  /**
    * Set for a 402. The host is what the allowlist matches, so it is carried
    * separately rather than re-parsed out of a URL at decision time.
    */
@@ -203,6 +216,14 @@ export type PolicyDecision = typeof PolicyDecision.Type;
  * nothing.
  */
 export const defaultRules = (params: {
+  /**
+   * The person's own numbers, when they have granted a signer under their own
+   * policy. Present, it supersedes `limits` entirely: the mandate then carries
+   * the *same* four numbers their Privy policy carries, so our engine refuses
+   * synchronously whatever Privy would refuse over the network, and an outage
+   * at Privy can never widen what the agent may spend.
+   */
+  readonly allowance?: Allowance | null;
   readonly hosts: readonly string[];
   readonly ids: () => RuleId;
   /** Caps, an expiry and an approval threshold, when the deployment keeps them. */
@@ -224,6 +245,29 @@ export const defaultRules = (params: {
       ],
     },
   ];
+  const { allowance } = params;
+  if (allowance !== undefined && allowance !== null) {
+    return [
+      {
+        _tag: "per_tx_cap",
+        id: params.ids(),
+        maxUsdMicros: allowance.perSpendUsdMicros,
+      },
+      {
+        _tag: "window_cap",
+        id: params.ids(),
+        maxUsdMicros: allowance.dailyUsdMicros,
+        windowMs: 24 * 60 * 60 * 1000,
+      },
+      ...allowlists,
+      { _tag: "expiry", id: params.ids(), notAfter: allowance.expiresAt },
+      {
+        _tag: "approval_threshold",
+        id: params.ids(),
+        overUsdMicros: allowance.askOverUsdMicros,
+      },
+    ];
+  }
   if (!params.limits) {
     return allowlists;
   }

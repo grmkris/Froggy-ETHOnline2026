@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   ApprovalId,
+  defaultAllowance,
   KNOWN_ASSETS,
   MandateId,
   PurchaseId,
@@ -613,5 +614,158 @@ describe("exact purchase grants", () => {
         },
       })
     ).toMatchObject({ code: "pocket_exhausted" });
+  });
+});
+
+/**
+ * The allowance regime.
+ *
+ * These are the tests that matter for the claim the product makes: that some
+ * things run on a standing signature and some things stop and ask, and that
+ * which is which is a property of the *kind* rather than only of the amount.
+ */
+describe("under a person's own allowance", () => {
+  const allowance = defaultAllowance(NOW);
+
+  /** What `defaultRules` writes for an allowance: the four numbers as rules. */
+  const allowanceRules = (): Mandate["rules"] => [
+    {
+      _tag: "per_tx_cap",
+      id: rule(),
+      maxUsdMicros: allowance.perSpendUsdMicros,
+    },
+    {
+      _tag: "window_cap",
+      id: rule(),
+      maxUsdMicros: allowance.dailyUsdMicros,
+      windowMs: 24 * 60 * 60 * 1000,
+    },
+    { _tag: "expiry", id: rule(), notAfter: allowance.expiresAt },
+    {
+      _tag: "approval_threshold",
+      id: rule(),
+      overUsdMicros: allowance.askOverUsdMicros,
+    },
+  ];
+
+  const judge = (
+    overrides: {
+      approved?: boolean;
+      intent?: Partial<SpendIntent>;
+      recent?: readonly LedgerEntry[];
+    } = {}
+  ) =>
+    authorize({
+      allowance,
+      approved: overrides.approved ?? false,
+      intent: intent(overrides.intent),
+      mandate: mandate(allowanceRules()),
+      now: NOW,
+      recent: overrides.recent ?? [],
+    });
+
+  it("lets a small service payment run without asking", () => {
+    const decision = judge({
+      intent: { kind: "service_payment", usdMicros: micros(50_000) },
+    });
+    expect(decision._tag).toBe("allow");
+  });
+
+  it("asks once a service payment is over the person's line", () => {
+    const decision = judge({
+      intent: { kind: "service_payment", usdMicros: micros(1_500_000) },
+    });
+    expect(decision._tag).toBe("ask");
+  });
+
+  it("asks for a transfer however small, because the payee is the person's call", () => {
+    const decision = judge({
+      intent: { kind: "transfer", usdMicros: micros(1) },
+    });
+    expect(decision._tag).toBe("ask");
+  });
+
+  it("names a real rule on a kind-driven question", () => {
+    // An ask from nowhere is as unactionable as "denied by policy". The rule it
+    // names is the person's own approval line, which is what is doing the work.
+    const rules = allowanceRules();
+    const decision = authorize({
+      allowance,
+      intent: intent({ kind: "transfer", usdMicros: micros(1) }),
+      mandate: mandate(rules),
+      now: NOW,
+      recent: [],
+    });
+    if (decision._tag !== "ask") {
+      throw new Error("expected an ask");
+    }
+    expect(rules.some((entry) => entry.id === decision.ruleId)).toBe(true);
+  });
+
+  it("does not ask again once the person has approved that exact spend", () => {
+    const decision = judge({
+      approved: true,
+      intent: { kind: "transfer", usdMicros: micros(1) },
+    });
+    expect(decision._tag).toBe("allow");
+  });
+
+  it("does not ask for the nested conversion, which rides an allowed payment", () => {
+    const decision = judge({
+      intent: { kind: "conversion", usdMicros: micros(500_000) },
+    });
+    expect(decision._tag).toBe("allow");
+  });
+
+  it("refuses an amount over the kind's own ceiling rather than asking about it", () => {
+    // The person allows $2 a spend; a withdraw's own ceiling is $10. The tighter
+    // wins, and $3 is nobody's to authorise — so it is a refusal, not a question.
+    const decision = judge({
+      intent: { kind: "earn_withdraw", usdMicros: micros(3_000_000) },
+    });
+    expect(decision._tag).toBe("deny");
+    if (decision._tag === "deny") {
+      expect(decision.code).toBe("per_tx_cap_exceeded");
+    }
+  });
+
+  it("asks about a spend whose kind was never recorded, rather than allowing it", () => {
+    const decision = judge({ intent: { usdMicros: micros(1) } });
+    expect(decision._tag).toBe("ask");
+  });
+
+  it("still refuses a payee the provenance rule rejects, before ever asking", () => {
+    // Order is the contract: provenance comes first, so a page-supplied address
+    // is refused outright rather than offered to a person to click through.
+    const decision = judge({
+      intent: {
+        kind: "service_payment",
+        payee: payee({ provenance: "page" }),
+        usdMicros: micros(1),
+      },
+    });
+    expect(decision._tag).toBe("deny");
+    if (decision._tag === "deny") {
+      expect(decision.code).toBe("untrusted_provenance");
+    }
+  });
+});
+
+describe("without an allowance, nothing changes", () => {
+  it("ignores the kind entirely and obeys the threshold rules alone", () => {
+    // The regression that matters: every mandate written before allowances
+    // existed must judge exactly as it did, including for a transfer, which
+    // under an allowance would always ask.
+    const decision = decide(
+      [
+        {
+          _tag: "approval_threshold",
+          id: rule(),
+          overUsdMicros: micros(1_000_000),
+        },
+      ],
+      { intent: { kind: "transfer", usdMicros: micros(1) } }
+    );
+    expect(decision._tag).toBe("allow");
   });
 });

@@ -13,8 +13,15 @@
  * the human as a decision they might click through.
  */
 
-import { isPayable, normalizePayeeId, formatUsd } from "@froggy/domain";
+import {
+  ceilingFor,
+  formatUsd,
+  isPayable,
+  needsPerson,
+  normalizePayeeId,
+} from "@froggy/domain";
 import type {
+  Allowance,
   DenialCode,
   Mandate,
   MandateRule,
@@ -34,6 +41,16 @@ export interface LedgerEntry {
 }
 
 export interface AuthorizeInput {
+  /**
+   * The person's own numbers, when they have granted under their own policy.
+   *
+   * Present, the human line is drawn by `STANDING_AUTHORITY` and this
+   * allowance: some kinds ask however small they are, because the decision is
+   * the person's rather than the agent's. Absent — which is every spend until a
+   * person has an allowance — the `approval_threshold` rules decide exactly as
+   * they always have, so nothing changes for a mandate written before this.
+   */
+  readonly allowance?: Allowance | null;
   /** Loaded by the server from this person's store, never from a tool argument. */
   readonly purchase?: Purchase | null;
   /**
@@ -126,6 +143,43 @@ const exempted = (
  * Deliberately after the caps, so "ask" is only ever offered for a spend that
  * would otherwise have been allowed.
  */
+/**
+ * The rule a kind-driven question is attributed to.
+ *
+ * An ask must always name the rule that produced it — "denied by policy" is not
+ * something a person can act on, and neither is a question from nowhere. A
+ * kind-driven ask *is* the person's approval line doing its job, so it carries
+ * that rule's id. An allowance always writes one (`defaultRules`), so null here
+ * means a mandate that predates the allowance, and the caller falls back to the
+ * numeric threshold rather than inventing an id.
+ */
+const askRuleId = (mandate: Mandate): RuleId | null =>
+  rulesOfKind(mandate, "approval_threshold")[0]?.id ?? null;
+
+/**
+ * Under an allowance: does the *kind* of this spend need a person, whatever the
+ * `approval_threshold` rules say?
+ *
+ * An approval the person already gave for this exact intent settles it, and so
+ * does an unexpired "allow for this session" — otherwise a person who said yes
+ * would be asked again for the same thing, which is how an approval flow
+ * becomes noise people click through.
+ */
+const kindNeedsPerson = (
+  input: AuthorizeInput,
+  allowance: Allowance
+): boolean => {
+  const { intent, mandate, now } = input;
+  if (input.approved === true || exempted(intent, mandate, now) !== null) {
+    return false;
+  }
+  // No kind means a spend built before kinds existed. Ask, rather than assume.
+  return (
+    intent.kind === undefined ||
+    needsPerson(intent.kind, intent.usdMicros, allowance)
+  );
+};
+
 const threshold = (
   input: AuthorizeInput,
   satisfied: RuleId[]
@@ -284,6 +338,64 @@ const checkAllowlists = (
   return null;
 };
 
+/**
+ * A ceiling the *kind* carries, tighter than the person's per-spend cap — a
+ * sweep into a vault is capped whatever a purchase is allowed to cost.
+ *
+ * Checked with the other caps and before anyone is asked: an amount nobody may
+ * authorise is a refusal, not a question to put in front of a person.
+ */
+const kindCeiling = (input: AuthorizeInput): PolicyDecision | null => {
+  const { allowance, intent } = input;
+  if (
+    allowance === undefined ||
+    allowance === null ||
+    intent.kind === undefined
+  ) {
+    return null;
+  }
+  const ceiling = ceilingFor(intent.kind, allowance);
+  if (ceiling === null || intent.usdMicros <= ceiling) {
+    return null;
+  }
+  return deny(
+    "per_tx_cap_exceeded",
+    `${formatUsd(intent.usdMicros)} is over the ${formatUsd(ceiling)} limit for ${intent.kind.replace("_", " ")}.`
+  );
+};
+
+/**
+ * Whether to stop and ask, under either regime.
+ *
+ * With an allowance the *kind* can demand a person however small the amount is
+ * — paying a person is their decision, not a number to clear — so that is asked
+ * first and the numeric threshold is the fallback. Without one, this is exactly
+ * the behaviour that was here before: the `approval_threshold` rules decide.
+ */
+const humanLine = (
+  input: AuthorizeInput,
+  boundPurchase: boolean,
+  satisfied: RuleId[]
+): PolicyDecision | null => {
+  const { allowance, intent, mandate } = input;
+  const approved = input.approved === true || boundPurchase;
+  const askRule = askRuleId(mandate);
+  if (
+    allowance !== undefined &&
+    allowance !== null &&
+    askRule !== null &&
+    !approved &&
+    kindNeedsPerson(input, allowance)
+  ) {
+    return {
+      _tag: "ask",
+      question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
+      ruleId: askRule,
+    };
+  }
+  return threshold({ ...input, approved }, satisfied);
+};
+
 export const authorize = (input: AuthorizeInput): PolicyDecision => {
   const { intent, mandate, now, recent } = input;
   const satisfied: RuleId[] = [];
@@ -356,16 +468,18 @@ export const authorize = (input: AuthorizeInput): PolicyDecision => {
     satisfied.push(rule.id);
   }
 
+  const overKind = kindCeiling(input);
+  if (overKind !== null) {
+    return overKind;
+  }
+
   const shortfall = pocketShortfall(input);
   if (shortfall !== null) {
     return shortfall;
   }
 
   // 3. Last: the human's line.
-  const ask = threshold(
-    { ...input, approved: input.approved === true || purchase !== null },
-    satisfied
-  );
+  const ask = humanLine(input, purchase !== null, satisfied);
   if (ask !== null) {
     return ask;
   }
