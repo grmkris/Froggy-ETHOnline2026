@@ -37,7 +37,12 @@ export const AgentRules = ({
   const { app } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const allowance = wallet?.agentAllowance ?? null;
-  if (wallet?.agentPolicyId === null || allowance === null) {
+  // Only once the agent can actually pay. A person's policy is minted before
+  // they grant, so without this the card would say "your agent may pay up to
+  // $2.00 at a time" while the agent has no signer and can pay nothing — and
+  // would say it directly beneath the grant sheet, which is already showing
+  // those same four numbers as a proposal.
+  if (wallet?.agentSigner !== "granted" || allowance === null) {
     return null;
   }
   if (editing) {
