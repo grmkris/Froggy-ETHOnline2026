@@ -62,8 +62,7 @@ export const SettingsPage = (): ReactElement => {
             <CardHeader>
               <CardTitle>Connection</CardTitle>
               <CardDescription>
-                The signer, the session, and whether the agent may sign under
-                policy.
+                The signer, the session, and the rules your agent is held to.
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -184,7 +184,8 @@ export const AllowanceForm = ({
           value={draft.days}
         />
         <FieldDescription>
-          Days. After this the agent can sign nothing until you say so again.
+          Days, up to thirty. After this the agent can pay nothing until you
+          extend it here.
         </FieldDescription>
       </Field>
       {touched && problem !== null ? <FieldError>{problem}</FieldError> : null}

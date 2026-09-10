@@ -42,7 +42,7 @@ Open the printed authorization link in the owner's browser and paste its code on
 
 ## 3. Prove funding and supplier delivery
 
-Under **Settings → Connection**, choose **Let the agent sign under policy** if it is not already granted. Use a wallet with Base USDC and insufficient HBAR for the selected task to demonstrate automatic conversion. A purchase from an already funded Hedera balance does not prove that conversion ran.
+Under **Settings → Connection**, choose **Let the agent pay under these rules** if it is not already granted; if it reads _the agent signs under shared rules, not yours_, choose **Move the agent onto these rules** instead, which is the same tap for somebody who granted before per-person policies existed. Use a wallet with Base USDC and insufficient HBAR for the selected task to demonstrate automatic conversion. A purchase from an already funded Hedera balance does not prove that conversion ran.
 
 Buy one small task per service through **Services** or the signed-in CLI. Start with web search; inspect its result before proceeding. The five listed customer prices total $0.53 before network fees; check the live catalog before buying. The original activation plan limits total supplier spend to less than $1 in treasury USDC.
 

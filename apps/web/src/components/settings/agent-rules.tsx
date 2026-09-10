@@ -84,6 +84,9 @@ export const AgentRules = ({
         <Button
           className="min-h-11"
           onClick={() => {
+            // Thirty days from today, not thirty on top of what is left:
+            // Privy's ceiling is thirty, so adding to a live grant would ask
+            // for something it refuses. The label says "to" for that reason.
             app.send({
               allowance: {
                 ...allowance,
@@ -96,7 +99,7 @@ export const AgentRules = ({
           size="sm"
           variant="outline"
         >
-          Extend by 30 days
+          Extend to 30 days
         </Button>
       </div>
     </div>
