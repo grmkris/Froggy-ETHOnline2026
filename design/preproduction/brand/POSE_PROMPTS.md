@@ -49,3 +49,25 @@ Each is one generation. Same conversation, same character.
 ## After they come back
 
 Poses are illustration. Small marks stay hand-drawn vector: `frog-mark.svg` remains the rig the motion contract drives, and nothing generated replaces it. **A PNG placed inside an SVG is not a vectorized character** and will not be recorded as one.
+
+---
+
+# Fixes — the two poses that came back wrong
+
+Reviewed 10 September 2026. Same conversation, same anchor block, so the character stays consistent. Everything else in the set passed.
+
+## Fix 1 · `needs-user` — the tongue is off-palette
+
+It came back `#e07878`, a salmon. The palette's only accent is lime, and `completion` used it correctly at `#b8e050`. Two open-mouth poses currently disagree.
+
+> Regenerate the waving pose. Same character, same framing. One change only: the tongue inside the open mouth must be lime `#b4e04a`, exactly the same lime used in the celebrating pose. No pink, no red, no salmon anywhere in the image.
+
+## Fix 2 · `idle` — it duplicated the canonical reference
+
+Both came back standing and neutral, differing by under 8%. The set has two masters and no distinct idle. `resting` is currently the only seated pose.
+
+> Regenerate the idle pose. Same character. This one is **sitting**, not standing: settled on the ground, legs folded beneath it, body relaxed and upright, eyes open and looking straight ahead, mouth a gentle closed smile. Calm and awake — clearly different from both the standing reference and the half-asleep resting pose. Nothing in its hands.
+
+## While you are there — scale
+
+Content heights across the set run 963 to 1095 pixels. Poses that swap in place will read as the character growing and shrinking. If it is easy to hold the character at a consistent height in frame, do; otherwise I normalise it as a separate export and leave your originals untouched.

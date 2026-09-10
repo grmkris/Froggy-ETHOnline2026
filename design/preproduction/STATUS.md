@@ -51,11 +51,17 @@ Worth listing, because each one reported healthy while being broken:
 | **D asset pack** | **partly blocked** — motion, brand exports, icons and copy done; **mascot poses and illustrations need your image route** |
 | G parallel agents | not needed; one coordinator was enough |
 
-### The one thing waiting on you
+### Waiting on you — one generation session
 
-`brand/POSE_PROMPTS.md` is written and ready to paste: an anchor block, a canonical reference, and six pose prompts. Generate them in the subscription you already have, drop the full-resolution originals into `brand/poses/`, and tell me. I verify format, real alpha, dimensions and checksums, then record provenance and the model in `ASSET_MANIFEST.json`.
+Six poses arrived on 10 Sep and are installed at `brand/poses/`, recorded with checksums and their C2PA provenance (`gpt-image 2.0`). Two need a re-run and five vignettes are still to come; do them in one sitting, in the same conversation, so the character stays consistent.
 
-Illustration vignettes — shopping, travel, token research, services, background watch — follow the same route once the poses are approved.
+| What | Prompt | Why |
+| --- | --- | --- |
+| `needs-user` re-run | `brand/POSE_PROMPTS.md` → Fixes | Tongue came back `#e07878`; the palette's accent is lime `#b4e04a`, which `completion` used correctly |
+| `idle` re-run | same | Came back a near-duplicate of `canonical` instead of the seated pose; the set has two masters and no distinct idle |
+| 5 vignettes | `brand/VIGNETTE_PROMPTS.md` | Object still lifes — shopping, travel, research, services, watch. No frog in them, deliberately: one focal illustration per screen, not a mascot on every card |
+
+Drop originals into `brand/poses/` and `brand/vignettes/`. I verify alpha, dimensions and checksums, read provenance out of each file's own C2PA manifest, record them, and wire the vignettes into the empty states already drawn in `screens/families.html`.
 
 ### Everything else is done and gated
 
