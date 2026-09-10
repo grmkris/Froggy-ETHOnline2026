@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 10 September 2026 · **Phases A–C landed, E started** · **Full push: everything on the list** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
+**Updated:** 10 September 2026 · **Gates A and B closed; C and E landed, F drafted** · **Full push** **Checkout:** `main` @ `701f71a` · **Coordinator:** one agent, no specialists launched
 
 ## Done
 
@@ -37,7 +37,6 @@ Worth listing, because each one reported healthy while being broken:
 
 | What | Blocked by | Effect |
 | --- | --- | --- |
-| Editable-design proof | `DesignSync` needs `/design-login` | The one remaining capability of the four prioritized. Everything else routed around it. |
 | Mascot poses and illustrations | No image-generation route here | Route agreed: prompts from me, generation by you. Prompts are the next artifact. |
 | Merchant card checkout | No automated route exists at all | Designed as a human handoff, recorded in `SERVICES.md` |
 

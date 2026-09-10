@@ -35,9 +35,9 @@ if (found === null) {
 }
 const geometry = found[0].trimEnd();
 
-/** Every board that stamps the mascot: prototype/ and screens/ templates. */
+/** Every board that stamps the mascot: prototype/, screens/ and the DS bundle. */
 const templates = [];
-for (const dir of ["prototype", "screens"]) {
+for (const dir of ["prototype", "screens", "ds-bundle/brand"]) {
   const entries = await readdir(path.join(root, dir)).catch(() => []);
   for (const name of entries) {
     if (name.endsWith(".template.html")) {
@@ -46,7 +46,9 @@ for (const dir of ["prototype", "screens"]) {
   }
 }
 if (templates.length === 0) {
-  console.error("no *.template.html found under prototype/ or screens/");
+  console.error(
+    "no *.template.html found under prototype/, screens/ or ds-bundle/brand/"
+  );
   process.exit(2);
 }
 

@@ -1,7 +1,7 @@
 {
   "pkg": "@froggy/ui",
   "globalName": "FroggyUI",
-  "projectId": "09198294-daf5-4bb6-8d31-6ad66a8a9789",
+  "projectId": "3f609607-6f91-4b05-9ec7-6dd2bb550092",
   "shape": "package",
   "srcDir": "src",
   "cssEntry": ".ds-generated/ds-compiled.css",

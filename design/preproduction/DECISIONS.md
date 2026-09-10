@@ -93,3 +93,30 @@ Real state machines, designer-editable timelines, data binding, and better squas
 `motion/MOTION_CONTRACT.md` is deliberately tool-independent, so none of it is wasted. If Froggy continues past the hackathon and the character work wants a real animator's tool, buy **then** — with the mascot designed, the contract specified, and no deadline. That is also the point at which $9 or $32 a month actually buys something.
 
 `agents/RIVE_MAC_SETUP.md` stays in the repository, unexecuted, for that day.
+
+## D-12 — The design-system project, corrected. 10 September 2026.
+
+**D-02 was right about the tool and wrong about one fact.** It said `.design-sync` was "already wired to a live project". It is wired; the project is gone. Recording the correction rather than quietly editing D-02, because the wrong version informed a recommendation.
+
+`DesignSync get_project` on the id in `.design-sync/config.json`, `09198294-daf5-4bb6-8d31-6ad66a8a9789`, returns **HTTP 404 `project not found`**. The two projects that do exist on the account are `Industry` (fully populated — components, foundations, templates, a different product) and `Design System` (empty). Neither is Froggy.
+
+**Decision, owner-approved:** a new design-system project named **Froggy**, `3f609607-6f91-4b05-9ec7-6dd2bb550092`. `Industry` is left untouched — pushing Froggy components into another product's system would be the kind of mess that is easy to make and tedious to unpick.
+
+`.design-sync/config.json` now carries the new id, so the next agent to run a sync does not rediscover the 404.
+
+### What was pushed
+
+Eight files, read-only inspection first and every path named in a `finalize_plan` before any write:
+
+```
+readme.md            styles.css
+foundations/color.html   foundations/type.html
+components/buttons.html  components/task-card.html  components/approval.html
+brand/mark.html
+```
+
+Each preview carries a first-line `@dsCard` marker so the Design System pane groups them under Foundations, Components and Brand. Every card renders clean at 1440/768/390/320 and under reduced motion, with no console errors, checked before the push rather than after.
+
+`styles.css` mirrors the shipping palette and marks the proposed `--lime` and `--frog-*` roles as proposed, so the bundle cannot imply the app already has them.
+
+**Gate B's editable-design half is closed.** All four prioritized capabilities are now either proven or resolved: browser review proven, editable design proven, branded motion delivered without Rive, image generation routed through the owner.
