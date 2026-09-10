@@ -82,3 +82,29 @@ Two spikes, both against the live production app, both without moving money. The
 **Earn is not permitted yet.** Both policies were read from Privy. `froggy-agent-v1` carries three rules, all signing methods: `eth_signTypedData_v4` for the Graph x402 payee, and `eth_signTransaction` for the pocket top-up on Base mainnet and Sepolia. `froggy-treasury-v1` carries five, likewise all `eth_signTypedData_v4` or `eth_signTransaction`. **Neither policy contains `earn_deposit` or `earn_withdraw`**, and both are default-deny, so an Earn action signed by the agent key would be refused exactly as the probe above was. Stage 2 of the PRD therefore needs new rules on `froggy-agent-v1` before any vault work can succeed, and adding persistent signing authority is the owner's decision, not a lane's.
 
 **What is still unproven.** That Privy permits an _additional signer_, rather than the wallet's owner, to call Earn actions at all once a rule exists. ADR 0015 showed wallet _edits_ need the owner; whether wallet _actions_ of the Earn kind accept a signer is a separate question that only a rule plus one attempt can settle.
+
+## A rolling cap cannot be bucketed per wallet — 10 September 2026, 09:4x CEST
+
+Spike 0c of [the user-owned policy plan](../plan/PLAN_USER_OWNED_POLICIES.md), against the live production app, creating nothing.
+
+The claim above — that the rolling 24-hour aggregation is app-wide because "Privy groups by transaction or calldata fields, not by wallet" — was written before anyone read `AggregationInput.group_by`, which the SDK does expose (up to two `{field, field_source}` pairs) and which `tools/privy-policy.ts` has never sent. If Privy would group by the sending wallet, a per-person rolling cap would move inside Privy instead of staying ours.
+
+Two `POST /v1/aggregations` calls, control first, so that an acceptance could not be mistaken for validation Privy does not do:
+
+```text
+[control] group_by ethereum_transaction.not_a_real_field_xyz
+  -> 400 {"error":"Validation error: Field 'not_a_real_field_xyz' is not valid for group_by
+      with 'ethereum_transaction'. Valid fields are: to at \"group_by[0].field\"",
+      "code":"invalid_aggregation_format"}
+
+[candidate] group_by ethereum_transaction.from
+  -> 400 {"error":"Validation error: Field 'from' is not valid for group_by with
+      'ethereum_transaction'. Valid fields are: to at \"group_by[0].field\"",
+      "code":"invalid_aggregation_format"}
+```
+
+The control refusal is what makes the second line evidence: Privy validates these names against an enumeration, and it named the enumeration itself — for `ethereum_transaction`, the only groupable field is `to`, the recipient. There is no sender, no wallet and no owner to group by.
+
+**Verdict: no.** A per-wallet rolling cap is not expressible at Privy, and the sentence above stands as written rather than as an assumption. Rolling caps stay host-side and every document that says so is correct. Two further limits bound this permanently: `AggregationMethod` is only `eth_signTransaction | eth_signUserOperation`, so the typed-data x402 leg could never carry an aggregation whatever the grouping, and Privy updates an aggregation's value _after_ a request is signed, so two simultaneous signatures can both pass a cap they jointly exceed.
+
+Both requests were refused, so no aggregation object was created and the app is as it was. The probe is `tools/spikes/privy-aggregation-groupby.ts`.
