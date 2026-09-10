@@ -281,6 +281,17 @@ export interface HcsNoteLookup {
   readonly fetch?: MirrorFetch;
   /** Messages per page. The mirror node caps this at 100. */
   readonly limit?: number;
+  /**
+   * The settlement's own consensus timestamp, when the caller has it.
+   *
+   * A note is written moments after the settlement it describes, so this turns
+   * the search from "walk back from the newest message until you find it" into
+   * "start where it must be". Without it a topic that has taken more messages
+   * than `pages * limit` since the settlement hides its own older notes — the
+   * receipt view's whole point is that it keeps working, so this is how it
+   * keeps working.
+   */
+  readonly near?: string | null;
   readonly network: string;
   /** How far back to look before giving up. */
   readonly pages?: number;
@@ -337,8 +348,12 @@ export const lookupHcsNote = async (
       : await read(next, remaining - 1);
   };
 
+  const topic = `/api/v1/topics/${encodeURIComponent(input.topicId)}/messages`;
+  const near = input.near ?? null;
   return await read(
-    `/api/v1/topics/${encodeURIComponent(input.topicId)}/messages?limit=${limit}&order=desc`,
+    near === null || near === ""
+      ? `${topic}?limit=${limit}&order=desc`
+      : `${topic}?limit=${limit}&order=asc&timestamp=gte:${encodeURIComponent(near)}`,
     input.pages ?? 5
   );
 };

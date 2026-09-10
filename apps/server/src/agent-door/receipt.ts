@@ -13,6 +13,7 @@
  */
 
 import {
+  HBAR_ASSET,
   lookupHcsNote,
   lookupHederaTransactionDetails,
   mirrorTransactionId,
@@ -73,6 +74,10 @@ export const resolveSettlement = async (input: {
       ? null
       : await lookupHcsNote({
           fetch: fetchImpl,
+          // The ledger has just told us when this settled, and the note was
+          // written moments after. Starting there rather than at the newest
+          // message is what keeps an old settlement checkable on a busy topic.
+          near: details.consensusTimestamp,
           network: input.network,
           topicId,
           transactionId: input.transactionId,
@@ -96,33 +101,95 @@ const readTime = (consensusTimestamp: string | null): string | null => {
   return Number.isFinite(parsed) ? new Date(parsed * 1000).toISOString() : null;
 };
 
+interface Legs {
+  readonly from: LedgerTransfer;
+  readonly to: LedgerTransfer;
+}
+
 /**
- * The legs that are the payment itself, largest first.
+ * The legs that are the payment itself.
  *
- * The fee legs are small, go to a node account and to the facilitator, and
- * would bury the one line the reader wants. Naming the largest credit and the
- * matching debit says who paid whom without pretending the rest is not there.
+ * Two things have to be right here, and the first version got both wrong by
+ * reaching for the largest leg in the list.
+ *
+ * A transaction's legs are not all in one asset. An HTS payment moves the
+ * token *and* HBAR, because the facilitator pays the network fee out of the
+ * same transaction. Comparing raw amounts across assets makes a 0.001 HBAR
+ * fee "larger" than a 0.05 USDC payment. So the asset is chosen first: a
+ * transaction that moves a token is a token payment, and the HBAR beside it is
+ * the fee.
+ *
+ * And the largest leg is not the payment when the price is below the fee —
+ * which is the case this rail exists for. What distinguishes a payment is that
+ * it balances: one account is debited exactly what another is credited. Fees
+ * do not, because one debit is split across the node, the fee account and the
+ * staking accounts. So the pair is looked for, and only a transaction with no
+ * balanced pair at all falls back to the largest of each.
  */
-const paymentLegs = (
-  transfers: readonly LedgerTransfer[]
-): { readonly from: LedgerTransfer; readonly to: LedgerTransfer } | null => {
-  let to: LedgerTransfer | null = null;
-  let from: LedgerTransfer | null = null;
-  for (const leg of transfers) {
-    if (leg.amount > 0n && (to === null || leg.amount > to.amount)) {
-      to = leg;
-    }
-    if (leg.amount < 0n && (from === null || leg.amount < from.amount)) {
-      from = leg;
+const paymentLegs = (transfers: readonly LedgerTransfer[]): Legs | null => {
+  const token = transfers.find((leg) => leg.asset !== HBAR_ASSET);
+  const asset = token?.asset ?? HBAR_ASSET;
+  const legs = transfers.filter((leg) => leg.asset === asset);
+  const credits = legs
+    .filter((leg) => leg.amount > 0n)
+    .toSorted((left, right) => (right.amount > left.amount ? 1 : -1));
+  const debits = legs.filter((leg) => leg.amount < 0n);
+
+  for (const to of credits) {
+    const from = debits.find((leg) => leg.amount === -to.amount);
+    if (from !== undefined) {
+      return { from, to };
     }
   }
-  return to === null || from === null ? null : { from, to };
+
+  const [to] = credits;
+  const [from] = debits.toSorted((left, right) =>
+    right.amount < left.amount ? 1 : -1
+  );
+  return to === undefined || from === undefined ? null : { from, to };
+};
+
+/**
+ * What the note claims, in its own terms.
+ *
+ * Anyone may write to the topic, so `kind` is a stranger's string and not an
+ * enumeration. The two this repository writes are rendered as English; a third
+ * is quoted rather than rounded to the nearer of the two, because reporting an
+ * unrecognised claim as a recognised one is precisely the failure this view
+ * exists to make impossible.
+ */
+const describeKind = (
+  kind: string | undefined,
+  ref: string | null | undefined
+): string => {
+  const reference =
+    ref === undefined || ref === null ? "" : `, reference ${ref}`;
+  if (kind === undefined) {
+    return "It refers to this transaction.";
+  }
+  if (kind === "sold" || kind === "paid") {
+    return `It records this as ${kind === "sold" ? "a sale by the seller" : "a purchase by the buyer"}${reference}.`;
+  }
+  return `It records this with a kind this door does not recognise, "${kind}"${reference}.`;
+};
+
+/** Why there is no note below: because none was found, or because none was sought. */
+export interface TopicContext {
+  readonly topicKnown: boolean;
+  /** Said only when the topic was not known. */
+  readonly why: string;
+}
+
+const LOOKED_AND_FOUND_NOTHING: TopicContext = {
+  topicKnown: true,
+  why: "",
 };
 
 /** The settlement, said plainly, with the links to check it independently. */
 export const describeSettlement = (
   settlement: Settlement,
-  network: string
+  network: string,
+  topic: TopicContext = LOOKED_AND_FOUND_NOTHING
 ): string => {
   const lines: string[] = [];
   const legs = paymentLegs(settlement.transfers);
@@ -159,16 +226,16 @@ export const describeSettlement = (
   if (settlement.note === null) {
     lines.push(
       "",
-      "No matching note was found on the consensus topic. The transfer above is the ledger's own record and stands on its own."
+      topic.topicKnown
+        ? "No matching note was found on the consensus topic. The transfer above is the ledger's own record and stands on its own."
+        : `No consensus topic was searched, because ${topic.why}. The transfer above is the ledger's own record and stands on its own.`
     );
   } else {
     const { note } = settlement;
     lines.push(
       "",
       `Public note #${note.sequenceNumber} on topic ${note.topicId}, written by ${note.payerAccountId}.`,
-      note.note.kind === undefined
-        ? `It refers to this transaction.`
-        : `It records this as ${note.note.kind === "sold" ? "a sale by the seller" : "a purchase by the buyer"}${note.note.ref === undefined || note.note.ref === null ? "" : `, reference ${note.note.ref}`}.`,
+      describeKind(note.note.kind, note.note.ref),
       hashscanTopic(note.topicId, network),
       "The topic carries no submit key, so anyone may write to it. The note says what was claimed; the transfer above says what happened."
     );
