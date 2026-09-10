@@ -28,10 +28,14 @@ Each turn also carries a **status**, and the set is deliberately larger than "wo
 | `completed` | Finished on its own. |
 | `failed` | Ended with an error. |
 | `stopped` | A person ended it. |
-| `interrupted` | Ended by something other than a person or an error — superseded, or cut off. |
+| `interrupted` | The run's lease expired: the server stopped checkpointing it, as when the process died or was redeployed mid-turn. |
 | `uncertain` | A payment was sent and nothing has said whether it landed. |
 
-`stopped` and `interrupted` are kept apart because "I stopped it" and "something stopped it" are different facts about the same visible outcome. `uncertain` is kept apart from `failed` for the reason it always is: not knowing is not the same as knowing it did not happen.
+`stopped` and `interrupted` are kept apart because "a person ended it" and "the server lost it" are different facts about the same visible outcome — and the second needs a different sentence, because nobody watched it end.
+
+A run holds a **lease** on the conversation, renewed as it checkpoints and good for thirty seconds. If the lease expires, the run is marked `interrupted` with the sentence "Execution stopped before completion. Inspect payment evidence before retrying.", every question it was waiting on is resolved as `interrupted`, and anything it had running or waiting becomes `uncertain`. That instruction is not boilerplate: a run that died without checkpointing may have paid for something it never recorded.
+
+`uncertain` is kept apart from `failed` for the reason it always is: not knowing is not the same as knowing it did not happen.
 
 Every record carries a version and a revision, so a conversation written by an older build still reads.
 
@@ -76,7 +80,7 @@ The turn takes its final status and the conversation is ready for the next one. 
 | Stop — the person halts this run | Nothing recorded. | The turn ends as `stopped`, keeping everything it had already done. |
 | Freeze — the wallet is frozen, mid-run | No effect on the record. | The turn continues and records refusals. |
 | Denying a waiting approval, or leaving it unanswered | Not applicable. | `waiting` ends: denied continues the turn, denied-and-stopped ends it, unanswered ends it with the reason it ended. |
-| Asking something else while this request is still in flight | The new turn is appended. | The superseded turn ends as `interrupted` — not `stopped`, because no person ended it. |
+| Asking something else while this request is still in flight | The new turn is appended. | The superseded run is aborted, so its turn ends as `stopped` — the same status a person's own stop produces. The record does not distinguish them. |
 | Leaving the page, or switching to another conversation, mid-run | No effect. | No effect on the record; the turn keeps appending while nobody watches. |
 | Reload; the tab or the app closed | No effect. | No effect. On return the conversation is read back and a running turn is rejoined. |
 | Network lost; the socket drops | The message may never arrive. | The record continues on the server. |
@@ -116,7 +120,8 @@ The turn takes its final status and the conversation is ready for the next one. 
 ## Edge cases
 
 - One conversation can mix sources: a turn started from Telegram and a turn started in the browser sit in the same thread.
-- A turn ending as `interrupted` looks much like one ending as `stopped` in the transcript, and the distinction is only in the record.
+- **A superseded turn and a turn the person stopped both end as `stopped`.** Nothing in the record says which happened, even though one was the person's decision and the other was a consequence of their next message.
+- Only a completed turn contributes its full text to the context of later turns. A stopped, failed or interrupted one is carried forward in a reduced form, so the model does not read a half-finished answer as a finished one.
 - History has a revision on every record, so two writers cannot silently clobber each other.
 - A duplicate submission does not append twice; it is recognised and the existing turn is handed back.
 - There is no delete and no edit. A conversation cannot be tidied after the fact, which is deliberate for something that records spending.
@@ -126,6 +131,7 @@ The turn takes its final status and the conversation is ready for the next one. 
 - How a conversation is titled, and whether a title is generated or taken from the first message, was not established.
 - Whether conversations can be listed, searched, or archived from the interface — and where — was not established from the routes alone. `docs/CONVERSATION_RETRIEVAL.md` records verified production access paths and retention limits and should be read before this section is written.
 - Whether a schedule-sourced turn creates its own conversation or appends to an existing one has not been established.
+- The lease is thirty seconds and a running turn checkpoints at most once a second, with a ten-second heartbeat behind that. A turn whose checkpoint writes fail is aborted deliberately, with "History could not be saved. Inspect this run before retrying." — durability is preferred over finishing the answer. None of this has been watched happen.
 - What the transcript shows for a turn that ended `uncertain` has not been checked by hand.
 - The claim that a running turn is rejoined rather than re-rendered on reload comes from the run's replay path and has not been watched happen.
 
