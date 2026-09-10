@@ -108,13 +108,28 @@ beforeAll(async () => {
     process.env[key] = value;
   }
   const loaded = await Effect.runPromise(loadEnvironment());
-  // A browse quote is refused outright with no browser provider configured, so
-  // these tests name one here rather than through the environment: the config
-  // is read once per process, and a sibling test file may have read it first.
-  // Nothing reaches the provider — the browser handle is a stand-in object.
+  /**
+   * Every condition a browse quote is refused on, named here rather than
+   * inherited.
+   *
+   * Nothing reaches a provider — the browser handle is a stand-in object — but
+   * a quote is refused outright without a browser key, and refused again if the
+   * model is live while its accounting rates are zero. Both were being answered
+   * by whatever happened to be in the ambient environment, which is why these
+   * five passed under `bun run test` and failed from the repository root: Bun
+   * loads `.env` from the working directory, the root has one with a real
+   * model key and no browser rates, and `apps/server` does not. The quote then
+   * refused with 503 instead of the 402 these assert, looking exactly like a
+   * regression somebody had just introduced.
+   *
+   * Pinning the rates settles it whichever way the model reads, because the
+   * rate check only bites when they are zero.
+   */
   const environment: Environment = {
     ...loaded,
     browserUseApiKey: "bu_task_fixture_key",
+    browserModelInputRate: 2,
+    browserModelOutputRate: 6,
     modes: { ...loaded.modes, browser: "live" },
   };
   services = createServices({ environment });
@@ -413,20 +428,6 @@ const quoteBody = (key: string) => ({
 });
 const quoteView = (task: Task) => ({ ...task, approval: [], receipts: [] });
 
-/**
- * These five pass under the gate and fail from the repository root.
- *
- * `bun run test` runs `bun test` with the working directory set to
- * `apps/server`, which is how CI and `bun run check` run it and how these are
- * meant to run. Invoking `bun test apps/server` from the root instead makes
- * them answer 503 and "Missing key" rather than 402 — a working-directory
- * sensitivity somewhere under the quote fixtures, not a real failure and not
- * anything a caller changed.
- *
- * Noted here because it looks exactly like a regression you have just caused.
- * If you are staring at five red browser-quote tests, check which directory you
- * ran them from before you change anything.
- */
 describe("bounded browser quotes", () => {
   const caller = {
     agentTokenId: null,
