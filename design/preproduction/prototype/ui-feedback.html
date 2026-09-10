@@ -1,0 +1,399 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Froggy — UI feedback</title>
+<!--
+  The four UI feedback examples the brief asks for, live and isolated:
+  button pending/success, task result reveal, approval entrance, browser
+  handoff. Each one is driven by a control so it can be replayed, and each
+  has a reduced-motion branch that keeps the meaning and drops the movement.
+
+  All figures invented. Domains use .example.
+-->
+<link rel="stylesheet" href="../screens/board.css" />
+<style>
+  .demo {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+  }
+  .demo-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* ---------- 1 · button pending / success ---------- */
+  .btn .check {
+    display: none;
+  }
+  .btn[data-phase="done"] {
+    background: var(--primary-lo);
+  }
+  .btn[data-phase="done"] .check {
+    display: inline-flex;
+    animation: pop 0.34s var(--ease) 1;
+  }
+  .btn[data-phase="done"] .label-idle,
+  .btn[data-phase="pending"] .label-idle {
+    display: none;
+  }
+  .btn[data-phase="idle"] .label-working,
+  .btn[data-phase="done"] .label-working {
+    display: none;
+  }
+  .btn[data-phase="idle"] .label-done,
+  .btn[data-phase="pending"] .label-done {
+    display: none;
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0.6);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* ---------- 2 · task result reveal ---------- */
+  .result {
+    display: grid;
+    gap: 10px;
+  }
+  .result > * {
+    /* Visible at rest. The reveal animates from here, never toward it. */
+    opacity: 1;
+  }
+  [data-reveal="true"] .result > * {
+    animation: rise 0.44s var(--ease) both;
+  }
+  [data-reveal="true"] .result > *:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  [data-reveal="true"] .result > *:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  [data-reveal="true"] .result > *:nth-child(4) {
+    animation-delay: 0.18s;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(7px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ---------- 3 · approval entrance ---------- */
+  .ticket {
+    background: var(--card);
+    border: 1px solid color-mix(in oklab, var(--lime) 45%, transparent);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+  }
+  [data-asking="true"] .ticket {
+    animation: ask-in 0.4s var(--ease) 1;
+  }
+  @keyframes ask-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  /* The answers never wait for the entrance: they are not inside it. */
+  .ticket .actions {
+    animation: none !important;
+  }
+
+  /* ---------- 4 · browser handoff ---------- */
+  .drive[data-mode] .ring {
+    transition: background-color 0.28s var(--ease);
+  }
+  [data-handoff="true"] .drive .ring {
+    animation: pass 0.5s var(--ease) 1;
+  }
+  @keyframes pass {
+    0% {
+      box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 22%, transparent);
+    }
+    45% {
+      box-shadow: 0 0 0 9px color-mix(in oklab, currentColor 8%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 22%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Every example keeps its meaning and loses its movement. */
+    .btn[data-phase="done"] .check,
+    [data-reveal="true"] .result > *,
+    [data-asking="true"] .ticket,
+    [data-handoff="true"] .drive .ring {
+      animation: none !important;
+    }
+    .drive[data-mode] .ring {
+      transition: none;
+    }
+  }
+  body[data-force-still="true"] .btn[data-phase="done"] .check,
+  body[data-force-still="true"] [data-reveal="true"] .result > *,
+  body[data-force-still="true"] [data-asking="true"] .ticket,
+  body[data-force-still="true"] [data-handoff="true"] .drive .ring {
+    animation: none !important;
+  }
+  body[data-force-still="true"] .drive[data-mode] .ring {
+    transition: none;
+  }
+</style>
+
+<main>
+  <h1>UI feedback</h1>
+  <p class="lede">
+    The four moments the interface has to get right, live and replayable. Every
+    one is visible at rest: the motion starts from the finished state, so
+    nothing here is parked at zero opacity waiting for a trigger.
+  </p>
+  <p>
+    <button
+      class="btn secondary"
+      id="toggle-still"
+      type="button"
+      aria-pressed="false"
+    >
+      Force reduced motion
+    </button>
+    <button
+      class="btn secondary"
+      id="toggle-theme"
+      type="button"
+      aria-pressed="false"
+    >
+      Dark
+    </button>
+  </p>
+
+  <h2>1 · Button, pending and confirmed</h2>
+  <div class="demo" id="pay-demo">
+    <div class="demo-controls">
+      <button class="btn" data-phase="idle" id="pay" type="button">
+        <span class="spin" aria-hidden></span>
+        <span class="check" aria-hidden>✓</span>
+        <span class="label-idle">Approve €135.40</span>
+        <span class="label-working">Paying…</span>
+        <span class="label-done">Paid €135.40</span>
+      </button>
+      <button class="btn ghost" id="confirm" type="button">
+        Fire confirmed event
+      </button>
+      <button class="btn ghost" id="reset-pay" type="button">Reset</button>
+    </div>
+    <p class="warn">
+      Pending is a real state, not a spinner laid over something already
+      committed, and the amount stays in the label so nobody approves an unnamed
+      number.
+      <b>Success only arrives when the confirmed event does</b> — that is the
+      second button, standing in for the domain event. Nothing here is on a
+      timer, because a celebration on a timer is a lie about a payment.
+    </p>
+  </div>
+
+  <h2>2 · Task result reveal</h2>
+  <div class="demo" id="result-demo">
+    <div class="demo-controls">
+      <button class="btn secondary" id="replay-reveal" type="button">
+        Replay reveal
+      </button>
+    </div>
+    <div class="result">
+      <h3 style="margin: 0">Three options under €150</h3>
+      <div class="opt" data-picked>
+        <h3>Cloudline 2</h3>
+        <span class="price">€129.00</span>
+        <span class="src">shop-a.example · seen 11:31</span>
+      </div>
+      <div class="opt">
+        <h3>Riverstone</h3>
+        <span class="price">€138.50</span>
+        <span class="src">shop-c.example · returns unclear</span>
+      </div>
+      <p class="meta" style="margin: 0">checked 4 min ago · 3 sources</p>
+    </div>
+    <p class="warn">
+      A short stagger, and it stops. <b>The prices do not animate</b> — a number
+      in motion is a number that cannot be checked, and these are numbers
+      somebody is about to approve. Each row rises 7px from its resting
+      position, so a reader who arrives mid-animation sees content rather than
+      gaps.
+    </p>
+  </div>
+
+  <h2>3 · Approval entrance</h2>
+  <div class="demo" id="ask-demo">
+    <div class="demo-controls">
+      <button class="btn secondary" id="replay-ask" type="button">
+        Replay entrance
+      </button>
+    </div>
+    <div class="ticket">
+      <div>
+        <h3 style="margin: 0">Approve €135.40 to Example Shoe Co.</h3>
+        <p class="why">Quote valid until 12:20 CEST.</p>
+      </div>
+      <div class="ledger">
+        <div>
+          <dt>Product · size 42</dt>
+          <dd class="num">€129.00</dd>
+        </div>
+        <div>
+          <dt>Delivery</dt>
+          <dd class="num">€4.90</dd>
+        </div>
+        <div>
+          <dt>Service fee</dt>
+          <dd class="num">€1.50</dd>
+        </div>
+        <div class="total">
+          <dt>To pay now</dt>
+          <dd class="num">€135.40</dd>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button">Approve €135.40</button>
+        <button class="btn ghost" type="button">Reject</button>
+      </div>
+    </div>
+    <p class="warn">
+      The card arrives; <b>the answers do not wait for it</b>. Approve and
+      Reject sit outside the entrance animation and are clickable on the first
+      frame, because a person who has decided should never be held up by a
+      flourish — and neither should Stop.
+    </p>
+  </div>
+
+  <h2>4 · Browser handoff</h2>
+  <div class="demo" id="drive-demo">
+    <div class="demo-controls">
+      <button class="btn secondary" id="to-agent" type="button">
+        Agent drives
+      </button>
+      <button class="btn secondary" id="to-human" type="button">
+        I take control
+      </button>
+      <button class="btn ghost" id="to-idle" type="button">Nobody</button>
+    </div>
+    <div class="drive" data-mode="agent" id="drive">
+      <span class="ring" aria-hidden></span>
+      <span class="txt" id="drive-text"
+        >Froggy is driving. You are watching.</span
+      >
+      <button class="btn ghost small" type="button">Stop</button>
+    </div>
+    <p class="warn">
+      The ring changes hands: amber for the agent, blue for the person, neutral
+      for idle — the signal <code>DrivingRing</code> already uses everywhere.
+      The colour is never the only cue; the sentence says it too, so the state
+      survives greyscale and reduced motion.
+      <b>Stop is present in every mode.</b>
+    </p>
+  </div>
+
+  <h2>What this page is not</h2>
+  <div class="panel">
+    <p style="margin: 0">
+      Invented figures, example domains, and a button standing in for a
+      settlement event. Not live data and not a claim that any payment route
+      works — real readiness is in
+      <code>SERVICES.md</code>.
+    </p>
+  </div>
+</main>
+
+<script>
+  const replay = (node, attribute) => {
+    node.removeAttribute(attribute);
+    void node.offsetWidth;
+    node.setAttribute(attribute, "true");
+  };
+
+  // 1 · the button. Pending is entered by asking; success only by the event.
+  const pay = document.getElementById("pay");
+  pay.addEventListener("click", () => {
+    if (pay.dataset["phase"] === "idle") {
+      pay.dataset["phase"] = "pending";
+    }
+  });
+  document.getElementById("confirm").addEventListener("click", () => {
+    // Stands in for the confirmed domain event. Deliberately not a timer.
+    if (pay.dataset["phase"] === "pending") {
+      pay.dataset["phase"] = "done";
+    }
+  });
+  document.getElementById("reset-pay").addEventListener("click", () => {
+    pay.dataset["phase"] = "idle";
+  });
+
+  // 2 and 3 · one-shot reveals, re-armed so a second press replays.
+  const resultDemo = document.getElementById("result-demo");
+  document.getElementById("replay-reveal").addEventListener("click", () => {
+    replay(resultDemo, "data-reveal");
+  });
+  const askDemo = document.getElementById("ask-demo");
+  document.getElementById("replay-ask").addEventListener("click", () => {
+    replay(askDemo, "data-asking");
+  });
+
+  // 4 · who has the page.
+  const drive = document.getElementById("drive");
+  const driveText = document.getElementById("drive-text");
+  const driveDemo = document.getElementById("drive-demo");
+  const MODES = {
+    agent: "Froggy is driving. You are watching.",
+    human: "You are driving. Froggy is paused and will not click.",
+    idle: "No browser open. The task is still running.",
+  };
+  const setMode = (mode) => {
+    drive.dataset["mode"] = mode;
+    driveText.textContent = MODES[mode];
+    replay(driveDemo, "data-handoff");
+  };
+  document
+    .getElementById("to-agent")
+    .addEventListener("click", () => setMode("agent"));
+  document
+    .getElementById("to-human")
+    .addEventListener("click", () => setMode("human"));
+  document
+    .getElementById("to-idle")
+    .addEventListener("click", () => setMode("idle"));
+
+  const toggle = (id, apply) => {
+    const button = document.getElementById(id);
+    button.addEventListener("click", () => {
+      const next = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(next));
+      apply(next);
+    });
+  };
+  toggle("toggle-still", (on) => {
+    document.body.dataset["forceStill"] = String(on);
+  });
+  toggle("toggle-theme", (on) => {
+    document.body.classList.toggle("dark", on);
+  });
+</script>

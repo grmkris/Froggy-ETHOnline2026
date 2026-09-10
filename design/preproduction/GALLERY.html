@@ -93,6 +93,14 @@
       <span class="chip">needs-review</span>
     </div>
     <div class="card">
+      <a href="prototype/ui-feedback.html">UI feedback →</a>
+      <p class="why">
+        Button pending and confirmed, task result reveal, approval entrance,
+        browser handoff. Replayable, each with a reduced-motion branch.
+      </p>
+      <span class="chip work">verified</span>
+    </div>
+    <div class="card">
       <a href="prototype/motion-states.html">Motion states →</a>
       <p class="why">
         The five-state contract, live. Reduced motion, offscreen pause and asset
@@ -375,6 +383,7 @@
 node design/preproduction/tools/build-prototype.mjs --check  # fail if any board is stale
 node design/preproduction/tools/state-sweep.mjs out/         # capture and assert every motion state
 node design/preproduction/tools/check-fixtures.mjs           # gate the simulated data
+node design/preproduction/tools/check-feedback.mjs           # assert the four feedback behaviours
 node design/preproduction/tools/review-shot.mjs &lt;file&gt; out/  # 1440/768/390/320 + reduced motion</code></pre>
   </div>
 </main>

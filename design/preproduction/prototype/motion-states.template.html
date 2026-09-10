@@ -328,6 +328,40 @@
     }
   }
 
+  /* --- wake/reveal: the mark arriving. One shot, on demand, never on a loop. --- */
+  [data-wake="true"] .frog {
+    animation: wake 0.72s var(--ease) 1;
+    transform-origin: 32px 55px;
+  }
+  [data-wake="true"] .lid {
+    animation: eyes-open 0.72s var(--ease) 1;
+  }
+  @keyframes wake {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.9);
+    }
+    55% {
+      opacity: 1;
+      transform: translateY(-2px) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes eyes-open {
+    0%,
+    30% {
+      /* closed: the lid covers the whole sclera */
+      transform: translateY(15px);
+    }
+    70%,
+    100% {
+      transform: translateY(-2px);
+    }
+  }
+
   /* --- stopped: still. Neutral, not sad — it also means "outcome unknown". --- */
   [data-state="stopped"] .lid {
     /* half-mast: bottom edge at the eye's centre. Neutral, not sad. */
@@ -349,6 +383,11 @@
     }
     [data-state="needs-user"] .halo {
       opacity: 0.5;
+    }
+    /* A reveal with no motion is simply the thing, present. */
+    [data-wake="true"] .frog,
+    [data-wake="true"] .lid {
+      animation: none;
     }
   }
   body[data-force-still="true"] .froggy * {
@@ -386,6 +425,7 @@
       <button id="state-stopped" data-set="stopped" aria-pressed="false">
         stopped
       </button>
+      <button id="play-wake" type="button">Play wake / reveal</button>
     </div>
     <div class="sizes">
       <figure>
@@ -542,6 +582,14 @@
   for (const button of document.querySelectorAll("[data-set]")) {
     button.addEventListener("click", () => set(button.dataset["set"]));
   }
+
+  // The reveal is a one-shot: re-arm it by removing the attribute first, so a
+  // second press replays rather than doing nothing.
+  document.getElementById("play-wake").addEventListener("click", () => {
+    stage.removeAttribute("data-wake");
+    void stage.offsetWidth;
+    stage.dataset["wake"] = "true";
+  });
 
   // Loops stop when offscreen, and when the tab is hidden.
   const observer = new IntersectionObserver(
