@@ -11,6 +11,8 @@ The feature documents were written from the code and the tests. This directory i
 | [agent-surface.md](agent-surface.md) | `agent-surface/*` |
 | [cross-cutting.md](cross-cutting.md) | `cross-cutting/*` |
 
+**The checklists are a selection, not a transcription.** Fifty-three documents at a few dozen claims each would be a thousand rows, and a thousand-row checklist does not get run. Each file instead covers, per document: every suspected defect, every established fact that document owns, the interrupt and variant cells whose answer is surprising, and the specific figures — and then says under each document what it deliberately left out. The documents remain the authority; the checklist is the part worth a tester's afternoon.
+
 Each file has one table per document. Each row is an item with a stable ID (`FUND-07`, `LEASH-12`), a priority, what it needs, the claim with a link to the document section, the setup, numbered steps, the expected result, and a Result column for the tester. Items that cannot be checked by hand are listed under each document as "Not checkable by hand".
 
 Priorities: **P1** is an established fact, a claim many documents depend on, or a suspected bug; **P2** is an ordinary claim; **P3** is a number, a colour, or a timing.
@@ -61,4 +63,14 @@ A scripted pass can check what was rendered, what was announced, focus position,
 
 **No pass has been run.** Every Result column is `—`, and no document is marked `verified` in the coverage table.
 
-The documents were drafted from the code and the tests at commit `5caed50`. Everything in them that was not confirmed by hand is listed in that document's "Open questions and verification" section, and those questions are where a first pass should start: they are the claims the author was least sure of.
+The documents were drafted from the code and the tests at commit `5caed50`. Everything not confirmed by hand is in each document's "Open questions and verification" section, and those are where a first pass should start: they are the claims the author was least sure of.
+
+If there is time for only one pass, run these, in this order. They are the claims that the product's own argument rests on, and each is quick:
+
+1. **Is there a freeze control at all?** [B-01](../bug-triage.md) says there is not, while the signed-out page promises one. Look for it. This is the fastest and most consequential item in the repo.
+2. **Does a stubbed build say so on the Wallet?** [B-04](../bug-triage.md). A screenshot that cannot be told from a real one is the failure this project exists to prevent.
+3. **Does a `transfer` below the ask line stop and ask?** [B-02](../bug-triage.md). The table says it must; the wiring suggests it does not.
+4. **Does lowering a cap bind the agent immediately?** [B-03](../bug-triage.md).
+5. **Can one connected agent read another's service tasks?** [B-07](../bug-triage.md).
+
+Each of those five is a yes-or-no question answerable in minutes against the deployed app, and each would change what the product can honestly claim.
