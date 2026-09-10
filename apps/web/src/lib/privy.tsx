@@ -298,6 +298,26 @@ interface PrivyModule {
  */
 const RELAY = "http://127.0.0.1:8899";
 
+/** What the spike relay answers. Optional throughout: a failure answers partially. */
+interface MintReply {
+  readonly error?: string;
+  readonly expiry?: number;
+  readonly payload?: {
+    body: unknown;
+    headers: Record<string, string>;
+    method: string;
+    url: string;
+    version: number;
+  };
+  readonly policyId?: string;
+}
+
+interface PatchReply {
+  readonly ok?: boolean;
+  readonly status?: number;
+  readonly text?: string;
+}
+
 const useSpikePolicyOwner = (
   did: string | null,
   sign: (input: {
@@ -309,8 +329,14 @@ const useSpikePolicyOwner = (
   }) => Promise<{ signature: string }>
 ): void => {
   useEffect(() => {
+    // The same teardown on both paths, so the effect has one shape rather than
+    // two, and a build that never installs the affordance still guarantees the
+    // global is clear.
+    const remove = (): void => {
+      Reflect.deleteProperty(globalThis, "froggySpikePolicyOwner");
+    };
     if (!import.meta.env.DEV) {
-      return;
+      return remove;
     }
     const run = async (): Promise<string> => {
       if (did === null) {
@@ -321,12 +347,11 @@ const useSpikePolicyOwner = (
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const mint: {
-        error?: string;
-        expiry?: number;
-        payload?: Parameters<typeof sign>[0];
-        policyId?: string;
-      } = await minted.json();
+      // SAFETY: the relay on the other end of this is `tools/spikes/
+      // privy-policy-owner-relay.ts`, ours and on loopback, and every field is
+      // checked for `undefined` immediately below before anything is done with
+      // it. A product path would decode; a spike may trust its own harness.
+      const mint = (await minted.json()) as MintReply;
       if (
         mint.payload === undefined ||
         mint.policyId === undefined ||
@@ -346,8 +371,9 @@ const useSpikePolicyOwner = (
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const result: { ok?: boolean; status?: number; text?: string } =
-        await patched.json();
+      // SAFETY: as above — our own relay, and every field is optional and
+      // defaulted at each use below.
+      const result = (await patched.json()) as PatchReply;
       if (result.ok === true) {
         return `PASS: the person's own key edited policy ${mint.policyId}, which the app secret could not. User-owned policies are reachable.\n${result.text ?? ""}`;
       }
@@ -371,9 +397,7 @@ const useSpikePolicyOwner = (
         return verdict;
       }
     });
-    return () => {
-      Reflect.deleteProperty(globalThis, "froggySpikePolicyOwner");
-    };
+    return remove;
   }, [did, sign]);
 };
 

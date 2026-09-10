@@ -147,7 +147,7 @@ Privy minted a quorum whose only member is the **user**, with no authorization k
 
 ### The browser half, ready to run
 
-Harness: `tools/spikes/privy-policy-owner-relay.ts` plus one dev-only function exposed in `apps/web/src/lib/privy.tsx`. The browser holds the user's signing key but must never hold the app secret, so the browser signs and the relay sends; they meet over loopback. Both are deleted once the verdict is written.
+Two pieces: `tools/spikes/privy-policy-owner-relay.ts` plus one dev-only function exposed in `apps/web/src/lib/privy.tsx`. The browser holds the user's signing key but must never hold the app secret, so the browser signs and the relay sends; they meet over loopback. Both are deleted once the verdict is written.
 
 ```
 bun tools/spikes/privy-policy-owner-relay.ts     # terminal 1
