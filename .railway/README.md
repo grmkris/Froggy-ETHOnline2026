@@ -26,4 +26,4 @@ Run the CLI under node (`bunx railway`, not `bunx --bun railway`): its IaC evalu
 | --- | --- |
 | `/data/profiles/<hash>` | one persistent Chrome profile per signed-in user |
 | `/app/apps/web/dist` | the built SPA, served by the same process |
-| `/health` | liveness, with the stub/live mode of every integration |
+| `/health` | liveness, with the stub/live mode of every integration and whether a usable HBAR rate is held (`hbarRate`) |

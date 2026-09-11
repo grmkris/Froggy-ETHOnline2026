@@ -148,7 +148,7 @@ export interface Services {
   readonly oracle: OracleGate;
   readonly payer: Payer;
   readonly privy: PrivyServer;
-  /** What an HBAR is worth. Refreshed at boot; null when nothing knows. */
+  /** What an HBAR is worth. Read at boot and re-read on the server's clock; null when nothing knows. */
   readonly rates: RateSource;
   /** Releases anything this module acquired. Called from the server's scope. */
   readonly shutdown: () => Promise<void>;

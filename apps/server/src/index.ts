@@ -93,9 +93,10 @@ class FroggyServer extends Context.Service<
         > & { pager: TelegramPager }
       > = {};
 
-      // Fetched once at boot, so the first payment is not the first time
-      // anyone asks what an HBAR is worth. A failure here is not fatal: the
-      // quote is simply null and spends in HBAR are refused until it lands.
+      // Fetched here at boot, so the first payment is not the first time
+      // anyone asks what an HBAR is worth, and re-read on the schedule clock
+      // below. A failure here is not fatal: the quote is simply null and
+      // spends in HBAR are refused until a read lands.
       const rateReady = yield* Effect.promise(
         async () => await services.rates.refresh()
       );
@@ -431,6 +432,24 @@ class FroggyServer extends Context.Service<
         });
       }, SCHEDULE_TICK_MS);
 
+      // The HBAR rate, re-read on the schedule clock. The network replaces
+      // it hourly and the source refuses one a short grace past that, so a
+      // rate read once at boot is a refusal by the next hour boundary. A
+      // failed read keeps the held rate through the grace; the warning says
+      // whether spends are still being priced.
+      const rateTick = setInterval(() => {
+        detached("HBAR rate refresh", async () => {
+          const refreshed = await services.rates.refresh();
+          const usable = services.rates.current(Date.now()) !== null;
+          if (refreshed && usable) {
+            return;
+          }
+          console.warn(
+            `HBAR rate refresh ${refreshed ? "read a rate already past its grace" : "failed"}; ${usable ? "the held rate serves until it ages out" : "HBAR spends are being refused"}`
+          );
+        });
+      }, SCHEDULE_TICK_MS);
+
       const reactions = new LaunchReactor({
         watches: services.store.launches,
         store: services.store.trading,
@@ -554,6 +573,7 @@ class FroggyServer extends Context.Service<
             clearInterval(sweep);
             clearInterval(scheduleTick);
             clearInterval(nudgeTick);
+            clearInterval(rateTick);
             clearInterval(launchTick);
             await services.launches.close();
             await reactions.close();
