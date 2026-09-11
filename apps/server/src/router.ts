@@ -143,6 +143,10 @@ type ResponseBody =
   | AgentDetail
   | { readonly error: string }
   | {
+      readonly hbarRate: {
+        readonly expiresAt: number | null;
+        readonly usable: boolean;
+      };
       readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
       readonly runtime: string;
@@ -1156,7 +1160,15 @@ export const handleRequest = async (
   const { pathname } = new URL(request.url);
 
   if (pathname === "/health") {
+    const rate = deps.services.rates.current(Date.now());
     return json({
+      /**
+       * Whether an HBAR spend could be priced right now, and the network's
+       * own expiry stamp for the rate held. Unix seconds, never a date: the
+       * stub's stamp is `MAX_SAFE_INTEGER`, and formatting that would throw
+       * inside the liveness check.
+       */
+      hbarRate: { expiresAt: rate?.expiresAt ?? null, usable: rate !== null },
       /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
