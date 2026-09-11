@@ -8,7 +8,10 @@ import { useIdentity } from "../lib/privy";
 
 const BEATS = [
   ["Fund", "Add funds for the work you want your agents to do."],
-  ["Control", "Freeze spending or disconnect an agent whenever you need."],
+  [
+    "Control",
+    "Stop the agent, set its caps, or disconnect it whenever you need.",
+  ],
   ["Follow", "Watch the work, take control, and keep the receipts."],
 ] as const;
 
