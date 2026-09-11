@@ -1,4 +1,4 @@
-# Trading principal and signing authority
+# 0021 — Trading principal and signing authority
 
 Status: accepted for implementation, 8 September 2026.
 
