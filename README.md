@@ -25,7 +25,7 @@ Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph**
 
 During a task, the conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers reach your phone through Telegram, where the daily digest lands too.
 
-Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. The current visual implementation is recorded in [the UI plan pack](plans/README.md). Hedera payments automatically convert USDC when needed; durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
+Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. Hedera payments automatically convert USDC when needed; durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
 
 [Browse the desktop and mobile screenshot tour](docs/evidence/ui-review-2026-09-08/README.md) for the five main pages, interaction states, and Passbook/Lilypad comparisons at four widths.
 

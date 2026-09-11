@@ -24,9 +24,9 @@ Copy feedback, wallet amount interpretation and receipt status have shared app-o
 
 These are deterministic local stub captures, not screenshots of a real funded account:
 
-- [Desktop, 1440×1000](../docs/evidence/ui-wallet/desktop.png)
-- [Phone, 390×844](../docs/evidence/ui-wallet/mobile.png)
-- [Small phone, 320×568](../docs/evidence/ui-wallet/small-phone.png)
+- [Desktop, 1440×1000](../../../evidence/ui-wallet/desktop.png)
+- [Phone, 390×844](../../../evidence/ui-wallet/mobile.png)
+- [Small phone, 320×568](../../../evidence/ui-wallet/small-phone.png)
 
 All three were visually inspected. The browser checks also cover 768×1024, initial viewport position before clicks, enlarged desktop text, horizontal overflow, direct destinations, Escape/focus return, reduced motion, and page errors. Late wallet updates keep scroll position and action destinations stable. Setup checks exercise creation/list/disconnect failure, retries, clipboard denial and retained skill text. Funding checks cover zero/known/unknown balances, amount validation and retention of the requested state after a failed chat request. Stop checks force both HTTP and network failure, followed by an acknowledged retry. Existing approval, stream, authentication, split and pop-out flows pass.
 
@@ -60,4 +60,4 @@ Plans 001, 003 and 004 are deployed. Plan 002's interface portion is implemented
 
 ## Live release follow-up
 
-The UI shipped at `6608fcc` with GitHub CI run `34062079388` green. The live desktop/mobile sign-in and Privy email form were exercised without page errors. Mainnet configuration and subsequent live findings are recorded in [the mainnet release evidence](../docs/evidence/MAINNET_RELEASE.md). Final payment and Telegram fixes are being verified for the combined release with marketplace/MCP/CLI work.
+The UI shipped at `6608fcc` with GitHub CI run `34062079388` green. The live desktop/mobile sign-in and Privy email form were exercised without page errors. Mainnet configuration and subsequent live findings are recorded in [the mainnet release evidence](../../../evidence/MAINNET_RELEASE.md). Final payment and Telegram fixes are being verified for the combined release with marketplace/MCP/CLI work.

@@ -4,7 +4,7 @@
 
 - [Current release status](plan/STATUS.md), [mainnet verification](evidence/MAINNET_RELEASE.md), and [marketplace activation handoff](evidence/MARKETPLACE.md).
 
-- [Wallet UI plan and implementation](../plans/README.md) — chosen visual direction, implemented changes, browser evidence, and remaining funding work.
+- [The 6 Sep wallet UI plan pack](plan/archive/ui-plan-pack/README.md) — superseded for navigation and density by `design/preproduction/DECISIONS.md` D-07; kept as history.
 
 - [x402 marketplace deep research](research/x402-marketplace-2026-09-06/deep-research.md) — three Grok CLI research lanes plus independent checks: services, user complaints, competitors, demo ideas, and fit with the confirmed iteration plan. [Methods and raw reports](research/x402-marketplace-2026-09-06/methods.md).
 
