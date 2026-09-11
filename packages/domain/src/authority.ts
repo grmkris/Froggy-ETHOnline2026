@@ -20,6 +20,9 @@
  *     the identical ceiling synchronously and a Privy outage can never widen
  *     what the agent may spend.
  *   - `authorize`, which looks a kind up here instead of inferring it.
+ *     As of 11 September 2026 the server does not yet pass it the allowance,
+ *     so at HEAD this table binds through the Privy rules only; decision 0019
+ *     records the gap and the change that closes it.
  *
  * This module is deliberately inert: data and two total functions over it, no
  * clock, no I/O and nothing importable from a tool. `packages/domain` is a leaf

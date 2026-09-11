@@ -2,6 +2,8 @@
 
 Status: implemented and proven on production, 10 September 2026. The spike this document was written to survive either way has passed.
 
+**Status at HEAD, 11 September 2026.** The allowance is minted into the person's Privy policy, stored, shown on the wallet and editable from the live site. Two things it does not yet do. The server does not hand `authorize` the allowance: the judgement built in `apps/server/src/session.ts` carries the purchase, the approval, the intent, the mandate, the clock, the recent history and the pocket, and no `allowance`, so the action-kind table in `packages/domain/src/authority.ts` binds through the Privy rules only and the local engine runs the threshold-only regime that `AuthorizeInput`'s own comment describes. And a commit from the policy editor reaches Privy and the store, not the live session: `WorkspaceSession.applyAllowance` rebuilds a mandate from an allowance and has no caller outside its tests, so until the next hydrate the local engine judges against the caps it already had. Both are in `docs/product-description/bug-triage.md` as B-02 and B-03. They are one change, made after submission rather than the day before the video, because the ask half of the table needs an `approval_threshold` rule that `defaultRules` writes only under `SPENDING_LIMITS`, which production has off, and the ceiling half would newly bind the just-in-time conversion at the person's default numbers.
+
 Supersedes nothing. It changes what `docs/privy-agent-policy.json` is for: that file stays as the app-wide policy a deployment falls back to, and stops being the policy every person's agent is held to.
 
 ## The problem, in the owner's words

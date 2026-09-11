@@ -141,10 +141,16 @@ export class PersonPolicies {
    *
    * The person's Privy policy and their mandate are generated from one
    * allowance, so a change has to reach both or the two disagree — and the one
-   * that disagrees silently is the dangerous one. The mandate is updated first
-   * and synchronously, because that is the layer this process enforces: if the
-   * Privy edit then fails, the agent is held to the *tighter* of the two rather
-   * than the looser, which is the safe direction to fail in.
+   * that disagrees silently is the dangerous one. The record here is written
+   * only after Privy has accepted the edit (`policy-routes.ts` calls this
+   * last), so the stored allowance is never looser than the policy.
+   *
+   * What this does not yet do is reach the live session. `WorkspaceSession`'s
+   * `applyAllowance` rebuilds the mandate's caps from an allowance and nothing
+   * calls it on commit, so the local engine keeps its previous caps until the
+   * next hydrate. Recorded in decision 0019 and as B-03 in the bug triage; it
+   * is wired after submission together with passing the allowance to
+   * `authorize`.
    *
    * Editing the policy at Privy is not done here. Where the person owns it, our
    * app secret is refused and only their browser can sign the change; that path
