@@ -183,7 +183,7 @@ const byCheapestBorrow = (a: LendingMarket, b: LendingMarket): number =>
   a.borrowApr - b.borrowApr;
 
 export const stubGraphClient = (): GraphClient => ({
-  lendingMarkets: async (symbol) => {
+  lendingMarkets: async (symbol, discovered = []) => {
     await Promise.resolve();
     const markets = FIXTURE_MARKETS.filter(
       (m) => m.inputTokenSymbol.toUpperCase() === symbol.toUpperCase()
@@ -193,18 +193,20 @@ export const stubGraphClient = (): GraphClient => ({
       // Every deployment reports `unavailable`, not `fresh`. A stub that
       // claimed four healthy indexes would be the exact screenshot this whole
       // split exists to make impossible.
-      deployments: MESSARI_LENDING_DEPLOYMENTS.map((deployment) => ({
-        blockNumber: null,
-        blockTimestamp: null,
-        chain: deployment.chain,
-        id: deployment.id,
-        ipfsHash: deployment.ipfsHash,
-        label: deployment.label,
-        marketCount: markets.filter((m) => m.deploymentId === deployment.id)
-          .length,
-        note: "fixture, not queried",
-        status: "unavailable" as const,
-      })),
+      deployments: [...MESSARI_LENDING_DEPLOYMENTS, ...discovered].map(
+        (deployment) => ({
+          blockNumber: null,
+          blockTimestamp: null,
+          chain: deployment.chain,
+          id: deployment.id,
+          ipfsHash: deployment.ipfsHash,
+          label: deployment.label,
+          marketCount: markets.filter((m) => m.deploymentId === deployment.id)
+            .length,
+          note: "fixture, not queried",
+          status: "unavailable" as const,
+        })
+      ),
       markets,
       query: `lendingMarkets(${symbol})`,
       source: "fixture:messari-lending",
@@ -472,13 +474,13 @@ export const liveGraphClient = (options: LiveGraphOptions): GraphClient => {
   const transport = options.transport ?? studioTransport(options.apiKey);
 
   return {
-    lendingMarkets: async (symbol) => {
+    lendingMarkets: async (symbol, discovered = []) => {
       const now = clock();
       // In parallel: four sequential round trips would put the freshness of
       // the first several seconds behind the last, which is the thing being
       // measured.
       const readings = await Promise.all(
-        deployments.map(
+        [...deployments, ...discovered].map(
           async (deployment) =>
             await readDeployment(deployment, {
               gateway,

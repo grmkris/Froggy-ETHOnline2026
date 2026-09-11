@@ -8,6 +8,8 @@
  * reconciliation step nobody wants to write.
  */
 
+import type { Deployment } from "./registry";
+
 export interface LendingMarket {
   /** The block this row was indexed at. Carried so a receipt can cite it. */
   readonly blockNumber: number;
@@ -73,6 +75,14 @@ export interface GraphClient {
    * Sorting here rather than at the call site because "cheapest" is the whole
    * question and a caller that forgot to sort would answer it wrongly while
    * looking correct.
+   *
+   * `discovered` are deployments the agent found through discovery in this
+   * run, read beside the pinned ones under the same standardized query. One
+   * that is not Messari-shaped fails the decode and is reported as such;
+   * that is the composition being load-bearing rather than decorative.
    */
-  readonly lendingMarkets: (symbol: string) => Promise<GraphSnapshot>;
+  readonly lendingMarkets: (
+    symbol: string,
+    discovered?: readonly Deployment[]
+  ) => Promise<GraphSnapshot>;
 }

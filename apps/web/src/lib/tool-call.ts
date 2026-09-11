@@ -18,7 +18,9 @@ import { Schema } from "effect";
 /** Every field any of the agent's tools takes. All optional: input streams in. */
 const ToolInput = Schema.Struct({
   amountUsd: Schema.optional(Schema.Finite),
+  contract: Schema.optional(Schema.String),
   purpose: Schema.optional(Schema.String),
+  query: Schema.optional(Schema.String),
   service: Schema.optional(Schema.String),
   prompt: Schema.optional(Schema.String),
   ref: Schema.optional(Schema.String),

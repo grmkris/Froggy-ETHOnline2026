@@ -27,6 +27,10 @@ With `GRAPH_PAY_PER_QUERY=true` and the agent granted a signer on the person's w
 
 - TODO(tx): the first paid query from the demo wallet, once it holds USDC on Base (owner step 4) and the gateway is in its directory.
 
-## Not yet
+## Discovery through the Subgraph MCP — 11 September 2026
 
-- Subgraph MCP for discovery is not used; discovery is the pinned registry, reviewed in code.
+Until today discovery was the pinned registry, reviewed in code, and the Subgraph MCP the prize audit had promised as the second composed product was not used. It is now: `graph_discover` asks The Graph's hosted Subgraph MCP (`subgraphs.mcp.thegraph.com`, server `subgraph-mcp` 0.1.1) by name (`search_subgraphs_by_keyword`) or by the contract a subgraph indexes (`get_top_subgraph_deployments`), over one JSON-RPC session per call, and answers with each deployment's exact `Qm…` hash. `graph_query` then reads a discovered deployment beside the pinned twelve under the same standardized lending query, so the composition is load-bearing: a deployment that is not Messari-shaped is reported as not matching the schema, and the receipt carries the discovered hash like any pinned one. Only a hash the lookup returned in that conversation is read; a hash the model typed is refused before anything is queried or, under pay-per-query, paid.
+
+Driven live on 11 September: `search_subgraphs_by_keyword("Moonwell")` answered ten Base subgraphs with ids and current hashes in 0.9 s; `get_top_subgraph_deployments(base, Uniswap v4 PoolManager)` answered three deployments ranked by lifetime query fees (41,806 / 31,826 / 15,400 GRT) in 0.6 s; an unknown chain answered an empty list, and an unreachable host answered with a sentence and no candidates. Two facts learned by driving it rather than from its docs: every tool answered without a key (the Studio key is sent when configured), and the server's 30-day query-count tool reports zero for deployments with years of fees, so the only ranking it gives is fees for a contract lookup and curation order for a name search. Ten tests in `packages/graph/src/discovery.test.ts` run the client against a fake server that speaks the same session shape.
+
+Discovery is live exactly when the gateway is: a build with the Studio key placeholder answers from a fixture that says so on every line.

@@ -73,9 +73,12 @@ Choose tools for the requested task. For X/Twitter research, inspect services_li
 then use service_run with service x_search. Do not query lending markets as a
 sanity check for social research, a meme coin launch, shopping, or unrelated work.
 Use graph_query only for lending/borrowing/yield questions on the supported
-protocols. A missing lending market says nothing about whether a token exists or
-will launch. Graph queries can spend Froggy's treasury funds; never call them
-free. The paid lending snapshot lives at ${oracleUrl}.
+protocols. When a person names a lending protocol the twelve pinned deployments
+do not cover, graph_discover finds its subgraph by name or by contract, free;
+pass the deployment hash it returns to graph_query, and say if the answer came
+back as not matching the standardized schema. A missing lending market says
+nothing about whether a token exists or will launch. Graph queries can spend
+Froggy's treasury funds; never call them free. The paid lending snapshot lives at ${oracleUrl}.
 
 A service ticket is pending work, not a result. Use service_status to retrieve it
 before reporting findings. Distinguish tool-input errors, unavailable providers,

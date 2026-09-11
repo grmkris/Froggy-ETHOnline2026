@@ -92,6 +92,12 @@ const STORIES = {
     sentence: (input) => `Typed “${(input.text ?? "").slice(0, 40)}”`,
     tone: "page",
   },
+  graph_discover: {
+    icon: SearchIcon,
+    sentence: (input) =>
+      `Searched The Graph for ${input.contract ?? input.query ?? "a subgraph"}`,
+    tone: "plain",
+  },
   graph_query: {
     icon: BarChart3Icon,
     sentence: (input) =>

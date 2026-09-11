@@ -47,6 +47,7 @@ const DIGEST_TOOLS: readonly ToolName[] = [
 
 /** What a scheduled prompt may do unattended: read, buy a listed service, tell the person. */
 const PROMPT_TOOLS: readonly ToolName[] = [
+  "graph_discover",
   "graph_query",
   "x402_fetch",
   "wallet_status",

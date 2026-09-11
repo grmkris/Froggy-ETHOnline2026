@@ -36,11 +36,12 @@ import {
 import type { Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
+  describeDiscovery,
   liveGraphClient,
   snapshotHash,
   x402Transport,
 } from "@froggy/graph";
-import type { GraphClient, GraphSnapshot } from "@froggy/graph";
+import type { Deployment, GraphClient, GraphSnapshot } from "@froggy/graph";
 import { EVM_NETWORK_LABELS } from "@froggy/payments";
 import {
   ScheduleRequestBody,
@@ -168,6 +169,17 @@ export const graphQueryOutput = (
   total: snapshot.deployments.length,
 });
 
+/** A refusal in the answer's own shape, so the card and the model read one thing. */
+const graphQueryRefusal = (symbol: string, text: string): GraphQueryOutput => ({
+  deployments: [],
+  fresh: 0,
+  markets: [],
+  stubbed: false,
+  symbol: symbol.toUpperCase(),
+  text,
+  total: 0,
+});
+
 export interface ToolDeps {
   readonly paidBrowse?: boolean | undefined;
   readonly budgetUsdMicros?: number | undefined;
@@ -262,6 +274,12 @@ export const buildTools = (deps: ToolDeps) => {
   const usdc = KNOWN_ASSETS[`${evmNetwork}:usdc`];
   /** Per-turn, because `buildTools` is called once per turn. Not module state. */
   let lastEvidence: Evidence | undefined;
+  /**
+   * Deployments this turn found through discovery, by hash. `graph_query`
+   * reads only from here and from the registry: a hash the model made up is
+   * not read, and under pay-per-query it is not paid for either.
+   */
+  const discovered = new Map<string, Deployment>();
   // Local development runs the app on `localhost`, and the oracle the agent
   // must reach is on it too. Everywhere else the private network is off limits.
   const outbound = { allowPrivate: !services.environment.blockPrivateNetwork };
@@ -716,12 +734,70 @@ export const buildTools = (deps: ToolDeps) => {
       inputSchema: std(Schema.Struct({ text: Schema.String })),
     }),
 
+    graph_discover: tool({
+      description:
+        "Find subgraphs on The Graph that the registry did not pin: by name (query) or by the contract a subgraph indexes (contract plus chain, a Graph network id such as mainnet, base, arbitrum-one, matic or bsc). Answers with each deployment's exact hash, which graph_query can then read with the standardized lending query. Free; nothing is paid for a lookup.",
+      execute: async ({ chain, contract, query }) => {
+        const asked =
+          contract === undefined
+            ? `“${query}”`
+            : `${contract} on ${chain ?? "mainnet"}`;
+        const result =
+          contract === undefined
+            ? await services.graphDiscovery.byKeyword(query)
+            : await services.graphDiscovery.byContract({
+                chain: chain ?? "mainnet",
+                contract,
+              });
+        for (const candidate of result.candidates) {
+          discovered.set(candidate.ipfsHash, {
+            chain: candidate.network ?? "unknown",
+            id: candidate.subgraphId ?? candidate.ipfsHash,
+            ipfsHash: candidate.ipfsHash,
+            label: candidate.displayName ?? "discovered",
+          });
+        }
+        return cap(describeDiscovery(result, asked));
+      },
+      inputSchema: std(
+        Schema.Struct({
+          chain: Schema.optional(
+            Schema.String.annotate({
+              description:
+                "With contract: the Graph network id the contract lives on (mainnet, base, arbitrum-one, matic, bsc).",
+            })
+          ),
+          contract: Schema.optional(
+            Schema.String.annotate({
+              description:
+                "A contract address; finds the deployments that index it, ranked by query fees.",
+            })
+          ),
+          query: Schema.String.annotate({
+            description:
+              "A protocol or subgraph name to search for, such as Moonwell. Ignored when contract is given.",
+          }),
+        })
+      ),
+    }),
+
     graph_query: tool({
       description:
-        "Live lending markets across twelve pinned Messari standardized deployments on four chains — Aave v2 and v3, Compound v2 and v3, Spark, Euler — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. Use only for lending, borrowing or yield research. This is not a general token lookup or social-research prerequisite. Queries may spend treasury funds; do not describe them as free.",
-      execute: async ({ symbol }, { toolCallId }) => {
+        "Live lending markets across twelve pinned Messari standardized deployments on four chains — Aave v2 and v3, Compound v2 and v3, Spark, Euler — read with one standardized query and returned cheapest borrow first. Each answer says which indexes were fresh and at what block. Pass ipfsHash to read a deployment found with graph_discover beside the pinned ones. Use only for lending, borrowing or yield research. This is not a general token lookup or social-research prerequisite. Queries may spend treasury funds; do not describe them as free.",
+      execute: async ({ ipfsHash, symbol }, { toolCallId }) => {
+        const extra =
+          ipfsHash === undefined ? undefined : discovered.get(ipfsHash);
+        if (ipfsHash !== undefined && extra === undefined) {
+          // Not a hash this turn discovered. Reading it would be reading
+          // whatever the model typed, and under pay-per-query paying for it.
+          return graphQueryRefusal(
+            symbol,
+            `${ipfsHash} was not found by graph_discover in this conversation. Discover it first; only a deployment the lookup returned is read.`
+          );
+        }
         const snapshot = await graphFor(symbol, toolCallId).lendingMarkets(
-          symbol
+          symbol,
+          extra === undefined ? [] : [extra]
         );
         // Held so a payment made right after a query can cite what it was
         // acting on, rather than the receipt saying only that money moved.
@@ -742,6 +818,12 @@ export const buildTools = (deps: ToolDeps) => {
       },
       inputSchema: std(
         Schema.Struct({
+          ipfsHash: Schema.optional(
+            Schema.String.annotate({
+              description:
+                "A deployment hash returned by graph_discover, read beside the pinned twelve.",
+            })
+          ),
           symbol: Schema.String.annotate({
             description: "Token symbol, for example USDC.",
           }),

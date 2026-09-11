@@ -17,8 +17,13 @@ import type { UserId } from "@froggy/domain";
  * process, it is `workspaces.ts` that owns it. This file owns everything a
  * user does not have their own copy of.
  */
-import type { GraphClient } from "@froggy/graph";
-import { liveGraphClient, stubGraphClient } from "@froggy/graph";
+import type { GraphClient, SubgraphDiscovery } from "@froggy/graph";
+import {
+  liveGraphClient,
+  liveSubgraphDiscovery,
+  stubGraphClient,
+  stubSubgraphDiscovery,
+} from "@froggy/graph";
 import type {
   HcsWriter,
   OracleGate,
@@ -132,6 +137,8 @@ export interface Services {
   /** The chain the RPC answers for, so boot can refuse a URL on the wrong Base. */
   readonly evmChainId: () => Promise<number>;
   readonly graph: GraphClient;
+  /** The Subgraph MCP: finds a deployment the registry did not pin, by name or by contract. */
+  readonly graphDiscovery: SubgraphDiscovery;
   /**
    * Who pays the Hedera leg for this person: their own account, opened with
    * `openingUsdMicros` of HBAR when they have none, or the host pocket when
@@ -247,6 +254,14 @@ export const createServices = (options: ServiceOptions): Services => {
         gatewayUrl: environment.graphGatewayUrl,
       }),
     stubGraphClient
+  );
+  // Same key, same mode: discovery is live exactly when the gateway is, so a
+  // stubbed build can never present a real-looking search beside fixture data.
+  const graphDiscovery = liveOr(
+    environment.modes.graph === "live",
+    "graph",
+    () => liveSubgraphDiscovery({ apiKey: environment.graphApiKey }),
+    stubSubgraphDiscovery
   );
 
   const oracle = liveOr(
@@ -507,6 +522,7 @@ export const createServices = (options: ServiceOptions): Services => {
     evmChainId: async () => await rpc.chainId(),
     evmReceipt: rpc.transactionReceipt,
     graph,
+    graphDiscovery,
     hcs,
     hederaPayerFor: async ({ openingUsdMicros, userId }) =>
       accounts === null
