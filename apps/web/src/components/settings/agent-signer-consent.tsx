@@ -11,7 +11,7 @@ import { Button } from "@froggy/ui/components/button";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { changeAllowance } from "../../lib/agent-policy";
+import { attachAgentSigner, signerGrantWords } from "../../lib/agent-policy";
 import { useIdentity } from "../../lib/privy";
 import { useSessionIds } from "../../lib/session-ids";
 import { useSessionToken } from "../../lib/session-token";
@@ -64,39 +64,16 @@ export const AgentSignerConsent = ({
   }
   const consent = async (): Promise<void> => {
     setBusy(true);
-    const result = await grant({
+    const result = await attachAgentSigner({
       address,
+      chosen,
+      getToken,
+      grant,
       policyId: theirs,
+      sign: identity.signPrivyRequest,
       signerId: agentSignerId,
     });
-    if (result.kind === "refused") {
-      setOutcome(`Privy refused: ${result.reason}`);
-      setBusy(false);
-      return;
-    }
-    const token = await getToken();
-    await fetch("/api/agent-signer/refresh", {
-      headers: token === null ? {} : { authorization: `Bearer ${token}` },
-      method: "POST",
-    }).catch(() => null);
-    if (chosen !== null) {
-      // After the grant rather than before it: until the signer exists there is
-      // nothing for these numbers to hold. The policy was minted with the
-      // defaults, so this is a change to it like any other and goes the same way.
-      const changed = await changeAllowance({
-        allowance: chosen,
-        sign: identity.signPrivyRequest,
-        token,
-      });
-      if (changed.kind === "refused") {
-        setOutcome(
-          `Granted, but your numbers were not saved: ${changed.reason}`
-        );
-        setBusy(false);
-        return;
-      }
-    }
-    setOutcome("Granted. The wallet updates in a moment.");
+    setOutcome(signerGrantWords(result));
     setBusy(false);
   };
   // The defaults are shown, not imposed: one tap still grants, and Adjust opens

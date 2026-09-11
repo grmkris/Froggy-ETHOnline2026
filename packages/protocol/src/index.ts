@@ -73,6 +73,7 @@ export {
   ScheduleRequestBody,
   ScheduleWhen,
 } from "./schedules";
+export { SetupRequest, SetupState } from "./setup";
 
 export { AgentConnection, AgentDetail, AgentInvocationView } from "./agents";
 

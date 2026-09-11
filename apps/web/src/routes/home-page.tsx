@@ -17,15 +17,17 @@ import { FrogMark } from "@froggy/ui/components/frog-mark";
 import type { FrogPose } from "@froggy/ui/components/frog-mark";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { Schema } from "effect";
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 
 import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { Composer } from "../components/composer";
+import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
 import { useHistoryPage } from "../lib/history-client";
+import { useIdentity } from "../lib/privy";
 import { cadenceWords, nextRunWords } from "../lib/schedule-words";
 import { useSessionToken } from "../lib/session-token";
 import { useWorkspace } from "../lib/workspace-context";
@@ -67,7 +69,7 @@ const Card = ({
   </div>
 );
 
-export const HomePage = (): ReactElement => {
+const Home = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
   const { busy, send, stopRun } = useChatSurface();
   const navigate = useNavigate();
@@ -226,7 +228,45 @@ export const HomePage = (): ReactElement => {
             {backgroundLine}
           </p>
         )}
+
+        {/* The welcome, on request: for a second look, or to show someone. */}
+        <p className="mt-4">
+          <Link
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 items-center rounded-lg text-xs underline underline-offset-4 outline-none focus-visible:ring-2"
+            to="/welcome"
+          >
+            Show the welcome again
+          </Link>
+        </p>
       </div>
     </div>
   );
+};
+
+/**
+ * A signed-up person who has not been welcomed is sent to the welcome first;
+ * everyone else gets Home. A local identity is not a sign-up — it walks
+ * straight through the gate — so it is never sent, and reaches the welcome
+ * from the link at the foot of the page like anyone who wants to see it
+ * again. Nothing is drawn while the answer is on its way, so Home does not
+ * flash before the welcome replaces it; if the answer never comes, Home it is.
+ */
+const useWelcomeGate = (): "welcome" | "waiting" | "home" => {
+  const identity = useIdentity();
+  const setup = useSetup();
+  if (identity.stubbed || setup.failed) {
+    return "home";
+  }
+  if (setup.seenAt === undefined) {
+    return "waiting";
+  }
+  return setup.seenAt === null ? "welcome" : "home";
+};
+
+export const HomePage = (): ReactElement | null => {
+  const gate = useWelcomeGate();
+  if (gate === "welcome") {
+    return <Navigate replace to="/welcome" />;
+  }
+  return gate === "home" ? <Home /> : null;
 };

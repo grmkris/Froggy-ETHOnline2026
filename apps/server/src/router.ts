@@ -84,6 +84,7 @@ import { handleDigest, handleSchedules } from "./schedule-routes";
 import { handleServices } from "./service-routes";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
+import { handleSetup } from "./setup-routes";
 import { llmText, skillText } from "./skill";
 import {
   handleTaskEvents,
@@ -878,6 +879,10 @@ const handleApi = async (
 
   if (pathname === "/api/telegram") {
     return await handleTelegram(deps, request, userId);
+  }
+
+  if (pathname === "/api/setup") {
+    return await handleSetup(deps.services.store, request, userId, Date.now());
   }
 
   if (pathname.startsWith("/api/directory")) {

@@ -482,6 +482,15 @@ export interface Store {
    * millionths. Never negative: a debit larger than the balance floors at
    * zero, and the policy is what stops it being asked for.
    */
+  /**
+   * When the person last finished or skipped the welcome flow, or null while
+   * they never have. Cleared on `forget`, so a person who deleted everything
+   * and comes back is welcomed again.
+   */
+  readonly setup: {
+    readonly load: (userId: UserId) => Promise<number | null>;
+    readonly save: (userId: UserId, seenAt: number | null) => Promise<void>;
+  };
   readonly pocket: {
     /** Adds `deltaUsdMicros` (negative to draw down) and returns the new balance. */
     readonly adjust: (
@@ -618,6 +627,7 @@ export const memoryStore = (): Store => {
   const pairings = new Map<UserId, TelegramPairing>();
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
+  const setupSeen = new Map<UserId, number>();
   const hederaAccounts = new Map<UserId, HederaAccountRecord>();
   const personPolicies = new Map<UserId, PersonPolicyRecord>();
   const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
@@ -1171,6 +1181,7 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       browsers.delete(userId);
+      setupSeen.delete(userId);
       await history.clearTelegramCache(userId);
       await history.forget(userId);
       await Promise.resolve();
@@ -1258,6 +1269,20 @@ export const memoryStore = (): Store => {
       save: async (userId, record) => {
         await Promise.resolve();
         personPolicies.set(userId, record);
+      },
+    },
+    setup: {
+      load: async (userId) => {
+        await Promise.resolve();
+        return setupSeen.get(userId) ?? null;
+      },
+      save: async (userId, seenAt) => {
+        await Promise.resolve();
+        if (seenAt === null) {
+          setupSeen.delete(userId);
+        } else {
+          setupSeen.set(userId, seenAt);
+        }
       },
     },
     pocket: {

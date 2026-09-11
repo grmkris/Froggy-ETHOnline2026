@@ -116,6 +116,13 @@ export const users = pgTable("users", {
     withTimezone: true,
   }),
   privyPolicyId: text("privy_policy_id"),
+  /**
+   * When the person last finished or skipped the welcome flow, so Home can
+   * show it once per account rather than once per browser. Null until then,
+   * and null again after `forget`: a person who deleted everything and came
+   * back is new again.
+   */
+  setupSeenAt: timestamp("setup_seen_at", { withTimezone: true }),
 });
 
 export const spends = pgTable(

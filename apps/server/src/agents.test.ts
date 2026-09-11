@@ -50,6 +50,7 @@ describe("agent tokens", () => {
     expect(agentMayCall("/api/directory", "POST")).toBe(false);
     expect(agentMayCall("/api/agents", "POST")).toBe(false);
     expect(agentMayCall("/api/me", "DELETE")).toBe(false);
+    expect(agentMayCall("/api/setup", "PUT")).toBe(false);
     expect(agentMayCall("/api/chat", "POST")).toBe(false);
   });
 });

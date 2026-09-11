@@ -20,6 +20,23 @@ export type PolicyChange =
   | { readonly kind: "changed"; readonly allowance: Allowance }
   | { readonly kind: "refused"; readonly reason: string };
 
+/** The signer attached, or not; and if the person chose numbers, saved or not. */
+export type SignerGrant =
+  | { readonly kind: "granted" }
+  | { readonly kind: "granted-unsaved"; readonly reason: string }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/** What the person is told about a grant, wherever it was asked for. */
+export const signerGrantWords = (grant: SignerGrant): string => {
+  if (grant.kind === "refused") {
+    return `Privy refused: ${grant.reason}`;
+  }
+  if (grant.kind === "granted-unsaved") {
+    return `Granted, but your numbers were not saved: ${grant.reason}`;
+  }
+  return "Granted. The wallet updates in a moment.";
+};
+
 /**
  * What `prepare` answers. Decoded rather than asserted: it crosses a network
  * boundary, and the repository's rule is that such a thing is parsed where it
@@ -150,4 +167,56 @@ export const changeAllowance = async (input: {
     };
   }
   return { allowance: result.allowance, kind: "changed" };
+};
+
+/**
+ * Let the agent sign: Privy asks the person in its own prompt, the server is
+ * told to read the answer off the wallet, and only then are any numbers the
+ * person chose saved — until the signer exists there is nothing for them to
+ * hold. The policy was minted with the defaults, so a chosen allowance is a
+ * change to it like any other and goes the same way as one from Settings.
+ *
+ * Asked for from the Settings card and from the welcome flow, which is why
+ * it lives here rather than in either: one grant, two places to press it.
+ */
+export const attachAgentSigner = async (input: {
+  readonly address: string;
+  readonly chosen: Allowance | null;
+  readonly getToken: () => Promise<string | null>;
+  readonly grant: (request: {
+    readonly address: string;
+    readonly policyId: string;
+    readonly signerId: string;
+  }) => Promise<
+    | { readonly kind: "granted" }
+    | { readonly kind: "refused"; readonly reason: string }
+  >;
+  readonly policyId: string;
+  readonly sign: Parameters<typeof changeAllowance>[0]["sign"];
+  readonly signerId: string;
+}): Promise<SignerGrant> => {
+  const result = await input.grant({
+    address: input.address,
+    policyId: input.policyId,
+    signerId: input.signerId,
+  });
+  if (result.kind === "refused") {
+    return { kind: "refused", reason: result.reason };
+  }
+  const token = await input.getToken();
+  await fetch("/api/agent-signer/refresh", {
+    headers: token === null ? {} : { authorization: `Bearer ${token}` },
+    method: "POST",
+  }).catch(() => null);
+  if (input.chosen === null) {
+    return { kind: "granted" };
+  }
+  const changed = await changeAllowance({
+    allowance: input.chosen,
+    sign: input.sign,
+    token,
+  });
+  return changed.kind === "refused"
+    ? { kind: "granted-unsaved", reason: changed.reason }
+    : { kind: "granted" };
 };

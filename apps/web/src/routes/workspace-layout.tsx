@@ -1,4 +1,4 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useLocation } from "@tanstack/react-router";
 /**
  * The workspace: everything that must outlive a page change.
  *
@@ -48,6 +48,12 @@ export const WorkspaceLayout = (): ReactElement => {
   );
 
   const popOut = usePopOut();
+  // The welcome has the workspace's sockets and none of its chrome: no rail,
+  // no pill, no top bar, because every step has its own way out and a person
+  // being welcomed should not be offered five other places to go.
+  const welcome = useLocation({
+    select: (location) => location.pathname === "/welcome",
+  });
   const [browserRequested, setBrowserRequested] = useState(false);
   const showBrowser = useCallback(() => {
     setBrowserRequested(true);
@@ -189,15 +195,19 @@ export const WorkspaceLayout = (): ReactElement => {
               mandate={app.mandate}
               receipts={app.receipts}
             />
-            <AppFrame
-              connected={app.connected}
-              modes={app.modes}
-              waiting={app.approvals.length + pendingPurchases}
-            >
-              <PurchaseApprovals api={purchases} />
-              <TradeNotice api={trades} />
+            {welcome ? (
               <Outlet />
-            </AppFrame>
+            ) : (
+              <AppFrame
+                connected={app.connected}
+                modes={app.modes}
+                waiting={app.approvals.length + pendingPurchases}
+              >
+                <PurchaseApprovals api={purchases} />
+                <TradeNotice api={trades} />
+                <Outlet />
+              </AppFrame>
+            )}
           </ChatContext.Provider>
         </HistoryContext.Provider>
       </WorkspaceContext.Provider>

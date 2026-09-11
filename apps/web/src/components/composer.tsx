@@ -26,6 +26,8 @@ interface ComposerProps {
   readonly onCommand: (command: SlashCommand) => void;
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
+  /** What the empty box says while nothing is happening; the default names the slash. */
+  readonly placeholder?: string | undefined;
   /** Things worth asking next, as chips. Empty when there is nothing to say. */
   readonly suggestions: readonly string[];
 }
@@ -34,7 +36,8 @@ interface ComposerProps {
 const placeholderFor = (
   disabledReason: string | null,
   asking: boolean,
-  busy: boolean
+  busy: boolean,
+  idle: string
 ): string => {
   if (disabledReason !== null) {
     return disabledReason;
@@ -42,9 +45,7 @@ const placeholderFor = (
   if (asking) {
     return "Waiting for your answer above";
   }
-  return busy
-    ? "Froggy is working… Enter queues your next message"
-    : "Ask Froggy to do something, or type / for commands…";
+  return busy ? "Froggy is working… Enter queues your next message" : idle;
 };
 
 export const Composer = ({
@@ -54,6 +55,7 @@ export const Composer = ({
   onCommand,
   onSend,
   onStop,
+  placeholder = "Ask Froggy to do something, or type / for commands…",
   suggestions,
 }: ComposerProps): React.ReactElement => {
   const [draft, setDraft] = useState("");
@@ -195,7 +197,12 @@ export const Composer = ({
               submit(draft);
             }
           }}
-          placeholder={placeholderFor(disabledReason, asking, busy)}
+          placeholder={placeholderFor(
+            disabledReason,
+            asking,
+            busy,
+            placeholder
+          )}
           rows={1}
           value={draft}
         />

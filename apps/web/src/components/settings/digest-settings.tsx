@@ -48,7 +48,12 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const label = (hour: number): string =>
   new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" });
 
-export const DigestSettings = (): ReactElement => {
+export const DigestSettings = ({
+  withTest = true,
+}: {
+  /** Off in the welcome flow: a test run is a thing to try once the hour is a habit. */
+  readonly withTest?: boolean;
+} = {}): ReactElement => {
   const inputId = useId();
   const { getToken } = useSessionToken();
   const queries = useQueryClient();
@@ -165,29 +170,31 @@ export const DigestSettings = (): ReactElement => {
       {current === null ? null : (
         <p className="text-machine text-muted-foreground">{timezone}</p>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          className="min-h-11"
-          disabled={test.isPending}
-          onClick={() => {
-            test.mutate();
-          }}
-          size="sm"
-          variant="outline"
-        >
-          {test.isPending ? "Sending…" : "Send a test now"}
-        </Button>
-        {test.isError ? (
-          <p className="text-refused text-xs" role="alert">
-            Couldn’t run the test. Try again.
-          </p>
-        ) : null}
-        {test.data === undefined ? null : (
-          <output className="text-muted-foreground text-xs">
-            {testWords(test.data)}
-          </output>
-        )}
-      </div>
+      {withTest ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            className="min-h-11"
+            disabled={test.isPending}
+            onClick={() => {
+              test.mutate();
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {test.isPending ? "Sending…" : "Send a test now"}
+          </Button>
+          {test.isError ? (
+            <p className="text-refused text-xs" role="alert">
+              Couldn’t run the test. Try again.
+            </p>
+          ) : null}
+          {test.data === undefined ? null : (
+            <output className="text-muted-foreground text-xs">
+              {testWords(test.data)}
+            </output>
+          )}
+        </div>
+      ) : null}
     </Field>
   );
 };

@@ -123,3 +123,28 @@ Still open:
 The cold read (a person who uses ChatGPT and Revolut and has never held a crypto wallet) would have finished the draft flow but scored it 6/10, and every confusion was in the fine print: "$1.00 asks you above" read backwards; the rules screen never said the balance was zero; "Privy", "our host", "the prompt", "export a key" and "your directory" meant nothing; "One tap" on a laptop; "Go to Home" on a screen that looked like home; "Pay by card" read as paying for something; a euro among dollars; three exits on one screen. The design audit added: the digest pre-selected 08:00 against a product default of Off; the composer's lime border broke the token rule; two green primaries on the Telegram step; the leash glyph read as a phone handset; headings jumped between steps; the first starter could not succeed on an empty balance.
 
 All of that is fixed on the published boards. Two findings were judged and kept as drawn: the needs-user pose on step 3, because the step is literally about the moment Froggy needs you and the token rule governs the lime halo, not the pose; and the "Your assistant — Later" lane for door A, because it is the one place the second door is advertised to a person who chose the first.
+
+## 7. Built, Sat 12 Sep 2026
+
+Jonas asked for it on 11 Sep, 22:30 CEST ("I think we can already implement it … also a button on the home page to start the onboarding again … right after sign up, we should show it one time until the user completes the onboarding"). It is on the `onboarding-flow` branch, gate and browser suite green, and this is what landed against section 4:
+
+| Asked for | Built |
+| --- | --- |
+| A `/welcome` route inside the workspace, shown once per account | `apps/web/src/routes/welcome-page.tsx`, registered under the workspace route so it has the sockets, and drawn by `workspace-layout.tsx` without the rail, pill and top bar. Home (`routes/home-page.tsx`) sends a signed-up person there while `GET /api/setup` answers `seenAt: null`, and draws nothing in the meantime so it does not flash first. |
+| One server field and one `PUT` | `users.setup_seen_at` (migration `0019_friendly_silver_samurai`, one nullable column), `store.setup.load/save` in both stores and cleared on `forget`, `GET`/`PUT /api/setup` in `apps/server/src/setup-routes.ts`. Not on the agent-token allowlist. |
+| Step 2 reuses the grant and the form | The grant sequence moved from the Settings card into `lib/agent-policy.ts` (`attachAgentSigner`) and both places call it; `AllowanceForm` opens behind "Adjust these numbers". The step reads the wallet's standing: it asks when the signer is absent or on the shared policy, says so when it is already granted (Jonas replaying it), and on a local identity says Froggy can look but not pay. |
+| Step 3 reuses Telegram and the digest | `TelegramSettings` and `DigestSettings` as they are, the digest without its "Send a test now" button (a new optional prop). |
+| Door B reuses the copy sentence | `AgentOnboarding` (the sentence, and the connection status that updates on its own), plus the `claude mcp add` line with a copy button. |
+| The AI notice | Four lines on step 1, verbatim from section 2. |
+| Show it again | "Show the welcome again", a quiet link at the foot of Home. It navigates to `/welcome`; Finish and Skip write `seenAt` again. |
+
+Two departures from the boards, both deliberate:
+
+- **The composer's starters are sentences Froggy can act on** ("Compare running shoes under $150", "What can you do for me?", "Buy a lending brief for $0.05"), because a chip is sent as a message; "Browse services" would have asked the agent to read a page rather than opened one.
+- **The digest keeps the live control** (Off and every hour) rather than the board's four choices, and the Telegram panel keeps the live copy and its "Connect Telegram" button rather than minting a code on arrival. Reuse over restatement; one control, two places.
+
+Every exit writes the same fact: Finish, Skip setup, and a starter on the last screen (which also opens the conversation). A local identity — no Privy app id — is never sent to the welcome on its own, because it is not a sign-up and the browser tests depend on Home being Home; it reaches the welcome from the link.
+
+Verified: `bun run check` (the three `schedules`/`jobs` date-format failures are on `main` too, this machine's ICU spells "5 Sep at" where the tests expect "5 Sept,"), and `bun run e2e` — seven new welcome tests in `e2e/welcome.spec.ts` (the three steps, Skip, the assistant door, a starter, and 390/320-pixel widths), the rest of the suite unchanged apart from `agent-onboarding.spec.ts:204`, which fails on `main` as well.
+
+Still to decide, unchanged from section 5: the jury's demo path, and whether Home should lead differently for assistant people.

@@ -58,6 +58,12 @@ const homeRoute = page(
   async () => await import("./routes/home-page"),
   "HomePage"
 );
+/** Three steps after sign-up. Under the workspace for its sockets; drawn without its frame. */
+const welcomeRoute = page(
+  "/welcome",
+  async () => await import("./routes/welcome-page"),
+  "WelcomePage"
+);
 /** The current conversation. Home starts one and sends the person here. */
 const chatRoute = page(
   "/chat",
@@ -171,6 +177,7 @@ const oauthManualRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   workspaceRoute.addChildren([
     homeRoute,
+    welcomeRoute,
     chatRoute,
     conversationRoute,
     exploreRoute,

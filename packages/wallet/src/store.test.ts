@@ -61,6 +61,19 @@ describe("memoryStore", () => {
     expect(await store.pocket.load(ALICE)).toBeNull();
   });
 
+  it("remembers the welcome once, and forgets it with the person", async () => {
+    const store = memoryStore();
+    expect(await store.setup.load(ALICE)).toBeNull();
+    await store.setup.save(ALICE, NOW);
+    expect(await store.setup.load(ALICE)).toBe(NOW);
+    // Null shows the welcome again; a person can ask for that from Home.
+    await store.setup.save(ALICE, null);
+    expect(await store.setup.load(ALICE)).toBeNull();
+    await store.setup.save(ALICE, NOW);
+    await store.forget(ALICE);
+    expect(await store.setup.load(ALICE)).toBeNull();
+  });
+
   it("keeps a person's Hedera account, through forget", async () => {
     const store = memoryStore();
     expect(await store.hedera.load(ALICE)).toBeNull();

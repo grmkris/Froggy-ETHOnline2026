@@ -1187,6 +1187,7 @@ export const postgresStore = (sql: Sql): Store => {
           privyPolicyAllowance: null,
           privyPolicyExpiresAt: null,
           privyPolicyId: null,
+          setupSeenAt: null,
         })
         .where(eq(users.did, userId));
     },
@@ -1299,6 +1300,26 @@ export const postgresStore = (sql: Sql): Store => {
             privyPolicyExpiresAt: new Date(record.allowance.expiresAt),
             privyPolicyId: record.policyId,
           })
+          .where(eq(users.did, userId));
+      },
+    },
+    setup: {
+      load: async (userId) => {
+        const rows = await database
+          .select({ seenAt: users.setupSeenAt })
+          .from(users)
+          .where(eq(users.did, userId))
+          .limit(1);
+        const [row] = rows;
+        return row === undefined || row.seenAt === null
+          ? null
+          : row.seenAt.getTime();
+      },
+      save: async (userId, seenAt) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({ setupSeenAt: seenAt === null ? null : new Date(seenAt) })
           .where(eq(users.did, userId));
       },
     },
