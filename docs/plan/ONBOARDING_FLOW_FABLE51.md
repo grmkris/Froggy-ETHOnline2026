@@ -102,15 +102,21 @@ Small, and all inside `apps/web` except the flag:
 
 Nothing here changes spending authority: the grant is the same grant, the rules are the same numbers, and consent to an assistant still grants abilities, never limits.
 
-## 5. Open decisions
+## 5. Decisions, and what is still open
 
-1. **Is the notice a notice or a signature?** The boards treat "Continue" as acknowledgement and store nothing. If legal wants proof, store the timestamp with the `setupSeenAt` field and say so in the privacy notice. Jonas's call, since consent copy is his lane.
-2. **Digest default.** Off on the board, matching the product. The developer persona asked for a morning message; if the team wants to nudge, the honest way is a one-line suggestion on the ready screen, not a pre-selected hour.
-3. **Door choice persistence.** The boards keep it for the session only. If the team wants Home to differ by door (composer first versus connection card first), store it.
-4. **Guest path.** Removed from the product (`DECISIONS.md` row 23); the sign-in board in Paper still shows the guest door from the earlier design. If it returns, guests take steps 1 and 2 only.
-5. **Vocabulary on the older Paper boards.** The Wallet board still says "Today's allowance"; the onboarding boards say "spending rules". One of them should change, and ADR 0011 says which.
+Jonas decided the first five on 11 Sep 2026, 21:00 CEST:
+
+1. **The notice is a notice.** "Continue" is the acknowledgement; nothing is signed or stored beyond `setupSeenAt`.
+2. **Digest Off by default.** Later, the same digest may also go to the assistants that invoked Froggy — an agent-facing digest over MCP rather than a person-facing message. Not in this flow; noted so the digest is built with a second audience in mind.
+3. **Door choice is not stored.** The door only picks the last screen of setup. Home looks the same for everyone; whether a person "has an assistant" is read from Connections (is one connected?), not from what they clicked on day one. Recorded as the default because it is the simplest reading of "I do not understand" — if Home should lead with the connection card for assistant people, say so and it becomes one stored field.
+4. **No guest path.** The guest door comes off the sign-in board. A **demo path for the jury** is the thing to consider instead: a reserved demo account (the `DEMO_USER_DID` seat exists at HEAD, with a reserved browser seat, no money) that judges can open from the submission. Open question for that path: do judges see this onboarding, or land on Home with the rules already granted and a small balance? The three-step flow is short enough to show; the grant needs a Privy prompt the judge would have to click.
+5. **"Spending rules" wins.** The Wallet board in Paper now says "Spending rules today" instead of "Today's allowance"; the onboarding boards already said it. "Allowance" stays out of UI copy per ADR 0011.
+
+Still open:
+
 6. **The rules are not fully wired at HEAD** (`ADR 0019:5`, review items B-02/B-03): edits reach Privy but not the live mandate until the next hydrate. The step-2 copy states the rules the product promises; the fix is engineering's.
 7. **The bot's name.** The pairing panel names `@FroggyBot` because a reader with a copied command needs to know where to paste it; substitute the real handle.
+8. **The Wallet board's numbers.** It still shows the earlier design's caps ("$0.12 of $10.00", "Per call ≤ $0.05"); the onboarding boards use the built defaults ($2.00 a payment, ask above $1.00). The Wallet board should follow when it is next touched.
 
 ## 6. What the two reviews changed
 
