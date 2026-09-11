@@ -27,7 +27,7 @@ During a task, the conversation is the ledger: every receipt is filed under the 
 
 Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. Hedera payments automatically convert USDC when needed; durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
 
-[Browse the desktop and mobile screenshot tour](docs/evidence/ui-review-2026-09-08/README.md) for the five main pages, interaction states, and Passbook/Lilypad comparisons at four widths.
+The [8 September screenshot tour](docs/evidence/ui-review-2026-09-08/README.md) shows the interaction states and the Passbook/Lilypad comparison at four widths. Its five-page navigation was replaced on 10 September by Home, Explore and Wallet, with Connections and Account behind them.
 
 ## Run it
 
@@ -57,7 +57,7 @@ flowchart TB
   model([model])
 
   subgraph browser["packages/browser — the shared Chrome (Browser Use, over CDP)"]
-    chrome[Chromium via Bun.WebView]
+    chrome[Chromium hosted at Browser Use]
     arb{{"arbitration<br/>agent · human · idle"}}
   end
 
@@ -99,7 +99,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 |  |  |
 | --- | --- |
-| `apps/web` | Wallet home, funding and agent setup; the conversation with receipts and a shared browser; wallet/settings drawer. Frames never touch React state. |
+| `apps/web` | Home, Explore and Wallet, with Connections and Account behind them; the conversation with receipts and the shared browser inside a task. Frames never touch React state. |
 | `apps/server` | One Bun process: SPA, API, both sockets, the agent loop; one hosted browser per user. |
 | `packages/domain` | Money, mandates, decisions, receipts — as Effect Schema. |
 | `packages/protocol` | Both wire protocols and the screencast frame envelope. |
@@ -129,7 +129,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 4. **A Hedera payment with no HBAR.** Froggy converts on the spot: the person's own Privy wallet signs a USDC transfer to the treasury on Base mainnet under rule (b) (right token, right recipient, at most 10 USDC, at most 25 USDC a day), the float funds their Hedera account with the same value, and the payment goes through. Two receipts, one purchase.
 5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
 6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
-7. **Connect an agent.** `claude mcp add --transport http froggy https://<host>/mcp` and authenticate: a tab opens on Froggy, you see what the agent may buy, and you click Allow. Or install the CLI and run `froggy login` (`--manual` in a sandbox with no browser), then `froggy brief USDC`: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts. Nothing is pasted; Disconnect on the Agents page ends it.
+7. **Connect an agent.** `claude mcp add --transport http froggy https://<host>/mcp` and authenticate: a tab opens on Froggy, you see what the agent may buy, and you click Allow. Or install the CLI and run `froggy login` (`--manual` in a sandbox with no browser), then `froggy brief USDC`: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts. Nothing is pasted; Disconnect on the Connections page ends it.
 
 ## The second door: buy from Froggy with no account
 
@@ -219,14 +219,14 @@ Guest access without sign-in. Anything that changes spending authority as an age
 
 ## Team
 
-Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 6 Sep 2026; `docs/evidence/AI-USE.md` says how.
+Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 11 Sep 2026; `docs/evidence/AI-USE.md` says how.
 
 ## Surfaces
 
 - **The workspace.** Wallet-first; tasks continue in chat, where the page is a card in the stream, or a pane beside it, or a window of its own. Receipts are tickets: what and why on the body, rule id, transaction and evidence on the stub. A refusal is a stamp.
 - **Telegram.** Open Connect an agent → Telegram, then open the bot and tap Start using the expiring link. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; a plain message runs the same agent on the same mandate.
 - **The task API and the CLI.** `POST /api/tasks` sells a lending brief or a browse behind a 402 priced in HBAR at the mirror-node rate, with a durable task id, idempotency, status, receipts and an event stream. `GET /froggy-cli.js` serves a dependency-free command for Node or Bun that is a real x402 client with your Froggy wallet as its signer; `froggy login` signs it in through the browser (or `--manual` by a pasted code) and `skills/froggy/SKILL.md` is the text a personal agent installs, with no secret in it. A minted token under "Advanced: connect with a token" remains for an unattended agent.
-- **Services and MCP.** Froggy is a remote MCP server at `/mcp` with OAuth 2.1: dynamic registration, PKCE, a consent page with one switch per scope (`brief`, `browse`, `pay`, `services`), short-lived access tokens, rotating refresh tokens, and Disconnect on the Agents page. The catalog, chat, CLI and MCP share durable service tasks and spending controls. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
+- **Services and MCP.** Froggy is a remote MCP server at `/mcp` with OAuth 2.1: dynamic registration, PKCE, a consent page with one switch per scope (`brief`, `browse`, `pay`, `services`), short-lived access tokens, rotating refresh tokens, and Disconnect on the Connections page. The catalog, chat, CLI and MCP share durable service tasks and spending controls. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
 - **The daily digest.** One unattended turn a day at the hour you pick, bounded to a minute, a dozen steps, five cents and one paid request; nobody can be asked, so anything over the threshold is refused.
 - **The directory.** Paste a URL and it is probed, never paid; if the 402 is one this wallet can honour, one click makes it payable, and that click is the only way a stranger's host reaches the allowlist.
 
