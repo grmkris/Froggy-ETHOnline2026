@@ -97,8 +97,8 @@ describe("the live client's transport", () => {
     const client = liveGraphClient({
       apiKey: "",
       deployments: [
-        { chain: "ethereum", id: "DEP1", label: "Aave v3" },
-        { chain: "base", id: "DEP2", label: "Aave v3" },
+        { chain: "ethereum", id: "DEP1", ipfsHash: "QmDep1", label: "Aave v3" },
+        { chain: "base", id: "DEP2", ipfsHash: "QmDep2", label: "Aave v3" },
       ],
       gatewayUrl: "https://gateway.test/api",
       now: () => 1_700_000_000_000,
@@ -115,8 +115,8 @@ describe("the live client's transport", () => {
     });
     const snapshot = await client.lendingMarkets("USDC");
     expect(asked).toEqual([
-      "https://gateway.test/api/x402/subgraphs/id/DEP1",
-      "https://gateway.test/api/x402/subgraphs/id/DEP2",
+      "https://gateway.test/api/x402/deployments/id/QmDep1",
+      "https://gateway.test/api/x402/deployments/id/QmDep2",
     ]);
     expect(snapshot.source).toBe("https://gateway.test/api via x402");
     expect(snapshot.deployments.map((d) => d.status)).toEqual([
@@ -147,7 +147,9 @@ describe("describeBestSupply", () => {
 const failedQuery = async (response: Response) =>
   await liveGraphClient({
     apiKey: "",
-    deployments: [{ chain: "ethereum", id: "DEP1", label: "Aave v3" }],
+    deployments: [
+      { chain: "ethereum", id: "DEP1", ipfsHash: "QmDep1", label: "Aave v3" },
+    ],
     transport: x402Transport(async () => await Promise.resolve(response)),
   }).lendingMarkets("HUNTER");
 

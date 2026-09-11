@@ -27,6 +27,8 @@ import type { LendingMarket } from "./types";
  */
 const deploymentId = (index: number): string =>
   MESSARI_LENDING_DEPLOYMENTS[index]?.id ?? "unknown";
+const ipfsHash = (index: number): string =>
+  MESSARI_LENDING_DEPLOYMENTS[index]?.ipfsHash ?? "unknown";
 
 export const FIXTURE_CAPTURED_AT = 1_756_000_000_000;
 
@@ -37,6 +39,7 @@ export const FIXTURE_MARKETS: readonly LendingMarket[] = [
     chain: "ethereum",
     deploymentId: deploymentId(0),
     inputTokenSymbol: "USDC",
+    ipfsHash: ipfsHash(0),
     name: "Aave V3 USDC",
     protocol: "aave-v3",
     supplyApr: 3.11,
@@ -49,6 +52,7 @@ export const FIXTURE_MARKETS: readonly LendingMarket[] = [
     chain: "ethereum",
     deploymentId: deploymentId(2),
     inputTokenSymbol: "USDC",
+    ipfsHash: ipfsHash(2),
     name: "Compound V3 USDC",
     protocol: "compound-v3",
     supplyApr: 4.02,
@@ -61,6 +65,7 @@ export const FIXTURE_MARKETS: readonly LendingMarket[] = [
     chain: "base",
     deploymentId: deploymentId(1),
     inputTokenSymbol: "USDC",
+    ipfsHash: ipfsHash(1),
     name: "Aave V3 USDC (Base)",
     protocol: "aave-v3",
     supplyApr: 3.64,

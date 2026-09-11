@@ -20,9 +20,15 @@ const SECOND = 1000;
 const AAVE: Deployment = {
   chain: "ethereum",
   id: "aaaa1111",
+  ipfsHash: "QmAave",
   label: "Aave v3",
 };
-const SPARK: Deployment = { chain: "ethereum", id: "bbbb2222", label: "Spark" };
+const SPARK: Deployment = {
+  chain: "ethereum",
+  id: "bbbb2222",
+  ipfsHash: "QmSpark",
+  label: "Spark",
+};
 
 const market = (name: string, borrowApr: string) => ({
   inputToken: { symbol: "USDC" },
@@ -36,18 +42,20 @@ const answer = (input: {
   readonly blockNumber: number;
   readonly markets: readonly ReturnType<typeof market>[];
   readonly timestampMs: number;
-}): Response =>
-  Response.json({
-    data: {
-      _meta: {
-        block: {
-          number: input.blockNumber,
-          timestamp: Math.floor(input.timestampMs / SECOND),
-        },
-      },
-      markets: input.markets,
-    },
-  });
+  /** What `_meta.deployment` says served the query; absent on old nodes. */
+  readonly servedBy?: string;
+}): Response => {
+  const block = {
+    number: input.blockNumber,
+    timestamp: Math.floor(input.timestampMs / SECOND),
+  };
+  // The field is absent, not null, on a node that does not report it.
+  const meta =
+    input.servedBy === undefined
+      ? { block }
+      : { block, deployment: input.servedBy };
+  return Response.json({ data: { _meta: meta, markets: input.markets } });
+};
 
 const realFetch = globalThis.fetch;
 
@@ -55,7 +63,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-/** Routes by deployment id in the URL, so each index can behave differently. */
+/** Routes by deployment hash in the URL, so each index can behave differently. */
 const routeByDeployment = (
   routes: Record<string, () => Response | Promise<Response>>
 ): void => {
@@ -83,13 +91,13 @@ const client = () =>
 describe("the registry's freshness gate", () => {
   it("uses a fresh index and says which block it read", async () => {
     routeByDeployment({
-      [AAVE.id]: () =>
+      [AAVE.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_000,
           markets: [market("Aave V3 USDC", "5.0")],
           timestampMs: NOW - 60_000,
         }),
-      [SPARK.id]: () =>
+      [SPARK.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_001,
           markets: [market("Spark USDC", "4.0")],
@@ -108,7 +116,7 @@ describe("the registry's freshness gate", () => {
 
   it("drops a stale index's markets entirely", async () => {
     routeByDeployment({
-      [AAVE.id]: () =>
+      [AAVE.ipfsHash]: () =>
         answer({
           blockNumber: 20_000_000,
           // Cheaper, and six weeks old. Exactly the number that would win the
@@ -116,7 +124,7 @@ describe("the registry's freshness gate", () => {
           markets: [market("Aave V3 USDC", "0.5")],
           timestampMs: NOW - MAX_INDEX_LAG_MS - 60_000,
         }),
-      [SPARK.id]: () =>
+      [SPARK.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_001,
           markets: [market("Spark USDC", "4.0")],
@@ -135,14 +143,14 @@ describe("the registry's freshness gate", () => {
 
   it("refuses an index that will not say how fresh it is", async () => {
     routeByDeployment({
-      [AAVE.id]: () =>
+      [AAVE.ipfsHash]: () =>
         Response.json({
           data: {
             _meta: { block: { number: 21_000_000, timestamp: null } },
             markets: [market("Aave V3 USDC", "0.5")],
           },
         }),
-      [SPARK.id]: () =>
+      [SPARK.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_001,
           markets: [market("Spark USDC", "4.0")],
@@ -162,10 +170,10 @@ describe("the registry's freshness gate", () => {
 
   it("survives one index being down", async () => {
     routeByDeployment({
-      [AAVE.id]: () => {
+      [AAVE.ipfsHash]: () => {
         throw new Error("connect ECONNREFUSED");
       },
-      [SPARK.id]: () =>
+      [SPARK.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_001,
           markets: [market("Spark USDC", "4.0")],
@@ -184,8 +192,8 @@ describe("the registry's freshness gate", () => {
 
   it("reports a gateway error against the deployment that caused it", async () => {
     routeByDeployment({
-      [AAVE.id]: () => new Response("nope", { status: 502 }),
-      [SPARK.id]: () =>
+      [AAVE.ipfsHash]: () => new Response("nope", { status: 502 }),
+      [SPARK.ipfsHash]: () =>
         answer({
           blockNumber: 21_000_001,
           markets: [market("Spark USDC", "4.0")],
@@ -207,7 +215,7 @@ describe("the registry's freshness gate", () => {
         markets: [market("Ancient USDC", "0.1")],
         timestampMs: NOW - MAX_INDEX_LAG_MS * 10,
       });
-    routeByDeployment({ [AAVE.id]: stale, [SPARK.id]: stale });
+    routeByDeployment({ [AAVE.ipfsHash]: stale, [SPARK.ipfsHash]: stale });
 
     const snapshot = await client().lendingMarkets("USDC");
 
@@ -215,5 +223,69 @@ describe("the registry's freshness gate", () => {
     // step is spending money.
     expect(snapshot.markets).toEqual([]);
     expect(snapshot.deployments.every((d) => d.status === "stale")).toBe(true);
+  });
+
+  it("asks the gateway for the pinned hash and carries it onto every reading", async () => {
+    const asked: string[] = [];
+    routeByDeployment({
+      [AAVE.ipfsHash]: () => {
+        asked.push(AAVE.ipfsHash);
+        return answer({
+          blockNumber: 21_000_000,
+          markets: [market("Aave V3 USDC", "5.0")],
+          servedBy: AAVE.ipfsHash,
+          timestampMs: NOW - 60_000,
+        });
+      },
+      [SPARK.ipfsHash]: () => {
+        asked.push(SPARK.ipfsHash);
+        return answer({
+          blockNumber: 21_000_001,
+          markets: [],
+          servedBy: SPARK.ipfsHash,
+          timestampMs: NOW - 60_000,
+        });
+      },
+    });
+
+    const snapshot = await client().lendingMarkets("USDC");
+
+    expect(asked.toSorted()).toEqual(
+      [AAVE.ipfsHash, SPARK.ipfsHash].toSorted()
+    );
+    expect(snapshot.deployments.map((d) => d.ipfsHash)).toEqual([
+      AAVE.ipfsHash,
+      SPARK.ipfsHash,
+    ]);
+    expect(snapshot.markets[0]?.ipfsHash).toBe(AAVE.ipfsHash);
+  });
+
+  it("refuses an answer the gateway served from a different artefact", async () => {
+    // The receipt will say "read from QmAave". If the gateway routed the
+    // query to another version, that sentence would be false; the numbers are
+    // dropped rather than cited under the wrong hash.
+    routeByDeployment({
+      [AAVE.ipfsHash]: () =>
+        answer({
+          blockNumber: 21_000_000,
+          markets: [market("Aave V3 USDC", "5.0")],
+          servedBy: "QmSomethingElse",
+          timestampMs: NOW - 60_000,
+        }),
+      [SPARK.ipfsHash]: () =>
+        answer({
+          blockNumber: 21_000_001,
+          markets: [market("Spark USDC", "4.0")],
+          servedBy: SPARK.ipfsHash,
+          timestampMs: NOW - 60_000,
+        }),
+    });
+
+    const snapshot = await client().lendingMarkets("USDC");
+
+    const aave = snapshot.deployments.find((d) => d.id === AAVE.id);
+    expect(aave?.status).toBe("unavailable");
+    expect(aave?.note).toContain("QmSomethingElse");
+    expect(snapshot.markets.map((m) => m.name)).toEqual(["Spark USDC"]);
   });
 });

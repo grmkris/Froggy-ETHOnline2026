@@ -36,6 +36,11 @@ import { Quote } from "./money";
 export const EvidenceDeployment = Schema.Struct({
   blockNumber: Schema.NullOr(Schema.Finite),
   id: Schema.String,
+  /**
+   * The exact indexed artefact the numbers were read from. Optional only
+   * because receipts written before 11 Sep 2026 carry the subgraph id alone.
+   */
+  ipfsHash: Schema.optional(Schema.String),
   label: Schema.String,
   /** `fresh`, `stale` or `unavailable`. A stale index contributed nothing. */
   status: Schema.String,

@@ -45,7 +45,7 @@ import type {
  */
 const LENDING_QUERY = `
   query CheapestBorrow($symbol: String!, $first: Int!) {
-    _meta { block { number timestamp } }
+    _meta { block { number timestamp } deployment }
     markets(
       first: $first
       orderBy: totalBorrowBalanceUSD
@@ -109,6 +109,12 @@ const RawMeta = Schema.Struct({
     number: Schema.Finite,
     timestamp: Schema.optional(Schema.NullOr(Schema.Finite)),
   }),
+  /**
+   * The hash of the deployment that actually answered. Optional because older
+   * graph-node versions do not expose it; when it is present it has to be the
+   * one that was asked for.
+   */
+  deployment: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const GatewayResponse = Schema.Struct({
@@ -165,6 +171,7 @@ const toMarket = (
   chain: deployment.chain,
   deploymentId: deployment.id,
   inputTokenSymbol: raw.inputToken.symbol,
+  ipfsHash: deployment.ipfsHash,
   name: nameOf(raw, deployment),
   protocol: protocolOf(nameOf(raw, deployment)),
   supplyApr: rateOf(raw.rates, "LENDER"),
@@ -191,6 +198,7 @@ export const stubGraphClient = (): GraphClient => ({
         blockTimestamp: null,
         chain: deployment.chain,
         id: deployment.id,
+        ipfsHash: deployment.ipfsHash,
         label: deployment.label,
         marketCount: markets.filter((m) => m.deploymentId === deployment.id)
           .length,
@@ -217,7 +225,8 @@ export const stubGraphClient = (): GraphClient => ({
 export interface GraphTransport {
   readonly label: string;
   readonly send: (url: string, body: string) => Promise<Response>;
-  readonly url: (gateway: string, deploymentId: string) => string;
+  /** The gateway address of one exact deployment, by its ipfs hash. */
+  readonly url: (gateway: string, ipfsHash: string) => string;
 }
 
 export const studioTransport = (apiKey: string): GraphTransport => ({
@@ -231,7 +240,7 @@ export const studioTransport = (apiKey: string): GraphTransport => ({
       },
       method: "POST",
     }),
-  url: (gateway, deploymentId) => `${gateway}/subgraphs/id/${deploymentId}`,
+  url: (gateway, ipfsHash) => `${gateway}/deployments/id/${ipfsHash}`,
 });
 
 /** The pay-per-query path: the URL the gateway prices, and whatever pays. */
@@ -240,8 +249,7 @@ export const x402Transport = (
 ): GraphTransport => ({
   label: "x402",
   send,
-  url: (gateway, deploymentId) =>
-    `${gateway}/x402/subgraphs/id/${deploymentId}`,
+  url: (gateway, ipfsHash) => `${gateway}/x402/deployments/id/${ipfsHash}`,
 });
 
 export interface LiveGraphOptions {
@@ -271,6 +279,7 @@ const unavailable = (deployment: Deployment, note: string): Reading => ({
     blockTimestamp: null,
     chain: deployment.chain,
     id: deployment.id,
+    ipfsHash: deployment.ipfsHash,
     label: deployment.label,
     marketCount: 0,
     note,
@@ -344,7 +353,7 @@ const readDeployment = async (
     readonly transport: GraphTransport;
   }
 ): Promise<Reading> => {
-  const url = input.transport.url(input.gateway, deployment.id);
+  const url = input.transport.url(input.gateway, deployment.ipfsHash);
   let response: Response;
   try {
     response = await input.transport.send(
@@ -385,6 +394,19 @@ const readDeployment = async (
   if (meta === undefined || meta === null) {
     return unavailable(deployment, "the deployment reported no _meta block");
   }
+  // The receipt names this hash as the exact artefact the numbers came from.
+  // A gateway that routed the query to another version would make that a
+  // false statement, so it is checked rather than assumed.
+  if (
+    meta.deployment !== undefined &&
+    meta.deployment !== null &&
+    meta.deployment !== deployment.ipfsHash
+  ) {
+    return unavailable(
+      deployment,
+      `the gateway answered from deployment ${meta.deployment}, not the pinned ${deployment.ipfsHash}`
+    );
+  }
   const timestamp = meta.block.timestamp ?? null;
   if (timestamp === null) {
     // Unverifiable, so refused. Treating "I cannot tell you how fresh I am"
@@ -396,6 +418,7 @@ const readDeployment = async (
         blockTimestamp: null,
         chain: deployment.chain,
         id: deployment.id,
+        ipfsHash: deployment.ipfsHash,
         label: deployment.label,
         marketCount: 0,
         note: "the deployment did not report a block timestamp",
@@ -414,6 +437,7 @@ const readDeployment = async (
         blockTimestamp: timestamp,
         chain: deployment.chain,
         id: deployment.id,
+        ipfsHash: deployment.ipfsHash,
         label: deployment.label,
         marketCount: 0,
         note: `${hours}h behind; its numbers were not used`,
@@ -432,6 +456,7 @@ const readDeployment = async (
       blockTimestamp: timestamp,
       chain: deployment.chain,
       id: deployment.id,
+      ipfsHash: deployment.ipfsHash,
       label: deployment.label,
       marketCount: markets.length,
       note: null,

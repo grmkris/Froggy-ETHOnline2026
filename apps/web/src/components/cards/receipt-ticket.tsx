@@ -112,6 +112,9 @@ const Because = ({
           <li key={deployment.id}>
             {deployment.label} · block {deployment.blockNumber ?? "—"} ·{" "}
             {deployment.status}
+            {deployment.ipfsHash === undefined
+              ? null
+              : ` · ${shortId(deployment.ipfsHash, 12)}`}
           </li>
         ))}
         <li>snapshot {shortId(evidence.snapshotHash, 16)}</li>

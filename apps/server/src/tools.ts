@@ -141,6 +141,7 @@ export const graphQueryOutput = (
     blockNumber: deployment.blockNumber,
     chain: deployment.chain,
     id: deployment.id,
+    ipfsHash: deployment.ipfsHash,
     label: deployment.label,
     marketCount: deployment.marketCount,
     note: deployment.note,
@@ -728,6 +729,7 @@ export const buildTools = (deps: ToolDeps) => {
           deployments: snapshot.deployments.map((deployment) => ({
             blockNumber: deployment.blockNumber,
             id: deployment.id,
+            ipfsHash: deployment.ipfsHash,
             label: `${deployment.label} (${deployment.chain})`,
             status: deployment.status,
           })),

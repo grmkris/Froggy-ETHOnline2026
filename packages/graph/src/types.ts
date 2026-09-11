@@ -22,6 +22,8 @@ export interface LendingMarket {
    */
   readonly deploymentId: string;
   readonly inputTokenSymbol: string;
+  /** The exact artefact the row was read from; see `Deployment.ipfsHash`. */
+  readonly ipfsHash: string;
   readonly name: string;
   readonly protocol: string;
   readonly supplyApr: number;
@@ -38,6 +40,8 @@ export interface DeploymentReading {
   readonly blockTimestamp: number | null;
   readonly chain: string;
   readonly id: string;
+  /** The pinned hash; on the receipt so the artefact can be re-read. */
+  readonly ipfsHash: string;
   readonly label: string;
   readonly marketCount: number;
   /** Filled for `stale` and `unavailable`. Shown to the model and the user. */

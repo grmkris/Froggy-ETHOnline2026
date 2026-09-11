@@ -26,6 +26,8 @@ export const GraphQueryDeployment = Schema.Struct({
   blockNumber: Schema.NullOr(Schema.Finite),
   chain: Schema.String,
   id: Schema.String,
+  /** The exact artefact read; optional for messages from before it was sent. */
+  ipfsHash: Schema.optional(Schema.String),
   label: Schema.String,
   marketCount: Schema.Finite,
   /** Why it did not contribute, for `stale` and `unavailable`. */
