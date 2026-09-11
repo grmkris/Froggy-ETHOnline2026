@@ -16,6 +16,8 @@ Recovered 7 September 2026 from Claude session `ae4fd45e-aae3-4028-ad26-d03dc459
 | Activation | Configure reviewed supplier rules and collect paid delivery evidence. The owner supplies the X credential. |
 | Card checkout | After lanes 1–6, before the Thursday feature freeze. Sealed storage, masked autofill and a human bank-verification step. |
 
+The Navigation row was superseded on 10 September by `e9eb902`: Home, Explore and Wallet are the whole navigation, with Connections and Account behind them; the rail stays at desktop widths and the pill on phones. The other rows stand.
+
 ## Completion state
 
 | Lane | Evidence at recovery | Remaining |
