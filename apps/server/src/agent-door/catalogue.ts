@@ -121,6 +121,16 @@ export const refuse = <A>(reason: string): Read<A> => ({
 });
 
 /**
+ * Bound a stranger-supplied field before it is interpolated into a receipt.
+ *
+ * The topic has no submit key, so `kind` and `ref` are a stranger's strings,
+ * and a seller's card is the same: none of these fields have earned an
+ * unbounded place in a tool result.
+ */
+export const clipField = (value: string, max = 240): string =>
+  value.length <= max ? value : `${value.slice(0, max)}…`;
+
+/**
  * Read the card, or say why not.
  *
  * A seller that cannot describe itself is a seller nothing should be bought
@@ -207,29 +217,29 @@ export const formatAmount = (
 /** One resource, as a line a caller can choose from. */
 const describeResource = (resource: Resource): string =>
   [
-    `- ${resource.url}`,
-    `  ${resource.description}`,
-    `  ${formatAmount(resource.price, resource.asset, resource.network)} per call on ${resource.network}, ${resource.scheme} scheme, paid to ${resource.payTo}.`,
+    `- ${clipField(resource.url)}`,
+    `  ${clipField(resource.description)}`,
+    `  ${formatAmount(resource.price, resource.asset, resource.network)} per call on ${clipField(resource.network, 80)}, ${clipField(resource.scheme, 80)} scheme, paid to ${clipField(resource.payTo, 80)}.`,
   ].join("\n");
 
 /** The whole card, as the catalogue view answers it. */
 export const describeCatalogue = (card: ServiceCard, url: string): string => {
   const lines = [
-    `${card.name} — ${card.description}`,
+    `${clipField(card.name)} — ${clipField(card.description)}`,
     "",
     "For sale:",
     ...card.resources.map(describeResource),
     "",
-    `Settled through the facilitator at ${card.facilitator}. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the amount itself.`,
+    `Settled through the facilitator at ${clipField(card.facilitator)}. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the amount itself.`,
   ];
   if (card.hcsTopic !== null) {
     lines.push(
-      `Every settlement leaves a public note on Hedera Consensus Service topic ${card.hcsTopic}. Check any one of them with froggy_receipt.`
+      `Every settlement leaves a public note on Hedera Consensus Service topic ${clipField(card.hcsTopic, 80)}. Check any one of them with froggy_receipt.`
     );
   }
   lines.push(
     "",
-    `Source: ${card.source}`,
+    `Source: ${clipField(card.source)}`,
     `Card: ${url}${CARD_PATH}`,
     "Buy one with froggy_buy. Nothing here costs anything and nothing here needs an account."
   );

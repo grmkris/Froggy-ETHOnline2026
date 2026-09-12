@@ -4,7 +4,7 @@
  * Same reasoning as the CLI beside it: a stranger's agent has Node and curl
  * and nothing of ours, and the repository may be private on the day. The
  * server builds the door from its own source on first request and hands it
- * out at `/froggy-mcp.js`, so there is no published artefact to keep in step
+ * out at `/froggy-mcp.mjs`, so there is no published artefact to keep in step
  * with the seller and nothing to forget at image build time.
  *
  * What is served holds no key and no credential of ours. The caller supplies

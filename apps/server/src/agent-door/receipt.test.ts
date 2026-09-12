@@ -46,6 +46,10 @@ describe("describeSettlement, in HBAR", () => {
       "Settled. 0.05 HBAR moved from 0.0.12345 to 0.0.10847556"
     );
     expect(said).toContain("2026-09-06T22:28:13.000Z");
+    expect(said).toContain(
+      `https://hashscan.io/mainnet/transaction/${encodeURIComponent(TRANSACTION)}`
+    );
+    expect(said).not.toContain(`/transaction/${TRANSACTION}`);
   });
 
   it("does not report a fee leg as the payment when the price is under the fee", () => {
@@ -117,6 +121,33 @@ describe("describeSettlement, on the note", () => {
 
   it("always says the topic has no submit key", () => {
     expect(withNote("sold")).toContain("anyone may write to it");
+  });
+
+  it("caps a stranger's kind and ref rather than dumping them into the receipt", () => {
+    const said = describeSettlement(
+      {
+        ...settled([
+          { accountId: "0.0.12345", amount: -5_000_000n, asset: "0.0.0" },
+          { accountId: "0.0.10847556", amount: 5_000_000n, asset: "0.0.0" },
+        ]),
+        note: {
+          consensusTimestamp: WHEN,
+          note: {
+            kind: "x".repeat(200),
+            ref: "y".repeat(200),
+            transactionId: TRANSACTION,
+          },
+          payerAccountId: "0.0.10847552",
+          sequenceNumber: 1,
+          topicId: "0.0.10847557",
+        },
+      },
+      "hedera:mainnet"
+    );
+    expect(said).toContain("x".repeat(80));
+    expect(said).toContain("y".repeat(80));
+    expect(said).not.toContain("x".repeat(81));
+    expect(said).not.toContain("y".repeat(81));
   });
 });
 

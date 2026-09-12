@@ -18,6 +18,11 @@
  *
  * stdout is the protocol. Every diagnostic goes to stderr, because a stray
  * log line on stdout is a parse error at the other end.
+ *
+ * Two exceptions to the server's rules, because this is not the server: it
+ * reads its own `FROGGY_*` environment as a separate Node process, and it pays
+ * with the caller's key around `spend()` because the money is the stranger's,
+ * not ours.
  */
 
 import { createInterface } from "node:readline";
