@@ -40,6 +40,13 @@ describe("needsPerson", () => {
     expect(needsPerson("transfer", 1, ALLOWANCE)).toBe(true);
   });
 
+  it("asks for anything a web page wrote, whatever the amount", () => {
+    expect(needsPerson("dapp_transaction", 0, ALLOWANCE)).toBe(true);
+    expect(needsPerson("dapp_signature", 0, ALLOWANCE)).toBe(true);
+    expect(authorityFor("dapp_transaction")?.side).toBe("ask");
+    expect(authorityFor("dapp_signature")?.side).toBe("ask");
+  });
+
   it("does not ask for the conversion, which is nested in an allowed payment", () => {
     expect(needsPerson("conversion", usd(0.5), ALLOWANCE)).toBe(false);
   });

@@ -240,3 +240,15 @@ export type ActivityEventId = typeof ActivityEventId.Type;
 
 export const ArtifactId = makeIdSchema("art", "ArtifactId");
 export type ArtifactId = typeof ArtifactId.Type;
+
+/**
+ * One request a dapp made of the injected wallet: a connection, a signature or
+ * a transaction. Durable, so a restart between approval and broadcast can be
+ * told apart from a refusal.
+ */
+export const WalletRequestId = makeIdSchema("bwr", "WalletRequestId");
+export type WalletRequestId = typeof WalletRequestId.Type;
+
+/** A person's standing permission for one dapp origin to see their address. */
+export const WalletConnectionId = makeIdSchema("bwc", "WalletConnectionId");
+export type WalletConnectionId = typeof WalletConnectionId.Type;

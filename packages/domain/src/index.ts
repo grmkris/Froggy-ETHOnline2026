@@ -237,3 +237,38 @@ export {
 } from "./history";
 
 export { tradeExitRefusal, tradeExitTrigger } from "./trade-exits";
+
+export { WalletConnectionId, WalletRequestId } from "./id";
+export {
+  advanceWalletRequest,
+  canonicalWalletRequest,
+  WALLET_REQUEST_PARAMS_LIMIT,
+  WALLET_REQUEST_RESULT_LIMIT,
+  WALLET_REQUEST_TTL_MS,
+  WALLET_RULE_TTL_MS,
+  WalletConnectPayload,
+  WalletConnection,
+  WalletMessagePayload,
+  WalletRequest,
+  WalletRequestDelivery,
+  WalletRequestEvent,
+  WalletRequestInitiator,
+  WalletRequestKind,
+  WalletRequestPayload,
+  WalletRequestStatus,
+  WalletTransactionPayload,
+  WalletTypedDataPayload,
+  walletRequestFinished,
+} from "./wallet-request";
+export {
+  assessMessage,
+  assessTransaction,
+  assessTypedData,
+  parseSiwe,
+  parseTypedData,
+} from "./dapp-decode";
+export type {
+  DappAssessment,
+  SiweMessage,
+  TypedDataDocument,
+} from "./dapp-decode";

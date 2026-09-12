@@ -52,6 +52,10 @@ export const ActionKind = Schema.Literals([
   "transfer",
   /** The trading engine's own authority, judged elsewhere; named so it is not forgotten. */
   "trade",
+  /** A transaction a web page asked the injected wallet to send. */
+  "dapp_transaction",
+  /** A message or typed-data signature a web page asked the injected wallet for. */
+  "dapp_signature",
 ]);
 export type ActionKind = typeof ActionKind.Type;
 
@@ -117,6 +121,20 @@ export const STANDING_AUTHORITY: readonly ActionAuthority[] = [
     because:
       "A trade is judged by its own rule or by you, never by this table.",
     kind: "trade",
+    perRequestUsdMicros: null,
+    side: "ask",
+  },
+  {
+    because:
+      "A web page wrote this transaction, so only you can say it is what you meant; each yes signs that exact one.",
+    kind: "dapp_transaction",
+    perRequestUsdMicros: null,
+    side: "ask",
+  },
+  {
+    because:
+      "A signature can authorise things no cap can price, so a page never gets one on the agent's say-so.",
+    kind: "dapp_signature",
     perRequestUsdMicros: null,
     side: "ask",
   },
