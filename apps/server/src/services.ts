@@ -110,6 +110,8 @@ export interface Services {
   readonly purchases: Purchases;
   readonly trades: TradeCoordinator;
   readonly evmReceipt: EvmRpc["transactionReceipt"];
+  /** Whether the chain has ever seen a transaction; see `transactionKnown`. */
+  readonly evmTransactionKnown: EvmRpc["transactionKnown"];
   /**
    * Hedera accounts of people's own, opened at first need from the host's
    * float; null when this deployment pays every Hedera leg from the host
@@ -522,6 +524,7 @@ export const createServices = (options: ServiceOptions): Services => {
     },
     evmChainId: async () => await rpc.chainId(),
     evmReceipt: rpc.transactionReceipt,
+    evmTransactionKnown: rpc.transactionKnown,
     graph,
     graphDiscovery,
     hcs,

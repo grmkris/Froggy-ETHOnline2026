@@ -1,4 +1,5 @@
 /** Durable USDC and HBAR legs. Unknown submissions are reconciled, never sent twice. */
+
 import { ConversionId, KNOWN_ASSETS } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import type { ConversionRecord, FundingSubmission } from "@froggy/wallet";
@@ -6,6 +7,18 @@ import type { ConversionRecord, FundingSubmission } from "@froggy/wallet";
 import type { Services } from "./services";
 import type { ConversionOutcome, SessionDeps, Settled } from "./session";
 import { sendUsdc } from "./usdc-transfer";
+
+/**
+ * How long a pending leg is given before "the chain has never seen it" means
+ * "it was never sent". An accepted broadcast is in a mempool at once and in
+ * a block within a minute on Base; five minutes is ample and costs a person
+ * nothing they were not already waiting for.
+ */
+const NEVER_SEEN_GRACE_MS = 5 * 60 * 1000;
+
+/** When a conversion was created: the first 48 bits of its UUIDv7 are milliseconds. */
+const issuedAt = (id: ConversionId): number =>
+  Number.parseInt(ConversionId.toUuid(id).replaceAll("-", "").slice(0, 12), 16);
 
 const pendingWords = (record: ConversionRecord): string =>
   `Conversion ${record.id} is waiting for ${record.phase === "usdc_pending" ? "USDC confirmation" : "HBAR funding"}. Pending funds cannot be spent. Retry to check confirmation; USDC will not be charged again.${record.error === null ? "" : ` ${record.error}`}`;
@@ -36,7 +49,8 @@ const settledPatch = (
 };
 
 export const createConversion = (
-  services: Services
+  services: Services,
+  options: { readonly now?: () => number } = {}
 ): SessionDeps["convert"] | undefined => {
   const treasury = services.environment.treasuryEvmAddress;
   if (treasury === null || services.accounts === null) {
@@ -44,6 +58,21 @@ export const createConversion = (
   }
   const { evmNetwork, hederaNetwork } = services.environment;
   const store = services.store.conversions;
+  const now = options.now ?? Date.now;
+
+  /**
+   * A pending USDC leg whose transaction the chain has never seen, once the
+   * grace has passed. The id is time-ordered, so its issue time is the age.
+   */
+  const neverSent = async (record: ConversionRecord): Promise<boolean> => {
+    if (record.usdcHash === null) {
+      return false;
+    }
+    if (now() - issuedAt(record.id) < NEVER_SEEN_GRACE_MS) {
+      return false;
+    }
+    return !(await services.evmTransactionKnown(record.usdcHash));
+  };
 
   const update = async (
     record: ConversionRecord,
@@ -121,6 +150,18 @@ export const createConversion = (
           phase: receipt.status === "success" ? "usdc_confirmed" : "failed",
           error:
             receipt.status === "success" ? null : "USDC transfer reverted.",
+        });
+      } else if (await neverSent(record)) {
+        // The hash was persisted before a broadcast that never reached the
+        // chain: the node has never seen it, and enough time has passed for
+        // an accepted one to be in a mempool or a block. Waiting longer would
+        // only keep this person from spending. Cleared, so a retry may claim
+        // the key.
+        record = await update(record, {
+          phase: "failed",
+          error:
+            "The USDC transfer was never seen by the network; nothing was sent.",
+          usdcHash: null,
         });
       }
     }

@@ -32,6 +32,8 @@ interface ConversionState {
   usdcBeforeSendFails: boolean;
   /** The node answers the broadcast with an error: nothing entered the mempool. */
   usdcRefusedAtBroadcast: boolean;
+  /** What the chain answers to "have you seen this hash": true once a send really happened. */
+  usdcSeenByChain: boolean;
   fundBeforeSendFails: boolean;
   fundUnknown: boolean;
   hederaVerdict: "success" | "unknown";
@@ -44,6 +46,7 @@ const fixture = () => {
     usdcUnknown: false,
     usdcBeforeSendFails: false,
     usdcRefusedAtBroadcast: false,
+    usdcSeenByChain: true,
     fundBeforeSendFails: false,
     fundUnknown: false,
     hederaVerdict: "unknown",
@@ -79,6 +82,8 @@ const fixture = () => {
           ? null
           : { blockNumber: 1, status: "success", transactionHash: "0xfixture" }
       ),
+    evmTransactionKnown: async () =>
+      await Promise.resolve(state.usdcSeenByChain),
     accounts: {
       lookup: async () => await Promise.resolve("0.0.42"),
       payerFor: async () => await Promise.resolve(base.payer),
@@ -107,8 +112,11 @@ const fixture = () => {
     },
   };
   const owner = userId(`did:privy:conversion-${crypto.randomUUID()}`);
-  const convert = () => {
-    const adapter = createConversion(services);
+  const convert = (now?: () => number) => {
+    const adapter = createConversion(
+      services,
+      now === undefined ? {} : { now }
+    );
     if (adapter === undefined) {
       throw new Error("Missing conversion adapter");
     }
@@ -116,6 +124,8 @@ const fixture = () => {
   };
   return { services, state, owner, convert };
 };
+/** Clocks past the never-seen grace, for a record created just now. */
+const tenMinutesOn = (): number => Date.now() + 10 * 60 * 1000;
 const wallet = {
   id: "fixture",
   address: "0x2222222222222222222222222222222222222222",
@@ -160,6 +170,46 @@ describe("durable conversion recovery", () => {
     expect(f.state.usdcCalls).toBe(2);
     expect(f.state.fundCalls).toBe(1);
     expect(await f.services.store.pocket.load(f.owner)).toBe(2_000_000);
+  });
+  test("a pending leg the chain has never seen is failed after the grace, and no sooner", async () => {
+    // The row a tester was stuck behind on 12 September: the hash persisted
+    // before a broadcast that timed out and never reached the chain, under a
+    // build that could not yet tell a refusal from an unknown outcome.
+    const f = fixture();
+    f.state.usdcUnknown = true;
+    f.state.usdcSeenByChain = false;
+    const first = await f.convert().perform(f.owner, wallet, 2_000_000, "lost");
+    expect(first.transfer.ok).toBe(false);
+    // Inside the grace it is still an unknown outcome: the person waits.
+    expect(await f.convert().recover?.(f.owner)).toContain(
+      "waiting for USDC confirmation"
+    );
+    // Past it, the chain still knows nothing: it was never sent, and the
+    // person is free to spend again.
+    expect(await f.convert(tenMinutesOn).recover?.(f.owner)).toBeNull();
+    expect(f.state.fundCalls).toBe(0);
+    // The same key can be retried, and pays once.
+    f.state.usdcUnknown = false;
+    f.state.usdcSeenByChain = true;
+    const paid = await f
+      .convert(tenMinutesOn)
+      .perform(f.owner, wallet, 2_000_000, "lost");
+    expect(paid.credited).toBe(true);
+    expect(f.state.usdcCalls).toBe(2);
+    expect(f.state.fundCalls).toBe(1);
+  });
+
+  test("a pending leg the chain has seen keeps waiting past the grace", async () => {
+    // Known to the node but not yet mined: that is a real transaction in
+    // flight, and "never sent" must not be said of it however old it is.
+    const f = fixture();
+    f.state.usdcUnknown = true;
+    f.state.usdcSeenByChain = true;
+    await f.convert().perform(f.owner, wallet, 2_000_000, "slow");
+    expect(await f.convert(tenMinutesOn).recover?.(f.owner)).toContain(
+      "waiting for USDC confirmation"
+    );
+    expect(f.state.usdcCalls).toBe(1);
   });
   test("a failed credit commit never reports available funds or retries either chain leg", async () => {
     const f = fixture();

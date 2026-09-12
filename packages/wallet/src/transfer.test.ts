@@ -32,6 +32,10 @@ const rpcWith = (overrides: Partial<EvmRpc> = {}): EvmRpc => ({
     await Promise.resolve();
     return 3;
   },
+  transactionKnown: async () => {
+    await Promise.resolve();
+    return false;
+  },
   transactionReceipt: async () => {
     await Promise.resolve();
     return null;

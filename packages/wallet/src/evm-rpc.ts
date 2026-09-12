@@ -40,6 +40,9 @@ const RpcResponse = Schema.Struct({
 });
 const decodeResponse = Schema.decodeUnknownResult(RpcResponse);
 
+/** Only the hash is read; the rest of the object is the node's business. */
+const RpcTransaction = Schema.NullOr(Schema.Struct({ hash: Hex }));
+
 const RpcReceipt = Schema.NullOr(
   Schema.Struct({
     blockNumber: Hex,
@@ -65,6 +68,12 @@ export interface EvmRpc {
   readonly sendRawTransaction: (signed: string) => Promise<string>;
   /** The pending nonce for this address. */
   readonly transactionCount: (address: string) => Promise<number>;
+  /**
+   * Whether the node knows this transaction at all, mined or waiting in its
+   * mempool. False is how a broadcast that never happened looks after the
+   * fact: no receipt will ever come for it.
+   */
+  readonly transactionKnown: (hash: string) => Promise<boolean>;
   readonly transactionReceipt: (
     hash: string
   ) => Promise<EvmTransactionReceipt | null>;
@@ -176,6 +185,8 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
       await call("eth_sendRawTransaction", [signed], Hex),
     transactionCount: async (address) =>
       Number(await quantity("eth_getTransactionCount", [address, "pending"])),
+    transactionKnown: async (hash) =>
+      (await call("eth_getTransactionByHash", [hash], RpcTransaction)) !== null,
     transactionReceipt,
     waitForReceipt: async (hash, waitOptions) => {
       const deadline = Date.now() + (waitOptions?.timeoutMs ?? DEFAULT_WAIT_MS);
