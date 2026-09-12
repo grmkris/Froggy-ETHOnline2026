@@ -1,11 +1,16 @@
 /**
- * A plain USDC transfer from the person's wallet, as a settlement.
+ * A USDC transfer from the person's wallet, as a settlement.
  *
  * Shared by the send tool and the just-in-time conversion: both move USDC
  * from the wallet the agent is a signer on, both are signed by Privy under
  * the committed policy and broadcast here, and both report Privy's refusal
  * in its own words rather than as a thrown error, because a refusal is a
  * fact for the receipt and not a transport failure to retry.
+ *
+ * Which signing shape moves it is the caller's: the send tool signs a plain
+ * `transfer` from the wallet (`evmTransfersFor`), the conversion an
+ * authorization the treasury settles (`evmRelayFor`, with the plain transfer
+ * as the fallback where no treasury wallet exists).
  */
 
 import { EvmRpcError, PrivySignerRefusedError } from "@froggy/wallet";
@@ -18,10 +23,12 @@ export const sendUsdc = async (
   wallet: { readonly address: string; readonly id: string } | null,
   to: string,
   units: string,
-  beforeBroadcast?: (hash: string) => Promise<void>
+  beforeBroadcast?: (hash: string) => Promise<void>,
+  transfers: ReturnType<Services["evmTransfersFor"]> = services.evmTransfersFor(
+    wallet
+  )
 ): Promise<Settled> => {
   const network = services.environment.evmNetwork;
-  const transfers = services.evmTransfersFor(wallet);
   if (transfers === null) {
     return {
       error: "the agent has no signer on this wallet yet",
