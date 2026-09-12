@@ -6,7 +6,14 @@ import { capturePage } from "./capture";
  * Every place, at four widths: no page error, nothing wider than the
  * viewport, and a picture of each for the eye that the assertions lack.
  */
-const PLACES = ["/", "/wallet", "/services", "/agents", "/settings"] as const;
+const PLACES = [
+  "/",
+  "/explore",
+  "/wallet",
+  "/services",
+  "/agents",
+  "/settings",
+] as const;
 const SIZES = [
   { width: 1440, height: 1000 },
   { width: 768, height: 1024 },
