@@ -11,10 +11,12 @@
  */
 
 import { formatUsd, Purchase } from "@froggy/domain";
+import type { TaskStatus } from "@froggy/domain";
 import { ServiceCatalog, ServiceTicket } from "@froggy/protocol";
 import type { GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { statusWords } from "./services-view";
 import type { ToolCall } from "./tool-call";
 import { walletStatusOf } from "./wallet-status";
 
@@ -271,20 +273,29 @@ const clickSummary = (text: string): ToolSummary =>
     text.includes("not in the current snapshot") ? "refused" : "info"
   );
 
+/** What the person is waiting on, by phase, when the ticket has no text yet. */
+const SERVICE_PHASE_DETAIL: ReadonlyMap<TaskStatus, string> = new Map([
+  ["quoted", "Settling your payment. The provider has not been called yet."],
+  ["running", "Settling your payment. The provider has not been called yet."],
+  ["paid", "Paid. The provider is working; results will appear in Services."],
+]);
+
 const serviceSummary = (text: string): ToolSummary | null => {
   try {
     const raw: unknown = JSON.parse(text);
     const ticket = Schema.decodeUnknownResult(ServiceTicket)(raw);
     if (ticket._tag === "Success") {
       const task = ticket.success;
-      const headline = `${task.service.replaceAll("_", " ")} · ${task.status}`;
+      const headline = `${task.service.replaceAll("_", " ")} · ${statusWords(task.status).label.toLowerCase()}`;
       if (task.status === "failed" || task.status === "uncertain") {
         return summary(headline, "refused", task.error, task.stubbed);
       }
       return summary(
         headline,
         task.status === "done" ? "ok" : "info",
-        task.text.slice(0, 500) || "Results and files are in Services.",
+        task.text.slice(0, 500) ||
+          (SERVICE_PHASE_DETAIL.get(task.status) ??
+            "Results and files are in Services."),
         task.stubbed
       );
     }

@@ -900,6 +900,20 @@ export const postgresStore = (sql: Sql): Store => {
           .set(set)
           .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
       },
+      expireInFlight: async ({ kind, statuses, before, error, now }) => {
+        const rows = await database
+          .update(tasks)
+          .set({ status: "uncertain", error, updatedAt: new Date(now) })
+          .where(
+            and(
+              eq(tasks.kind, kind),
+              inArray(tasks.status, [...statuses]),
+              lt(tasks.updatedAt, new Date(before))
+            )
+          )
+          .returning({ id: tasks.id });
+        return rows.length;
+      },
     },
     directory: {
       add: async (userId, entry) => {

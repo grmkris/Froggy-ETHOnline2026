@@ -37,9 +37,12 @@ describe("service tool cards", () => {
       throw new Error("Service tool output disappeared.");
     }
     expect(call.input.service).toBe("image");
+    // The phase is named in the person's words: a quoted ticket is a
+    // payment still settling, and the detail says the provider was not called.
     expect(summarize(call)).toMatchObject({
-      headline: "image · quoted",
+      headline: "image · settling your payment",
       outcome: "info",
+      detail: "Settling your payment. The provider has not been called yet.",
       stubbed: true,
     });
   });

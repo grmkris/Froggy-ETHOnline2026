@@ -7,6 +7,7 @@ import type {
   Receipt,
   RunId as RunIdValue,
   Task,
+  UserId,
 } from "@froggy/domain";
 import { describePayment } from "@froggy/payments";
 import { ServiceRequest, ServiceResult } from "@froggy/protocol";
@@ -20,13 +21,18 @@ import type { WorkspaceSession } from "./session";
 import { assetFor } from "./tools-assets";
 import { preflightTrading, serviceRequestText } from "./trading/services";
 
+/** After this long without a progress write, an in-flight task is reported as uncertain rather than pending. */
+export const SERVICE_STALE_MS = 15 * 60 * 1000;
+export const SERVICE_STALE_ERROR =
+  "No progress was recorded for 15 minutes. Check the payment before retrying; this request will not be purchased again automatically.";
+
 export const serviceTicket = (task: Task): ServiceTicket => {
   const request = Schema.decodeUnknownSync(ServiceRequest)(task.input);
   const decoded = Schema.decodeUnknownResult(ServiceResult)(task.result);
   const result = decoded._tag === "Success" ? decoded.success : null;
   const stale =
     ["quoted", "paid", "running", "awaiting_approval"].includes(task.status) &&
-    Date.now() - task.updatedAt > 15 * 60 * 1000;
+    Date.now() - task.updatedAt > SERVICE_STALE_MS;
   const ticket: ServiceTicket = {
     v: 1,
     id: task.id,
@@ -37,9 +43,7 @@ export const serviceTicket = (task: Task): ServiceTicket => {
     prompt: serviceRequestText(request),
     status: stale ? "uncertain" : task.status,
     priceUsdMicros: task.priceUsdMicros,
-    error: stale
-      ? "No progress was recorded for 15 minutes. Check the payment before retrying; this request will not be purchased again automatically."
-      : task.error,
+    error: stale ? SERVICE_STALE_ERROR : task.error,
     text: result?.text ?? "",
     sources: result?.sources ?? [],
     stubbed: (result?.stubbed ?? false) || task.input["demo"] === true,
@@ -55,6 +59,64 @@ export const serviceTicket = (task: Task): ServiceTicket => {
   }
   return ticket;
 };
+
+/** The longest a status read may hold its caller; chat and MCP both stay inside their own request timeouts. */
+export const SERVICE_WAIT_MAX_MS = 25_000;
+/** How long a purchase waits for its own task before answering with a ticket. */
+export const SERVICE_RUN_WAIT_MS = 20_000;
+const POLL_MS = 1000;
+const IN_FLIGHT = new Set<Task["status"]>(["quoted", "running", "paid"]);
+
+/**
+ * Hold a status read until the task reaches a terminal state or `waitMs`
+ * elapses, whichever is first.
+ *
+ * A caller that polls the instant a ticket is handed back sees `running`,
+ * which for a service task means "settling the payment", and a model reading
+ * that three times in a row concluded the search was stuck when it had in fact
+ * failed 56 seconds in. Waiting on the server turns those polls into one
+ * honest answer. This is a read: it never buys, resumes or retries anything.
+ */
+export const awaitServiceTask = async (
+  services: Pick<Services, "store">,
+  userId: UserId,
+  taskId: TaskId,
+  waitMs: number,
+  sleep: (ms: number) => Promise<void> = Bun.sleep
+): Promise<Task | null> => {
+  const deadline =
+    Date.now() + Math.min(Math.max(waitMs, 0), SERVICE_WAIT_MAX_MS);
+  const poll = async (): Promise<Task | null> => {
+    const task = await services.store.tasks.byId(userId, taskId);
+    const remaining = deadline - Date.now();
+    if (task === null || !IN_FLIGHT.has(task.status) || remaining <= 0) {
+      return task;
+    }
+    await sleep(Math.min(POLL_MS, remaining));
+    return await poll();
+  };
+  return await poll();
+};
+
+/**
+ * Boot recovery. The worker that carries a service task from `running`
+ * through payment to `done` lives in one process and is never resumed; a
+ * deploy in the middle leaves the row in-flight forever, and the ticket's
+ * read-time overlay only hides that from callers who ask. Writing the same
+ * verdict into the store makes the Services list, the chat and MCP agree.
+ * Nothing is retried or refunded here: a stale payment is for a human to check.
+ */
+export const recoverOrphanedServiceTasks = async (
+  services: Pick<Services, "store">,
+  now: number = Date.now()
+): Promise<number> =>
+  await services.store.tasks.expireInFlight({
+    kind: "service",
+    statuses: [...IN_FLIGHT],
+    before: now - SERVICE_STALE_MS,
+    error: SERVICE_STALE_ERROR,
+    now,
+  });
 
 interface PurchaseContext {
   readonly budgetUsdMicros?: number | undefined;

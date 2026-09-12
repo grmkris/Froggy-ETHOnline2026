@@ -37,6 +37,7 @@ import type { RouterDeps } from "./router";
 import { ChatRunRegistry } from "./runs";
 import { createScheduleTicker, formatLocal } from "./schedules";
 import { cspModeOf, withSecurityHeaders } from "./security-headers";
+import { recoverOrphanedServiceTasks } from "./service-tasks";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
 import type { SocketData, SocketDeps } from "./sockets";
@@ -488,6 +489,9 @@ class FroggyServer extends Context.Service<
         detached("trade recovery", tradeRecovery.tick);
       }, 15_000);
       detached("trade recovery at startup", tradeRecovery.tick);
+      detached("service task recovery at startup", async () => {
+        await recoverOrphanedServiceTasks(services);
+      });
 
       const baseRouterDeps: RouterDeps = {
         budget,

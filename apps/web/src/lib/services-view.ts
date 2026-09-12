@@ -30,10 +30,16 @@ export interface StatusWords {
   readonly tone: StatusTone;
 }
 
+/**
+ * A service task's phases in the person's words. `running` is the payment
+ * settling, not the provider working: the worker moves to `paid` only once
+ * the payment has landed, and the provider is called after that. Naming the
+ * phases is what lets a slow task be told apart from a failed one.
+ */
 const STATUS_WORDS: ReadonlyMap<TaskStatus, StatusWords> = new Map([
-  ["quoted", { label: "Quoted", tone: "settling" }],
-  ["paid", { label: "Paid", tone: "settling" }],
-  ["running", { label: "Running", tone: "settling" }],
+  ["quoted", { label: "Settling your payment", tone: "settling" }],
+  ["paid", { label: "Provider working", tone: "settling" }],
+  ["running", { label: "Settling your payment", tone: "settling" }],
   ["paused", { label: "Paused", tone: "uncertain" }],
   ["awaiting_approval", { label: "Waiting for your answer", tone: "asking" }],
   ["done", { label: "Done", tone: "done" }],

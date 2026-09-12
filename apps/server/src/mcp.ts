@@ -16,7 +16,12 @@ import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
 import { boundedBytes } from "./outbound";
 import { PurchaseToolInput, purchaseToolResult } from "./purchase-tool";
 import { serviceCatalog } from "./service-providers";
-import { purchaseService, serviceTicket } from "./service-tasks";
+import {
+  awaitServiceTask,
+  purchaseService,
+  SERVICE_WAIT_MAX_MS,
+  serviceTicket,
+} from "./service-tasks";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { std } from "./std";
@@ -44,7 +49,14 @@ const Call = Schema.Struct({
   name: Schema.String,
   arguments: Schema.optional(Schema.Unknown),
 });
-const StatusInput = Schema.Struct({ id: TaskId });
+const StatusInput = Schema.Struct({
+  id: TaskId,
+  waitMs: Schema.optional(
+    Schema.Int.check(
+      Schema.isBetween({ minimum: 0, maximum: SERVICE_WAIT_MAX_MS })
+    )
+  ),
+});
 const PurchaseStatusInput = Schema.Struct({ purchaseId: PurchaseId });
 const Initialize = Schema.Struct({
   protocolVersion: Schema.String,
@@ -200,7 +212,7 @@ const tools = [
   {
     name: "froggy_service_status",
     description:
-      "Read a task result. Approval happens in Froggy, never through this tool.",
+      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Status quoted or running means the payment is still settling; paid means the provider is working. Approval happens in Froggy, never through this tool.",
     inputSchema: inputSchema(StatusInput),
     annotations: { readOnlyHint: true },
   },
@@ -283,7 +295,12 @@ const invokeServiceCall = async (
     case "froggy_service_status": {
       const input = Schema.decodeUnknownSync(StatusInput)(call.arguments);
       const task = visibleTask(
-        await services.store.tasks.byId(caller.userId, input.id),
+        await awaitServiceTask(
+          services,
+          caller.userId,
+          input.id,
+          input.waitMs ?? 0
+        ),
         caller
       );
       if (!task || task.kind !== "service") {
@@ -694,7 +711,7 @@ export const handleMcp = async (
       capabilities: { tools: {} },
       serverInfo: { name: "froggy", version: "1.0.0" },
       instructions:
-        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool; never repurchase pending, failed, or uncertain work automatically.",
+        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool, passing waitMs to wait for settlement; never repurchase pending, failed, or uncertain work automatically.",
     });
   }
   if (message.method === "ping") {

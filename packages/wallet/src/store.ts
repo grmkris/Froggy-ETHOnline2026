@@ -363,6 +363,19 @@ export interface Store {
       id: TaskId,
       patch: TaskPatch
     ) => Promise<void>;
+    /**
+     * Boot recovery: every task of `kind` still in an in-flight status whose
+     * last progress predates `before` is marked `uncertain` with `error`.
+     * A worker lives in one process; a restart mid-flight leaves rows that
+     * would otherwise read as "running" forever. Returns how many were marked.
+     */
+    readonly expireInFlight: (input: {
+      readonly kind: Task["kind"];
+      readonly statuses: readonly Task["status"][];
+      readonly before: number;
+      readonly error: string;
+      readonly now: number;
+    }) => Promise<number>;
   };
   readonly directory: {
     /** Replaces an entry for the same URL. */
@@ -1034,6 +1047,26 @@ export const memoryStore = (): Store => {
           .filter((task) => task.userId === userId)
           .toSorted((a, b) => b.createdAt - a.createdAt)
           .slice(0, limit);
+      },
+      expireInFlight: async ({ kind, statuses, before, error, now }) => {
+        await Promise.resolve();
+        let marked = 0;
+        for (const [id, task] of tasks) {
+          if (
+            task.kind === kind &&
+            statuses.includes(task.status) &&
+            task.updatedAt < before
+          ) {
+            tasks.set(id, {
+              ...task,
+              status: "uncertain",
+              error,
+              updatedAt: now,
+            });
+            marked += 1;
+          }
+        }
+        return marked;
       },
       update: async (userId, id, patch) => {
         await Promise.resolve();

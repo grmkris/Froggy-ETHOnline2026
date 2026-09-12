@@ -17,7 +17,13 @@ import type { Environment } from "./environment";
 import { handleMcp } from "./mcp";
 import { createQuotes } from "./quotes";
 import { handleServices } from "./service-routes";
-import { purchaseService, serviceTicket } from "./service-tasks";
+import {
+  awaitServiceTask,
+  purchaseService,
+  recoverOrphanedServiceTasks,
+  SERVICE_WAIT_MAX_MS,
+  serviceTicket,
+} from "./service-tasks";
 import { createServices } from "./services";
 import { WorkspaceSession } from "./session";
 
@@ -271,6 +277,103 @@ describe("service purchases", () => {
     expect(replayed.error).toContain("15 minutes");
     expect(context.session.history).toHaveLength(1);
   });
+  it("holds a status read until the task settles, and answers with the phase at the deadline", async () => {
+    const context = await fixture();
+    const ticket = await purchaseService(context, request());
+    const settled = await awaitServiceTask(
+      context.services,
+      context.session.userId,
+      ticket.id,
+      SERVICE_WAIT_MAX_MS
+    );
+    expect(settled?.status).toBe("done");
+
+    // A task frozen mid-payment is polled once a second, not hammered, and
+    // the read returns as soon as the store shows progress.
+    await context.services.store.tasks.update(
+      context.session.userId,
+      ticket.id,
+      { status: "running", updatedAt: Date.now() }
+    );
+    const slept: number[] = [];
+    const pending = await awaitServiceTask(
+      context.services,
+      context.session.userId,
+      ticket.id,
+      SERVICE_WAIT_MAX_MS,
+      async (ms) => {
+        slept.push(ms);
+        if (slept.length === 3) {
+          await context.services.store.tasks.update(
+            context.session.userId,
+            ticket.id,
+            { status: "paid", updatedAt: Date.now() }
+          );
+        }
+        if (slept.length === 4) {
+          await context.services.store.tasks.update(
+            context.session.userId,
+            ticket.id,
+            { status: "done", updatedAt: Date.now() }
+          );
+        }
+      }
+    );
+    expect(pending?.status).toBe("done");
+    expect(slept).toEqual([1000, 1000, 1000, 1000]);
+
+    // With no wait, an in-flight task is reported as the phase it is in.
+    await context.services.store.tasks.update(
+      context.session.userId,
+      ticket.id,
+      { status: "paid", updatedAt: Date.now() }
+    );
+    const immediate = await awaitServiceTask(
+      context.services,
+      context.session.userId,
+      ticket.id,
+      0,
+      async () => await Promise.reject(new Error("must not sleep"))
+    );
+    expect(immediate?.status).toBe("paid");
+
+    // Never a way to see someone else's task.
+    expect(
+      await awaitServiceTask(
+        context.services,
+        userId(`did:privy:other-${crypto.randomUUID()}`),
+        ticket.id,
+        0
+      )
+    ).toBeNull();
+  });
+
+  it("marks tasks orphaned by a restart uncertain in the store, and leaves fresh ones alone", async () => {
+    const context = await fixture();
+    const stale = await purchaseService(context, request());
+    const fresh = await purchaseService(context, request());
+    await done(context, stale.id);
+    await done(context, fresh.id);
+    const { userId: owner } = context.session;
+    await context.services.store.tasks.update(owner, stale.id, {
+      status: "paid",
+      updatedAt: Date.now() - 16 * 60 * 1000,
+    });
+    await context.services.store.tasks.update(owner, fresh.id, {
+      status: "running",
+      updatedAt: Date.now(),
+    });
+
+    expect(await recoverOrphanedServiceTasks(context.services)).toBe(1);
+    const recovered = await context.services.store.tasks.byId(owner, stale.id);
+    expect(recovered?.status).toBe("uncertain");
+    expect(recovered?.error).toContain("15 minutes");
+    const untouched = await context.services.store.tasks.byId(owner, fresh.id);
+    expect(untouched?.status).toBe("running");
+    // Idempotent: a second boot finds nothing more to mark.
+    expect(await recoverOrphanedServiceTasks(context.services)).toBe(0);
+  });
+
   it("keeps task results private to their owner", async () => {
     const context = await fixture();
     const ticket = await purchaseService(context, request());
