@@ -77,19 +77,6 @@ const TRANSFER_WITH_AUTHORIZATION = {
   },
 };
 
-const TRANSFER_ABI = [
-  {
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    name: "transfer",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-];
-
 /**
  * The expiry, as Privy enforces it.
  *
