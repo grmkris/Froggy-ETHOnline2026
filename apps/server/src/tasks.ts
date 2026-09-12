@@ -127,9 +127,8 @@ export interface TaskCaller {
 }
 
 /** The grant or token this caller is, or null when the person is calling. */
-export const callerConnection = (
-  caller: TaskCaller
-): AgentConnectionId | null => caller.grantId ?? caller.agentTokenId;
+const callerConnection = (caller: TaskCaller): AgentConnectionId | null =>
+  caller.grantId ?? caller.agentTokenId;
 
 /**
  * An agent sees only the work it created. The person sees every task of
