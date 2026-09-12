@@ -7,6 +7,7 @@ import {
   RpcReadRequest,
   SwapQuoteRequest,
   TokenInspectRequest,
+  TokenResearchRequest,
 } from "@froggy/protocol";
 import type {
   ServiceCard,
@@ -21,8 +22,10 @@ import type { Services } from "../services";
 import { std } from "../std";
 import { BIRDEYE_NETWORKS } from "./birdeye";
 import type { liveBirdeye } from "./birdeye";
+import type { GoPlusScreen } from "./goplus";
 import { PONS_NETWORK, SOLANA_MAINNET } from "./networks";
 import type { PonsReports } from "./pons-report";
+import type { TokenResearch } from "./research";
 import { preflightRpcRead } from "./rpc";
 import type { TradingRpc } from "./rpc";
 import { preflightSwapQuote, supportsUniswapChain } from "./uniswap";
@@ -34,6 +37,8 @@ export interface TradingProviders {
   readonly quotes: UniswapQuotes;
   /** Read-only Pons launch state on Robinhood. Never an input to a trade. */
   readonly pons: PonsReports;
+  readonly research: TokenResearch;
+  readonly goplus: GoPlusScreen;
 }
 
 export interface TradingServiceContext {
@@ -88,6 +93,15 @@ export const TRADING_TOOL_DEFINITIONS = [
     mode: "uniswap",
     schema: SwapQuoteRequest,
   },
+  {
+    name: "token_research",
+    title: "Research a token",
+    description:
+      "Composite due diligence at one pinned block: launcher identity, template match, launch cohort, holder concentration and GoPlus screen. Each source reports observed, not indexed, unavailable or not applicable.",
+    provider: "RPC / GoPlus",
+    mode: "quicknode",
+    schema: TokenResearchRequest,
+  },
 ] as const;
 
 const DEMO_RPC_NETWORKS = [
@@ -117,6 +131,12 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
       networks = providerLive
         ? Object.keys(environment.trading.rpcEndpoints)
         : DEMO_RPC_NETWORKS;
+    } else if (definition.name === "token_research") {
+      networks = providerLive
+        ? Object.keys(environment.trading.rpcEndpoints).filter((network) =>
+            network.startsWith("eip155:")
+          )
+        : ["eip155:4663", "eip155:8453", "eip155:1"];
     }
     const available =
       networks.length > 0 &&
@@ -202,6 +222,19 @@ export const preflightTrading = (
       preflightSwapQuote(request.input);
       break;
     }
+    case "token_research": {
+      if (!request.input.network.startsWith("eip155:")) {
+        throw new Error(
+          "token_research is an EVM read. Choose an eip155 network; nothing was charged."
+        );
+      }
+      if (!Schema.is(EvmAddress)(request.input.address)) {
+        throw new Error(
+          "The token address does not match the requested network."
+        );
+      }
+      break;
+    }
   }
 };
 
@@ -226,6 +259,9 @@ export const serviceRequestText = (request: ServiceRequest): string => {
     case "quote_action": {
       return `${request.input.amount} base units of ${request.input.tokenIn} → ${request.input.tokenOut} · ${input.network}`;
     }
+    case "token_research": {
+      return `${request.input.address} · ${input.network} · cohort ${request.input.cohortWindowBlocks} blocks · ${request.input.holderPageBudget} holder pages`;
+    }
   }
   throw new Error("Unsupported service request.");
 };
@@ -246,6 +282,10 @@ const resultText = (data: TradingResult): string => {
     }
     case "quote_action": {
       return `Unsigned quote on ${data.network}: expected ${data.output.expectedAmount} output base units; minimum ${data.output.minimumAmount ?? "unknown"}. Approval: ${data.approval.status}. Refresh after ${new Date(data.refreshAfter).toISOString()}. No trade was submitted.`;
+    }
+    case "token_research": {
+      const { data: facts } = data;
+      return `Research on ${data.network}: launcher ${facts.launcher.launcher}/${facts.launcher.status}; template ${facts.template.status}${facts.template.matches === null ? "" : ` matches=${facts.template.matches}`}; cohort ${facts.cohort.status}/${facts.cohort.basis}; holders ${facts.holders.status}/${facts.holders.coverage}; screen ${facts.screen.status}.`;
     }
   }
   throw new Error("Unsupported trading result.");
@@ -297,6 +337,25 @@ export const runTradingService = async (
     }
     case "quote_action": {
       data = await services.trading.quotes.quote(request.input);
+      break;
+    }
+    case "token_research": {
+      const facts = await services.trading.research.research(request.input);
+      data = {
+        v: 1,
+        operation: "token_research",
+        provider: "froggy",
+        stubbed: facts.stubbed,
+        observedAt: facts.observedAt,
+        network: request.input.network,
+        data: facts,
+        limitations: [
+          "Each source reports its own status. Absence of evidence is not a clean screen.",
+          "Holder concentration from reconstructed Transfer history is capped by the page budget; partial coverage is never rounded into an authoritative number.",
+          "GoPlus is research-visible only and never authorizes a trade.",
+          "Research facts do not create trading authority.",
+        ],
+      };
       break;
     }
   }

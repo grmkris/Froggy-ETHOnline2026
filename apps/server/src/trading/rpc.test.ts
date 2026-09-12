@@ -146,6 +146,19 @@ describe("RPC preflight", () => {
       { network: EVM, call: { method: "eth_getLogs", params: [{}] } },
       {
         network: EVM,
+        call: {
+          method: "eth_getLogs",
+          params: [
+            {
+              address: ADDRESS,
+              fromBlock: "0x0",
+              toBlock: "0x2710",
+            },
+          ],
+        },
+      },
+      {
+        network: EVM,
         call: { method: "eth_getBalance", params: [ADDRESS, "pending"] },
       },
       {
@@ -350,6 +363,53 @@ describe("Quicknode RPC reads", () => {
     await rejectsWith(bad.rpc.read(input), "does not match");
   });
 
+  it("bounds eth_getLogs by address, span and result count", async () => {
+    const log = {
+      address: ADDRESS,
+      blockHash: HASH,
+      blockNumber: "0x2a",
+      data: "0x",
+      logIndex: "0x0",
+      removed: false,
+      topics: [HASH],
+      transactionHash: HASH,
+      transactionIndex: "0x0",
+    };
+    const setup = fixture((call) =>
+      call.method === "eth_chainId" ? "0x2105" : [log]
+    );
+    const result = await setup.rpc.read(
+      preflightRpcRead({
+        network: EVM,
+        call: {
+          method: "eth_getLogs",
+          params: [
+            {
+              address: ADDRESS,
+              fromBlock: "0x1",
+              toBlock: "0x2a",
+              topics: [HASH],
+            },
+          ],
+        },
+      })
+    );
+    expect(result.method).toBe("eth_getLogs");
+    expect(result.result).toEqual([log]);
+    expect(result.context.blockNumber).toBe("0x2a");
+    expect(result.limitations.join(" ")).toContain("10,000-block");
+    expect(preflightRpcRead).toBeTypeOf("function");
+    expect(() =>
+      preflightRpcRead({
+        network: EVM,
+        call: {
+          method: "eth_getLogs",
+          params: [{ address: ADDRESS, fromBlock: "0x0", toBlock: "0x2710" }],
+        },
+      })
+    ).toThrow();
+  });
+
   it("requires the matching Solana genesis and preserves commitment and slot", async () => {
     const setup = fixture(
       (call) =>
@@ -526,6 +586,13 @@ describe("Quicknode RPC reads", () => {
       {
         network: EVM,
         call: { method: "eth_getTransactionReceipt", params: [HASH] },
+      },
+      {
+        network: EVM,
+        call: {
+          method: "eth_getLogs",
+          params: [{ address: ADDRESS, fromBlock: "0x1", toBlock: "0x2" }],
+        },
       },
       {
         network: SOLANA,

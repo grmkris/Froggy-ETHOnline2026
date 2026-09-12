@@ -17,7 +17,13 @@ import type { Address } from "viem";
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
 import { PONS_NETWORK } from "./networks";
-import { PONS_ABI, PONS_DEPLOYMENTS, ponsPoolId } from "./pons";
+import {
+  PONS_ABI,
+  PONS_DEPLOYMENTS,
+  PONS_TOKEN_TEMPLATE,
+  ponsPoolId,
+  ponsTokenTemplateMatches,
+} from "./pons";
 import type { PonsPool } from "./pons";
 
 const LIMITATIONS = [
@@ -78,6 +84,15 @@ interface PonsReport {
   /** Every reviewed Pons dependency still matches its recorded runtime hash. */
   readonly deployments: "verified" | "changed";
   readonly changedDependencies: readonly string[];
+  /**
+   * Whether the token's runtime matches the reviewed Pons V2 template after
+   * masking the three immutable address slots. Null when the token is not a
+   * registered launch or deployments have changed.
+   */
+  readonly template: {
+    readonly matches: boolean | null;
+    readonly hash: string | null;
+  };
   readonly launch: PonsLaunch | null;
   readonly curve: PonsCurve | null;
   readonly pool: PonsPoolState | null;
@@ -187,6 +202,7 @@ export const livePonsReports = (
         ...base,
         deployments: "changed",
         changedDependencies: changed,
+        template: { matches: null, hash: null },
         launch: null,
         curve: null,
         pool: null,
@@ -207,6 +223,7 @@ export const livePonsReports = (
         ...base,
         deployments: "verified",
         changedDependencies: [],
+        template: { matches: null, hash: null },
         launch: null,
         curve: null,
         pool: null,
@@ -215,6 +232,15 @@ export const livePonsReports = (
         ],
       };
     }
+    const code = await client.getCode({
+      address: token,
+      blockNumber: block.number,
+    });
+    const templateMatches = ponsTokenTemplateMatches(code);
+    const template = {
+      matches: templateMatches,
+      hash: PONS_TOKEN_TEMPLATE.hash,
+    };
     const quote = PONS_DEPLOYMENTS.quote.address;
     const phase = phaseOf(record.phase);
     const launch: PonsLaunch = {
@@ -234,6 +260,11 @@ export const livePonsReports = (
       sweptAt: record.sweptAt.toString(),
     };
     const notes: string[] = [];
+    if (!templateMatches) {
+      notes.push(
+        "The token is factory-registered but its runtime does not match the reviewed Pons V2 template."
+      );
+    }
     if (record.pairToken.toLowerCase() !== quote.toLowerCase()) {
       notes.push(
         "This launch is not paired against the canonical USDG quote token, so its curve and pool figures are denominated in something else."
@@ -305,6 +336,7 @@ export const livePonsReports = (
       ...base,
       deployments: "verified",
       changedDependencies: [],
+      template,
       launch,
       curve,
       pool,
@@ -327,6 +359,7 @@ export const stubPonsReports = (now: () => number): PonsReports => ({
       block: null,
       deployments: "verified",
       changedDependencies: [],
+      template: { matches: null, hash: null },
       launch: null,
       curve: null,
       pool: null,

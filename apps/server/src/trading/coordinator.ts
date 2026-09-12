@@ -16,6 +16,7 @@ import {
 } from "@froggy/domain";
 import type {
   AgentConnectionId,
+  TokenResearchFacts,
   TradeInput,
   LaunchEventId,
   LaunchWatchId,
@@ -61,6 +62,8 @@ export interface TradeBackend {
     readonly quoteLiquidity: string;
     readonly observedAt: number;
   }>;
+  /** Own-RPC research facts for fail-closed rule predicates. Optional. */
+  readonly research?: (input: TradeInput) => Promise<TokenResearchFacts>;
   readonly simulate: (trade: Trade) => Promise<readonly TradeSimulation[]>;
   readonly balances: (input: TradeInput) => Promise<{
     readonly balances: readonly TradeAssetAmount[];
@@ -572,6 +575,26 @@ export class TradeCoordinator {
           "trade.snapshot: refresh launch membership before signing."
         );
       }
+      const bookRule = await this.options.store.transact(owner, (book) =>
+        book.rules.get(ruleId)
+      );
+      let research: TokenResearchFacts | null = null;
+      if (bookRule?.research !== undefined) {
+        if (backend.research === undefined) {
+          throw new Error(
+            "trade.research_venue: this route cannot supply research facts for the rule."
+          );
+        }
+        research = await backend.research(trade.input);
+        if (
+          research.observedAt > this.options.now() ||
+          this.options.now() - research.observedAt > 30_000
+        ) {
+          throw new Error(
+            "trade.research_stale: refresh research facts before signing."
+          );
+        }
+      }
       const balances = await backend.balances(trade.input);
       const signer = backend.stubbed
         ? null
@@ -584,6 +607,7 @@ export class TradeCoordinator {
             kind: "rule",
             ruleId,
             verifiedFactory: observation?.factory ?? null,
+            research,
           },
           now: this.options.now(),
           frozen: false,
@@ -746,6 +770,24 @@ export class TradeCoordinator {
       rule.expiresAt > rule.createdAt + 7 * 24 * 60 * 60_000
     ) {
       throw new Error("trade.rule_expiry: choose an expiry within seven days.");
+    }
+    if (rule.research !== undefined) {
+      const ponsOnly = rule.venues.length === 1 && rule.venues[0] === "pons";
+      if (!ponsOnly) {
+        throw new Error(
+          "trade.research_venue: research predicates are only available on the Pons venue."
+        );
+      }
+      if (
+        rule.research.requireTemplateMatch ||
+        rule.research.forbidLaunchInsiders
+      ) {
+        // Pons supplies template and venue_events cohort.
+      } else if (rule.research.maxTopHoldersBps === null) {
+        throw new Error(
+          "trade.research_venue: enable at least one research predicate."
+        );
+      }
     }
     if (rule.watchId !== undefined) {
       await this.checkWatchRule(owner, rule);

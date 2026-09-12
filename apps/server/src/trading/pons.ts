@@ -53,6 +53,34 @@ export const PONS_DEPLOYMENTS = {
   },
 } as const;
 
+/**
+ * Masked runtime fingerprint of every factory-deployed Pons V2 token.
+ * Three 20-byte immutable address slots (deployer/fee recipient twice, curve)
+ * are zeroed before hashing. Observed on eight tokens at block 60969329;
+ * see docs/evidence/PONS_DEPLOYMENTS.md.
+ */
+export const PONS_TOKEN_TEMPLATE = {
+  length: 3248,
+  maskedOffsets: [391, 541, 1106] as const,
+  hash: "0x36133854884d6c3e4287713e2d4f213db1fcc39913fcdf619960ab8fd0bd9101",
+} as const;
+
+/** True when runtime bytecode matches the reviewed Pons V2 token template. */
+export const ponsTokenTemplateMatches = (code?: `0x${string}`): boolean => {
+  if (code === undefined || code === "0x") {
+    return false;
+  }
+  const bytes = Buffer.from(code.slice(2), "hex");
+  if (bytes.length !== PONS_TOKEN_TEMPLATE.length) {
+    return false;
+  }
+  const masked = Buffer.from(bytes);
+  for (const offset of PONS_TOKEN_TEMPLATE.maskedOffsets) {
+    masked.fill(0, offset, offset + 20);
+  }
+  return keccak256(`0x${masked.toString("hex")}`) === PONS_TOKEN_TEMPLATE.hash;
+};
+
 export const PONS_ABI = parseAbi([
   "struct LaunchedToken { address token; address curve; address deployer; address creatorFeeRecipient; address pairToken; uint256 graduationThreshold; uint24 poolFee; int24 tickSpacing; uint16 creatorTaxBps; bool buybackEnabled; uint8 phase; uint256 sweptQuote; uint256 sweptTokens; uint256 sweptAt; bool exists; }",
   "function getLaunchedToken(address) view returns (LaunchedToken)",

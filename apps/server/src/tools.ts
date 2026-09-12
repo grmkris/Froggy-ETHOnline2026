@@ -51,6 +51,7 @@ import {
   TokenInspectInput,
   RpcReadInput,
   SwapQuoteInput,
+  TokenResearchInput,
 } from "@froggy/protocol";
 import type { ServiceRequest, GraphQueryOutput } from "@froggy/protocol";
 import { tool } from "ai";
@@ -613,6 +614,18 @@ export const buildTools = (deps: ToolDeps) => {
       ),
       execute: async (input) =>
         await requestService({ ...input, v: 1, service: "quote_action" }),
+    }),
+    token_research: tool({
+      description:
+        "Buy composite token research at one pinned block: launcher identity, template match, launch cohort, holder concentration and GoPlus screen. Each source reports observed, not_indexed, unavailable or not_applicable. Absence of evidence is not a clean screen. Reuse the idempotency key and poll service_status. Does not create trading authority.",
+      inputSchema: std(
+        Schema.Struct({
+          input: TokenResearchInput,
+          idempotencyKey: PromptServiceRequest.fields.idempotencyKey,
+        })
+      ),
+      execute: async (input) =>
+        await requestService({ ...input, v: 1, service: "token_research" }),
     }),
     services_list: tool({
       description:

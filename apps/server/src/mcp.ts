@@ -250,7 +250,8 @@ const invokeServiceCall = async (
     case "froggy_market_search":
     case "froggy_token_inspect":
     case "froggy_rpc_read":
-    case "froggy_quote_action": {
+    case "froggy_quote_action":
+    case "froggy_token_research": {
       const input = Schema.decodeUnknownSync(TradingToolEnvelope)(
         call.arguments
       );

@@ -76,6 +76,7 @@ test("a changed Pons dependency stops the read instead of answering through it",
   expect(report.launch).toBeNull();
   expect(report.curve).toBeNull();
   expect(report.pool).toBeNull();
+  expect(report.template).toEqual({ matches: null, hash: null });
   // Every reviewed dependency is foreign here, so all of them are named.
   expect([...report.changedDependencies].toSorted()).toEqual(
     Object.keys(PONS_DEPLOYMENTS).toSorted()
@@ -98,6 +99,7 @@ test("the stub reports nothing rather than an empty launch", async () => {
   expect(report.stubbed).toBe(true);
   expect(report.block).toBeNull();
   expect(report.launch).toBeNull();
+  expect(report.template).toEqual({ matches: null, hash: null });
   expect(report.notes.join(" ")).toContain("No Robinhood RPC endpoint");
   expect(report.observedAt).toBe(5);
 });

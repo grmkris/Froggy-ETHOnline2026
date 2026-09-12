@@ -58,6 +58,7 @@ const PLACEHOLDER = {
   graphApiKey: "REPLACE_ME_GRAPH_STUDIO_KEY",
   birdeyeApiKey: "REPLACE_ME_BIRDEYE_KEY",
   uniswapApiKey: "REPLACE_ME_UNISWAP_KEY",
+  goplusApiUrl: "REPLACE_ME_GOPLUS_URL",
   hederaAccountId: "0.0.0",
   hederaKek: "REPLACE_ME_HEDERA_KEK",
   hederaPrivateKey: "0xREPLACE_ME",
@@ -245,6 +246,8 @@ export interface TradingEnvironment {
   readonly jupiterMode: "live" | "stub" | "unavailable";
   readonly birdeyeApiKey: Redacted.Redacted;
   readonly uniswapApiKey: Redacted.Redacted;
+  /** Public GoPlus base URL; placeholder means stub. */
+  readonly goplusApiUrl: string | null;
   readonly rpcEndpoints: Readonly<Record<string, Redacted.Redacted>>;
   readonly uniswapChains: readonly (typeof UniswapChain.Type)[];
   readonly prices: Readonly<
@@ -489,6 +492,15 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
       "UNISWAP_API_KEY",
       PLACEHOLDER.uniswapApiKey
     );
+    const goplusApiUrlRaw = yield* Config.string("GOPLUS_API_URL").pipe(
+      Config.withDefault(PLACEHOLDER.goplusApiUrl)
+    );
+    const goplusApiUrl = isPlaceholder(
+      goplusApiUrlRaw,
+      PLACEHOLDER.goplusApiUrl
+    )
+      ? null
+      : goplusApiUrlRaw.replace(/\/$/u, "");
     const jupiterApiKey = yield* secret(
       "JUPITER_API_KEY",
       "REPLACE_ME_JUPITER_API_KEY"
@@ -577,6 +589,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
           rpc_read: Schema.optional(TradingPrice),
           quote_action: Schema.optional(TradingPrice),
           watch_launches: Schema.optional(TradingPrice),
+          token_research: Schema.optional(TradingPrice),
         }),
         { onExcessProperty: "error" }
       )(JSON.parse(tradingPricesRaw));
@@ -626,6 +639,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
       confirmations,
       birdeyeApiKey,
       uniswapApiKey,
+      goplusApiUrl,
       rpcEndpoints,
       uniswapChains,
       prices,
@@ -642,6 +656,7 @@ const tradingModes = (trading: TradingEnvironment) => ({
     Redacted.value(trading.uniswapApiKey),
     PLACEHOLDER.uniswapApiKey,
   ]),
+  goplus: trading.goplusApiUrl === null ? ("stub" as const) : ("live" as const),
   quicknode:
     Object.keys(trading.rpcEndpoints).length > 0
       ? ("live" as const)

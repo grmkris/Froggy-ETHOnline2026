@@ -1,7 +1,7 @@
 import { cloudApi, CloudBrowser, StubCloudBrowser } from "@froggy/browser";
 import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
-import type { UserId } from "@froggy/domain";
+import type { TradingNetwork, UserId } from "@froggy/domain";
 /**
  * The composition root's composition root.
  *
@@ -74,15 +74,26 @@ import { liveBirdeye, stubBirdeye } from "./trading/birdeye";
 import { TradeCoordinator } from "./trading/coordinator";
 import { tradeEvmClient } from "./trading/evm-chain";
 import { executionProviders } from "./trading/execution-providers";
+import { liveGoPlus, stubGoPlus } from "./trading/goplus";
 import type { ChainLaunchReader } from "./trading/launch-chain";
 import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
 import { LaunchCoordinator } from "./trading/launches";
 import { PONS_NETWORK } from "./trading/networks";
 import type { PonsReports } from "./trading/pons-report";
 import { livePonsReports, stubPonsReports } from "./trading/pons-report";
+import { liveTokenResearch, stubTokenResearch } from "./trading/research";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
 import type { TradingProviders } from "./trading/services";
 import { liveUniswap, stubUniswap } from "./trading/uniswap";
+import {
+  clankerLaunchVenue,
+  flaunchLaunchVenue,
+  ponsLaunchVenue,
+  poolsTradeLaunchVenue,
+  virtualsLaunchVenue,
+  zoraLaunchVenue,
+} from "./trading/venues";
+import type { LaunchVenue } from "./trading/venues";
 
 /** A USDC transfer on the configured Base from one person's wallet, signed under the policy. */
 interface EvmTransfers {
@@ -222,6 +233,17 @@ export const createServices = (options: ServiceOptions): Services => {
     }
     return stubPonsReports(Date.now);
   };
+  const goplus = liveOr(
+    environment.modes.goplus === "live" &&
+      environment.trading.goplusApiUrl !== null,
+    "goplus",
+    () =>
+      liveGoPlus({
+        // SAFETY: liveOr only calls this branch when goplusApiUrl is non-null.
+        baseUrl: environment.trading.goplusApiUrl as string,
+      }),
+    stubGoPlus
+  );
   const trading: TradingProviders = {
     market: liveOr(
       environment.modes.birdeye === "live",
@@ -246,6 +268,54 @@ export const createServices = (options: ServiceOptions): Services => {
       stubUniswap
     ),
     pons: ponsReportsFor(ponsRpc),
+    goplus,
+    research: liveOr(
+      environment.modes.quicknode === "live",
+      "token_research",
+      () => {
+        const clients = new Map<string, ReturnType<typeof tradeEvmClient>>();
+        const clientFor = (network: TradingNetwork) => {
+          const existing = clients.get(network);
+          if (existing !== undefined) {
+            return existing;
+          }
+          const endpoint = environment.trading.rpcEndpoints[network];
+          if (endpoint === undefined) {
+            throw new Error(
+              `research.rpc: no endpoint configured for ${network}.`
+            );
+          }
+          const client = tradeEvmClient({ endpoint });
+          clients.set(network, client);
+          return client;
+        };
+        const venuesFor = (network: TradingNetwork): readonly LaunchVenue[] => {
+          if (network === PONS_NETWORK) {
+            return [
+              ponsLaunchVenue(clientFor(network)),
+              poolsTradeLaunchVenue(clientFor(network)),
+            ];
+          }
+          if (network === "eip155:8453") {
+            const client = clientFor(network);
+            return [
+              clankerLaunchVenue(client),
+              zoraLaunchVenue(client),
+              flaunchLaunchVenue(client),
+              virtualsLaunchVenue(client),
+            ];
+          }
+          return [];
+        };
+        return liveTokenResearch({
+          clientFor,
+          venuesFor,
+          goplus,
+          now: Date.now,
+        });
+      },
+      () => stubTokenResearch(Date.now)
+    ),
   };
 
   const graph = liveOr(

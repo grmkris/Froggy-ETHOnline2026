@@ -189,5 +189,23 @@ export default defineConfig({
         "react/function-component-definition": "off",
       },
     },
+    {
+      /**
+       * Token-research log paging.
+       *
+       * Holder reconstruction and launch-block search walk ordered block
+       * ranges; each page's cursor depends on the previous page completing.
+       * Parallelising would double-count Transfers or miss the first mint.
+       * One rule, stated rather than suppressed inline.
+       */
+      files: [
+        "apps/server/src/trading/holders.ts",
+        "apps/server/src/trading/venues/**/*.ts",
+        "apps/server/src/trading/research.ts",
+      ],
+      rules: {
+        "eslint/no-await-in-loop": "off",
+      },
+    },
   ],
 });

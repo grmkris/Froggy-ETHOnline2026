@@ -1,5 +1,10 @@
 import { ApprovalId, TradeStep, TradeStepId } from "@froggy/domain";
-import type { Trade, TradeStep as Step } from "@froggy/domain";
+import type {
+  TokenResearchFacts,
+  Trade,
+  TradeInput,
+  TradeStep as Step,
+} from "@froggy/domain";
 import { Schema } from "effect";
 import { getAddress } from "viem";
 
@@ -11,9 +16,17 @@ import {
   simulateEvmTrade,
 } from "./evm-execution";
 import type { EvmExecutionOptions } from "./evm-execution";
-import { PONS_DEPLOYMENTS, quotePons, readPonsSnapshot } from "./pons";
+import { stubGoPlus } from "./goplus";
+import {
+  PONS_DEPLOYMENTS,
+  ponsToken,
+  quotePons,
+  readPonsSnapshot,
+} from "./pons";
 import { ponsSettlementValues } from "./pons-receipt";
 import { buildPonsTransactions, validatePonsStep } from "./pons-transactions";
+import { liveTokenResearch } from "./research";
+import { ponsLaunchVenue } from "./venues";
 
 export const ponsExecution = (
   configuration: EvmExecutionOptions
@@ -30,6 +43,12 @@ export const ponsExecution = (
     }
     return state;
   };
+  const researchReader = liveTokenResearch({
+    clientFor: () => options.client,
+    venuesFor: () => [ponsLaunchVenue(options.client)],
+    goplus: stubGoPlus(),
+    now: options.now,
+  });
   return {
     stubbed: false,
     observe: async (input) => {
@@ -41,6 +60,16 @@ export const ponsExecution = (
         quoteLiquidity: state.quoteLiquidity.toString(),
         observedAt: options.now(),
       };
+    },
+    research: async (input: TradeInput): Promise<TokenResearchFacts> => {
+      const { token } = ponsToken(input);
+      return await researchReader.research({
+        network: input.network,
+        address: token,
+        cohortWindowBlocks: 600,
+        holderPageBudget: 5,
+        topHolderCount: 10,
+      });
     },
     prepare: async (input) => {
       const state = await readPonsSnapshot(options.client, input, options.now);

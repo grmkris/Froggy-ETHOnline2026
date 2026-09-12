@@ -150,6 +150,9 @@ const requestedContext = (input: RpcReadInput): RpcReadResult["context"] => {
         blockNumber: block.startsWith("0x") ? block : null,
       };
     }
+    case "eth_getLogs": {
+      return { ...context, blockNumber: call.params[0].toBlock };
+    }
     case "getSlot": {
       return { ...context, commitment: call.params[0].commitment };
     }
@@ -220,6 +223,26 @@ const readResult = (
         },
       };
     }
+    case "eth_getLogs": {
+      const result = Schema.decodeUnknownSync(
+        Schema.Array(Log).check(Schema.isMaxLength(100))
+      )(value);
+      const expected = call.params[0].address.toLowerCase();
+      for (const entry of result) {
+        if (entry.address.toLowerCase() !== expected) {
+          throw rpcError(
+            "RPC log address does not match the requested filter."
+          );
+        }
+      }
+      return {
+        result,
+        context: {
+          ...context,
+          blockNumber: call.params[0].toBlock,
+        },
+      };
+    }
     case "getSlot": {
       const result = Schema.decodeUnknownSync(Natural)(value);
       return { result, context: { ...context, slot: result } };
@@ -273,6 +296,11 @@ const limitations = (input: RpcReadInput): readonly string[] => {
   if (call.method === "eth_call") {
     notes.push(
       "eth_call is capped at 500,000 gas; it does not submit a transaction or establish that a trade is executable."
+    );
+  }
+  if (call.method === "eth_getLogs") {
+    notes.push(
+      "eth_getLogs is capped at a 10,000-block span and 100 returned logs. Open-ended or tag-based ranges are refused."
     );
   }
   if (
@@ -434,6 +462,9 @@ const stubValue = (input: RpcReadInput): Schema.Json => {
     }
     case "eth_getTransactionReceipt": {
       return null;
+    }
+    case "eth_getLogs": {
+      return [];
     }
     case "getSlot": {
       return 0;

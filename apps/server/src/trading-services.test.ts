@@ -54,7 +54,8 @@ const TEST_ENV = {
   UNISWAP_CHAINS:
     '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"}]',
   TRADING_PRICES_USD_MICROS:
-    '{"market_search":11000,"token_inspect":12000,"rpc_read":13000,"quote_action":14000}',
+    '{"market_search":11000,"token_inspect":12000,"rpc_read":13000,"quote_action":14000,"token_research":15000}',
+  GOPLUS_API_URL: "REPLACE_ME_GOPLUS_URL",
 };
 
 let environment: Environment;
@@ -82,6 +83,12 @@ const requestFor = (
     },
     market_search: { network: BASE, query: null, limit: 3 },
     token_inspect: { network: BASE, address: TOKEN },
+    token_research: {
+      network: BASE,
+      address: TOKEN,
+      cohortWindowBlocks: 600,
+      holderPageBudget: 5,
+    },
     rpc_read: {
       network: BASE,
       call: { method: "eth_getBalance", params: [WALLET, "latest"] },
@@ -142,6 +149,8 @@ const fixture = async () => {
         },
       },
       pons: services.trading.pons,
+      goplus: services.trading.goplus,
+      research: services.trading.research,
     },
   };
   const person = userId(`did:privy:trading-test-${crypto.randomUUID()}`);
