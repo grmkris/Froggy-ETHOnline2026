@@ -1,3 +1,9 @@
+/**
+ * Test-only fake Jupiter RPC server.
+ *
+ * Speaks the Swap v2 codecs and produces real signatures over a synthetic
+ * local bank. No network request leaves the test. Not a production adapter.
+ */
 import type { TradeInput } from "@froggy/domain";
 import {
   AccountRole,

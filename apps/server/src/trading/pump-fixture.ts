@@ -1,3 +1,9 @@
+/**
+ * Test-only fake Pump RPC server.
+ *
+ * Real codecs and signatures over a wholly synthetic local bank. No
+ * network request leaves this fixture. Not a production adapter.
+ */
 import type { TradeInput } from "@froggy/domain";
 import {
   AccountRole,
