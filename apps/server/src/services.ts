@@ -85,15 +85,7 @@ import { liveTokenResearch, stubTokenResearch } from "./trading/research";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
 import type { TradingProviders } from "./trading/services";
 import { liveUniswap, stubUniswap } from "./trading/uniswap";
-import {
-  clankerLaunchVenue,
-  flaunchLaunchVenue,
-  ponsLaunchVenue,
-  poolsTradeLaunchVenue,
-  virtualsLaunchVenue,
-  zoraLaunchVenue,
-} from "./trading/venues";
-import type { LaunchVenue } from "./trading/venues";
+import { launchVenuesFor } from "./trading/venues";
 
 /** A USDC transfer on the configured Base from one person's wallet, signed under the policy. */
 interface EvmTransfers {
@@ -289,27 +281,9 @@ export const createServices = (options: ServiceOptions): Services => {
           clients.set(network, client);
           return client;
         };
-        const venuesFor = (network: TradingNetwork): readonly LaunchVenue[] => {
-          if (network === PONS_NETWORK) {
-            return [
-              ponsLaunchVenue(clientFor(network)),
-              poolsTradeLaunchVenue(clientFor(network)),
-            ];
-          }
-          if (network === "eip155:8453") {
-            const client = clientFor(network);
-            return [
-              clankerLaunchVenue(client),
-              zoraLaunchVenue(client),
-              flaunchLaunchVenue(client),
-              virtualsLaunchVenue(client),
-            ];
-          }
-          return [];
-        };
         return liveTokenResearch({
           clientFor,
-          venuesFor,
+          venuesFor: (network) => launchVenuesFor(network, clientFor(network)),
           goplus,
           now: Date.now,
         });

@@ -1,5 +1,5 @@
 import { ApprovalId, TradeStep, TradeStepId } from "@froggy/domain";
-import type { Trade, TradeInput } from "@froggy/domain";
+import type { TokenResearchFacts, Trade, TradeInput } from "@froggy/domain";
 import { SwapQuoteInput } from "@froggy/protocol";
 import { Schema } from "effect";
 import { getAddress, parseAbi } from "viem";
@@ -12,6 +12,8 @@ import {
   evmTradeSubmission,
   simulateEvmTrade,
 } from "./evm-execution";
+import { stubGoPlus } from "./goplus";
+import { liveTokenResearch } from "./research";
 import { assertNativeFeeBudget } from "./rollup-fees";
 import type { UniswapQuotes } from "./uniswap";
 import {
@@ -21,6 +23,7 @@ import {
   uniswapExecutionNetwork,
 } from "./uniswap-transactions";
 import type { BuiltUniswap } from "./uniswap-transactions";
+import { launchVenuesFor } from "./venues";
 
 const FACTORY = parseAbi([
   "function getPool(address tokenA,address tokenB,uint24 fee) view returns (address)",
@@ -81,7 +84,37 @@ const checkPools = async (
   );
 };
 
+/**
+ * Concentration research for rule gates: the acquired token's holders are
+ * reconstructed from Transfer logs on the route's own RPC. Launcher venues
+ * add exclusions and a launch block; GoPlus stays out so the screen can never
+ * feed a signing decision.
+ */
+const uniswapResearch = (options: UniswapExecutionOptions) => {
+  const reader = liveTokenResearch({
+    clientFor: () => options.client,
+    venuesFor: (network) => launchVenuesFor(network, options.client),
+    goplus: stubGoPlus(),
+    now: options.now,
+  });
+  return async (input: TradeInput): Promise<TokenResearchFacts> => {
+    if (input.tokenOut === "native") {
+      throw new Error(
+        "trade.research_venue: research applies to the token being acquired; a native output has no holders."
+      );
+    }
+    return await reader.research({
+      network: input.network,
+      address: input.tokenOut,
+      cohortWindowBlocks: 600,
+      holderPageBudget: 5,
+      topHolderCount: 10,
+    });
+  };
+};
+
 export const uniswapExecution = (options: UniswapExecutionOptions) => ({
+  research: uniswapResearch(options),
   prepare: async (input: TradeInput) => {
     if (!uniswapExecutionNetwork(input.network)) {
       throw new Error(
