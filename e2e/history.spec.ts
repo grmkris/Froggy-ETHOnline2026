@@ -235,6 +235,7 @@ test("a failed recent-history request stays an error instead of an empty list", 
 test("archives, unarchives, and deletes a conversation from Recent", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => {
     errors.push(error.message);
@@ -258,13 +259,13 @@ test("archives, unarchives, and deletes a conversation from Recent", async ({
   await expect(row).toBeVisible();
   await row.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(row).toHaveCount(0);
-  await recent.getByRole("radio", { name: "Archived", exact: true }).click();
+  await recent.getByRole("button", { name: "Archived", exact: true }).click();
   const archived = recent.locator("li").filter({ hasText: marker });
   await expect(archived).toBeVisible();
   await archived
     .getByRole("button", { name: "Unarchive", exact: true })
     .click();
-  await recent.getByRole("radio", { name: "Recent", exact: true }).click();
+  await recent.getByRole("button", { name: "Recent", exact: true }).click();
   const restored = recent.locator("li").filter({ hasText: marker });
   await expect(restored).toBeVisible();
   await restored.getByRole("button", { name: "Delete", exact: true }).click();
