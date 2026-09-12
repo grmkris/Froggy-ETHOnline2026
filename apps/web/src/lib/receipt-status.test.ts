@@ -109,4 +109,36 @@ describe("receipt settlement copy", () => {
     expect(receiptHeadline(refused)).toBe("Oracle is not on the list");
     expect(receiptFollowUp(refused)).toBeNull();
   });
+
+  it("names an unpriced dapp receipt without pretending it was priced", () => {
+    const dapp = receipt({
+      intent: {
+        amount: {
+          asset: {
+            decimals: 18,
+            id: "eth",
+            network: "eip155:8453",
+            symbol: "ETH",
+          },
+          units: "0",
+        },
+        idempotencyKey: "dapp:1",
+        kind: "dapp_signature",
+        payee: {
+          id: "https://app.uniswap.org",
+          label: "app.uniswap.org",
+          provenance: "page",
+        },
+        purpose: "Connect this site",
+        usdMicros: usdMicros(0),
+      },
+      quote: { asOf: 1, source: "unpriced", usdMicrosPerUnit: 0 },
+    });
+    expect(receiptHeadline(dapp)).toBe("Connect this site at app.uniswap.org");
+    const stubbed = receipt({
+      ...dapp,
+      stubbed: true,
+    });
+    expect(receiptHeadline(stubbed)).toContain("demo cannot be mistaken");
+  });
 });

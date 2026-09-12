@@ -41,6 +41,21 @@ export const receiptHeadline = (receipt: Receipt): string => {
   if (receipt.decision._tag === "ask") {
     return receipt.decision.question;
   }
+  if (
+    receipt.quote.source === "unpriced" &&
+    receipt.decision._tag === "allow"
+  ) {
+    if (receipt.intent.kind === "dapp_transaction") {
+      return receipt.stubbed
+        ? STUBBED_COPY
+        : `Sent from the injected wallet to ${receipt.intent.payee.label}`;
+    }
+    if (receipt.intent.kind === "dapp_signature") {
+      return receipt.stubbed
+        ? STUBBED_COPY
+        : `${receipt.intent.purpose} at ${receipt.intent.payee.label}`;
+    }
+  }
   if (receipt.stubbed) {
     return STUBBED_COPY;
   }

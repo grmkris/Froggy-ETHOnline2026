@@ -5,6 +5,10 @@
  * in the order every surface uses, the primary "yes" furthest from a stray
  * click. A countdown says how long the question stays open, and the whole
  * thing disappears on every tab the moment anyone answers.
+ *
+ * A dapp's Allow is different: the person's key has to sign a one-shot Privy
+ * rule before the agent key may sign, so that button runs prepare/sign/commit
+ * instead of the socket used for Deny.
  */
 
 import type { ApprovalKind } from "@froggy/domain";
@@ -17,9 +21,13 @@ import {
   TicketStub,
 } from "@froggy/ui/components/ticket";
 import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 
+import { approveWalletRequest } from "../../lib/agent-policy";
 import { answerLabel } from "../../lib/approval-labels";
-import { secondsLeft } from "../../lib/format";
+import { hostOf, secondsLeft } from "../../lib/format";
+import { useIdentity } from "../../lib/privy";
+import { useSessionToken } from "../../lib/session-token";
 import { ApprovalLedger } from "./approval-ledger";
 
 interface ApprovalTicketProps {
@@ -38,12 +46,67 @@ const VARIANT: Record<
   deny_stop: "destructive",
 };
 
+const chainLabel = (chainId: number): string => {
+  if (chainId === 8453) {
+    return "Base";
+  }
+  if (chainId === 84_532) {
+    return "Base Sepolia";
+  }
+  return `chain ${chainId}`;
+};
+
+const WalletBody = ({
+  request,
+}: {
+  readonly request: ApprovalRequest;
+}): ReactElement | null => {
+  const { wallet } = request;
+  if (wallet === undefined) {
+    return null;
+  }
+  return (
+    <div className="mt-2 space-y-1.5 text-sm">
+      <p>
+        <span className="text-muted-foreground">Site </span>
+        {hostOf(wallet.origin)}
+        <span className="text-muted-foreground">
+          {" "}
+          on {chainLabel(wallet.chainId)}
+        </span>
+      </p>
+      <ul className="text-muted-foreground space-y-0.5">
+        {wallet.lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      {wallet.warnings.length === 0 ? null : (
+        <ul className="text-refused space-y-0.5">
+          {wallet.warnings.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {wallet.needsSignature ? (
+        <p className="text-muted-foreground text-xs">
+          Allowing this signs a one-shot rule into your policy. It expires in
+          ten minutes and covers only this request.
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
 export const ApprovalTicket = ({
   disabled,
   onAnswer,
   request,
-}: ApprovalTicketProps): React.ReactElement => {
+}: ApprovalTicketProps): ReactElement => {
+  const identity = useIdentity();
+  const { getToken } = useSessionToken();
   const [left, setLeft] = useState(() => secondsLeft(request.expiresAt));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const ticketRef = useRef<HTMLElement>(null);
   // The card arrives while the person may be typing; focus must not be taken
   // from a half-written message. Otherwise the safe answer is a keypress away.
@@ -68,6 +131,24 @@ export const ApprovalTicket = ({
     };
   }, [request.expiresAt]);
 
+  const allowWallet = async (): Promise<void> => {
+    const { wallet } = request;
+    if (wallet === undefined) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const result = await approveWalletRequest({
+      requestId: wallet.requestId,
+      sign: identity.signPrivyRequest,
+      token: await getToken(),
+    });
+    setBusy(false);
+    if (result.kind === "refused") {
+      setError(result.reason);
+    }
+  };
+
   return (
     <Ticket aria-label={request.title} ref={ticketRef} tone="asking">
       <TicketBody>
@@ -88,6 +169,19 @@ export const ApprovalTicket = ({
             {request.breakdown === undefined ? null : (
               <ApprovalLedger lines={request.breakdown} />
             )}
+            <WalletBody request={request} />
+            {error === null ? null : (
+              <p className="text-refused mt-2 text-sm" role="alert">
+                {error}
+              </p>
+            )}
+            {busy ? (
+              <p className="text-muted-foreground mt-2 text-sm">
+                {request.wallet?.needsSignature === true
+                  ? "Signing the one-shot rule…"
+                  : "Allowing this request…"}
+              </p>
+            ) : null}
           </div>
           <span
             aria-label={`${left} seconds left`}
@@ -102,15 +196,24 @@ export const ApprovalTicket = ({
         {request.options.map((option) => (
           <Button
             data-kind={option.kind}
-            disabled={disabled || left === 0}
+            disabled={disabled || busy || left === 0}
             key={option.id}
             onClick={() => {
+              if (
+                option.kind === "allow_once" &&
+                request.wallet !== undefined
+              ) {
+                void allowWallet();
+                return;
+              }
               onAnswer(request.id, option.id);
             }}
             size="sm"
             variant={VARIANT[option.kind]}
           >
-            {answerLabel(option.kind, request.amountLabel, option.label)}
+            {request.wallet === undefined
+              ? answerLabel(option.kind, request.amountLabel, option.label)
+              : option.label}
           </Button>
         ))}
       </TicketStub>

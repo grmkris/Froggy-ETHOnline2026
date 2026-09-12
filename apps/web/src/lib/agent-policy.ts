@@ -179,6 +179,107 @@ export const changeAllowance = async (input: {
   return { allowance: result.allowance, kind: "changed" };
 };
 
+/** What the person is told after allowing a dapp request. */
+export type WalletApproval =
+  | { readonly kind: "allowed" }
+  | { readonly kind: "refused"; readonly reason: string };
+
+const WalletCommitted = Schema.Struct({
+  error: Schema.optional(Schema.String),
+  ok: Schema.optional(Schema.Boolean),
+});
+const decodeWalletCommitted = Schema.decodeUnknownResult(WalletCommitted);
+
+interface WalletCommitBody {
+  readonly expiry: number;
+  readonly signature: string | null;
+}
+
+const postJson = async (
+  path: string,
+  token: string | null,
+  body?: PolicyRequestBody | WalletCommitBody
+): Promise<Response> => {
+  const headers = new Headers({ "content-type": "application/json" });
+  if (token !== null) {
+    headers.set("authorization", `Bearer ${token}`);
+  }
+  if (body === undefined) {
+    return await fetch(path, { headers, method: "POST" });
+  }
+  return await fetch(path, {
+    body: JSON.stringify(body),
+    headers,
+    method: "POST",
+  });
+};
+
+/**
+ * Allow one dapp request: prepare the exact one-shot rule, sign it when the
+ * person owns the policy, then commit so the agent key can sign. Connect cards
+ * take the same path with `needsSignature: false`.
+ */
+export const approveWalletRequest = async (input: {
+  readonly requestId: string;
+  readonly sign: Parameters<typeof changeAllowance>[0]["sign"];
+  readonly token: string | null;
+}): Promise<WalletApproval> => {
+  const prepared = await postJson(
+    `/api/wallet-requests/${input.requestId}/prepare`,
+    input.token
+  ).catch(() => null);
+  if (prepared === null) {
+    return { kind: "refused", reason: "Froggy could not be reached." };
+  }
+  const decoded = decodePrepared(await prepared.json());
+  if (Result.isFailure(decoded)) {
+    return { kind: "refused", reason: "Froggy answered unexpectedly." };
+  }
+  const plan = decoded.success;
+  if (plan.payload === undefined || plan.expiry === undefined) {
+    return {
+      kind: "refused",
+      reason: plan.error ?? "This request could not be prepared.",
+    };
+  }
+  if (plan.needsSignature !== false && input.sign === null) {
+    return {
+      kind: "refused",
+      reason: "Sign in again before allowing this request.",
+    };
+  }
+  const signature =
+    plan.needsSignature === false || input.sign === null
+      ? null
+      : await input.sign(plan.payload);
+  if (plan.needsSignature !== false && signature === null) {
+    return {
+      kind: "refused",
+      reason:
+        "Privy did not sign the change. If it asked you to approve it, try again and accept.",
+    };
+  }
+  const committed = await postJson(
+    `/api/wallet-requests/${input.requestId}/commit`,
+    input.token,
+    { expiry: plan.expiry, signature }
+  ).catch(() => null);
+  if (committed === null) {
+    return { kind: "refused", reason: "Froggy could not be reached." };
+  }
+  const settled = decodeWalletCommitted(await committed.json());
+  if (Result.isFailure(settled)) {
+    return { kind: "refused", reason: "Froggy answered unexpectedly." };
+  }
+  if (settled.success.ok !== true) {
+    return {
+      kind: "refused",
+      reason: settled.success.error ?? "Privy would not accept the change.",
+    };
+  }
+  return { kind: "allowed" };
+};
+
 /**
  * Let the agent sign: Privy asks the person in its own prompt, the server is
  * told to read the answer off the wallet, and only then are any numbers the

@@ -8,6 +8,7 @@ import { AgentTokenSetup } from "../components/agents/agent-token-setup";
 import { CopyAgentPrompt } from "../components/agents/copy-agent-prompt";
 import { TelegramSettings } from "../components/agents/telegram-settings";
 import { Page } from "../components/nav/page";
+import { DappConnections } from "../components/settings/dapp-connections";
 import { useAgentTokens } from "../hooks/use-agent-tokens";
 import { useWorkspace } from "../lib/workspace-context";
 
@@ -33,6 +34,7 @@ export const AgentsPage = (): ReactElement => {
       </section>
       <AgentList agents={agents} revoke={revoke} />
       <TelegramSettings active configured={app.modes?.telegram === "live"} />
+      <DappConnections />
       <details className="group bg-muted shadow-inset rounded-2xl px-4">
         <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg py-2 text-sm font-medium outline-none select-none focus-visible:ring-2">
           Advanced: connect with a token

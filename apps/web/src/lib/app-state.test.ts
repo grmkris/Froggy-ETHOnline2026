@@ -7,6 +7,7 @@ import {
   RunId,
   SessionId,
   SpendId,
+  WalletRequestId,
   usdMicros,
 } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
@@ -336,5 +337,41 @@ describe("the welcome", () => {
     });
     expect(state.hcsTopicId).toBe("0.0.10381647");
     expect(state.policyId).toBe("rk6qw974uapbesb04u5tq5kb");
+  });
+});
+
+describe("wallet requests", () => {
+  it("keeps one view per dapp request, newest update first", () => {
+    const id = WalletRequestId.generate();
+    const first = {
+      approvalId: null,
+      chainId: 8453,
+      createdAt: 1,
+      delivery: "pending" as const,
+      error: null,
+      expiresAt: 10,
+      id,
+      initiatedDuring: "agent" as const,
+      kind: "connect" as const,
+      origin: "https://app.uniswap.org",
+      status: "awaiting_approval" as const,
+      stubbed: true,
+      summary: ["Uniswap wants to see your address."],
+      title: "Connect this site",
+      transactionHash: null,
+      updatedAt: 1,
+    };
+    let state = server(initialAppState, {
+      request: first,
+      type: "wallet.request.state",
+      v: 1,
+    });
+    state = server(state, {
+      request: { ...first, status: "confirmed", updatedAt: 5 },
+      type: "wallet.request.state",
+      v: 1,
+    });
+    expect(state.walletRequests).toHaveLength(1);
+    expect(state.walletRequests[0]?.status).toBe("confirmed");
   });
 });

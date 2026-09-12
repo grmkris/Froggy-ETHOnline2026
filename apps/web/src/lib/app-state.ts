@@ -20,6 +20,7 @@ import type {
   AppServerMessage,
   ApprovalRequest,
   ServiceModes,
+  WalletRequestView,
   WalletSummary,
 } from "@froggy/protocol";
 
@@ -100,6 +101,8 @@ export interface AppState {
   readonly receipts: readonly Receipt[];
   readonly sessionId: string | null;
   readonly wallet: WalletSummary | null;
+  /** Dapp requests, newest first. A reconnect resends the latest by id. */
+  readonly walletRequests: readonly WalletRequestView[];
 }
 
 export type AppEvent =
@@ -131,6 +134,7 @@ export const initialAppState: AppState = {
   receipts: [],
   sessionId: null,
   wallet: null,
+  walletRequests: [],
 };
 
 /** How many notices are kept on screen. Older ones are the log's problem. */
@@ -298,6 +302,18 @@ const mergeReceipts = (
   return [...byId.values()].toSorted((a, b) => b.at - a.at);
 };
 
+const mergeWalletRequests = (
+  current: readonly WalletRequestView[],
+  incoming: WalletRequestView
+): readonly WalletRequestView[] => {
+  const byId = new Map<string, WalletRequestView>();
+  for (const request of current) {
+    byId.set(request.id, request);
+  }
+  byId.set(incoming.id, incoming);
+  return [...byId.values()].toSorted((a, b) => b.updatedAt - a.updatedAt);
+};
+
 const onServer = (
   state: AppState,
   message: AppServerMessage,
@@ -360,6 +376,15 @@ const onServer = (
         ...state,
         approvals: state.approvals.filter(
           (open) => open.id !== message.requestId
+        ),
+      };
+    }
+    case "wallet.request.state": {
+      return {
+        ...state,
+        walletRequests: mergeWalletRequests(
+          state.walletRequests,
+          message.request
         ),
       };
     }

@@ -1,6 +1,10 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 
-import { attachAgentSigner, signerGrantWords } from "./agent-policy";
+import {
+  attachAgentSigner,
+  approveWalletRequest,
+  signerGrantWords,
+} from "./agent-policy";
 
 const originalFetch = globalThis.fetch;
 const requests: string[] = [];
@@ -85,4 +89,45 @@ test("a refusal before anything changed refreshes nothing", async () => {
   expect(signerGrantWords(result)).toBe(
     "Privy refused: Duplicate signer(s) provided when updating wallet."
   );
+});
+
+test("approving a wallet request prepares, skips a signature, and commits", async () => {
+  spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(async (input: Parameters<typeof fetch>[0]) => {
+      const path = new URL(
+        input instanceof Request ? input.url : input,
+        "http://froggy"
+      ).pathname;
+      requests.push(path);
+      if (path.endsWith("/prepare")) {
+        return await Promise.resolve(
+          Response.json({
+            expiry: 1,
+            needsSignature: false,
+            payload: {
+              body: { rules: [] },
+              headers: {
+                "privy-app-id": "app",
+                "privy-request-expiry": "1",
+              },
+              method: "PATCH",
+              url: "https://api.privy.io/v1/policies/stub",
+              version: 1,
+            },
+          })
+        );
+      }
+      return await Promise.resolve(Response.json({ ok: true }));
+    }, originalFetch)
+  );
+  const result = await approveWalletRequest({
+    requestId: "bwr_01walletrequest0000000001",
+    sign: async () => await Promise.resolve("sig"),
+    token: "token",
+  });
+  expect(result).toEqual({ kind: "allowed" });
+  expect(requests).toEqual([
+    "/api/wallet-requests/bwr_01walletrequest0000000001/prepare",
+    "/api/wallet-requests/bwr_01walletrequest0000000001/commit",
+  ]);
 });
