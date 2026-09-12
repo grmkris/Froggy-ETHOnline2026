@@ -25,9 +25,11 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
   await expect(ticket.getByText("Your call", { exact: true })).toBeVisible();
   const ledger = ticket.getByRole("list", { name: "Spend breakdown" });
   await expect(ledger).toBeVisible();
-  await expect(ledger.getByText("Product", { exact: true })).toBeVisible();
   await expect(
-    ledger.getByText("Agent spend so far today", { exact: true })
+    ledger.getByRole("listitem").filter({ hasText: "Product" })
+  ).toBeVisible();
+  await expect(
+    ledger.getByRole("listitem").filter({ hasText: "Agent spend so far today" })
   ).toBeVisible();
   // The four answers, in the order every surface uses.
   await expect(ticket.getByRole("button")).toHaveText([

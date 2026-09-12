@@ -68,6 +68,8 @@ test("a small wallet_send asks, and the ticket names the table", async ({
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
   await expect(
-    ticket.getByText("Paying a person is your decision, whatever the amount.")
+    ticket.getByText("Paying a person is your decision, whatever the amount.", {
+      exact: true,
+    })
   ).toBeVisible();
 });

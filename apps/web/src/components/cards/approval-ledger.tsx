@@ -39,7 +39,7 @@ export const ApprovalLedger = ({
           key={line.label}
         >
           <span className="text-muted-foreground min-w-0">
-            {line.label}
+            <span>{line.label}</span>
             {line.note === undefined ? null : (
               <span className="mt-0.5 block text-xs">{line.note}</span>
             )}
