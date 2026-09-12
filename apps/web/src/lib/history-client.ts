@@ -327,3 +327,8 @@ export const useHistoryStale = (): boolean => {
   const client = useHistoryClient();
   return useSyncExternalStore(client.subscribe, client.status, client.status);
 };
+
+export const useHistoryWrite = () => {
+  const client = useHistoryClient();
+  return { refresh: client.refresh, request: client.request };
+};

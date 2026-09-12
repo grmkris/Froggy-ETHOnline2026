@@ -232,6 +232,51 @@ test("a failed recent-history request stays an error instead of an empty list", 
   ).toHaveCount(0);
 });
 
+test("archives, unarchives, and deletes a conversation from Recent", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      errors.push(message.text());
+    }
+  });
+  const marker = `Archive fixture ${crypto.randomUUID()}`;
+  await page.goto("/chat");
+  await page.getByRole("textbox", { name: "Message" }).fill(marker);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page).toHaveURL(/\/chat\/cnvrs_/u);
+  await expect(page.getByRole("log")).toHaveAttribute("aria-busy", "false", {
+    timeout: 30_000,
+  });
+  const recent = page.getByRole("dialog", { name: "Recent conversations" });
+  await page.getByRole("button", { name: "Recent", exact: true }).click();
+  const row = recent.locator("li").filter({ hasText: marker });
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(row).toHaveCount(0);
+  await recent.getByRole("radio", { name: "Archived", exact: true }).click();
+  const archived = recent.locator("li").filter({ hasText: marker });
+  await expect(archived).toBeVisible();
+  await archived
+    .getByRole("button", { name: "Unarchive", exact: true })
+    .click();
+  await recent.getByRole("radio", { name: "Recent", exact: true }).click();
+  const restored = recent.locator("li").filter({ hasText: marker });
+  await expect(restored).toBeVisible();
+  await restored.getByRole("button", { name: "Delete", exact: true }).click();
+  const confirm = page.getByRole("alertdialog", {
+    name: "Delete this conversation?",
+  });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(recent.locator("li").filter({ hasText: marker })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("a failed Home history request is an error with retry, not an empty list", async ({
   page,
 }) => {

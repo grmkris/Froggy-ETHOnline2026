@@ -21,6 +21,7 @@ export interface HistoryFilter {
   readonly search?: string;
   readonly before?: string;
   readonly limit?: number;
+  readonly archived?: boolean;
 }
 export interface HistoryOwner {
   sequence: number;
@@ -224,14 +225,23 @@ const matchingSearch = (
 };
 const matchingRoot = (record: HistoryRecord, filter: HistoryFilter): boolean =>
   filter.rootOnly !== true || !("runId" in record) || record.runId === null;
-const matching = (record: HistoryRecord, filter: HistoryFilter): boolean =>
+const matchingArchived = (
+  record: HistoryRecord,
+  filter: HistoryFilter
+): boolean =>
+  filter.archived === undefined ||
+  record.kind !== "conversation" ||
+  record.archived === filter.archived;
+const matchingIds = (record: HistoryRecord, filter: HistoryFilter): boolean =>
   (filter.conversationId === undefined ||
     ("conversationId" in record &&
       record.conversationId === filter.conversationId)) &&
   (filter.runId === undefined ||
     ("runId" in record && record.runId === filter.runId)) &&
   (filter.externalKey === undefined ||
-    historyKey(record) === filter.externalKey) &&
+    historyKey(record) === filter.externalKey);
+const matching = (record: HistoryRecord, filter: HistoryFilter): boolean =>
+  matchingIds(record, filter) &&
   matchingRoot(record, filter) &&
   matchingSource(record, filter) &&
   (filter.status === undefined ||
@@ -239,6 +249,7 @@ const matching = (record: HistoryRecord, filter: HistoryFilter): boolean =>
   (filter.connectionId === undefined ||
     ("connectionId" in record &&
       record.connectionId === filter.connectionId)) &&
+  matchingArchived(record, filter) &&
   (filter.search === undefined ||
     historyText(record).toLowerCase().includes(filter.search.toLowerCase())) &&
   (filter.before === undefined || historyCursor(record) < filter.before);

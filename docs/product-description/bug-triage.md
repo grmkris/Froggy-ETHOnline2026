@@ -219,6 +219,8 @@ Home handles `stop` itself and lets every other slash command fall through to `o
 
 `history-routes.ts` offers PATCH and DELETE for rename, archive and delete; nothing in the interface calls them. `acceptHistory` refuses an archived conversation with "Reopen this conversation before sending." — a state nothing in the product can produce or undo. `product call` — finish the feature or remove the endpoints. Raised by [history and persistence](cross-cutting/history-and-persistence.md#open-questions-and-verification), [the conversation](foundations/the-conversation.md#open-questions-and-verification).
 
+- **Status:** Archive and delete are on the recent-conversations list and the chat header, with a confirm for delete. Archived conversations are listed under an Archived filter and can be unarchived (`PATCH archived: false`). Browser coverage is in `e2e/history.spec.ts`.
+
 ### B-28: A discarded URL parameter is silent, including on links Froggy generates
 
 `/services?service=…` and `/activity?record=…` drop a value that fails validation and render as though nothing was named. `/activity?record={id}` is a link Froggy itself hands the model as evidence, so a stale or malformed one degrades into an ordinary page with no indication. `fix`. Raised by [url state](cross-cutting/url-state.md#open-questions-and-verification).

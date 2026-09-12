@@ -123,6 +123,11 @@ const reader = (db: Database | Transaction, userId: UserId): HistoryReader => ({
     if (filter.connectionId !== undefined) {
       conditions.push(eq(table.connectionId, filter.connectionId));
     }
+    if (filter.archived !== undefined && filter.kind === "conversation") {
+      conditions.push(
+        raw`coalesce((${table.data}->>'archived')::boolean, false) = ${filter.archived}`
+      );
+    }
     if (filter.search !== undefined) {
       const ownText = raw`to_tsvector('simple', ${table.searchText}) @@ websearch_to_tsquery('simple', ${filter.search})`;
       conditions.push(

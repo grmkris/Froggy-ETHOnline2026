@@ -334,6 +334,72 @@ const contracts = (label: string, first: Store, second: Store): void => {
         0
       );
     });
+    test("PATCH archives and unarchives, and the conversation list hides archived rows by default", async () => {
+      const user = owner();
+      const accepted = await acceptHistory(first.history, user, {
+        messages: [incoming("keep")],
+      });
+      const id = accepted.run.conversationId;
+      const current = await second.history.get(user, id);
+      if (current?.kind !== "conversation") {
+        throw new Error("Missing conversation");
+      }
+      const archived = await handleHistory(
+        first,
+        new Request(`http://froggy.test/api/conversations/${id}`, {
+          body: JSON.stringify({
+            archived: true,
+            revision: current.revision,
+            v: 1,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "PATCH",
+        }),
+        user
+      );
+      expect(archived?.status).toBe(200);
+      const live = await handleHistory(
+        second,
+        new Request("http://froggy.test/api/conversations"),
+        user
+      );
+      const livePage = Schema.decodeUnknownSync(HistoryPage)(
+        await live?.json()
+      );
+      expect(livePage.records.map((record) => record.id)).not.toContain(id);
+      const hidden = await handleHistory(
+        second,
+        new Request("http://froggy.test/api/conversations?archived=true"),
+        user
+      );
+      const hiddenPage = Schema.decodeUnknownSync(HistoryPage)(
+        await hidden?.json()
+      );
+      expect(hiddenPage.records.map((record) => record.id)).toEqual([id]);
+      const reopened = await handleHistory(
+        first,
+        new Request(`http://froggy.test/api/conversations/${id}`, {
+          body: JSON.stringify({
+            archived: false,
+            revision: current.revision + 1,
+            v: 1,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "PATCH",
+        }),
+        user
+      );
+      expect(reopened?.status).toBe(200);
+      const listed = await handleHistory(
+        second,
+        new Request("http://froggy.test/api/conversations"),
+        user
+      );
+      const listedPage = Schema.decodeUnknownSync(HistoryPage)(
+        await listed?.json()
+      );
+      expect(listedPage.records.map((record) => record.id)).toContain(id);
+    });
   });
 };
 const memory = memoryStore();

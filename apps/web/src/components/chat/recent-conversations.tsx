@@ -1,4 +1,15 @@
 import type { Conversation } from "@froggy/domain";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@froggy/ui/components/alert-dialog";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
 import {
@@ -11,24 +22,171 @@ import {
 import { Field, FieldLabel } from "@froggy/ui/components/field";
 import { Input } from "@froggy/ui/components/input";
 import { Skeleton } from "@froggy/ui/components/skeleton";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@froggy/ui/components/toggle-group";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { HistoryIcon, PlusIcon } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useChatSurface } from "../../lib/chat-context";
-import { useHistoryPage, useHistoryStale } from "../../lib/history-client";
+import {
+  useHistoryPage,
+  useHistoryStale,
+  useHistoryWrite,
+} from "../../lib/history-client";
+
+const useConversationChange = () => {
+  const { refresh, request } = useHistoryWrite();
+  const { conversationId, newChat } = useChatSurface();
+  const patch = useMutation({
+    mutationFn: async (input: {
+      readonly archived: boolean;
+      readonly conversation: Conversation;
+    }) => {
+      await request(`/api/conversations/${input.conversation.id}`, {
+        body: JSON.stringify({
+          archived: input.archived,
+          revision: input.conversation.revision,
+          v: 1,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      });
+    },
+    onSuccess: async () => {
+      await refresh();
+    },
+    retry: false,
+  });
+  const remove = useMutation({
+    mutationFn: async (conversation: Conversation) => {
+      await request(`/api/conversations/${conversation.id}`, {
+        method: "DELETE",
+      });
+      if (conversation.id === conversationId) {
+        newChat();
+      }
+    },
+    onSuccess: async () => {
+      await refresh();
+    },
+    retry: false,
+  });
+  return { patch, remove };
+};
+
+const ConversationActions = ({
+  conversation,
+}: {
+  readonly conversation: Conversation;
+}): ReactElement => {
+  const { patch, remove } = useConversationChange();
+  const busy = patch.isPending || remove.isPending;
+  return (
+    <div className="flex shrink-0 flex-col items-stretch gap-1">
+      {conversation.archived ? (
+        <Button
+          disabled={busy}
+          onClick={() => {
+            patch.mutate({ archived: false, conversation });
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {patch.isPending && patch.variables?.archived === false
+            ? "Reopening…"
+            : "Unarchive"}
+        </Button>
+      ) : (
+        <Button
+          disabled={busy}
+          onClick={() => {
+            patch.mutate({ archived: true, conversation });
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {patch.isPending && patch.variables?.archived === true
+            ? "Archiving…"
+            : "Archive"}
+        </Button>
+      )}
+      <AlertDialog>
+        <AlertDialogTrigger
+          disabled={busy}
+          render={<Button size="sm" type="button" variant="ghost" />}
+        >
+          Delete
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Messages in “{conversation.title}” are removed. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {remove.isError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {remove.error.message} The conversation is still here.
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11" disabled={remove.isPending}>
+              Keep it
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-11"
+              disabled={remove.isPending}
+              onClick={() => {
+                remove.mutate(conversation);
+              }}
+              variant="destructive"
+            >
+              {remove.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {patch.isError ? (
+        <p className="text-destructive text-xs" role="alert">
+          {patch.error.message}
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
+const emptyConversations = (query: string, archived: boolean): string => {
+  if (query !== "") {
+    return "No matching conversations.";
+  }
+  if (archived) {
+    return "No archived conversations.";
+  }
+  return "Your conversations will appear here.";
+};
 
 const RecentPage = ({
-  query,
+  archived,
+  onArchivedChange,
   onOpen,
+  query,
 }: {
-  readonly query: string;
+  readonly archived: boolean;
+  readonly onArchivedChange: (archived: boolean) => void;
   readonly onOpen: () => void;
+  readonly query: string;
 }): ReactElement => {
   const [cursors, setCursors] = useState<string[]>([]);
   const before = cursors.at(-1) ?? null;
-  const path = `/api/conversations?limit=20&q=${encodeURIComponent(query)}${before === null ? "" : `&before=${encodeURIComponent(before)}`}`;
+  const path = `/api/conversations?limit=20&archived=${archived}&q=${encodeURIComponent(query)}${before === null ? "" : `&before=${encodeURIComponent(before)}`}`;
   const page = useHistoryPage(path);
   const conversations = page.records.filter(
     (record): record is Conversation => record.kind === "conversation"
@@ -53,18 +211,31 @@ const RecentPage = ({
   }
   return (
     <>
+      <ToggleGroup
+        aria-label="Which conversations"
+        multiple={false}
+        onValueChange={(values) => {
+          const [selected] = values;
+          if (selected === "recent" || selected === "archived") {
+            onArchivedChange(selected === "archived");
+          }
+        }}
+        value={[archived ? "archived" : "recent"]}
+        variant="outline"
+      >
+        <ToggleGroupItem value="recent">Recent</ToggleGroupItem>
+        <ToggleGroupItem value="archived">Archived</ToggleGroupItem>
+      </ToggleGroup>
       {conversations.length === 0 ? (
         <p className="text-muted-foreground py-8 text-center text-sm">
-          {query === ""
-            ? "Your conversations will appear here."
-            : "No matching conversations."}
+          {emptyConversations(query, archived)}
         </p>
       ) : null}
       <ul className="flex flex-col gap-1">
         {conversations.map((conversation) => (
-          <li key={conversation.id}>
+          <li className="flex items-start gap-1" key={conversation.id}>
             <Link
-              className="hover:bg-muted focus-visible:ring-ring flex flex-col gap-2 rounded-xl p-3 outline-none focus-visible:ring-2"
+              className="hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 flex-col gap-2 rounded-xl p-3 outline-none focus-visible:ring-2"
               onClick={onOpen}
               params={{ conversationId: conversation.id }}
               to="/chat/$conversationId"
@@ -89,6 +260,7 @@ const RecentPage = ({
                 {new Date(conversation.updatedAt).toLocaleString()}
               </time>
             </Link>
+            <ConversationActions conversation={conversation} />
           </li>
         ))}
       </ul>
@@ -125,6 +297,7 @@ export const RecentConversations = (): ReactElement => {
   const stale = useHistoryStale();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [archived, setArchived] = useState(false);
   const query = useDeferredValue(search);
   return (
     <div className="flex items-center gap-1">
@@ -157,7 +330,9 @@ export const RecentConversations = (): ReactElement => {
           ) : null}
           {open ? (
             <RecentPage
-              key={query}
+              archived={archived}
+              key={`${query}:${archived}`}
+              onArchivedChange={setArchived}
               onOpen={() => {
                 setOpen(false);
               }}
@@ -189,14 +364,18 @@ export const ConversationHeader = (): ReactElement => {
     <>
       <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
         {conversation === null ? null : (
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-medium">
-              {conversation.title}
-            </h1>
-            <p className="text-muted-foreground text-xs">
-              {conversation.source} ·{" "}
-              {new Date(conversation.updatedAt).toLocaleDateString()}
-            </p>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-medium">
+                {conversation.title}
+              </h1>
+              <p className="text-muted-foreground text-xs">
+                {conversation.source} ·{" "}
+                {new Date(conversation.updatedAt).toLocaleDateString()}
+                {conversation.archived ? " · archived" : ""}
+              </p>
+            </div>
+            <ConversationActions conversation={conversation} />
           </div>
         )}
         <Button
