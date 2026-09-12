@@ -94,7 +94,7 @@ const ConversationActions = ({
   const { patch, remove } = useConversationChange();
   const busy = patch.isPending || remove.isPending;
   return (
-    <div className="flex shrink-0 flex-col items-stretch gap-1">
+    <div className="flex shrink-0 flex-wrap items-center gap-1">
       {conversation.archived ? (
         <Button
           disabled={busy}
