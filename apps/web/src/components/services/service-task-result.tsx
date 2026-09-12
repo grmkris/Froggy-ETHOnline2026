@@ -8,6 +8,10 @@ import type { ReactElement } from "react";
 
 import { artifactFilename, safeLink } from "../../lib/services-view";
 import { ServiceImagePreview } from "./service-image-preview";
+import {
+  TokenResearchResultView,
+  tryTokenResearchFacts,
+} from "./token-research-result";
 
 export const ServiceTaskResult = ({
   download,
@@ -18,9 +22,11 @@ export const ServiceTaskResult = ({
 }): ReactElement => {
   const [failure, setFailure] = useState<string | null>(null);
   const { artifact } = task;
+  const research = tryTokenResearchFacts(task);
   return (
     <div className="flex flex-col gap-3">
-      {task.text === "" ? null : (
+      {research === null ? null : <TokenResearchResultView facts={research} />}
+      {task.text === "" || research !== null ? null : (
         <p className="text-sm break-words whitespace-pre-wrap">{task.text}</p>
       )}
       {task.data === undefined ? null : (

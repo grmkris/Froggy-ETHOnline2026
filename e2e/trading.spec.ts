@@ -35,6 +35,46 @@ test("token search uses structured inputs and keeps its result after reload", as
   expect(errors).toEqual([]);
 });
 
+test("token research renders launcher and per-source status", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  await page.goto("/services?service=token_research");
+  await page
+    .getByLabel("Token address", { exact: true })
+    .fill(`0x${"a".repeat(40)}`);
+  await page.getByLabel("Cohort window (blocks)").fill("600");
+  await page.getByLabel("Holder page budget").fill("5");
+  const response = page.waitForResponse(
+    (value) =>
+      value.url().endsWith("/api/services/run") &&
+      value.request().method() === "POST"
+  );
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
+  const created = await response;
+  const ticket = Schema.decodeUnknownSync(
+    Schema.Struct({ id: Schema.String, service: Schema.String })
+  )(await created.json());
+  expect(ticket.service).toBe("token_research");
+  await expect(page.getByLabel("Service tasks")).toContainText("Done");
+  await page.goto(`/services?task=${ticket.id}`);
+  const result = page.getByLabel("Selected service task");
+  const research = result.getByLabel("Token research result");
+  await expect(research).toBeVisible();
+  await expect(research).toContainText("Launcher");
+  await expect(research).toContainText("Stubbed research");
+  await expect(research).toContainText("Unavailable");
+  await expect(research).toContainText("GoPlus screen");
+  await page.reload();
+  await expect(
+    page.getByLabel("Selected service task").getByLabel("Token research result")
+  ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("an unsigned swap quote is inspectable on a narrow screen", async ({
   page,
 }, testInfo) => {
@@ -487,6 +527,11 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
     form.getByLabel("Automatic launch watch").locator("option")
   ).toHaveCount(2);
   await form.getByLabel("Automatic launch watch").selectOption({ index: 1 });
+  await expect(form.getByText("Research requirements")).toBeVisible();
+  await form.getByLabel("Require research checks before signing").check();
+  await expect(
+    form.getByLabel("Require reviewed Pons token template")
+  ).toBeChecked();
   await form
     .getByLabel("Maximum entry input · base units", { exact: true })
     .fill("100");
@@ -507,6 +552,8 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
     rules.getByRole("heading", { name: "Mobile Pons watch rule" })
   ).toBeVisible();
   await expect(rules).toContainText("Authorized until expiry");
+  await expect(rules).toContainText("Research:");
+  await expect(rules).toContainText("template");
   await page.reload();
   await expect(
     rules.getByRole("heading", { name: "Mobile Pons watch rule" })

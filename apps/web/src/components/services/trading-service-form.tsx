@@ -135,6 +135,15 @@ const requestFrom = (
       };
       break;
     }
+    case "token_research": {
+      input = {
+        network,
+        address: read("address").trim(),
+        cohortWindowBlocks: Number(data.get("cohortWindowBlocks") ?? 600),
+        holderPageBudget: Number(data.get("holderPageBudget") ?? 20),
+      };
+      break;
+    }
     default: {
       throw new Error("Choose a trading service.");
     }
@@ -325,6 +334,54 @@ export const TradingServiceForm = ({
             name="address"
             prefix={prefix}
           />
+        ) : null}
+        {card.name === "token_research" ? (
+          <>
+            <AddressField
+              disabled={disabled}
+              label="Token address"
+              name="address"
+              prefix={prefix}
+            />
+            <Field>
+              <FieldLabel htmlFor={`${prefix}-cohort`}>
+                Cohort window (blocks)
+              </FieldLabel>
+              <Input
+                defaultValue={600}
+                disabled={disabled}
+                id={`${prefix}-cohort`}
+                max={3000}
+                min={1}
+                name="cohortWindowBlocks"
+                required
+                type="number"
+              />
+              <FieldDescription>
+                Blocks after launch used for insider and early-sell checks. On
+                Robinhood 600 blocks is about one minute; on Base it is longer.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${prefix}-holders`}>
+                Holder page budget
+              </FieldLabel>
+              <Input
+                defaultValue={20}
+                disabled={disabled}
+                id={`${prefix}-holders`}
+                max={20}
+                min={1}
+                name="holderPageBudget"
+                required
+                type="number"
+              />
+              <FieldDescription>
+                Each page covers up to 10,000 blocks of Transfer history.
+                Partial coverage is reported, never rounded away.
+              </FieldDescription>
+            </Field>
+          </>
         ) : null}
         {card.name === "quote_action" ? (
           <>

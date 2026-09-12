@@ -157,6 +157,93 @@ const RuleExitFields = ({ id }: { readonly id: string }): ReactElement => (
   </FieldGroup>
 );
 
+const RuleResearchFields = ({ id }: { readonly id: string }): ReactElement => (
+  <fieldset className="flex flex-col gap-3 rounded-xl border p-3">
+    <legend className="px-1 text-sm font-medium">Research requirements</legend>
+    <FieldDescription>
+      Fail closed: if research facts are missing, stale, or fail these checks,
+      the rule refuses to sign. Only own-RPC facts (template, launch cohort,
+      reconstructed holders) can gate signing.
+    </FieldDescription>
+    <Field orientation="horizontal">
+      <input
+        className="size-4"
+        id={`${id}-researchEnabled`}
+        name="researchEnabled"
+        type="checkbox"
+      />
+      <FieldLabel htmlFor={`${id}-researchEnabled`}>
+        Require research checks before signing
+      </FieldLabel>
+    </Field>
+    <Field orientation="horizontal">
+      <input
+        className="size-4"
+        defaultChecked
+        id={`${id}-requireTemplateMatch`}
+        name="requireTemplateMatch"
+        type="checkbox"
+      />
+      <FieldLabel htmlFor={`${id}-requireTemplateMatch`}>
+        Require reviewed Pons token template
+      </FieldLabel>
+    </Field>
+    <Field orientation="horizontal">
+      <input
+        className="size-4"
+        defaultChecked
+        id={`${id}-forbidLaunchInsiders`}
+        name="forbidLaunchInsiders"
+        type="checkbox"
+      />
+      <FieldLabel htmlFor={`${id}-forbidLaunchInsiders`}>
+        Forbid deployer or fee-recipient buys in the launch window
+      </FieldLabel>
+    </Field>
+    <FieldGroup className="grid gap-4 sm:grid-cols-2">
+      <Field>
+        <FieldLabel htmlFor={`${id}-insiderWindowBlocks`}>
+          Insider window · blocks
+        </FieldLabel>
+        <Input
+          defaultValue="600"
+          id={`${id}-insiderWindowBlocks`}
+          max={3000}
+          min={1}
+          name="insiderWindowBlocks"
+          type="number"
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-topHolderCount`}>
+          Top holders counted
+        </FieldLabel>
+        <Input
+          defaultValue="10"
+          id={`${id}-topHolderCount`}
+          max={20}
+          min={1}
+          name="topHolderCount"
+          type="number"
+        />
+      </Field>
+      <Field className="sm:col-span-2">
+        <FieldLabel htmlFor={`${id}-maxTopHoldersBps`}>
+          Max top-holder share · basis points (optional)
+        </FieldLabel>
+        <Input
+          id={`${id}-maxTopHoldersBps`}
+          max={10_000}
+          min={1}
+          name="maxTopHoldersBps"
+          placeholder="e.g. 4000 = 40%"
+          type="number"
+        />
+      </Field>
+    </FieldGroup>
+  </fieldset>
+);
+
 const submitRule = (
   form: HTMLFormElement,
   options: {
@@ -209,7 +296,23 @@ const submitRule = (
               maxAttempts: Number(text(data, "maxAttempts")),
             },
           };
-    const checked = Schema.decodeUnknownSync(TradeRuleRequest)(request);
+    const researchEnabled = data.get("researchEnabled") === "on";
+    const withResearch =
+      researchEnabled && route.venue === "pons"
+        ? {
+            ...request,
+            research: {
+              requireTemplateMatch: data.get("requireTemplateMatch") === "on",
+              forbidLaunchInsiders: data.get("forbidLaunchInsiders") === "on",
+              insiderWindowBlocks: Number(
+                text(data, "insiderWindowBlocks") || "600"
+              ),
+              maxTopHoldersBps: optionalNumber(data, "maxTopHoldersBps"),
+              topHolderCount: Number(text(data, "topHolderCount") || "10"),
+            },
+          }
+        : request;
+    const checked = Schema.decodeUnknownSync(TradeRuleRequest)(withResearch);
     onError(null);
     api.create.mutate(checked, {
       onSuccess: () => {
@@ -348,6 +451,7 @@ const RuleForm = ({
         )}
         <RuleLimits id={id} />
         {watch === undefined ? null : <RuleExitFields id={id} />}
+        {route.venue === "pons" ? <RuleResearchFields id={id} /> : null}
         <p className="text-muted-foreground text-sm">
           Principal stays in your wallet. Automatic checks stop at expiry and a
           trigger may not fill. Use the trading form to exit remaining tokens
@@ -397,6 +501,20 @@ const RuleSummary = ({
         {networkWords(rule.network)} · {rule.maxTrades} entries ·{" "}
         {rule.maxOpenPositions} open positions maximum
       </p>
+      {rule.research === undefined ? null : (
+        <p className="text-sm">
+          Research:{" "}
+          {[
+            rule.research.requireTemplateMatch ? "template" : null,
+            rule.research.forbidLaunchInsiders ? "no insiders" : null,
+            rule.research.maxTopHoldersBps === null
+              ? null
+              : `top ${rule.research.topHolderCount} ≤ ${rule.research.maxTopHoldersBps} bps`,
+          ]
+            .filter((entry): entry is string => entry !== null)
+            .join(" · ") || "enabled"}
+        </p>
+      )}
       <p className="text-muted-foreground text-sm break-all">
         Input {rule.maxInputPerTrade} per entry / {rule.maxTotalInput} total.
         Native fees {rule.maxNativeFeePerTrade} per trade /{" "}
