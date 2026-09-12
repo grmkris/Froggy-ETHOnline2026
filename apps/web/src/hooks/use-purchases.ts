@@ -119,6 +119,19 @@ export const usePurchases = (sessionId: string | null, showWallets = false) => {
     },
     retry: false,
   });
+  const cancel = useMutation({
+    mutationFn: async (id: PurchaseId) => {
+      const response = await api(`/api/purchases/${id}/cancel`, {
+        method: "POST",
+      });
+      return decodeTicket(await response.json());
+    },
+    onSuccess: remember,
+    onError: () => {
+      void queries.invalidateQueries({ queryKey });
+    },
+    retry: false,
+  });
   const createSolana = useMutation({
     mutationFn: async () => {
       const response = await api("/api/purchases/wallets/solana", {
@@ -132,7 +145,7 @@ export const usePurchases = (sessionId: string | null, showWallets = false) => {
     },
     retry: false,
   });
-  return { answer, createSolana, enabled, purchases, request, wallets };
+  return { answer, cancel, createSolana, enabled, purchases, request, wallets };
 };
 
 export type PurchasesApi = ReturnType<typeof usePurchases>;

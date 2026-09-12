@@ -169,6 +169,8 @@ Switches the person turned off are discarded on reload, returning to all-on. A p
 
 A schedule given up on after its fifteen-minute busy window has `lastRunAt` set and moves to its next occurrence, and the "skipped" report is deliberately not delivered. Miss the 07:30 digest by chatting at 07:31 and nothing says so, in either direction. `fix` — record and show the miss. Raised by [schedules](workspace/account/schedules.md#open-questions-and-verification).
 
+- **Status:** A miss (busy past fifteen minutes, or a tick arriving that late after downtime) leaves `lastRunAt` unset, advances the next run, and posts a notice on the existing Telegram/web notify path. Memory and Postgres `finish` already omit `lastRunAt` on retries, so no migration. Covered in `apps/server/src/schedules.test.ts`.
+
 ### B-16: The digest's timezone line is the browser's, not the digest's
 
 `digest-settings.tsx` prints `Intl.DateTimeFormat().resolvedOptions().timeZone` under the hour, while the digest fires in the zone it was saved with — which the server returns and the page never shows. Set 08:00 in Berlin, open it in New York, and the page reads "America/New_York" under a digest that still fires at 08:00 Berlin; nudging the hour there silently relocates it. `fix`. Raised by [the daily digest](workspace/account/the-daily-digest.md#open-questions-and-verification).
@@ -184,6 +186,8 @@ A signed-out person remains reachable on their phone and can still answer approv
 ### B-19: A purchase cannot be stopped from the interface
 
 `POST /api/purchases/{id}/cancel` exists and is used by **Deny & stop** and by account deletion. No button reaches it, so "Payment in progress" cannot be stopped from the page. Stopping the chat run that requested it does not reach it either, because the work detaches at ticket time. `fix`. Raised by [purchases](workspace/wallet/purchases.md#open-questions-and-verification), [buying a service](workspace/services/buying-a-service.md#open-questions-and-verification).
+
+- **Status:** Cancel payment is on the paying card in Recent URL purchases and in the global purchase band; it posts the existing cancel endpoint and shows an error with retry if the stop is not acknowledged (`e2e/purchases.spec.ts`).
 
 ### B-20: Resubmitting the same request is a second bill
 
@@ -216,6 +220,8 @@ Home handles `stop` itself and lets every other slash command fall through to `o
 ### B-27: Conversation archive and delete exist as endpoints with no interface, and one state cannot be undone
 
 `history-routes.ts` offers PATCH and DELETE for rename, archive and delete; nothing in the interface calls them. `acceptHistory` refuses an archived conversation with "Reopen this conversation before sending." — a state nothing in the product can produce or undo. `product call` — finish the feature or remove the endpoints. Raised by [history and persistence](cross-cutting/history-and-persistence.md#open-questions-and-verification), [the conversation](foundations/the-conversation.md#open-questions-and-verification).
+
+- **Status:** Archive and delete are on the recent-conversations list and the chat header, with a confirm for delete. Archived conversations are listed under an Archived filter and can be unarchived (`PATCH archived: false`). Browser coverage is in `e2e/history.spec.ts`.
 
 ### B-28: A discarded URL parameter is silent, including on links Froggy generates
 

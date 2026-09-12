@@ -53,6 +53,13 @@ const requestedFilter = (url: URL): Omit<HistoryFilter, "kind"> => {
   if (search !== null && search.trim() !== "") {
     values.search = search.trim().slice(0, 200);
   }
+  const archived = url.searchParams.get("archived");
+  if (archived === "true") {
+    values.archived = true;
+  }
+  if (archived === "false") {
+    values.archived = false;
+  }
   const limit = Number(url.searchParams.get("limit") ?? 20);
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
     throw new HistoryConflictError("Limit must be between 1 and 50.");
@@ -155,14 +162,20 @@ const listHistory = async (
   if (kinds.length > 0) {
     return await store.history.transaction(userId, async (tx) => {
       const lists = await Promise.all(
-        kinds.map(
-          async (kind) =>
-            await tx.list({
-              ...filter,
-              kind,
-              rootOnly: pathname === "/api/activity" && kind === "execution",
-            })
-        )
+        kinds.map(async (kind) => {
+          const scoped = {
+            ...filter,
+            kind,
+            rootOnly: pathname === "/api/activity" && kind === "execution",
+          };
+          if (pathname === "/api/conversations" && kind === "conversation") {
+            return await tx.list({
+              ...scoped,
+              archived: filter.archived ?? false,
+            });
+          }
+          return await tx.list(scoped);
+        })
       );
       const records = await conversationSummaries(tx, lists.flat());
       return page(

@@ -298,6 +298,16 @@ export type FireOutcome = "busy" | "done";
 export interface TickerDeps {
   readonly fire: (userId: UserId, schedule: Schedule) => Promise<FireOutcome>;
   readonly now?: () => number;
+  /**
+   * A due run that was given up on: the person was busy past the window, or
+   * the process was down long enough that firing it now would be pretending
+   * it ran on time. `lastRunAt` is left alone so the row does not look fired.
+   */
+  readonly onMissed?: (
+    userId: UserId,
+    schedule: Schedule,
+    dueAt: number
+  ) => Promise<void>;
   readonly staleMs?: number;
   readonly store: Pick<Store, "schedules">;
 }
@@ -319,6 +329,7 @@ export const createScheduleTicker = (deps: TickerDeps) => {
   const firstDue = new Map<ScheduleId, number>();
 
   const settle = async (
+    userId: UserId,
     schedule: Schedule,
     claimedAt: number,
     outcome: FireOutcome
@@ -335,11 +346,26 @@ export const createScheduleTicker = (deps: TickerDeps) => {
     }
     firstDue.delete(schedule.id);
     const next = nextRunAfter(schedule.cadence, schedule.timezone, at);
-    await deps.store.schedules.finish(schedule.id, claimedAt, {
-      lastRunAt: at,
-      nextRunAt: next,
-      status: next === null ? "done" : "active",
-    });
+    const missed = outcome === "busy";
+    const status = next === null ? "done" : "active";
+    await deps.store.schedules.finish(
+      schedule.id,
+      claimedAt,
+      missed
+        ? { nextRunAt: next, status }
+        : { lastRunAt: at, nextRunAt: next, status }
+    );
+    if (!missed || deps.onMissed === undefined) {
+      return;
+    }
+    try {
+      await deps.onMissed(userId, schedule, due);
+    } catch (error) {
+      warn(
+        `schedule ${schedule.id} miss notice failed:`,
+        error instanceof Error ? error : String(error)
+      );
+    }
   };
 
   const fireOne = async (
@@ -347,6 +373,18 @@ export const createScheduleTicker = (deps: TickerDeps) => {
     schedule: Schedule,
     claimedAt: number
   ): Promise<ScheduleId | null> => {
+    const due = firstDue.get(schedule.id) ?? schedule.nextRunAt ?? claimedAt;
+    if (now() - due >= BUSY_WINDOW_MS) {
+      try {
+        await settle(userId, schedule, claimedAt, "busy");
+      } catch (error) {
+        warn(
+          `schedule ${schedule.id} could not be finished:`,
+          error instanceof Error ? error : String(error)
+        );
+      }
+      return null;
+    }
     let outcome: FireOutcome = "done";
     try {
       outcome = await deps.fire(userId, schedule);
@@ -359,7 +397,7 @@ export const createScheduleTicker = (deps: TickerDeps) => {
       );
     }
     try {
-      await settle(schedule, claimedAt, outcome);
+      await settle(userId, schedule, claimedAt, outcome);
     } catch (error) {
       warn(
         `schedule ${schedule.id} could not be finished:`,

@@ -73,7 +73,10 @@ export const ComposerStack = ({
           app.dispatch({ id, type: "dismiss" });
         }}
       />
-      <AnimatePresence initial={false}>
+      {/* /chat and /chat/$id are separate routes, so this stack remounts
+          onto a card that is already waiting. Skipping first-mount would
+          drop the spring the typed-then-asked path is specified to keep. */}
+      <AnimatePresence>
         {app.approvals.map((request) => (
           <MotionItem
             delay={delays.get(request.id) ?? 0}

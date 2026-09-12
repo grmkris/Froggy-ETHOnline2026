@@ -9,6 +9,7 @@ import type { ReactElement } from "react";
 import type { PurchasesApi } from "../../hooks/use-purchases";
 import { ApprovalTicket } from "../cards/approval-ticket";
 import { PurchaseDetails } from "./purchase-details";
+import { PurchaseCancel } from "./purchase-results";
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -58,7 +59,11 @@ export const PurchaseApprovals = ({
     api.purchases.data?.purchases.filter(
       (purchase) => purchase.status === "awaiting_approval"
     ) ?? [];
-  if (pending.length === 0 && !api.purchases.isError) {
+  const paying =
+    api.purchases.data?.purchases.filter(
+      (purchase) => purchase.status === "paying"
+    ) ?? [];
+  if (pending.length === 0 && paying.length === 0 && !api.purchases.isError) {
     return null;
   }
   const answer = (
@@ -97,6 +102,17 @@ export const PurchaseApprovals = ({
             {api.answer.error.message} The purchase status is being refreshed.
           </p>
         ) : null}
+        {paying.map((purchase) => (
+          <div
+            className="flex min-w-0 flex-col gap-3 [overflow-wrap:anywhere]"
+            key={purchase.id}
+          >
+            <p className="font-medium">{purchase.purpose}</p>
+            <p>Payment in progress</p>
+            <PurchaseDetails purchase={purchase} />
+            <PurchaseCancel api={api} purchase={purchase} />
+          </div>
+        ))}
         {pending.map((purchase) => (
           <div
             className="flex min-w-0 flex-col gap-3 [overflow-wrap:anywhere]"

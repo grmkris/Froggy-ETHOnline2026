@@ -1,6 +1,7 @@
 import type { PurchaseStatus } from "@froggy/domain";
 import type { PurchaseTicket } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
+import { Button } from "@froggy/ui/components/button";
 import {
   Card,
   CardContent,
@@ -56,6 +57,40 @@ const resultLabel = (purchase: PurchaseTicket): string => {
     : STATUS[purchase.status];
 };
 
+export const PurchaseCancel = ({
+  api,
+  purchase,
+}: {
+  readonly api: PurchasesApi;
+  readonly purchase: PurchaseTicket;
+}): ReactElement | null => {
+  if (purchase.status !== "paying") {
+    return null;
+  }
+  const thisCancel =
+    api.cancel.isPending && api.cancel.variables === purchase.id;
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        className="min-h-11 w-fit"
+        disabled={api.cancel.isPending}
+        onClick={() => {
+          api.cancel.mutate(purchase.id);
+        }}
+        type="button"
+        variant="outline"
+      >
+        {thisCancel ? "Cancelling…" : "Cancel payment"}
+      </Button>
+      {api.cancel.isError && api.cancel.variables === purchase.id ? (
+        <p className="text-destructive text-sm" role="alert">
+          {api.cancel.error.message} Try again to stop this purchase.
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
 export const PurchaseResults = ({
   api,
 }: {
@@ -99,6 +134,7 @@ export const PurchaseResults = ({
         </CardHeader>
         <CardContent className="flex min-w-0 flex-col gap-3">
           <output className="font-medium">{resultLabel(purchase)}</output>
+          <PurchaseCancel api={api} purchase={purchase} />
           {purchase.error === null ? null : (
             <p className="text-destructive break-words">{purchase.error}</p>
           )}

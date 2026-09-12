@@ -232,12 +232,17 @@ describe("createScheduleTicker", () => {
     const once = reminder({ _tag: "once", at: AT }, AT);
     await store.schedules.create(ALICE, once);
     let clock = AT;
+    const missed: { dueAt: number; id: string }[] = [];
     const ticker = createScheduleTicker({
       fire: async () => {
         await Promise.resolve();
         return "busy";
       },
       now: () => clock,
+      onMissed: async (_userId, schedule, dueAt) => {
+        await Promise.resolve();
+        missed.push({ dueAt, id: schedule.id });
+      },
       store,
     });
     await ticker.tick();
@@ -245,7 +250,38 @@ describe("createScheduleTicker", () => {
     await ticker.tick();
     const [skipped] = await store.schedules.list(ALICE);
     expect(skipped).toMatchObject({
-      lastRunAt: AT + 16 * MINUTE,
+      lastRunAt: null,
+      status: "done",
+    });
+    expect(missed).toEqual([{ dueAt: AT, id: once.id }]);
+  });
+
+  test("a tick far past due is missed without firing, and lastRunAt stays unset", async () => {
+    const store = memoryStore();
+    const once = reminder({ _tag: "once", at: AT }, AT);
+    await store.schedules.create(ALICE, once);
+    const fired: string[] = [];
+    const notices: string[] = [];
+    const ticker = createScheduleTicker({
+      fire: async (_userId, schedule) => {
+        await Promise.resolve();
+        fired.push(schedule.id);
+        return "done";
+      },
+      now: () => AT + 16 * MINUTE,
+      onMissed: async (_userId, schedule) => {
+        await Promise.resolve();
+        notices.push(schedule.id);
+      },
+      store,
+    });
+    expect(await ticker.tick()).toEqual([]);
+    expect(fired).toEqual([]);
+    expect(notices).toEqual([once.id]);
+    const [skipped] = await store.schedules.list(ALICE);
+    expect(skipped).toMatchObject({
+      lastRunAt: null,
+      nextRunAt: null,
       status: "done",
     });
   });

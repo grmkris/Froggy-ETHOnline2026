@@ -35,7 +35,7 @@ import { createQuotes } from "./quotes";
 import { handleRequest, ORACLE_PATH } from "./router";
 import type { RouterDeps } from "./router";
 import { ChatRunRegistry } from "./runs";
-import { createScheduleTicker } from "./schedules";
+import { createScheduleTicker, formatLocal } from "./schedules";
 import { cspModeOf, withSecurityHeaders } from "./security-headers";
 import { createServices } from "./services";
 import { createSocketHandlers, isTrustedOrigin } from "./sockets";
@@ -401,6 +401,13 @@ class FroggyServer extends Context.Service<
               : promptJob(schedule, oracleUrl);
           const report = await runScheduledFor(jobDeps, userId, job);
           return report.outcome === "skipped" ? "busy" : "done";
+        },
+        onMissed: async (userId, schedule, dueAt) => {
+          await notices.post(userId, {
+            scheduleId: schedule.id,
+            source: "notify",
+            text: `Missed schedule "${schedule.label}": it did not run at ${formatLocal(dueAt, schedule.timezone)}.`,
+          });
         },
         store: services.store,
       });
