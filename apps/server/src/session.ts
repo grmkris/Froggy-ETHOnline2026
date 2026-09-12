@@ -30,6 +30,7 @@ import {
   LIMIT_RULES,
   withoutLimits,
   authorityFor,
+  ceilingFor,
   formatUsd,
   priceInUsdMicros,
   KNOWN_ASSETS,
@@ -1254,6 +1255,18 @@ export class WorkspaceSession {
       usdMicros * CONVERSION_MULTIPLE
     );
     let amount = target - pocket;
+    // The conversion is judged under the person's caps like any spend, and it
+    // is sized at twice the parent, so a parent the person just approved at
+    // $1.49 would otherwise ask for a $2.98 conversion and be refused by a $2
+    // cap after the yes. Bound it by the ceiling first; the shortfall check
+    // below still fails closed when the cap cannot cover the parent itself.
+    const ceiling =
+      this.agentPolicy === null
+        ? null
+        : ceilingFor("conversion", this.agentPolicy.allowance);
+    if (ceiling !== null) {
+      amount = Math.min(amount, ceiling);
+    }
     const held = await this.deps.balances.usdc(
       this.addresses.signer ?? wallet.address
     );

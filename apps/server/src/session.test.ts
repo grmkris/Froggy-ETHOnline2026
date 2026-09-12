@@ -1127,6 +1127,29 @@ describe("converting USDC when the pocket is short", () => {
     ).toBe(false);
   });
 
+  test("a conversion is bounded by the cap so a parent the person approved still pays", async () => {
+    // A $1.49 task, an empty Hedera balance, the person said yes. The
+    // conversion wants twice the parent ($2.98); under the $2 cap it must
+    // convert $2, which covers the parent, rather than refuse after the yes.
+    // This was the case a tester hit on 11 September.
+    const { performed, session } = converting(memoryStore(), 0, {
+      held: 10_000_000n,
+    });
+    await session.hydrate();
+    session.applyAllowance({
+      allowance: defaultAllowance(Date.now()),
+      policyId: "pol_person_1",
+    });
+    const sent = { count: 0 };
+    const result = await session.spend({
+      ...paying("approved-over-a-dollar", "149000000", sent),
+      approved: true,
+    });
+    expect(performed).toEqual([2_000_000]);
+    expect(sent.count).toBe(1);
+    expect(result.decision._tag).toBe("allow");
+  });
+
   test("a parent over the person's cap is refused before any conversion starts", async () => {
     const { performed, session } = converting(memoryStore(), 0, {
       held: 10_000_000n,
