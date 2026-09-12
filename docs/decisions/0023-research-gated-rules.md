@@ -10,6 +10,8 @@ A paid `token_research` read is **tolerant**. Every source reports `observed`, `
 
 A trading rule that carries a `TradeResearchPolicy` is **strict and fail-closed**. Missing, stale (older than 30 seconds), unreconciled, or wrong-basis facts refuse signing with a named `trade.research_*` reason. Only own-RPC facts may gate signing: template match, venue-event launch cohorts, and reconstructed holder concentration. Indexed holders and GoPlus never authorize a trade.
 
+Research predicates gate **entries only**. An automatic exit sells a position the same rule already acquired; it stays bound by the exit policy, the confirmed acquisition and the fee caps, but no research read runs before it. A failed or stale read must refuse a new buy, never trap an existing position.
+
 Launchers are `LaunchVenue` adapters. Each pins reviewed deployments by address and runtime keccak256, recorded under `docs/evidence/`. Detection asks configured venues for registration; the first hit wins. Adding a launcher costs a primary-source address resolution, a hash pin, an adapter, a loud stub, tests, and a live check. A venue whose deployments cannot be verified is not shipped.
 
 One composite paid operation covers every configured EVM RPC network. Venue-specific free reads such as `pons_token` may add fields, but they do not become separate research products. Nothing that changes spending authority is a tool; research predicates are attached by a human on a rule.

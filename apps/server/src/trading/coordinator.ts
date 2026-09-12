@@ -578,23 +578,7 @@ export class TradeCoordinator {
       const bookRule = await this.options.store.transact(owner, (book) =>
         book.rules.get(ruleId)
       );
-      let research: TokenResearchFacts | null = null;
-      if (bookRule?.research !== undefined) {
-        if (backend.research === undefined) {
-          throw new Error(
-            "trade.research_venue: this route cannot supply research facts for the rule."
-          );
-        }
-        research = await backend.research(trade.input);
-        if (
-          research.observedAt > this.options.now() ||
-          this.options.now() - research.observedAt > 30_000
-        ) {
-          throw new Error(
-            "trade.research_stale: refresh research facts before signing."
-          );
-        }
-      }
+      const research = await this.ruleResearch(backend, trade, bookRule);
       const balances = await backend.balances(trade.input);
       const signer = backend.stubbed
         ? null
@@ -624,6 +608,35 @@ export class TradeCoordinator {
       await this.recordRefusal(owner, trade, step, reason);
       throw new Error(reason, { cause: error });
     }
+  }
+
+  /**
+   * Research predicates gate entries only. An exit spends a position the rule
+   * already acquired; a stale or failed read must refuse a buy, never trap it.
+   */
+  private async ruleResearch(
+    backend: TradeBackend,
+    trade: Trade,
+    rule: TradeRule | undefined
+  ): Promise<TokenResearchFacts | null> {
+    if (rule?.research === undefined || trade.exitOfTradeId !== undefined) {
+      return null;
+    }
+    if (backend.research === undefined) {
+      throw new Error(
+        "trade.research_venue: this route cannot supply research facts for the rule."
+      );
+    }
+    const research = await backend.research(trade.input);
+    if (
+      research.observedAt > this.options.now() ||
+      this.options.now() - research.observedAt > 30_000
+    ) {
+      throw new Error(
+        "trade.research_stale: refresh research facts before signing."
+      );
+    }
+    return research;
   }
 
   async observe(input: TradeInput) {
