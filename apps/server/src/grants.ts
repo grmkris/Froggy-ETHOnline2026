@@ -202,13 +202,7 @@ export class AgentGrants {
   ): void {
     const { session } = this.deps.workspaces.for(userId);
     if (grant.wallet !== null) {
-      // Both fields, same address: the embedded EOA is where the money is on
-      // Base mainnet, because that is the address an EIP-3009 authorization
-      // has to be signed by.
-      session.setAddresses({
-        signer: grant.wallet.address,
-        smart: grant.wallet.address,
-      });
+      session.setAddresses({ signer: grant.wallet.address });
       session.setWallet(grant.wallet);
     }
     // The session is told before the standing is computed and published, so the

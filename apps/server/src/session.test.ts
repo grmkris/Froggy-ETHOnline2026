@@ -1541,7 +1541,7 @@ describe("the person's allowance in the judgement", () => {
 });
 
 describe("ownEvmAddresses", () => {
-  test("labels the agent signer and smart account, and falls back to the granted wallet", () => {
+  test("labels only the embedded EOA and falls back to the granted wallet", () => {
     const session = sessionWith(memoryLedger());
     expect(session.ownEvmAddresses()).toEqual([]);
 
@@ -1558,16 +1558,11 @@ describe("ownEvmAddresses", () => {
 
     session.setAddresses({
       signer: "0x2222222222222222222222222222222222222222",
-      smart: "0x3333333333333333333333333333333333333333",
     });
     expect(session.ownEvmAddresses()).toEqual([
       {
         label: "agent_signer",
         address: "0x2222222222222222222222222222222222222222",
-      },
-      {
-        label: "agent_smart_account",
-        address: "0x3333333333333333333333333333333333333333",
       },
     ]);
   });

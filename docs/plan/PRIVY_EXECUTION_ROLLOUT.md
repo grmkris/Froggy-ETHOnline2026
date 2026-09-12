@@ -30,7 +30,18 @@ Keep sponsorship disabled on Base until these prerequisites are satisfied. Leave
 
 ## Separate Smart Wallet retirement
 
-The app-wide audit remains unperformed: automatic approval review rejected a production query that would enumerate up to 500 users' linked-account metadata, even though its output contained only aggregate counts. Obtain explicit authorization before conducting that audit. Do not disable the setting based solely on the inspected owner's embedded wallet.
+The owner explicitly authorized both the account audit and token-balance queries on 12 September 2026. Read-only production checks returned these aggregates:
+
+- Six Privy users; one separately linked Smart Wallet; no cross-app Smart Wallets. Enumeration completed without reaching its 500-user cap.
+- The legacy address has no stored wallet assignment, trade history or held trade reservation, wallet request history, active dapp connection, or matching trading rule in Froggy.
+- RPC checks on Ethereum, Base and Base Sepolia found no deployed code and nonce zero on all three. Native balances were zero on Ethereum and Base; Base Sepolia held `1500000000000000` wei (0.0015 test ETH). USDC was zero on Base and Base Sepolia.
+- Blockscout returned zero indexed token entries on all three networks. This is indexer coverage, not a claim about assets on every possible chain.
+
+The runtime now has one EOA address role: the obsolete `smart` alias and duplicate smart-account ownership result are removed. Historical protocol labels remain decodable. No account was unlinked, no funds moved, and no history deleted. Preserve the legacy linked record for test-fund recovery.
+
+The separate Smart Wallet dashboard configuration was still enabled for Kernel on Ethereum and Base at audit time. The installed SDK exposes its read API but no app-settings mutation, and this session has no authenticated dashboard control. The operator can disable the **separate Smart Wallets** toggle in Privy's dashboard while keeping embedded wallets and native gas sponsorship configured. Read the setting back afterward; the code cleanup alone does not establish that the dashboard toggle changed.
+
+Cleanup validation: the full repository gate and all 17 trading browser tests passed. The preceding managed-execution release also passed all 163 browser tests in CI and deployed successfully.
 
 ## Recovery and rollback
 

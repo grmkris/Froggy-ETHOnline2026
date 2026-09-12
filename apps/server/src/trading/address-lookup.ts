@@ -293,8 +293,7 @@ export const lookupAddress = async (
 };
 
 /**
- * Every EVM address Froggy knows as the person's: the agent's signer and
- * smart account from the session, and the Privy owner wallet trading routes
+ * The embedded EOA from the session and the Privy owner wallet trading routes
  * pay from. A Privy outage must not turn a free read into an error, so a
  * failed wallet fetch only means `mine` cannot name the owner wallet.
  */

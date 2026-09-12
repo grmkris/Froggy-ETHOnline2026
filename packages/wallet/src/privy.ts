@@ -48,10 +48,9 @@ import type { PrivyExecution } from "./privy-execution";
 import { privyHederaKeys } from "./privy-hedera-keys";
 import type { HederaKeys } from "./privy-hedera-keys";
 
-/** Both legacy address roles resolve to the embedded EOA; delegation keeps that address. */
+/** The embedded EOA keeps its address when delegated through EIP-7702. */
 export interface WalletAddresses {
   readonly signer: string | null;
-  readonly smart: string | null;
 }
 
 export interface AgentGrantRequest {
@@ -134,10 +133,10 @@ const pickAddresses = (accounts: readonly LinkedAccount[]): WalletAddresses => {
       )
       .map(addressOf)
       .find((address) => address !== null) ?? null;
-  return { signer, smart: signer };
+  return { signer };
 };
 
-const NO_ADDRESSES: WalletAddresses = { signer: null, smart: null };
+const NO_ADDRESSES: WalletAddresses = { signer: null };
 
 export interface LivePrivyOptions {
   readonly signatureOptionsFor?: SignatureOptionsResolver;
@@ -299,7 +298,7 @@ export const stubPrivyServer = (): PrivyServer => ({
       return NO_ADDRESSES;
     }
     const address = `0x${digest(identityToken).slice(0, 40)}`;
-    return { signer: address, smart: address };
+    return { signer: address };
   },
   // The stub reports the grant as *not* attached, with a reason. Pretending a
   // signature exists would make the wallet pane say the agent can pay when it

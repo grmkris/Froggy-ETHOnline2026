@@ -30,7 +30,7 @@ The treasury relay supports both the existing `(v,r,s)` authorization overload a
 
 `PRIVY_SPONSORED_NETWORKS` defaults to `[]` and accepts only `eip155:8453` and `eip155:84532`. Enable Sepolia first, prove the flow with an exact owner authorization, then enable Base for an owner-approved small swap. Browser-dapp transactions, ordinary transfers and other venues remain on their existing execution paths until that proof. They must not advertise sponsored execution.
 
-Do not disable the app-wide separate Smart Wallet setting until its users, balances, sessions and history have been audited. This implementation does not disable it. The known conversation's wallet identity does not establish that no other user depends on it.
+The owner-authorized separate Smart Wallet audit found one unused legacy account holding only observed Base Sepolia test ETH, with no indexed tokens on the three checked networks. Preserve its linked record for recovery. The runtime no longer has a separate smart-account address role; changing the dashboard toggle is a separate operator action recorded in the rollout document.
 
 See [the rollout record](../plan/PRIVY_EXECUTION_ROLLOUT.md) for remaining checks.
 

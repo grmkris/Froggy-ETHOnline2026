@@ -674,7 +674,7 @@ export class WorkspaceSession {
    */
   private gate: Promise<unknown> = Promise.resolve();
   private hydration: Promise<void> | null = null;
-  private addresses: WalletAddresses = { signer: null, smart: null };
+  private addresses: WalletAddresses = { signer: null };
   /** The Privy wallet the agent may sign from, once granted. */
   private wallet: { readonly address: string; readonly id: string } | null =
     null;
@@ -808,21 +808,11 @@ export class WorkspaceSession {
    * pasted address can be told apart from "your own wallet" without a read.
    */
   ownEvmAddresses(): readonly {
-    readonly label: "agent_signer" | "agent_smart_account";
+    readonly label: "agent_signer";
     readonly address: string;
   }[] {
-    const own: {
-      readonly label: "agent_signer" | "agent_smart_account";
-      readonly address: string;
-    }[] = [];
     const signer = this.addresses.signer ?? this.wallet?.address ?? null;
-    if (signer !== null) {
-      own.push({ label: "agent_signer", address: signer });
-    }
-    if (this.addresses.smart !== null) {
-      own.push({ label: "agent_smart_account", address: this.addresses.smart });
-    }
-    return own;
+    return signer === null ? [] : [{ label: "agent_signer", address: signer }];
   }
 
   setWallet(
@@ -1113,11 +1103,7 @@ export class WorkspaceSession {
         this.now()
       )?.usdMicrosPerUnit ?? null;
     return {
-      // The *signer*, not the smart account. The Graph's x402 leg is an
-      // EIP-3009 authorization signed by the address that holds the USDC, and
-      // the smart wallet on this app is configured for Base Sepolia only — so
-      // showing it here would tell someone to fund the wrong address on the
-      // wrong chain.
+      // Funding and EIP-3009 authorizations use the same embedded EOA, including after delegation.
       address: this.addresses.signer,
       agentNote: this.agentNote,
       agentAllowance: this.agentPolicy?.allowance ?? null,
