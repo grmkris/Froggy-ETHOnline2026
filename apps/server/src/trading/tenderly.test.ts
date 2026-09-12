@@ -30,29 +30,27 @@ const response = {
   simulations: [
     {
       status: true,
-      gas_used: 40_000,
-      block_number: 123,
+      gas_used: "40000",
+      block_number: "123",
       trace: [
         {
           from: wallet,
           to: `0x${"3".repeat(40)}`,
           input: "0x12345678",
           output: "0x",
-          trace_address: [],
         },
       ],
     },
     {
       status: true,
-      gas_used: 20_000,
-      block_number: 123,
+      gas_used: "20000",
+      block_number: "123",
       trace: [
         {
           from: wallet,
           to: token,
           input: `0x70a08231${wallet.slice(2).padStart(64, "0")}`,
           output: `0x${500n.toString(16).padStart(64, "0")}`,
-          trace_address: [],
         },
       ],
     },
@@ -106,7 +104,7 @@ test("rejects mismatched blocks, call targets and incomplete state probes", asyn
   if (first === undefined) {
     throw new Error("Missing fixture");
   }
-  first.block_number = 124;
+  first.block_number = "124";
   expect(
     await tenderlySimulation(options(fixture), request).then(() => null, String)
   ).toContain("trade.simulation_mismatch");
@@ -162,4 +160,61 @@ test("sponsored native probes preserve real zero-ETH balances without charging u
   expect(results[0]?.assetChanges).toEqual([
     { asset: "native", before: "0", after: "500" },
   ]);
+});
+
+test("accepts decimal trace paths while requiring a single matching root", async () => {
+  const [first, probe] = response.simulations;
+  const root = first?.trace[0];
+  if (first === undefined || root === undefined || probe === undefined) {
+    throw new Error("Missing fixture");
+  }
+  const fixture = {
+    simulations: [
+      {
+        ...first,
+        trace: [root, { ...root, trace_address: ["0"] }],
+      },
+      probe,
+    ],
+  };
+  expect(await tenderlySimulation(options(fixture), request)).toHaveLength(1);
+  const duplicate = {
+    simulations: [{ ...first, trace: [root, root] }, probe],
+  };
+  expect(
+    await tenderlySimulation(options(duplicate), request).then(
+      () => null,
+      String
+    )
+  ).toContain("trade.simulation_mismatch");
+});
+
+test.each(["-1", "1.5", "1e3", "0x10", "", "9007199254740992"])(
+  "rejects malformed or unsafe provider quantities: %s",
+  async (quantity) => {
+    const fixture = structuredClone(response);
+    const [first] = fixture.simulations;
+    if (first === undefined) {
+      throw new Error("Missing fixture");
+    }
+    first.gas_used = quantity;
+    expect(
+      await tenderlySimulation(options(fixture), request).then(
+        () => null,
+        String
+      )
+    ).toContain("trade.simulation_invalid");
+  }
+);
+
+test("rejects wrong call identity even with valid provider quantities", async () => {
+  const fixture = structuredClone(response);
+  const root = fixture.simulations[0]?.trace[0];
+  if (root === undefined) {
+    throw new Error("Missing fixture");
+  }
+  root.to = token;
+  expect(
+    await tenderlySimulation(options(fixture), request).then(() => null, String)
+  ).toContain("trade.simulation_mismatch");
 });

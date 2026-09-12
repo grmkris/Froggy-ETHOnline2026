@@ -5,7 +5,7 @@ import {
   TradingUnits,
 } from "@froggy/domain";
 import type { TradePayload } from "@froggy/domain";
-import { Redacted, Schema } from "effect";
+import { Redacted, Schema, SchemaTransformation } from "effect";
 import { encodeFunctionData, getAddress, parseAbi } from "viem";
 
 import { boundedBytes, safeFetch } from "../outbound";
@@ -13,7 +13,15 @@ import type { OutboundOptions } from "../outbound";
 import { chainIdOf } from "./networks";
 
 type EvmPayload = Extract<TradePayload, { kind: "evm" }>;
-const Integer = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const Integer = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
+);
+// The v2 REST API serializes quantities and trace indices as decimal strings.
+const Quantity = Schema.String.check(
+  Schema.isPattern(/^(?:0|[1-9][0-9]*)$/u),
+  Schema.isMaxLength(16)
+).pipe(Schema.decodeTo(Integer, SchemaTransformation.numberFromString));
 const Hex = Schema.String.check(
   Schema.isPattern(/^0x(?:[a-fA-F0-9]{2})*$/u),
   Schema.isMaxLength(64_002)
@@ -23,12 +31,14 @@ const Trace = Schema.Struct({
   to: Schema.optional(Schema.NullOr(EvmAddress)),
   input: Schema.optional(Schema.NullOr(Hex)),
   output: Schema.optional(Schema.NullOr(Hex)),
-  trace_address: Schema.Array(Integer).check(Schema.isMaxLength(64)),
+  trace_address: Schema.optional(
+    Schema.Array(Quantity).check(Schema.isMaxLength(64))
+  ),
 });
 const Result = Schema.Struct({
   status: Schema.Boolean,
-  gas_used: Integer,
-  block_number: Integer,
+  gas_used: Quantity,
+  block_number: Quantity,
   trace: Schema.Array(Trace).check(Schema.isMaxLength(512)),
 });
 const Bundle = Schema.Struct({
@@ -131,10 +141,14 @@ const verifyRoot = (
   call: Call,
   block: number
 ): typeof Trace.Type => {
-  const root = result.trace.find((trace) => trace.trace_address.length === 0);
+  // Tenderly omits the empty path for the first (root) call. Other entries
+  // must have a non-empty path, so a malformed child cannot become the root.
+  const [root, ...children] = result.trace;
   if (
     result.block_number !== block ||
     root === undefined ||
+    (root.trace_address?.length ?? 0) !== 0 ||
+    children.some((trace) => (trace.trace_address?.length ?? 0) === 0) ||
     root.from.toLowerCase() !== call.from.toLowerCase() ||
     root.to?.toLowerCase() !== call.to.toLowerCase() ||
     root.input?.toLowerCase() !== call.data.toLowerCase()
@@ -193,16 +207,22 @@ export const tenderlySimulation = async (
       `trade.simulation_unavailable: Tenderly returned HTTP ${response.status}.`
     );
   }
-  let bundle: typeof Bundle.Type;
+  let body: unknown;
   try {
-    bundle = Schema.decodeUnknownSync(Bundle)(
-      JSON.parse(
-        new TextDecoder().decode(await boundedBytes(response, 512 * 1024))
-      )
+    body = JSON.parse(
+      new TextDecoder().decode(await boundedBytes(response, 512 * 1024))
     );
   } catch {
     throw new Error(
-      "trade.simulation_invalid: Tenderly returned an invalid bounded response."
+      "trade.simulation_invalid: Tenderly returned invalid JSON or exceeded the 512 KiB response limit."
+    );
+  }
+  let bundle: typeof Bundle.Type;
+  try {
+    bundle = Schema.decodeUnknownSync(Bundle)(body);
+  } catch {
+    throw new Error(
+      "trade.simulation_invalid: Tenderly response did not match the v2 simulation schema."
     );
   }
   if (bundle.simulations.length !== calls.length) {

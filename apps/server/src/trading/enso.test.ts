@@ -334,8 +334,8 @@ test("Enso preparation binds approvals, nonces, fee bounds and independent post-
               const balance = call.to.toLowerCase() === ASSET ? 900 : proceeds;
               return {
                 status: true,
-                gas_used: 50_000,
-                block_number: 100,
+                gas_used: "50000",
+                block_number: "100",
                 trace: [
                   {
                     from: call.from,
