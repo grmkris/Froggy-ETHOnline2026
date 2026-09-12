@@ -1,6 +1,7 @@
 import type { OAuthScope } from "@froggy/domain";
 /** Stateless Streamable HTTP MCP. Auth is the same revocable token as the task API. */
 import { PurchaseId, TaskId } from "@froggy/domain";
+import { GraphReadInput, GraphSchemaInput } from "@froggy/graph";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import {
   AddressLookupInput,
@@ -15,6 +16,9 @@ import { decodeHistoryJson } from "./history";
 import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
 import { boundedBytes } from "./outbound";
 import { PurchaseToolInput, purchaseToolResult } from "./purchase-tool";
+import { ResearchReadInput } from "./research-data";
+import { researchGuide, ResearchGuideInput } from "./research-guides";
+import { discoverResearch, ResearchDiscoverInput } from "./research-tools";
 import { serviceCatalog } from "./service-providers";
 import {
   awaitServiceTask,
@@ -70,7 +74,21 @@ const TradingToolEnvelope = Schema.Struct({
   idempotencyKey: PromptServiceRequest.fields.idempotencyKey,
   input: Schema.Unknown,
 });
+const researchSchemas = {
+  graph_discover: ResearchDiscoverInput,
+  research_capabilities: Schema.Struct({}),
+  research_guide: ResearchGuideInput,
+  research_read: ResearchReadInput,
+  graph_schema: GraphSchemaInput,
+  graph_read: GraphReadInput,
+};
 const tools = [
+  ...Object.entries(researchSchemas).map(([name, schema]) => ({
+    name: `froggy_${name}`,
+    description: `Included bounded ${name.replaceAll("_", " ")}. Research only; no spending or execution authority.`,
+    inputSchema: inputSchema(schema),
+    annotations: { readOnlyHint: true },
+  })),
   {
     name: "froggy_address_lookup",
     description:
@@ -404,6 +422,11 @@ const invokeTradeRead = async (
 
 const capturedInput = (call: typeof Call.Type): Schema.Json => {
   let schema: Schema.Codec<unknown> = Schema.Struct({});
+  for (const [name, input] of Object.entries(researchSchemas)) {
+    if (call.name === `froggy_${name}`) {
+      schema = input;
+    }
+  }
   if (call.name === "froggy_history") {
     schema = ExternalHistoryInput;
   }
@@ -471,6 +494,73 @@ const classifyCall = (name: string) => {
   }
   return { isPurchase, isTrade, scope };
 };
+const invokeResearch = async (
+  services: Services,
+  caller: TaskCaller,
+  call: typeof Call.Type
+): Promise<ToolResult | null> => {
+  const entry = Object.entries(researchSchemas).find(
+    ([name]) => call.name === `froggy_${name}`
+  );
+  if (!entry) {
+    return null;
+  }
+  Schema.decodeUnknownSync(entry[1])(call.arguments ?? {});
+  let value: unknown;
+  if (entry[0] === "graph_discover") {
+    value = await discoverResearch(
+      services,
+      caller.userId,
+      Schema.decodeUnknownSync(ResearchDiscoverInput)(call.arguments)
+    );
+  } else if (entry[0] === "research_capabilities") {
+    value = services.researchData.capabilities();
+  } else if (entry[0] === "research_guide") {
+    value = researchGuide(
+      Schema.decodeUnknownSync(ResearchGuideInput)(call.arguments)
+    );
+  } else if (entry[0] === "research_read") {
+    value = await services.researchData.read(
+      caller.userId,
+      Schema.decodeUnknownSync(ResearchReadInput)(call.arguments)
+    );
+  } else if (entry[0] === "graph_schema") {
+    value = await services.researchData.limit(
+      caller.userId,
+      async () =>
+        await services.graphExplorer.schema(
+          Schema.decodeUnknownSync(GraphSchemaInput)(call.arguments)
+        )
+    );
+  } else {
+    value = await services.researchData.limit(
+      caller.userId,
+      async () =>
+        await services.graphExplorer.read(
+          Schema.decodeUnknownSync(GraphReadInput)(call.arguments)
+        )
+    );
+  }
+  const text = JSON.stringify(value);
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          text.length <= 20_000
+            ? text
+            : JSON.stringify({
+                v: 1,
+                status: "unavailable",
+                note: "Result exceeds the tool budget; request fewer fields.",
+              }),
+      },
+    ],
+    isError: false,
+  };
+};
+const missingScope = (caller: TaskCaller, scope: OAuthScope): boolean =>
+  caller.scopes !== null && !caller.scopes.has(scope);
 const invokeTool = async (
   services: Services,
   session: WorkspaceSession,
@@ -484,7 +574,7 @@ const invokeTool = async (
     call.name,
     async (invocation) => {
       const { isPurchase, isTrade, scope } = classifyCall(call.name);
-      if (caller.scopes !== null && !caller.scopes.has(scope)) {
+      if (missingScope(caller, scope)) {
         invocation.outcome = "insufficient_scope";
         return {
           content: [
@@ -497,6 +587,11 @@ const invokeTool = async (
         };
       }
       try {
+        const research = await invokeResearch(services, caller, call);
+        if (research !== null) {
+          invocation.outcome = "completed";
+          return research;
+        }
         if (call.name === "froggy_history") {
           const text = await externalHistory(
             services.store.history,
@@ -711,7 +806,7 @@ export const handleMcp = async (
       capabilities: { tools: {} },
       serverInfo: { name: "froggy", version: "1.0.0" },
       instructions:
-        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool, passing waitMs to wait for settlement; never repurchase pending, failed, or uncertain work automatically.",
+        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Included research_capabilities/research_guide/research_read and graph_discover/graph_schema/graph_read support general indexer and market research. Keep answers concise and cite observed sources. Poll the matching status tool, passing waitMs to wait for settlement; never repurchase pending, failed, or uncertain work automatically.",
     });
   }
   if (message.method === "ping") {

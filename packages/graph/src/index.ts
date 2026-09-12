@@ -31,3 +31,4 @@ export type {
   GraphSnapshot,
   LendingMarket,
 } from "./types";
+export { graphExplorer, GraphSchemaInput, GraphReadInput } from "./explorer";

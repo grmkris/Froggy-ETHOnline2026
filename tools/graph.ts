@@ -136,7 +136,7 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "The Graph gateway. The eyes: why a spend was worth making.",
     mayImport: [],
-    mayUse: ["effect"],
+    mayUse: ["effect", "graphql"],
   },
   {
     dir: "packages/ui",

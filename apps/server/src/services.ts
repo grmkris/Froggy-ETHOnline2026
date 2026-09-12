@@ -21,6 +21,7 @@ import type { GraphClient, SubgraphDiscovery } from "@froggy/graph";
 import {
   liveGraphClient,
   liveSubgraphDiscovery,
+  graphExplorer,
   stubGraphClient,
   stubSubgraphDiscovery,
 } from "@froggy/graph";
@@ -69,11 +70,14 @@ import {
 } from "@froggy/wallet";
 import type { Redacted } from "effect";
 import postgres from "postgres";
+import { erc20Abi, getAddress } from "viem";
 
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
+import { safeFetch } from "./outbound";
 import { Purchases } from "./purchases";
+import { indexedHolderFact, createResearchData } from "./research-data";
 import { liveBirdeye, stubBirdeye } from "./trading/birdeye";
 import { TradeCoordinator } from "./trading/coordinator";
 import { tradeEvmClient } from "./trading/evm-chain";
@@ -162,6 +166,8 @@ export interface Services {
   /** The chain the RPC answers for, so boot can refuse a URL on the wrong Base. */
   readonly evmChainId: () => Promise<number>;
   readonly graph: GraphClient;
+  readonly graphExplorer: ReturnType<typeof graphExplorer>;
+  readonly researchData: ReturnType<typeof createResearchData>;
   /** The Subgraph MCP: finds a deployment the registry did not pin, by name or by contract. */
   readonly graphDiscovery: SubgraphDiscovery;
   /**
@@ -256,6 +262,7 @@ export const createServices = (options: ServiceOptions): Services => {
     return stubGoPlus();
   };
   const goplus = goplusFor(environment.trading.goplusApiUrl);
+  const researchData = createResearchData(environment);
   const trading: TradingProviders = {
     market: liveOr(
       environment.modes.birdeye === "live",
@@ -306,6 +313,30 @@ export const createServices = (options: ServiceOptions): Services => {
           venuesFor: (network) => launchVenuesFor(network, clientFor(network)),
           goplus,
           now: Date.now,
+          indexedHolders: async (input, owner, client, blockNumber) => {
+            const reading = await researchData.read(owner, {
+              operation: "token_holders",
+              network: input.network,
+              address: input.address,
+              limit: Math.min(input.topHolderCount ?? 10, 20),
+            });
+            const supply =
+              reading.status === "observed"
+                ? await client
+                    .readContract({
+                      address: getAddress(input.address),
+                      abi: erc20Abi,
+                      functionName: "totalSupply",
+                      blockNumber,
+                    })
+                    .catch(() => null)
+                : null;
+            return indexedHolderFact(
+              reading,
+              supply?.toString() ?? null,
+              input.topHolderCount ?? 10
+            );
+          },
         });
       },
       () => stubTokenResearch(Date.now)
@@ -637,6 +668,14 @@ export const createServices = (options: ServiceOptions): Services => {
     evmTransactionKnown: rpc.transactionKnown,
     graph,
     graphDiscovery,
+    graphExplorer: graphExplorer({
+      apiKey: environment.graphApiKey,
+      gatewayUrl: environment.graphGatewayUrl,
+      stubbed: environment.modes.graph !== "live",
+      fetch: async (url, init) =>
+        await safeFetch(url, init, { maxRedirects: 0, timeoutMs: 20_000 }),
+    }),
+    researchData,
     hcs,
     hederaPayerFor: async ({ openingUsdMicros, userId }) =>
       accounts === null

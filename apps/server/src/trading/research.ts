@@ -6,7 +6,12 @@
  */
 
 import { emptyTokenResearchFacts, TokenResearchFacts } from "@froggy/domain";
-import type { TradingAddress, TradingNetwork } from "@froggy/domain";
+import type {
+  HolderConcentrationFact,
+  UserId,
+  TradingAddress,
+  TradingNetwork,
+} from "@froggy/domain";
 import { Schema } from "effect";
 import { getAddress } from "viem";
 
@@ -15,6 +20,7 @@ import type { TradeEvmClient } from "./evm-chain";
 import type { GoPlusScreen } from "./goplus";
 import { firstMintCohort, reconstructHolders } from "./holders";
 import { PONS_ABI } from "./pons";
+import { ResearchRpcError } from "./rpc-transport";
 import { detectLauncher } from "./venues";
 import type { LaunchVenue } from "./venues";
 
@@ -28,8 +34,36 @@ interface TokenResearchInput {
 
 export interface TokenResearch {
   readonly stubbed: boolean;
-  readonly research: (input: TokenResearchInput) => Promise<TokenResearchFacts>;
+  readonly research: (
+    input: TokenResearchInput,
+    owner?: UserId
+  ) => Promise<TokenResearchFacts>;
 }
+
+const researchFailure = (error: Error | null): string => {
+  let current: unknown = error;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (current instanceof ResearchRpcError) {
+      return current.message;
+    }
+    if (!(current instanceof Error)) {
+      break;
+    }
+    current = current.cause;
+  }
+  return "Research source unavailable; no observation was inferred.";
+};
+
+const tolerate = async <T>(
+  read: () => Promise<T>,
+  fallback: (note: string) => T
+): Promise<T> => {
+  try {
+    return await read();
+  } catch (error) {
+    return fallback(researchFailure(error instanceof Error ? error : null));
+  }
+};
 
 const decodeFacts = Schema.decodeUnknownSync(TokenResearchFacts);
 
@@ -162,6 +196,7 @@ const researchUnknownPath = async (input: {
   readonly client: TradeEvmClient;
   readonly address: TradingAddress;
   readonly headBlock: bigint;
+  readonly network: TradingNetwork;
   readonly cohortWindowBlocks: number;
   readonly holderPageBudget: number;
 }): Promise<{
@@ -191,13 +226,23 @@ const researchUnknownPath = async (input: {
     venue: null,
     note: "No launcher template applies to an unregistered token.",
   };
-  const { cohort, launchBlock } = await firstMintCohort({
-    client,
-    token: address,
-    headBlock,
-    windowBlocks: cohortWindowBlocks,
-    pageBudget: Math.min(holderPageBudget, 10),
+  const missing = emptyTokenResearchFacts({
+    network: input.network,
+    address,
+    observedAt: 0,
+    stubbed: false,
   });
+  const { cohort, launchBlock } = await tolerate(
+    async () =>
+      await firstMintCohort({
+        client,
+        token: address,
+        headBlock,
+        windowBlocks: cohortWindowBlocks,
+        pageBudget: Math.min(holderPageBudget, 10),
+      }),
+    (note) => ({ cohort: { ...missing.cohort, note }, launchBlock: null })
+  );
   return { launcher, template, cohort, launchBlock };
 };
 
@@ -206,9 +251,15 @@ export const liveTokenResearch = (options: {
   readonly venuesFor: (network: TradingNetwork) => readonly LaunchVenue[];
   readonly goplus: GoPlusScreen;
   readonly now: () => number;
+  readonly indexedHolders?: (
+    input: TokenResearchInput,
+    owner: UserId,
+    client: TradeEvmClient,
+    block: bigint
+  ) => Promise<HolderConcentrationFact>;
 }): TokenResearch => ({
   stubbed: false,
-  research: async (input) => {
+  research: async (input, owner) => {
     // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
     const address = getAddress(input.address) as TradingAddress;
     const client = options.clientFor(input.network);
@@ -219,11 +270,14 @@ export const liveTokenResearch = (options: {
     }
     const observedAt = options.now();
     const venues = options.venuesFor(input.network);
-    const venue = await detectLauncher(
-      venues,
-      input.network,
-      address,
-      block.number
+    let detectionError: string | null = null;
+    const venue = await tolerate(
+      async () =>
+        await detectLauncher(venues, input.network, address, block.number),
+      (note) => {
+        detectionError = note;
+        return null;
+      }
     );
 
     const empty = emptyTokenResearchFacts({
@@ -237,56 +291,85 @@ export const liveTokenResearch = (options: {
     let sellable: bigint | null = null;
     let launchBlock: bigint | null = null;
 
-    if (venue === null) {
-      const unknown = await researchUnknownPath({
-        client,
-        address,
-        headBlock: block.number,
-        cohortWindowBlocks: input.cohortWindowBlocks,
-        holderPageBudget: input.holderPageBudget,
-      });
-      ({ launcher, template, cohort, launchBlock } = unknown);
-    } else {
-      const venueFacts = await researchVenuePath({
-        client,
-        venue,
-        address,
-        blockNumber: block.number,
-        cohortWindowBlocks: input.cohortWindowBlocks,
-      });
-      const {
-        launcher: venueLauncher,
-        exclusions: venueExclusions,
-        sellable: venueSellable,
-        launchBlock: venueLaunchBlock,
-        template: venueTemplate,
-        cohort: venueCohort,
-      } = venueFacts;
-      launcher = venueLauncher;
-      exclusions = venueExclusions;
-      sellable = venueSellable;
-      launchBlock = venueLaunchBlock;
-      if (venueTemplate !== null) {
-        template = venueTemplate;
+    try {
+      if (detectionError !== null) {
+        throw new Error(detectionError);
       }
-      if (venueCohort !== null) {
-        cohort = venueCohort;
+      if (venue === null) {
+        const unknown = await researchUnknownPath({
+          client,
+          address,
+          headBlock: block.number,
+          network: input.network,
+          cohortWindowBlocks: input.cohortWindowBlocks,
+          holderPageBudget: input.holderPageBudget,
+        });
+        ({ launcher, template, cohort, launchBlock } = unknown);
+      } else {
+        const venueFacts = await researchVenuePath({
+          client,
+          venue,
+          address,
+          blockNumber: block.number,
+          cohortWindowBlocks: input.cohortWindowBlocks,
+        });
+        const {
+          launcher: venueLauncher,
+          exclusions: venueExclusions,
+          sellable: venueSellable,
+          launchBlock: venueLaunchBlock,
+          template: venueTemplate,
+          cohort: venueCohort,
+        } = venueFacts;
+        launcher = venueLauncher;
+        exclusions = venueExclusions;
+        sellable = venueSellable;
+        launchBlock = venueLaunchBlock;
+        if (venueTemplate !== null) {
+          template = venueTemplate;
+        }
+        if (venueCohort !== null) {
+          cohort = venueCohort;
+        }
       }
+    } catch (error) {
+      const note = researchFailure(
+        Schema.is(Schema.instanceOf(Error))(error) ? error : null
+      );
+      launcher = { ...empty.launcher, note };
+      template = { ...empty.template, note };
+      cohort = { ...empty.cohort, note };
     }
-
     const fromBlock = launchBlock ?? 0n;
-    const holders = await reconstructHolders({
-      client,
-      token: address,
-      fromBlock,
-      toBlock: block.number,
-      pageBudget: input.holderPageBudget,
-      topHolderCount: input.topHolderCount ?? 10,
-      exclusions,
-      sellableUnits: sellable,
-    });
+    // Only ordinary owner-bound research has this adapter. Execution readers omit it.
+    const indexed =
+      owner && options.indexedHolders
+        ? await options
+            .indexedHolders(input, owner, client, block.number)
+            .catch(() => null)
+        : null;
+    const holders =
+      indexed?.status === "observed"
+        ? indexed
+        : await tolerate(
+            async () =>
+              await reconstructHolders({
+                client,
+                token: address,
+                fromBlock,
+                toBlock: block.number,
+                pageBudget: input.holderPageBudget,
+                topHolderCount: input.topHolderCount ?? 10,
+                exclusions,
+                sellableUnits: sellable,
+              }),
+            (note) => ({ ...empty.holders, note })
+          );
 
-    const screen = await options.goplus.screen(input.network, address);
+    const screen = await tolerate(
+      async () => await options.goplus.screen(input.network, address),
+      (note) => ({ ...empty.screen, note })
+    );
 
     return decodeFacts({
       v: 1,

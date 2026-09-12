@@ -256,6 +256,12 @@ export interface TradingEnvironment {
   >;
 }
 
+const researchMode = (live: boolean, stubs: boolean): "live" | "stub" =>
+  live || !stubs ? "live" : "stub";
+const optionalResearchKey = (
+  key: Redacted.Redacted
+): Redacted.Redacted | null => (Redacted.value(key).trim() === "" ? null : key);
+
 export interface Environment {
   readonly trading: TradingEnvironment;
   readonly xApiBearer: Redacted.Redacted;
@@ -281,6 +287,14 @@ export interface Environment {
   readonly databaseUrl: string;
   /** The JSON-RPC endpoint the host broadcasts signed Base Sepolia transactions to. */
   readonly evmRpcUrl: string;
+  readonly researchMode: "stub" | "live";
+  readonly pinaxApiKey: Redacted.Redacted | null;
+  readonly graphMarketToken: Redacted.Redacted | null;
+  readonly pinaxApiUrl: string;
+  readonly polymarketGammaUrl: string;
+  readonly polymarketClobUrl: string;
+  readonly defiLlamaApiUrl: string;
+  readonly defiLlamaYieldsUrl: string;
   readonly graphApiKey: string;
   readonly graphGatewayUrl: string;
   /**
@@ -835,6 +849,26 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "PRIVY_AGENT_POLICY_ID"
     ).pipe(Config.withDefault(PLACEHOLDER.privyAgentPolicyId));
 
+    const graphMarketToken = yield* secret("GRAPH_MARKET_TOKEN", "");
+    const pinaxKey = yield* secret("PINAX_API_KEY", "");
+    const pinaxApiUrl = yield* Config.string("PINAX_API_URL").pipe(
+      Config.withDefault("https://api.pinax.network")
+    );
+    const polymarketGammaUrl = yield* Config.string(
+      "POLYMARKET_GAMMA_URL"
+    ).pipe(Config.withDefault("https://gamma-api.polymarket.com"));
+    const polymarketClobUrl = yield* Config.string("POLYMARKET_CLOB_URL").pipe(
+      Config.withDefault("https://clob.polymarket.com")
+    );
+    const defiLlamaApiUrl = yield* Config.string("DEFILLAMA_API_URL").pipe(
+      Config.withDefault("https://api.llama.fi")
+    );
+    const defiLlamaYieldsUrl = yield* Config.string(
+      "DEFILLAMA_YIELDS_URL"
+    ).pipe(Config.withDefault("https://yields.llama.fi"));
+    const liveResearch = yield* Config.boolean("RESEARCH_LIVE").pipe(
+      Config.withDefault(false)
+    );
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
     const graphGatewayUrl = yield* Config.string("GRAPH_GATEWAY_URL").pipe(
       Config.withDefault("https://gateway.thegraph.com/api")
@@ -1083,6 +1117,14 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       demoUserId,
       databaseUrl: Redacted.value(databaseUrl),
       evmRpcUrl,
+      researchMode: researchMode(liveResearch, allowStubs),
+      pinaxApiKey: optionalResearchKey(pinaxKey),
+      graphMarketToken: optionalResearchKey(graphMarketToken),
+      pinaxApiUrl,
+      polymarketGammaUrl,
+      polymarketClobUrl,
+      defiLlamaApiUrl,
+      defiLlamaYieldsUrl,
       graphApiKey: Redacted.value(graphApiKey),
       graphGatewayUrl,
       graphPayPerQuery,

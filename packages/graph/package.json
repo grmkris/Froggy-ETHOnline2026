@@ -11,7 +11,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0-rc.112",
+    "graphql": "17.0.2"
   },
   "devDependencies": {
     "@types/bun": "1.4.1",

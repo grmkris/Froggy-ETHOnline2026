@@ -340,7 +340,10 @@ export const runTradingService = async (
       break;
     }
     case "token_research": {
-      const facts = await services.trading.research.research(request.input);
+      const facts = await services.trading.research.research(
+        request.input,
+        context?.owner
+      );
       data = {
         v: 1,
         operation: "token_research",

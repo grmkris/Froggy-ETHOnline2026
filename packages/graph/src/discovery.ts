@@ -216,7 +216,7 @@ const EVENT_LINE = /^event: ?(?<name>.*)$/mu;
  * Everything here is bounded by one timeout, and a stream that closes early
  * is a failure with a sentence, not a hang.
  */
-const callTool = async (
+const callSubgraphTool = async (
   options: LiveDiscoveryOptions,
   name: string,
   args: Readonly<Record<string, string>>
@@ -268,7 +268,11 @@ const callTool = async (
       .map((line) => line.slice(5).trim())
       .join("\n");
     if (event === "endpoint") {
-      endpoint.resolve(new URL(data, base).toString());
+      const target = new URL(data, base);
+      if (target.origin !== new URL(base).origin) {
+        throw new Error("Subgraph MCP announced an unexpected session origin.");
+      }
+      endpoint.resolve(target.toString());
       return;
     }
     if (event !== "message") {
@@ -415,10 +419,14 @@ export const liveSubgraphDiscovery = (
   const source = new URL(options.url ?? SUBGRAPH_MCP_URL).host;
   return {
     byContract: async ({ chain, contract }) => {
-      const outcome = await callTool(options, "get_top_subgraph_deployments", {
-        chain: chain.trim(),
-        contract_address: contract.trim(),
-      });
+      const outcome = await callSubgraphTool(
+        options,
+        "get_top_subgraph_deployments",
+        {
+          chain: chain.trim(),
+          contract_address: contract.trim(),
+        }
+      );
       if (outcome._tag === "failed") {
         return failed(source, outcome.reason);
       }
@@ -450,9 +458,13 @@ export const liveSubgraphDiscovery = (
       };
     },
     byKeyword: async (keyword) => {
-      const outcome = await callTool(options, "search_subgraphs_by_keyword", {
-        keyword: keyword.trim(),
-      });
+      const outcome = await callSubgraphTool(
+        options,
+        "search_subgraphs_by_keyword",
+        {
+          keyword: keyword.trim(),
+        }
+      );
       if (outcome._tag === "failed") {
         return failed(source, outcome.reason);
       }
@@ -565,7 +577,7 @@ export const describeDiscovery = (
       lines.push(result.note);
     }
     lines.push(
-      "To read one with the standardized lending query, pass its deployment hash as ipfsHash to graph_query; a deployment that is not Messari-standardized will be reported as not matching the schema, and nothing is paid for it."
+      "Inspect graph_schema then use graph_read for general entities. graph_query remains specialized for standardized lending. A schema mismatch is not an absent token, and upstream usage can still be billed."
     );
   }
   if (result.stubbed) {

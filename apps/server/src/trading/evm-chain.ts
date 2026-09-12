@@ -1,5 +1,6 @@
 import type { Trade, TradeStep } from "@froggy/domain";
-import { Redacted, Schema } from "effect";
+import { Schema } from "effect";
+import type { Redacted } from "effect";
 import type { TransactionReceipt } from "viem";
 import {
   createPublicClient,
@@ -11,20 +12,14 @@ import {
   TransactionReceiptNotFoundError,
 } from "viem";
 
-import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
 import { chainIdOf, PONS_NETWORK } from "./networks";
 import { isRollupNetwork } from "./rollup-fees";
+import { boundedRpc } from "./rpc-transport";
 
 const Request = Schema.Struct({
   method: Schema.String,
   params: Schema.optionalKey(Schema.Array(Schema.Json)),
-});
-const Envelope = Schema.Struct({
-  jsonrpc: Schema.Literal("2.0"),
-  id: Schema.Int,
-  result: Schema.optionalKey(Schema.Json),
-  error: Schema.optionalKey(Schema.Struct({ code: Schema.Int })),
 });
 const TOKEN = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
@@ -37,56 +32,20 @@ export const tradeEvmClient = (options: {
   readonly endpoint: Redacted.Redacted;
   readonly outbound?: OutboundOptions;
 }) => {
-  let id = 0;
+  const rpc = boundedRpc(options);
   return createPublicClient({
     transport: custom(
       {
         request: async (request) => {
           const { method, params } = Schema.decodeUnknownSync(Request)(request);
-          id += 1;
-          const requestId = id;
-          try {
-            const response = await safeFetch(
-              Redacted.value(options.endpoint),
-              {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                  jsonrpc: "2.0",
-                  id: requestId,
-                  method,
-                  params: params ?? [],
-                }),
-              },
-              { ...options.outbound, maxRedirects: 0, timeoutMs: 15_000 }
-            );
-            if (!response.ok) {
-              await response.body?.cancel();
-              throw new Error("RPC unavailable");
-            }
-            const body: unknown = JSON.parse(
-              new TextDecoder().decode(await boundedBytes(response, 256_000))
-            );
-            const envelope = Schema.decodeUnknownSync(Envelope)(body);
-            if (
-              envelope.id !== requestId ||
-              envelope.error !== undefined ||
-              envelope.result === undefined
-            ) {
-              throw new Error("Invalid RPC response");
-            }
-            return envelope.result;
-          } catch {
-            throw new Error(
-              "trade.rpc: execution RPC failed or returned an invalid response."
-            );
-          }
+          return await rpc(method, params ?? []);
         },
       },
       { retryCount: 0 }
     ),
   });
 };
+
 export type TradeEvmClient = ReturnType<typeof tradeEvmClient>;
 
 export const assertTradeNetwork = async (
