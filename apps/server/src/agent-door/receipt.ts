@@ -12,6 +12,7 @@
  * note alone proves nothing; the pair is the evidence.
  */
 
+import { formatAmount } from "@froggy/domain";
 import {
   HBAR_ASSET,
   lookupHcsNote,
@@ -24,7 +25,7 @@ import type {
   MirrorVerdict,
 } from "@froggy/payments";
 
-import { clipField, formatAmount } from "./catalogue";
+import { clipField } from "./catalogue";
 
 export interface Settlement {
   readonly note: HcsNoteRecord | null;

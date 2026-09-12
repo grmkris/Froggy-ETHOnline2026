@@ -18,6 +18,7 @@
  * returning something that could pass for a real settlement.
  */
 
+import { formatAmount } from "@froggy/domain";
 import {
   assess,
   challengeFrom,
@@ -36,7 +37,6 @@ import type {
 import {
   boundedText,
   describeCatalogue,
-  formatAmount,
   readCatalogue,
   refuse,
   SELLER_TIMEOUT_MS,

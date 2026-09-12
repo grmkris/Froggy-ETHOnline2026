@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
+import { formatAmount } from "@froggy/domain";
 import type { MirrorFetch } from "@froggy/payments";
 
-import { formatAmount } from "./catalogue";
 import type { DoorFetch, DoorRequest, ServiceCard } from "./catalogue";
 import { readDoor } from "./config";
 import {

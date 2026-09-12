@@ -1,5 +1,5 @@
 /** A small seller whose original HTML page opens after an x402 payment. */
-import { KNOWN_ASSETS, SaleId } from "@froggy/domain";
+import { formatAmount, SaleId } from "@froggy/domain";
 import type { Sale } from "@froggy/domain";
 import { snapshotHash } from "@froggy/graph";
 import type { GraphSnapshot, LendingMarket } from "@froggy/graph";
@@ -91,9 +91,8 @@ const paymentBadge = (stubbed: boolean): string =>
 /**
  * The price as the offer states it, in whatever asset the offer is in.
  *
- * `KNOWN_ASSETS` carries the decimals and the symbol for everything this build
- * can price; anything else keeps its base units rather than being rendered
- * with a decimal point it has not earned.
+ * Known assets get their decimals and symbol; anything else keeps its base
+ * units rather than being rendered with a decimal point it has not earned.
  */
 const priceLabel = (
   offer:
@@ -107,18 +106,7 @@ const priceLabel = (
   if (offer === undefined) {
     return `${Number(PRICE_TINYBARS) / 100_000_000} HBAR`;
   }
-  const known = Object.values(KNOWN_ASSETS).find(
-    (asset) => asset.network === offer.network && asset.id === offer.asset
-  );
-  if (known === undefined) {
-    return `${offer.amount} units of token ${offer.asset}`;
-  }
-  const digits = offer.amount.padStart(known.decimals + 1, "0");
-  const whole = digits.slice(0, digits.length - known.decimals);
-  const fraction = digits
-    .slice(digits.length - known.decimals)
-    .replace(/0+$/u, "");
-  return `${fraction === "" ? whole : `${whole}.${fraction}`} ${known.symbol}`;
+  return formatAmount(offer.amount, offer.asset, offer.network);
 };
 
 const challengeFor = (services: DemoServices) => {

@@ -18,7 +18,7 @@
  * used, so a config dump or a log line cannot spill one.
  */
 
-import { decodeUserId, KNOWN_ASSETS } from "@froggy/domain";
+import { decodeUserId, KNOWN_ASSETS, knownAsset } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import {
   EVM_CHAIN_IDS,
@@ -731,9 +731,7 @@ const personPolicyPins = (input: {
  * not.
  */
 const assertPriceableAsset = (asset: string, network: HederaNetwork): void => {
-  const known = Object.values(KNOWN_ASSETS).find(
-    (entry) => entry.network === network && entry.id === asset
-  );
+  const known = knownAsset(asset, network);
   if (known === undefined) {
     throw new Error(
       `HEDERA_ASSET is ${asset}, which is not an asset this build knows how to price on ${network}. Use 0.0.0 for HBAR, or add the token to KNOWN_ASSETS with its decimals.`

@@ -10,7 +10,7 @@
  * same challenge as the 402, so the two cannot drift apart.
  */
 
-import { KNOWN_ASSETS } from "@froggy/domain";
+import { formatAmount } from "@froggy/domain";
 import { Schema } from "effect";
 
 const Resource = Schema.Struct({
@@ -169,49 +169,6 @@ export const readCatalogue = async (input: {
   return decoded._tag === "Success"
     ? { _tag: "read", value: decoded.success }
     : refuse(`${url} answered something that is not a service card.`);
-};
-
-/** Decimals for an asset id on a network, or null when nobody here knows. */
-const decimalsOf = (asset: string, network: string): number | null => {
-  for (const known of Object.values(KNOWN_ASSETS)) {
-    if (known.network === network && known.id === asset) {
-      return known.decimals;
-    }
-  }
-  return null;
-};
-
-/** The symbol for an asset id on a network, or the id itself. */
-const symbolOf = (asset: string, network: string): string => {
-  for (const known of Object.values(KNOWN_ASSETS)) {
-    if (known.network === network && known.id === asset) {
-      return known.symbol;
-    }
-  }
-  return asset;
-};
-
-/**
- * Smallest units into something a person can read, without rounding the
- * number away: `5000000` tinybars is `0.05 HBAR`, and an unknown token keeps
- * its base units rather than pretending to a decimal place.
- */
-export const formatAmount = (
-  units: string,
-  asset: string,
-  network: string
-): string => {
-  const symbol = symbolOf(asset, network);
-  const decimals = decimalsOf(asset, network);
-  if (decimals === null) {
-    return `${units} units of token ${asset}`;
-  }
-  const digits = units.padStart(decimals + 1, "0");
-  const whole = digits.slice(0, digits.length - decimals);
-  const fraction = digits.slice(digits.length - decimals).replace(/0+$/u, "");
-  return fraction === ""
-    ? `${whole} ${symbol}`
-    : `${whole}.${fraction} ${symbol}`;
 };
 
 /** One resource, as a line a caller can choose from. */
