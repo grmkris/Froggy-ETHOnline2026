@@ -44,7 +44,7 @@ In Claude Code, open `/mcp` and authenticate Froggy. In Cursor, merge this entry
 
 In the MCP Inspector, select Streamable HTTP, enter `https://your-froggy.example/mcp`, and connect using OAuth. Use its local proxy; Froggy does not allow cross-origin browser calls to MCP.
 
-The person signs in in their browser, sees what you may do (briefs, browsing, payments, services), and clicks Allow. Relay the sign-in link if you cannot open their browser. Only the person can consent. The client keeps its own tokens and refreshes them. The person can disconnect you on the Agents page at any moment.
+The person signs in in their browser, sees what you may do (briefs, browsing, payments, services), and clicks Allow. Relay the sign-in link if you cannot open their browser. Only the person can consent. The client keeps its own tokens and refreshes them. The person can disconnect you on Connections at any moment.
 
 After connecting, list the tools and call `froggy_services` to check access without buying anything. Tell the person what you can do and the listed prices. Setup is not permission to buy a task.
 
@@ -60,7 +60,7 @@ node ~/froggy.mjs help
 
 ### 3. A token, for an unattended agent
 
-If nobody can open a browser for you, the person can mint a connection token under "Advanced: connect with a token" on the Agents page and set it beside the URL:
+If nobody can open a browser for you, the person can mint a connection token under "Advanced: connect with a token" on Connections and set it beside the URL:
 
 ```sh
 export FROGGY_URL="https://your-froggy.example"
