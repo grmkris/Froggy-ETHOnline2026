@@ -29,7 +29,7 @@ import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
 import { copyForHome, poseForHome } from "../lib/frog-pose";
-import { useHistoryPage } from "../lib/history-client";
+import { useHistoryDetail, useHistoryPage } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { cadenceWords, nextRunWords } from "../lib/schedule-words";
 import { useSessionToken } from "../lib/session-token";
@@ -58,13 +58,15 @@ const Card = ({
 
 const Home = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
-  const { busy, send, stopRun } = useChatSurface();
+  const { busy, conversationId, send, stopRun } = useChatSurface();
   const navigate = useNavigate();
   const { getToken } = useSessionToken();
   const connectionLock = useConnectionLock(app.connected);
 
   const needsUser = app.approvals.length + pendingPurchases;
   const pose = poseForHome(needsUser, busy);
+  const waitingRunId = app.approvals[0]?.runId ?? null;
+  const waitingRun = useHistoryDetail(waitingRunId);
 
   const conversations = useHistoryPage("/api/conversations?limit=3&q=");
   const recent = useMemo(
@@ -108,6 +110,20 @@ const Home = (): ReactElement => {
 
   const openChat = (): void => {
     void navigate({ to: "/chat" });
+  };
+
+  const openWaiting = (): void => {
+    const record = waitingRun.data?.record;
+    const fromRun =
+      record !== undefined &&
+      "conversationId" in record &&
+      record.conversationId !== null
+        ? record.conversationId
+        : null;
+    void navigate({
+      params: { conversationId: fromRun ?? conversationId },
+      to: "/chat/$conversationId",
+    });
   };
 
   return (
@@ -165,7 +181,7 @@ const Home = (): ReactElement => {
               Froggy will not spend anything until you answer.
             </p>
             <div className="mt-3">
-              <Button onClick={openChat}>Review</Button>
+              <Button onClick={openWaiting}>Review</Button>
             </div>
           </Card>
         ) : null}
