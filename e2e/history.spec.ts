@@ -231,3 +231,20 @@ test("a failed recent-history request stays an error instead of an empty list", 
     page.getByText("Your conversations will appear here.")
   ).toHaveCount(0);
 });
+
+test("a failed Home history request is an error with retry, not an empty list", async ({
+  page,
+}) => {
+  await page.route("**/api/conversations?**", async (route) => {
+    await route.fulfill({
+      status: 503,
+      json: { v: 1, error: "History unavailable" },
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText(
+    "History could not be loaded"
+  );
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(page.getByText("Nothing yet", { exact: true })).toHaveCount(0);
+});

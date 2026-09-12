@@ -169,37 +169,63 @@ const Home = (): ReactElement => {
 
         {conversations.isPending ? <Skeleton className="h-24 w-full" /> : null}
 
-        {recent.map((record) => (
-          <Card key={record.id}>
+        {conversations.isError ? (
+          <Card>
             <h2 className="text-[15px] font-semibold">
-              {record.kind === "conversation" && record.title !== null
-                ? record.title
-                : "Untitled task"}
+              Conversations could not be loaded
             </h2>
-            <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
-              {new Date(
-                record.kind === "conversation"
-                  ? record.updatedAt
-                  : record.createdAt
-              ).toLocaleString()}
+            <p className="text-muted-foreground mt-0.5 text-sm" role="alert">
+              History could not be loaded.
             </p>
             <div className="mt-3">
               <Button
                 onClick={() => {
-                  void navigate({
-                    params: { conversationId: record.id },
-                    to: "/chat/$conversationId",
-                  });
+                  void conversations.refetch();
                 }}
                 variant="outline"
               >
-                Open task
+                Retry
               </Button>
             </div>
           </Card>
-        ))}
+        ) : null}
 
-        {!conversations.isPending && recent.length === 0 && needsUser === 0 ? (
+        {conversations.isError
+          ? null
+          : recent.map((record) => (
+              <Card key={record.id}>
+                <h2 className="text-[15px] font-semibold">
+                  {record.kind === "conversation" && record.title !== null
+                    ? record.title
+                    : "Untitled task"}
+                </h2>
+                <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
+                  {new Date(
+                    record.kind === "conversation"
+                      ? record.updatedAt
+                      : record.createdAt
+                  ).toLocaleString()}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    onClick={() => {
+                      void navigate({
+                        params: { conversationId: record.id },
+                        to: "/chat/$conversationId",
+                      });
+                    }}
+                    variant="outline"
+                  >
+                    Open task
+                  </Button>
+                </div>
+              </Card>
+            ))}
+
+        {!conversations.isPending &&
+        !conversations.isError &&
+        recent.length === 0 &&
+        needsUser === 0 ? (
           <Card>
             <h2 className="text-[15px] font-semibold">Nothing yet</h2>
             <p className="text-muted-foreground mt-0.5 text-sm">
