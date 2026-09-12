@@ -56,6 +56,13 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
     page.getByRole("button", { exact: true, name: "Send" })
   ).toBeVisible({ timeout: 20_000 });
   await expect(log).toHaveAttribute("aria-busy", "false");
+  const receipt = page.getByLabel(/^Receipt: Nothing was paid/u).first();
+  await expect(receipt).toBeVisible();
+  await expect(receipt).toContainText(
+    "This receipt exists so a demo cannot be mistaken for a purchase."
+  );
+  await expect(receipt).toContainText("stubbed");
+  await expect(receipt).not.toContainText("Simulated");
   await captureResponsive(page, testInfo, "chat-completed");
   expect(browserErrors).toEqual([]);
 });

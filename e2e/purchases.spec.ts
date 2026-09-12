@@ -256,7 +256,9 @@ test.describe("URL purchases", () => {
     await expect(
       log.getByText("The scripted URL request has finished.", { exact: true })
     ).toBeVisible();
-    await expect(page.getByLabel(/^Receipt: Paid/u).first()).toBeVisible();
+    await expect(
+      page.getByLabel(/^Receipt: Nothing was paid/u).first()
+    ).toBeVisible();
 
     const response = await request.get("/api/purchases", { headers });
     const list = decodeList(await response.json());

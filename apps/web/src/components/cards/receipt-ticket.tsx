@@ -24,7 +24,7 @@ import {
   hcsMessageUrl,
   shortId,
 } from "../../lib/format";
-import { receiptHeadline } from "../../lib/receipt-status";
+import { receiptFollowUp, receiptHeadline } from "../../lib/receipt-status";
 import { useSessionIds } from "../../lib/session-ids";
 
 interface ReceiptTicketProps {
@@ -203,6 +203,7 @@ export const ReceiptTicket = ({
   receipt,
 }: ReceiptTicketProps): React.ReactElement => {
   const refused = receipt.decision._tag === "deny";
+  const followUp = compact ? null : receiptFollowUp(receipt);
   const layer = compact ? null : layerOf(receipt);
   const ruleId =
     receipt.decision._tag === "allow"
@@ -228,6 +229,9 @@ export const ReceiptTicket = ({
               </span>
             </div>
             <p className="mt-1.5 text-sm">{receiptHeadline(receipt)}</p>
+            {followUp === null ? null : (
+              <p className="mt-1.5 text-sm">{followUp}</p>
+            )}
             {compact ? null : (
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {receipt.intent.purpose}

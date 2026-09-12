@@ -202,14 +202,17 @@ test("another tab restores the same waiting run and its one receipt", async ({
     .getByRole("button", { name: "Allow once", exact: true })
     .click();
   await expect(page.getByLabel(/^Approve .* to /u)).toHaveCount(0);
-  await expect(second.getByLabel(/^Receipt: Paid/u)).toHaveCount(1, {
-    timeout: 20_000,
-  });
-  await expect(page.getByLabel(/^Receipt: Paid/u)).toHaveCount(1, {
+  await expect(second.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(
+    1,
+    {
+      timeout: 20_000,
+    }
+  );
+  await expect(page.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(1, {
     timeout: 20_000,
   });
   await second.reload();
-  await expect(second.getByLabel(/^Receipt: Paid/u)).toHaveCount(1);
+  await expect(second.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(1);
 });
 
 test("a failed recent-history request stays an error instead of an empty list", async ({
