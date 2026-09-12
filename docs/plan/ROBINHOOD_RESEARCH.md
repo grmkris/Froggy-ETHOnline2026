@@ -110,6 +110,19 @@ Buy nothing. Recorded so the question is not reopened from scratch:
 | Holder concentration, launch cohort | `token_research` (reconstructed Transfer history + venue events) |
 | Quote at size | The Pons quoter for Pons tokens; Uniswap for everything else |
 
+## Shipped state and non-goals, 12 September 2026
+
+Research parity now reads as follows. Paid `token_research` covers every configured EVM RPC network. On Robinhood it detects Pons and Pools.trade; on Base it detects Clanker (masked runtime template pinned), Zora (proxy and implementation pinned), Flaunch and Virtuals; on Ethereum it takes the generic path. Launcher facts on Uniswap v4 venues carry the `poolId`. Rules gate entries only, and each venue carries the predicates its own backend can read: Pons all three, Uniswap on Base, Ethereum and Robinhood the holder cap alone.
+
+Declined, with the reason recorded in [decision 0023](../decisions/0023-research-gated-rules.md):
+
+- **Birdeye EVM holder lists** are indexed, never own-RPC, so they stay research-visible and cannot refuse a signature.
+- **Uniswap v4 insiders.** `Swap.sender` is the router or unlock callback, not the trader; Clanker, Flaunch and Pools.trade keep `insiders: false`.
+- **Virtuals insiders.** No venue trade event the adapter can trust; the cohort stays `not_applicable`.
+- **Transfer-heuristic launch cohorts.** A first-mint window without venue events is a guess; it stays out of the rule gate entirely.
+- **A Pons-style masked template for Zora.** Every coin is the same proxy; the honest fact is which implementation it delegates to.
+- **Executing on Base launchers.** Uniswap is the Base execution venue; launcher adapters detect and describe, they do not build calldata.
+
 ## Next steps
 
 Ordered. Each new provider costs a loud stub and both markers as well as the adapter — per [`AGENTS.md`](../../AGENTS.md), that is the per-integration tax, not the HTTP call.
