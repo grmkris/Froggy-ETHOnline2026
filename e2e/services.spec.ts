@@ -132,3 +132,14 @@ test("the distributed Node CLI speaks MCP over stdio", async ({
   expect(replies.map((reply) => reply.id)).toEqual([1, 2]);
   expect(stdout).toContain("froggy_service_run");
 });
+
+test("a discarded service name is a dismissible notice, not a silent catalog", async ({
+  page,
+}) => {
+  await page.goto("/services?service=not-a-service");
+  await expect(page.getByRole("alert")).toContainText(
+    "That link could not be opened"
+  );
+  await page.getByRole("button", { name: "Dismiss unrecognised link" }).click();
+  await expect(page.getByText("That link could not be opened")).toHaveCount(0);
+});

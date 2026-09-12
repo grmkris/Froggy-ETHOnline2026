@@ -27,6 +27,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { ReceiptTicket } from "../components/cards/receipt-ticket";
+import { DiscardedSearchNotice } from "../components/discarded-search-notice";
 import { Page } from "../components/nav/page";
 import { MarkdownText } from "../components/stream/markdown-text";
 import { useAgentTokens } from "../hooks/use-agent-tokens";
@@ -510,7 +511,7 @@ const Evidence = ({ id }: { readonly id: HistoryId }): ReactElement => {
 };
 export const ActivityPage = (): ReactElement => {
   const stale = useHistoryStale();
-  const { record } = useSearch({ from: "/workspace/activity" });
+  const { dropped, record } = useSearch({ from: "/workspace/activity" });
   const navigate = useNavigate();
   const phone = useMediaQuery("(max-width: 767px)");
   const { app } = useWorkspace();
@@ -529,6 +530,16 @@ export const ActivityPage = (): ReactElement => {
       title="Activity"
       wide
     >
+      <DiscardedSearchNotice
+        discarded={dropped === "1"}
+        onDismiss={() => {
+          void navigate({
+            search: record === undefined ? {} : { record },
+            to: "/activity",
+          });
+        }}
+        what="The named record"
+      />
       {app.connected && !stale ? null : (
         <output className="text-muted-foreground text-sm">
           Updates are delayed. Showing the last saved snapshot.

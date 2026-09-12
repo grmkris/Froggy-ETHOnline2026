@@ -84,9 +84,15 @@ const activityRoute = createRoute({
   path: "/activity",
   validateSearch: (raw: { readonly record?: unknown }) => {
     const decoded = Schema.decodeUnknownResult(
-      Schema.Struct({ record: Schema.optional(HistoryId) })
+      Schema.Struct({
+        dropped: Schema.optional(Schema.Literal("1")),
+        record: Schema.optional(HistoryId),
+      })
     )(raw);
-    return decoded._tag === "Success" ? decoded.success : {};
+    if (decoded._tag === "Success") {
+      return decoded.success;
+    }
+    return { dropped: "1" as const };
   },
 });
 const exploreRoute = page(
@@ -101,6 +107,7 @@ const walletRoute = page(
 );
 /** The chosen service, when the URL names one; anything else is no choice. */
 const ServicesSearch = Schema.Struct({
+  dropped: Schema.optional(Schema.Literal("1")),
   service: Schema.optional(ServiceName),
   task: Schema.optional(TaskId),
 });
@@ -109,14 +116,18 @@ type ServicesSearch = typeof ServicesSearch.Type;
 
 /** What the router hands over: whatever the URL held under that key. */
 interface ServicesSearchInput {
+  readonly dropped?: unknown;
   readonly service?: unknown;
   readonly task?: unknown;
 }
 
-/** Only a known service survives; anything else is no choice. */
+/** Only a known service or task survives; a bad name is flagged, not silent. */
 const servicesSearch = (raw: ServicesSearchInput): ServicesSearch => {
   const decoded = decodeServicesSearch(raw);
-  return decoded._tag === "Success" ? decoded.success : {};
+  if (decoded._tag === "Success") {
+    return decoded.success;
+  }
+  return { dropped: "1" };
 };
 
 const servicesRoute = createRoute({
