@@ -21,6 +21,7 @@ import type {
   LaunchEventId,
   LaunchWatchId,
   TradeAssetAmount,
+  TradeResearchPolicy,
   TradeSimulation,
   TradeStep,
   UserId,
@@ -88,6 +89,47 @@ const publicError = (error: Error): string =>
   /^trade\.[a-z_]+:/u.test(error.message)
     ? error.message.slice(0, 500)
     : "trade.unavailable: preparation or provider verification failed.";
+/**
+ * Which research predicates a venue's backend can satisfy from its own RPC.
+ * Pons supplies a reviewed token template and venue trade events; Uniswap
+ * routes can only reconstruct holder concentration from Transfer history.
+ */
+const checkResearchVenues = (
+  venues: TradeRule["venues"],
+  research: TradeResearchPolicy
+): void => {
+  const [venue] = venues;
+  if (venues.length !== 1 || venue === undefined) {
+    throw new Error(
+      "trade.research_venue: research predicates apply to one venue per rule."
+    );
+  }
+  const launcherPredicates =
+    research.requireTemplateMatch || research.forbidLaunchInsiders;
+  if (venue === "pons") {
+    if (!launcherPredicates && research.maxTopHoldersBps === null) {
+      throw new Error(
+        "trade.research_venue: enable at least one research predicate."
+      );
+    }
+    return;
+  }
+  if (venue !== "uniswap") {
+    throw new Error(
+      "trade.research_venue: research predicates are only available on the Pons and Uniswap venues."
+    );
+  }
+  if (launcherPredicates) {
+    throw new Error(
+      "trade.research_venue: template and insider predicates are only available on the Pons venue."
+    );
+  }
+  if (research.maxTopHoldersBps === null) {
+    throw new Error(
+      "trade.research_venue: Uniswap rules gate on holder concentration; set a top-holder cap."
+    );
+  }
+};
 const terminal = (trade: Trade): boolean =>
   [
     "completed",
@@ -785,22 +827,7 @@ export class TradeCoordinator {
       throw new Error("trade.rule_expiry: choose an expiry within seven days.");
     }
     if (rule.research !== undefined) {
-      const ponsOnly = rule.venues.length === 1 && rule.venues[0] === "pons";
-      if (!ponsOnly) {
-        throw new Error(
-          "trade.research_venue: research predicates are only available on the Pons venue."
-        );
-      }
-      if (
-        rule.research.requireTemplateMatch ||
-        rule.research.forbidLaunchInsiders
-      ) {
-        // Pons supplies template and venue_events cohort.
-      } else if (rule.research.maxTopHoldersBps === null) {
-        throw new Error(
-          "trade.research_venue: enable at least one research predicate."
-        );
-      }
+      checkResearchVenues(rule.venues, rule.research);
     }
     if (rule.watchId !== undefined) {
       await this.checkWatchRule(owner, rule);

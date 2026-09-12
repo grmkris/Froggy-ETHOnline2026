@@ -424,3 +424,70 @@ test("account reset revokes rules and stops new trades while preserving transact
     )
   ).toBe(100);
 });
+
+test("research predicates follow what each venue can read from its own RPC", async () => {
+  const setup = fixture();
+  const owner = setup.session.userId;
+  const base = {
+    v: 1 as const,
+    label: "Research-gated Base buys",
+    expiresAt: 100 + 60_000,
+    network: "eip155:8453",
+    wallet: input.wallet,
+    venues: ["uniswap" as const],
+    actions: ["swap" as const],
+    inputAsset: input.tokenIn,
+    outputAssets: [input.tokenOut],
+    launchFactory: null,
+    maxInputPerTrade: "100",
+    maxTotalInput: "200",
+    maxNativeFeePerTrade: "10",
+    maxTotalNativeFee: "40",
+    maxSlippageBps: 100,
+    maxTrades: 2,
+    maxOpenPositions: 1,
+  };
+  const concentration = {
+    requireTemplateMatch: false,
+    forbidLaunchInsiders: false,
+    insiderWindowBlocks: 600,
+    maxTopHoldersBps: 4000,
+    topHolderCount: 10,
+  };
+  const created = await setup.coordinator.createRule(owner, {
+    ...base,
+    research: concentration,
+  });
+  expect(created.research?.maxTopHoldersBps).toBe(4000);
+  const refusal = async (
+    request: Parameters<typeof setup.coordinator.createRule>[1]
+  ) =>
+    await setup.coordinator.createRule(owner, request).then(() => null, String);
+  expect(
+    await refusal({
+      ...base,
+      research: { ...concentration, requireTemplateMatch: true },
+    })
+  ).toContain("only available on the Pons venue");
+  expect(
+    await refusal({
+      ...base,
+      research: { ...concentration, maxTopHoldersBps: null },
+    })
+  ).toContain("set a top-holder cap");
+  expect(
+    await refusal({
+      ...base,
+      venues: ["enso"],
+      actions: ["deposit"],
+      research: concentration,
+    })
+  ).toContain("Pons and Uniswap venues");
+  expect(
+    await refusal({
+      ...base,
+      venues: ["uniswap", "pons"],
+      research: concentration,
+    })
+  ).toContain("one venue per rule");
+});
