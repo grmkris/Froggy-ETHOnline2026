@@ -17,6 +17,8 @@ A payee carries where it came from. `mandate` and `server` are payable; `model` 
 
 The just-in-time conversion of USDC to HBAR is a spend, not a tool. It happens only inside `spend()`, on the way to a Hedera payment the mandate has to allow anyway, as a nested spend keyed `convert:<parent key>` with `server` provenance to the treasury — judged, reserved and receipted like any other, and joined rather than repeated on a retry. A `wallet_topup` or `convert` tool would let a prompt move USDC with no payment behind it; do not add one back. `notify` and `schedule` may be tools because neither changes what the agent may spend.
 
+The conversion's USDC leg is two signatures under two leashes (`docs/decisions/0026`): the person authorizes the amount and the treasury as recipient under their policy, and the treasury wallet settles it under its own, paying the gas. The relayer rule pins `transferWithAuthorization.to` to the treasury and value to zero; widening either lets the relayer move money on its own account. Keep the relayer able to pay fees, never to choose recipients.
+
 Reserve on the ledger **before** the outbound call, with an idempotency key. Tool calls get retried — by the SDK, by a reconnect, by a model that never saw the result — and a ledger written afterwards cannot see an in-flight spend.
 
 Write a receipt for a refusal as well as a payment. "It did not spend" and "it was told not to" are different facts, and only one of them is reassuring.

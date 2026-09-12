@@ -274,6 +274,10 @@ export const createConversion = (
       }
       if (created) {
         try {
+          // The person's wallet holds USDC and no ETH, so the treasury pays
+          // the gas where it can: an authorization it settles, under both
+          // policies. A deployment without a treasury wallet still signs a
+          // plain transfer, which needs ETH the person may not have.
           const transfer = await sendUsdc(
             services,
             wallet,
@@ -281,7 +285,8 @@ export const createConversion = (
             String(usdMicros),
             async (hash) => {
               record = await update(record, { usdcHash: hash });
-            }
+            },
+            services.evmRelayFor(wallet) ?? services.evmTransfersFor(wallet)
           );
           record = await update(record, settledPatch(record, transfer));
         } catch (error) {

@@ -83,15 +83,27 @@ describe("personPolicyRules", () => {
     ).toBe(PINS.usdc);
   });
 
-  it("pins the conversion's recipient in decoded calldata, not just the token", () => {
+  it("makes the conversion an authorization to the treasury, so it needs no ETH of the person's", () => {
     const rule = byName(rules, "conversion-usdc-to-treasury");
-    expect(rule.method).toBe("eth_signTransaction");
-    expect(conditionOn(rule, "ethereum_transaction", "to").value).toBe(
-      PINS.usdc
-    );
-    const recipient = conditionOn(rule, "ethereum_calldata", "transfer.to");
-    expect(recipient.value).toBe(PINS.treasury);
-    expect(recipient.abi).toBeDefined();
+    // Typed data, never a signed transaction: the person's wallet holds no
+    // ETH, and a rule for `eth_signTransaction` would let a conversion be
+    // signed that the chain then refuses for want of gas.
+    expect(rule.method).toBe("eth_signTypedData_v4");
+    expect(
+      conditionOn(rule, "ethereum_typed_data_domain", "verifyingContract").value
+    ).toBe(PINS.usdc);
+    expect(
+      conditionOn(rule, "ethereum_typed_data_domain", "chainId").value
+    ).toBe(PINS.chainId);
+    const recipient = conditionOn(rule, "ethereum_typed_data_message", "to");
+    expect(recipient.value).toEqual([PINS.treasury]);
+    expect(recipient.typed_data).toBeDefined();
+    const value = conditionOn(rule, "ethereum_typed_data_message", "value");
+    expect(value.operator).toBe("lte");
+    expect(value.value).toBe("2000000");
+    expect(
+      rules.some((candidate) => candidate.method === "eth_signTransaction")
+    ).toBe(false);
   });
 
   it("moves the person's numbers into the rules, rather than a fixed cap", () => {
