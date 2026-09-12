@@ -148,6 +148,13 @@
       "when": 1789171196416,
       "tag": "0020_needy_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789215752595,
+      "tag": "0021_rare_blackheart",
+      "breakpoints": true
     }
   ]
 }

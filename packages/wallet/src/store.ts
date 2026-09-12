@@ -7,6 +7,8 @@ import {
   Sale,
   Schedule,
   Task,
+  WalletConnection,
+  WalletRequest,
 } from "@froggy/domain";
 import type {
   Allowance,
@@ -31,6 +33,9 @@ import type {
   TaskId,
   TelegramPairing,
   UserId,
+  WalletConnectionId,
+  WalletRequestId,
+  WalletRequestStatus,
 } from "@froggy/domain";
 /**
  * What survives a restart, beyond the ledger.
@@ -220,6 +225,35 @@ export type PurchasePatch = Partial<
   >
 > & { readonly updatedAt: number };
 
+/**
+ * What may change on a dapp request after it is written. Its origin, payload,
+ * fingerprint and context are fixed at creation: the card the person answers
+ * is built from them, and a record that could be re-pointed afterwards would
+ * be an approval of nothing in particular.
+ */
+export type WalletRequestPatch = Partial<
+  Pick<
+    WalletRequest,
+    | "status"
+    | "delivery"
+    | "approvalId"
+    | "nonce"
+    | "signedHash"
+    | "transactionHash"
+    | "summary"
+    | "receiptId"
+    | "error"
+    | "expiresAt"
+    | "runId"
+  >
+> & { readonly updatedAt: number };
+
+/** An in-flight request with whose it is, for boot recovery across every person. */
+export interface OwnedWalletRequest {
+  readonly request: WalletRequest;
+  readonly userId: UserId;
+}
+
 export const BrowserProfileRecord = Schema.Struct({
   profileId: Schema.String.check(Schema.isUUID()),
   browserId: Schema.NullOr(Schema.String.check(Schema.isUUID())),
@@ -273,6 +307,59 @@ export interface Store {
       patch: PurchasePatch,
       approvalId?: ApprovalId
     ) => Promise<Purchase | null>;
+  };
+  /**
+   * Dapp requests. `update` is compare-and-set on status: the coordinator
+   * computes the legal next status with `advanceWalletRequest` and the store
+   * refuses a write whose expectation no longer holds, so two answers to one
+   * card cannot both sign.
+   */
+  readonly walletRequests: {
+    readonly create: (
+      userId: UserId,
+      request: WalletRequest
+    ) => Promise<WalletRequest>;
+    readonly byId: (
+      userId: UserId,
+      id: WalletRequestId
+    ) => Promise<WalletRequest | null>;
+    /** Newest first. */
+    readonly list: (
+      userId: UserId,
+      limit: number
+    ) => Promise<readonly WalletRequest[]>;
+    readonly update: (
+      userId: UserId,
+      id: WalletRequestId,
+      expected: readonly WalletRequestStatus[],
+      patch: WalletRequestPatch
+    ) => Promise<WalletRequest | null>;
+    /** Every person's requests in the given statuses, oldest first. */
+    readonly inFlight: (
+      statuses: readonly WalletRequestStatus[]
+    ) => Promise<readonly OwnedWalletRequest[]>;
+  };
+  /**
+   * Which origins may see the person's address. One active connection per
+   * origin: granting again replaces, revoking ends. Cleared on `forget`.
+   */
+  readonly walletConnections: {
+    readonly grant: (
+      userId: UserId,
+      connection: WalletConnection
+    ) => Promise<WalletConnection>;
+    readonly active: (
+      userId: UserId,
+      origin: string
+    ) => Promise<WalletConnection | null>;
+    /** Active connections, newest first. */
+    readonly list: (userId: UserId) => Promise<readonly WalletConnection[]>;
+    /** True when an active connection of this person's was revoked. */
+    readonly revoke: (
+      userId: UserId,
+      id: WalletConnectionId,
+      at: number
+    ) => Promise<boolean>;
   };
   readonly invocations: {
     readonly recent: (userId: UserId) => Promise<readonly AgentInvocation[]>;
@@ -646,6 +733,14 @@ export const memoryStore = (): Store => {
     AgentInvocationId,
     { userId: UserId; invocation: AgentInvocation }
   >();
+  const walletRequests = new Map<
+    WalletRequestId,
+    { userId: UserId; request: WalletRequest }
+  >();
+  const walletConnections = new Map<
+    WalletConnectionId,
+    { userId: UserId; connection: WalletConnection }
+  >();
   const conversions = new Map<
     ConversionId,
     { userId: UserId; record: ConversionRecord }
@@ -750,6 +845,107 @@ export const memoryStore = (): Store => {
         });
         purchases.set(id, { userId, purchase: structuredClone(next) });
         return structuredClone(next);
+      },
+    },
+    walletRequests: {
+      create: async (userId, request) => {
+        await Promise.resolve();
+        const decoded = Schema.decodeUnknownSync(WalletRequest)(request);
+        walletRequests.set(decoded.id, {
+          request: structuredClone(decoded),
+          userId,
+        });
+        return structuredClone(decoded);
+      },
+      byId: async (userId, id) => {
+        await Promise.resolve();
+        const row = walletRequests.get(id);
+        return row?.userId === userId ? structuredClone(row.request) : null;
+      },
+      list: async (userId, limit) => {
+        await Promise.resolve();
+        return [...walletRequests.values()]
+          .filter((row) => row.userId === userId)
+          .map((row) => structuredClone(row.request))
+          .toSorted((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit);
+      },
+      update: async (userId, id, expected, patch) => {
+        await Promise.resolve();
+        const row = walletRequests.get(id);
+        if (row?.userId !== userId || !expected.includes(row.request.status)) {
+          return null;
+        }
+        const next = Schema.decodeUnknownSync(WalletRequest)({
+          ...row.request,
+          ...patch,
+        });
+        walletRequests.set(id, { request: structuredClone(next), userId });
+        return structuredClone(next);
+      },
+      inFlight: async (statuses) => {
+        await Promise.resolve();
+        return [...walletRequests.values()]
+          .filter((row) => statuses.includes(row.request.status))
+          .toSorted((a, b) => a.request.createdAt - b.request.createdAt)
+          .map((row) => ({
+            request: structuredClone(row.request),
+            userId: row.userId,
+          }));
+      },
+    },
+    walletConnections: {
+      grant: async (userId, connection) => {
+        await Promise.resolve();
+        const decoded = Schema.decodeUnknownSync(WalletConnection)(connection);
+        for (const [id, row] of walletConnections) {
+          if (
+            row.userId === userId &&
+            row.connection.origin === decoded.origin &&
+            row.connection.revokedAt === null
+          ) {
+            walletConnections.set(id, {
+              connection: { ...row.connection, revokedAt: decoded.grantedAt },
+              userId,
+            });
+          }
+        }
+        walletConnections.set(decoded.id, { connection: decoded, userId });
+        return decoded;
+      },
+      active: async (userId, origin) => {
+        await Promise.resolve();
+        for (const row of walletConnections.values()) {
+          if (
+            row.userId === userId &&
+            row.connection.origin === origin &&
+            row.connection.revokedAt === null
+          ) {
+            return row.connection;
+          }
+        }
+        return null;
+      },
+      list: async (userId) => {
+        await Promise.resolve();
+        return [...walletConnections.values()]
+          .filter(
+            (row) => row.userId === userId && row.connection.revokedAt === null
+          )
+          .map((row) => row.connection)
+          .toSorted((a, b) => b.grantedAt - a.grantedAt);
+      },
+      revoke: async (userId, id, at) => {
+        await Promise.resolve();
+        const row = walletConnections.get(id);
+        if (row?.userId !== userId || row.connection.revokedAt !== null) {
+          return false;
+        }
+        walletConnections.set(id, {
+          connection: { ...row.connection, revokedAt: at },
+          userId,
+        });
+        return true;
       },
     },
     invocations: {
@@ -1242,6 +1438,16 @@ export const memoryStore = (): Store => {
       for (const [id, row] of invocations) {
         if (row.userId === userId) {
           invocations.delete(id);
+        }
+      }
+      for (const [id, row] of walletRequests) {
+        if (row.userId === userId) {
+          walletRequests.delete(id);
+        }
+      }
+      for (const [id, row] of walletConnections) {
+        if (row.userId === userId) {
+          walletConnections.delete(id);
         }
       }
       for (const [id, row] of tokens) {

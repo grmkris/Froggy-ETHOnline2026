@@ -42,6 +42,8 @@ export type {
   OAuthTokenRow,
   Store,
   PurchasePatch,
+  OwnedWalletRequest,
+  WalletRequestPatch,
 } from "./store";
 export { postgresStore } from "./store-postgres";
 export {

@@ -38,6 +38,8 @@ import {
   TaskId,
   TradeId,
   TradeRuleId,
+  WalletConnectionId,
+  WalletRequestId,
 } from "@froggy/domain";
 import type { AgentConnectionId } from "@froggy/domain";
 import { sql } from "drizzle-orm";
@@ -502,6 +504,46 @@ export const purchases = pgTable(
   (table) => [
     uniqueIndex("purchases_user_key").on(table.userId, table.idempotencyKey),
     index("purchases_user_created").on(table.userId, table.createdAt),
+  ]
+);
+
+/**
+ * What a dapp asked the injected wallet for, and what became of it. The
+ * status is a column so boot recovery can find every request still in flight
+ * without decoding the rest.
+ */
+export const walletRequests = pgTable(
+  "wallet_requests",
+  {
+    id: typeIdPrimaryKey(WalletRequestId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    index("wallet_requests_user_created").on(table.userId, table.createdAt),
+    index("wallet_requests_status").on(table.status),
+  ]
+);
+
+/** A person's standing permission for one origin to see their address. */
+export const walletConnections = pgTable(
+  "wallet_connections",
+  {
+    id: typeIdPrimaryKey(WalletConnectionId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    origin: text("origin").notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    index("wallet_connections_user_origin").on(table.userId, table.origin),
   ]
 );
 

@@ -11,12 +11,26 @@ import {
   ScheduleId,
   SessionId,
   SpendId,
+  TabId,
   TaskId,
+  WalletConnectionId,
+  WalletRequestId,
+  ApprovalId,
+  EvmAddress,
   parQuote,
   usdMicros,
   userId,
 } from "@froggy/domain";
-import type { Mandate, Receipt, Sale, Schedule, Task } from "@froggy/domain";
+import type {
+  Mandate,
+  Receipt,
+  Sale,
+  Schedule,
+  Task,
+  WalletConnection,
+  WalletRequest,
+} from "@froggy/domain";
+import { Schema } from "effect";
 
 import { memoryStore, readReceipts } from "./store";
 
@@ -451,6 +465,141 @@ describe("memoryStore oauth", () => {
     expect(await store.oauth.grants.list(ALICE)).toEqual([]);
     expect(await store.oauth.grants.byId(grant.id)).toBeNull();
     expect(await store.oauth.tokens.byHash("access-2")).toBeNull();
+  });
+});
+
+const ACCOUNT = Schema.decodeUnknownSync(EvmAddress)(
+  "0x00000000000000000000000000000000000000aa"
+);
+const ORIGIN = "https://app.example";
+
+const walletRequest = (at: number): WalletRequest => ({
+  approvalId: null,
+  chainId: 8453,
+  contextId: "ctx-1",
+  createdAt: at,
+  delivery: "pending",
+  error: null,
+  expiresAt: at + 300_000,
+  fingerprint: "fp",
+  id: WalletRequestId.generate(),
+  initiatedDuring: "human",
+  kind: "personal_sign",
+  nonce: null,
+  origin: ORIGIN,
+  pageRequestId: "p-1",
+  payload: { address: ACCOUNT, kind: "personal_sign", message: "0x68690a" },
+  receiptId: null,
+  runId: null,
+  signedHash: null,
+  status: "pending",
+  stubbed: true,
+  summary: [],
+  tabId: TabId.generate(),
+  topOrigin: ORIGIN,
+  transactionHash: null,
+  updatedAt: at,
+  userId: ALICE,
+});
+
+const walletConnection = (at: number): WalletConnection => ({
+  address: ACCOUNT,
+  approvalId: ApprovalId.generate(),
+  chainId: 8453,
+  grantedAt: at,
+  id: WalletConnectionId.generate(),
+  origin: ORIGIN,
+  revokedAt: null,
+  userId: ALICE,
+});
+
+describe("memoryStore wallet requests", () => {
+  it("updates only when the status is one the caller expected", async () => {
+    const store = memoryStore();
+    const request = await store.walletRequests.create(
+      ALICE,
+      walletRequest(NOW)
+    );
+    const advanced = await store.walletRequests.update(
+      ALICE,
+      request.id,
+      ["pending"],
+      { status: "awaiting_approval", updatedAt: NOW + 1 }
+    );
+    expect(advanced?.status).toBe("awaiting_approval");
+    const stale = await store.walletRequests.update(
+      ALICE,
+      request.id,
+      ["pending"],
+      { status: "approved", updatedAt: NOW + 2 }
+    );
+    expect(stale).toBeNull();
+    const current = await store.walletRequests.byId(ALICE, request.id);
+    expect(current?.status).toBe("awaiting_approval");
+  });
+
+  it("scopes reads to the owner and lists newest first", async () => {
+    const store = memoryStore();
+    const older = await store.walletRequests.create(ALICE, walletRequest(NOW));
+    const newer = await store.walletRequests.create(
+      ALICE,
+      walletRequest(NOW + 10)
+    );
+    const bob = userId("did:privy:store-test-bob");
+    expect(await store.walletRequests.byId(bob, older.id)).toBeNull();
+    const listed = await store.walletRequests.list(ALICE, 10);
+    expect(listed.map((row) => row.id)).toEqual([newer.id, older.id]);
+  });
+
+  it("finds in-flight requests across owners for recovery", async () => {
+    const store = memoryStore();
+    const bob = userId("did:privy:store-test-bob");
+    const mine = await store.walletRequests.create(ALICE, walletRequest(NOW));
+    await store.walletRequests.create(bob, {
+      ...walletRequest(NOW + 1),
+      status: "confirmed",
+      userId: bob,
+    });
+    const inFlight = await store.walletRequests.inFlight(["pending", "sent"]);
+    expect(inFlight.map((row) => row.request.id)).toEqual([mine.id]);
+    expect(inFlight[0]?.userId).toBe(ALICE);
+  });
+});
+
+describe("memoryStore wallet connections", () => {
+  it("keeps one active connection per origin and revokes as a unit", async () => {
+    const store = memoryStore();
+    const first = await store.walletConnections.grant(
+      ALICE,
+      walletConnection(NOW)
+    );
+    const second = await store.walletConnections.grant(
+      ALICE,
+      walletConnection(NOW + 5)
+    );
+    const active = await store.walletConnections.active(ALICE, ORIGIN);
+    expect(active?.id).toBe(second.id);
+    expect(await store.walletConnections.list(ALICE)).toHaveLength(1);
+    expect(await store.walletConnections.revoke(ALICE, first.id, NOW + 6)).toBe(
+      false
+    );
+    expect(
+      await store.walletConnections.revoke(ALICE, second.id, NOW + 7)
+    ).toBe(true);
+    expect(await store.walletConnections.active(ALICE, ORIGIN)).toBeNull();
+    expect(await store.walletConnections.list(ALICE)).toEqual([]);
+  });
+
+  it("forget clears connections and requests", async () => {
+    const store = memoryStore();
+    await store.walletConnections.grant(ALICE, walletConnection(NOW));
+    const request = await store.walletRequests.create(
+      ALICE,
+      walletRequest(NOW)
+    );
+    await store.forget(ALICE);
+    expect(await store.walletConnections.list(ALICE)).toEqual([]);
+    expect(await store.walletRequests.byId(ALICE, request.id)).toBeNull();
   });
 });
 

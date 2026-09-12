@@ -15,6 +15,8 @@ import {
   tasks,
   telegramPairings,
   users,
+  walletConnections,
+  walletRequests,
 } from "@froggy/database";
 /**
  * The durable store: mandates, receipts, sales, tasks and tokens in Postgres.
@@ -32,6 +34,8 @@ import {
   decodeUserId,
   OAuthScope,
   Purchase,
+  WalletConnection,
+  WalletRequest,
 } from "@froggy/domain";
 import type {
   AgentToken,
@@ -71,7 +75,12 @@ import {
   decodeTask,
   readReceipts,
 } from "./store";
-import type { DueSchedule, OAuthTokenRow, Store } from "./store";
+import type {
+  DueSchedule,
+  OAuthTokenRow,
+  OwnedWalletRequest,
+  Store,
+} from "./store";
 import { postgresTradingStore } from "./trading-store-postgres";
 
 const millis = (value: Date | null): number | null =>
@@ -405,6 +414,177 @@ export const postgresStore = (sql: Sql): Store => {
             .where(and(eq(purchases.userId, userId), eq(purchases.id, id)));
           return next;
         }),
+    },
+    walletRequests: {
+      create: async (userId, request) => {
+        const decoded = Schema.decodeUnknownSync(WalletRequest)(request);
+        await ensureUser(userId);
+        await database.insert(walletRequests).values({
+          id: decoded.id,
+          userId,
+          status: decoded.status,
+          createdAt: new Date(decoded.createdAt),
+          updatedAt: new Date(decoded.updatedAt),
+          document: decoded,
+        });
+        return decoded;
+      },
+      byId: async (userId, id) => {
+        const [row] = await database
+          .select()
+          .from(walletRequests)
+          .where(
+            and(eq(walletRequests.userId, userId), eq(walletRequests.id, id))
+          )
+          .limit(1);
+        return row === undefined
+          ? null
+          : Schema.decodeUnknownSync(WalletRequest)(row.document);
+      },
+      list: async (userId, limit) => {
+        const rows = await database
+          .select()
+          .from(walletRequests)
+          .where(eq(walletRequests.userId, userId))
+          .orderBy(desc(walletRequests.createdAt), desc(walletRequests.id))
+          .limit(limit);
+        return rows.map((row) =>
+          Schema.decodeUnknownSync(WalletRequest)(row.document)
+        );
+      },
+      update: async (userId, id, expected, patch) =>
+        await database.transaction(async (tx) => {
+          const [row] = await tx
+            .select()
+            .from(walletRequests)
+            .where(
+              and(eq(walletRequests.userId, userId), eq(walletRequests.id, id))
+            )
+            .for("update");
+          if (row === undefined) {
+            return null;
+          }
+          const prior = Schema.decodeUnknownSync(WalletRequest)(row.document);
+          if (!expected.includes(prior.status)) {
+            return null;
+          }
+          const next = Schema.decodeUnknownSync(WalletRequest)({
+            ...prior,
+            ...patch,
+          });
+          await tx
+            .update(walletRequests)
+            .set({
+              status: next.status,
+              updatedAt: new Date(next.updatedAt),
+              document: next,
+            })
+            .where(
+              and(eq(walletRequests.userId, userId), eq(walletRequests.id, id))
+            );
+          return next;
+        }),
+      inFlight: async (statuses) => {
+        if (statuses.length === 0) {
+          return [];
+        }
+        const rows = await database
+          .select()
+          .from(walletRequests)
+          .where(inArray(walletRequests.status, [...statuses]))
+          .orderBy(asc(walletRequests.createdAt))
+          .limit(500);
+        const owned: OwnedWalletRequest[] = [];
+        for (const row of rows) {
+          const decodedUser = decodeUserId(row.userId);
+          if (Result.isSuccess(decodedUser)) {
+            owned.push({
+              request: Schema.decodeUnknownSync(WalletRequest)(row.document),
+              userId: decodedUser.success,
+            });
+          }
+        }
+        return owned;
+      },
+    },
+    walletConnections: {
+      grant: async (userId, connection) => {
+        const decoded = Schema.decodeUnknownSync(WalletConnection)(connection);
+        await ensureUser(userId);
+        await database.transaction(async (tx) => {
+          const revokedAt = new Date(decoded.grantedAt);
+          await tx
+            .update(walletConnections)
+            .set({
+              revokedAt,
+              document: raw`${walletConnections.document} || ${JSON.stringify({ revokedAt: decoded.grantedAt })}::jsonb`,
+            })
+            .where(
+              and(
+                eq(walletConnections.userId, userId),
+                eq(walletConnections.origin, decoded.origin),
+                isNull(walletConnections.revokedAt)
+              )
+            );
+          await tx.insert(walletConnections).values({
+            id: decoded.id,
+            userId,
+            origin: decoded.origin,
+            revokedAt: null,
+            document: decoded,
+          });
+        });
+        return decoded;
+      },
+      active: async (userId, origin) => {
+        const [row] = await database
+          .select()
+          .from(walletConnections)
+          .where(
+            and(
+              eq(walletConnections.userId, userId),
+              eq(walletConnections.origin, origin),
+              isNull(walletConnections.revokedAt)
+            )
+          )
+          .limit(1);
+        return row === undefined
+          ? null
+          : Schema.decodeUnknownSync(WalletConnection)(row.document);
+      },
+      list: async (userId) => {
+        const rows = await database
+          .select()
+          .from(walletConnections)
+          .where(
+            and(
+              eq(walletConnections.userId, userId),
+              isNull(walletConnections.revokedAt)
+            )
+          );
+        return rows
+          .map((row) =>
+            Schema.decodeUnknownSync(WalletConnection)(row.document)
+          )
+          .toSorted((a, b) => b.grantedAt - a.grantedAt);
+      },
+      revoke: async (userId, id, at) => {
+        const updated = await database
+          .update(walletConnections)
+          .set({
+            revokedAt: new Date(at),
+            document: raw`${walletConnections.document} || ${JSON.stringify({ revokedAt: at })}::jsonb`,
+          })
+          .where(
+            and(
+              eq(walletConnections.userId, userId),
+              eq(walletConnections.id, id),
+              isNull(walletConnections.revokedAt)
+            )
+          )
+          .returning({ id: walletConnections.id });
+        return updated.length > 0;
+      },
     },
     invocations: {
       recent: async (userId) => {
@@ -1163,6 +1343,12 @@ export const postgresStore = (sql: Sql): Store => {
       await history.clearTelegramCache(userId);
       await history.forget(userId);
       await database.delete(purchases).where(eq(purchases.userId, userId));
+      await database
+        .delete(walletRequests)
+        .where(eq(walletRequests.userId, userId));
+      await database
+        .delete(walletConnections)
+        .where(eq(walletConnections.userId, userId));
       await database
         .delete(agentInvocations)
         .where(eq(agentInvocations.userId, userId));

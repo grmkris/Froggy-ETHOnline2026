@@ -31,6 +31,8 @@ export {
   tradeRules,
   telegramPairings,
   users,
+  walletConnections,
+  walletRequests,
 } from "./schema";
 
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
