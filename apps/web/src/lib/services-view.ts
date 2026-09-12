@@ -34,6 +34,7 @@ const STATUS_WORDS: ReadonlyMap<TaskStatus, StatusWords> = new Map([
   ["quoted", { label: "Quoted", tone: "settling" }],
   ["paid", { label: "Paid", tone: "settling" }],
   ["running", { label: "Running", tone: "settling" }],
+  ["paused", { label: "Paused", tone: "uncertain" }],
   ["awaiting_approval", { label: "Waiting for your answer", tone: "asking" }],
   ["done", { label: "Done", tone: "done" }],
   ["failed", { label: "Failed", tone: "failed" }],

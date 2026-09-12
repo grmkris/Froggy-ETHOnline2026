@@ -118,10 +118,12 @@ export const WalletBreakdown = ({
                 )}
                 <a
                   className="text-machine text-xs underline underline-offset-4"
-                  href={hederaAccountUrl(
-                    wallet.hederaAccountId,
-                    wallet.balances.hederaNetwork
-                  )}
+                  href={
+                    hederaAccountUrl(
+                      wallet.hederaAccountId,
+                      wallet.balances.hederaNetwork
+                    ) ?? undefined
+                  }
                   rel="noreferrer"
                   target="_blank"
                 >

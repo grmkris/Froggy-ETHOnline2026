@@ -11,6 +11,7 @@
  * same thing is how a person pays twice.
  */
 
+import type { Conversation } from "@froggy/domain";
 import { ScheduleList as ScheduleListSchema } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
@@ -23,13 +24,16 @@ import type { ReactElement } from "react";
 
 import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { Composer } from "../components/composer";
+import { StopFeedback } from "../components/stop-feedback";
+import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
 import { copyForHome, poseForHome } from "../lib/frog-pose";
-import { useHistoryPage } from "../lib/history-client";
+import { useHistoryDetail, useHistoryPage } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { cadenceWords, nextRunWords } from "../lib/schedule-words";
 import { useSessionToken } from "../lib/session-token";
+import { applySlash } from "../lib/slash";
 import { useWorkspace } from "../lib/workspace-context";
 
 const decodeSchedules = Schema.decodeUnknownSync(ScheduleListSchema);
@@ -54,19 +58,22 @@ const Card = ({
 
 const Home = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
-  const { busy, send, stopRun } = useChatSurface();
+  const { busy, conversationId, send, stopRun } = useChatSurface();
   const navigate = useNavigate();
   const { getToken } = useSessionToken();
+  const connectionLock = useConnectionLock(app.connected);
 
   const needsUser = app.approvals.length + pendingPurchases;
   const pose = poseForHome(needsUser, busy);
+  const waitingRunId = app.approvals[0]?.runId ?? null;
+  const waitingRun = useHistoryDetail(waitingRunId);
 
-  const conversations = useHistoryPage("/api/conversations?limit=4&q=");
+  const conversations = useHistoryPage("/api/conversations?limit=3&q=");
   const recent = useMemo(
     () =>
-      conversations.records
-        .filter((record) => record.kind === "conversation")
-        .slice(0, 3),
+      conversations.records.filter(
+        (record): record is Conversation => record.kind === "conversation"
+      ),
     [conversations.records]
   );
 
@@ -105,6 +112,20 @@ const Home = (): ReactElement => {
     void navigate({ to: "/chat" });
   };
 
+  const openWaiting = (): void => {
+    const record = waitingRun.data?.record;
+    const fromRun =
+      record !== undefined &&
+      "conversationId" in record &&
+      record.conversationId !== null
+        ? record.conversationId
+        : null;
+    void navigate({
+      params: { conversationId: fromRun ?? conversationId },
+      to: "/chat/$conversationId",
+    });
+  };
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3.5 px-4 py-6 sm:py-10">
@@ -123,13 +144,10 @@ const Home = (): ReactElement => {
         <Composer
           asking={needsUser > 0}
           busy={busy}
-          disabledReason={app.connected ? null : "Connecting…"}
+          disabledReason={connectionLock}
           onCommand={(command) => {
-            // Slash commands belong to the conversation, so hand them over
-            // rather than answering half of them here.
-            if (command.kind === "stop") {
-              stopRun.stop();
-            } else {
+            applySlash(command, { send, stop: stopRun.stop });
+            if (command.kind === "status") {
               openChat();
             }
           }}
@@ -141,6 +159,15 @@ const Home = (): ReactElement => {
             stopRun.stop();
           }}
           suggestions={[]}
+        />
+        <StopFeedback
+          state={stopRun.state}
+          onRetry={() => {
+            stopRun.stop();
+          }}
+          onDismiss={() => {
+            stopRun.clear();
+          }}
         />
 
         {needsUser > 0 ? (
@@ -154,44 +181,62 @@ const Home = (): ReactElement => {
               Froggy will not spend anything until you answer.
             </p>
             <div className="mt-3">
-              <Button onClick={openChat}>Review</Button>
+              <Button onClick={openWaiting}>Review</Button>
             </div>
           </Card>
         ) : null}
 
         {conversations.isPending ? <Skeleton className="h-24 w-full" /> : null}
 
-        {recent.map((record) => (
-          <Card key={record.id}>
+        {conversations.isError ? (
+          <Card>
             <h2 className="text-[15px] font-semibold">
-              {record.kind === "conversation" && record.title !== null
-                ? record.title
-                : "Untitled task"}
+              Conversations could not be loaded
             </h2>
-            <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
-              {new Date(
-                record.kind === "conversation"
-                  ? record.updatedAt
-                  : record.createdAt
-              ).toLocaleString()}
+            <p className="text-muted-foreground mt-0.5 text-sm" role="alert">
+              History could not be loaded.
             </p>
             <div className="mt-3">
               <Button
                 onClick={() => {
-                  void navigate({
-                    params: { conversationId: record.id },
-                    to: "/chat/$conversationId",
-                  });
+                  void conversations.refetch();
                 }}
                 variant="outline"
               >
-                Open task
+                Retry
               </Button>
             </div>
           </Card>
-        ))}
+        ) : null}
 
-        {!conversations.isPending && recent.length === 0 && needsUser === 0 ? (
+        {conversations.isError
+          ? null
+          : recent.map((record) => (
+              <Card key={record.id}>
+                <h2 className="text-[15px] font-semibold">{record.title}</h2>
+                <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
+                  {new Date(record.updatedAt).toLocaleString()}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    onClick={() => {
+                      void navigate({
+                        params: { conversationId: record.id },
+                        to: "/chat/$conversationId",
+                      });
+                    }}
+                    variant="outline"
+                  >
+                    Open task
+                  </Button>
+                </div>
+              </Card>
+            ))}
+
+        {!conversations.isPending &&
+        !conversations.isError &&
+        recent.length === 0 &&
+        needsUser === 0 ? (
           <Card>
             <h2 className="text-[15px] font-semibold">Nothing yet</h2>
             <p className="text-muted-foreground mt-0.5 text-sm">
@@ -231,8 +276,9 @@ const Home = (): ReactElement => {
  * everyone else gets Home. A local identity is not a sign-up — it walks
  * straight through the gate — so it is never sent, and reaches the welcome
  * from the link at the foot of the page like anyone who wants to see it
- * again. Nothing is drawn while the answer is on its way, so Home does not
- * flash before the welcome replaces it; if the answer never comes, Home it is.
+ * again. While the answer is on its way the skeleton stands in, so Home does
+ * not flash and the page is not a blank column; if the answer never comes,
+ * Home it is.
  */
 const useWelcomeGate = (): "welcome" | "waiting" | "home" => {
   const identity = useIdentity();
@@ -246,10 +292,24 @@ const useWelcomeGate = (): "welcome" | "waiting" | "home" => {
   return setup.seenAt === null ? "welcome" : "home";
 };
 
-export const HomePage = (): ReactElement | null => {
+const HomeSkeleton = (): ReactElement => (
+  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <output
+      aria-label="Loading home"
+      className="mx-auto flex w-full max-w-2xl flex-col gap-3.5 px-4 py-6 sm:py-10"
+    >
+      <Skeleton className="size-12 rounded-full" />
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </output>
+  </div>
+);
+
+export const HomePage = (): ReactElement => {
   const gate = useWelcomeGate();
   if (gate === "welcome") {
     return <Navigate replace to="/welcome" />;
   }
-  return gate === "home" ? <Home /> : null;
+  return gate === "home" ? <Home /> : <HomeSkeleton />;
 };

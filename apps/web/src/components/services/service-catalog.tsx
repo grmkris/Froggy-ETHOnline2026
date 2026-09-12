@@ -1,4 +1,4 @@
-/** The five services as cards, or the reason they cannot be shown. */
+/** The ten services as cards, or the reason they cannot be shown. */
 
 import type { ServiceCard as Card, ServiceName } from "@froggy/protocol";
 import {

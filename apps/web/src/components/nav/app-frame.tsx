@@ -33,10 +33,18 @@ export const AppFrame = ({
     >
       {wide ? <AppRail waiting={waiting} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <a
+          className="bg-background text-foreground sr-only z-50 rounded-lg px-3 py-2 outline-none focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:min-h-11 focus:ring-2 focus:ring-[var(--ring)]"
+          href="#workspace-page"
+        >
+          Skip to content
+        </a>
         <TopBar connected={connected} modes={modes} />
         <main
           className="flex min-h-0 flex-1 flex-col"
           data-slot="workspace-page"
+          id="workspace-page"
+          tabIndex={-1}
         >
           {children}
         </main>

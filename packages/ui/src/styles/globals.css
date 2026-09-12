@@ -1232,6 +1232,14 @@ button:not(:disabled),
       animation: surface-in 125ms var(--ease-out) both;
     }
   }
+  :root:active-view-transition-type(appearance) {
+    &::view-transition-old(root) {
+      animation: surface-out 125ms var(--ease-out) both;
+    }
+    &::view-transition-new(root) {
+      animation: surface-in 125ms var(--ease-out) both;
+    }
+  }
   [data-slot="dialog-content"],
   [data-slot="alert-dialog-content"],
   [data-slot="popover-content"] {

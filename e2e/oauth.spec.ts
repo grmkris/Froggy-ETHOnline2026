@@ -9,7 +9,7 @@ import { captureResponsive, captureScreen } from "./capture";
  * An MCP client connects the official way: it registers itself, the person
  * consents in the page, the code is exchanged for a token that reaches
  * `/mcp` with the scopes left on and nothing more, and Disconnect (here by
- * the API the Agents page calls) ends it. The server side of every step is
+ * the API Connections calls) ends it. The server side of every step is
  * unit-tested in `apps/server/src/oauth.test.ts`; this is the page and the
  * wiring.
  */
@@ -132,7 +132,7 @@ test("an MCP client signs in through the consent page and is held to its scopes"
   expect(pay.headers()["www-authenticate"]).toContain("insufficient_scope");
   expect(pay.headers()["www-authenticate"]).toContain('scope="pay"');
 
-  // Disconnect, as the Agents page does, under the person's own token.
+  // Disconnect, as Connections does, under the person's own token.
   const personToken = await page.evaluate(() =>
     localStorage.getItem("froggy.local-identity")
   );

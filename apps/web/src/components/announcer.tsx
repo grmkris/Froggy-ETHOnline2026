@@ -24,7 +24,10 @@ export const Announcer = ({
   readonly mandate: Mandate | null;
   readonly receipts: readonly Receipt[];
 }): ReactElement => (
-  <div aria-live="assertive" className="sr-only">
+  <div
+    aria-live={approvals.length > 0 ? "assertive" : "polite"}
+    className="sr-only"
+  >
     {announcementFor({ approvals, mandate, receipts, since: LOADED_AT })}
   </div>
 );

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * An outside agent is connected on the Agents page and disconnected there.
+ * An outside agent is connected on Connections and disconnected there.
  *
  * Minting shows the token separately from the reusable skill; the list then
  * carries the name and its dates, and Disconnect empties it. The server side
@@ -73,7 +73,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
     .click();
   await expect(page).toHaveURL(/\/agents$/u);
   await expect(
-    page.getByRole("heading", { name: "Agents", exact: true })
+    page.getByRole("heading", { name: "Connections", exact: true })
   ).toBeVisible();
   await page
     .getByText("Advanced: connect with a token", { exact: true })

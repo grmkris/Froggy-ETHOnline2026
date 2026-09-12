@@ -10,6 +10,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 
+import { DiscardedSearchNotice } from "../components/discarded-search-notice";
 import { Page } from "../components/nav/page";
 import { PurchasePanel } from "../components/purchases/purchase-panel";
 import { LaunchWatchList } from "../components/services/launch-watch-list";
@@ -110,6 +111,29 @@ export const ServicesPage = (): ReactElement => {
       title="Services"
       wide
     >
+      <DiscardedSearchNotice
+        discarded={search.dropped === "1"}
+        onDismiss={() => {
+          const { service, task } = search;
+          void navigate({
+            replace: true,
+            search: () => {
+              if (service !== undefined && task !== undefined) {
+                return { service, task };
+              }
+              if (service !== undefined) {
+                return { service };
+              }
+              if (task !== undefined) {
+                return { task };
+              }
+              return {};
+            },
+            to: "/services",
+          });
+        }}
+        what="The named service"
+      />
       {search.task === undefined ? null : (
         <section
           aria-label="Selected service task"

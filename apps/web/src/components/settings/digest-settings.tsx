@@ -1,8 +1,10 @@
 /**
- * The daily digest: an hour, in this browser's zone, or off.
+ * The daily digest: an hour, in the zone it was saved with, or off.
  *
- * The zone is read from the browser rather than asked for, because nobody
+ * A new digest takes this browser's zone as the default, because nobody
  * knows their IANA name and everybody knows what time it is where they are.
+ * Once saved, that zone is the source of truth — opening the page elsewhere
+ * does not silently relocate it.
  */
 
 import { DigestSchedule } from "@froggy/domain";
@@ -29,6 +31,7 @@ import { Schema } from "effect";
 import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
+import { digestZone } from "../../lib/digest-zone";
 import { useSessionToken } from "../../lib/session-token";
 
 const decodeSchedule = Schema.decodeUnknownSync(DigestSchedule);
@@ -68,7 +71,7 @@ export const DigestSettings = ({
   const inputId = useId();
   const { getToken } = useSessionToken();
   const queries = useQueryClient();
-  const timezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const browserZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [ask, setAsk] = useState(false);
 
   const headers = async (): Promise<Record<string, string>> => {
@@ -120,6 +123,7 @@ export const DigestSettings = ({
   });
 
   const current = schedule.data?.hour ?? null;
+  const zone = digestZone(schedule.data, browserZone);
   const hourValue = current === null ? "off" : String(current);
   return (
     <Field data-invalid={save.isError} className="gap-2">
@@ -141,7 +145,7 @@ export const DigestSettings = ({
           onChange={(event) => {
             const hour =
               event.target.value === "off" ? null : Number(event.target.value);
-            save.mutate({ hour, timezone });
+            save.mutate({ hour, timezone: zone.save });
           }}
           value={schedule.data === undefined ? "unknown" : hourValue}
         >
@@ -179,8 +183,10 @@ export const DigestSettings = ({
       {save.isError ? (
         <FieldError>Couldn’t save your daily digest. Try again.</FieldError>
       ) : null}
-      {current === null ? null : (
-        <p className="text-machine text-muted-foreground">{timezone}</p>
+      {schedule.data === undefined || schedule.isError ? null : (
+        <p className="text-machine text-muted-foreground">
+          {zone.saved ? zone.display : `Times will use ${zone.display}.`}
+        </p>
       )}
       {withTest ? (
         <div className="flex flex-wrap items-center gap-2">

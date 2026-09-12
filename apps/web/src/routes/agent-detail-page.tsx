@@ -170,8 +170,7 @@ export const AgentDetailPage = (): ReactElement => {
               </Button>
             </div>
             <p className="text-muted-foreground text-xs">
-              Newest 50 calls and requests. Calls made before history was added
-              are unavailable.
+              Newest 50 calls and requests.
             </p>
             {detail.data?.invocations.length === 0 ? (
               <Empty>
