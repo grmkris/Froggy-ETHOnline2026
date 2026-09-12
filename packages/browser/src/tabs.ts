@@ -56,6 +56,8 @@ export interface TabRegistryDeps {
    * Off only for local development, where the app itself is on `localhost`.
    */
   readonly blockPrivateNetwork: boolean;
+  /** Further Chrome URL patterns refused by every tab; see `BrowserSessionOptions.blockedUrls`. */
+  readonly blockedUrls: readonly string[];
   readonly createView: () => TabView | Promise<TabView>;
   readonly onStateChange: () => void;
   readonly onPayment: (request: BrowserPaymentRequest) => void;
@@ -162,13 +164,15 @@ export class TabRegistry {
     await (view.attached === true
       ? payment.start()
       : bestEffort(payment.start()));
-    if (this.deps.blockPrivateNetwork) {
+    const blocked = [
+      ...(this.deps.blockPrivateNetwork ? PRIVATE_URL_PATTERNS : []),
+      ...this.deps.blockedUrls,
+    ];
+    if (blocked.length > 0) {
       // Enforced by Chrome for every request the tab makes, so a redirect or a
       // subresource cannot reach what a check on the typed URL never saw.
       await bestEffort(cdp.send("Network.enable"));
-      await bestEffort(
-        cdp.send("Network.setBlockedURLs", { urls: PRIVATE_URL_PATTERNS })
-      );
+      await bestEffort(cdp.send("Network.setBlockedURLs", { urls: blocked }));
     }
     if (this.deps.wallet !== null) {
       // Before `ready()`: the binding and the provider script must be in

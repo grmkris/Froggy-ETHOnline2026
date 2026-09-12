@@ -45,6 +45,7 @@ import {
 } from "@froggy/payments";
 import type {
   Erc20TransferOutcome,
+  EvmReads,
   EvmRpc,
   PrivyServer,
   SpendLedger,
@@ -119,6 +120,9 @@ export interface Services {
   readonly evmReceipt: EvmRpc["transactionReceipt"];
   /** Whether the chain has ever seen a transaction; see `transactionKnown`. */
   readonly evmTransactionKnown: EvmRpc["transactionKnown"];
+  /** Node reads the injected wallet proxies, plus gas estimates for a page's tx. */
+  readonly evmReads: EvmReads;
+  readonly evmRpc: EvmRpc;
   /**
    * Hedera accounts of people's own, opened at first need from the host's
    * float; null when this deployment pays every Hedera leg from the host
@@ -624,6 +628,8 @@ export const createServices = (options: ServiceOptions): Services => {
       };
     },
     evmChainId: async () => await rpc.chainId(),
+    evmReads: rpc,
+    evmRpc: rpc,
     evmReceipt: rpc.transactionReceipt,
     evmTransactionKnown: rpc.transactionKnown,
     graph,

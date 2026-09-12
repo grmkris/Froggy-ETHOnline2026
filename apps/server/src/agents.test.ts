@@ -52,6 +52,15 @@ describe("agent tokens", () => {
     expect(agentMayCall("/api/me", "DELETE")).toBe(false);
     expect(agentMayCall("/api/setup", "PUT")).toBe(false);
     expect(agentMayCall("/api/chat", "POST")).toBe(false);
+    expect(agentMayCall("/api/wallet-requests", "GET")).toBe(false);
+    expect(agentMayCall("/api/wallet-requests/bwr_x/prepare", "POST")).toBe(
+      false
+    );
+    expect(agentMayCall("/api/wallet-requests/bwr_x/commit", "POST")).toBe(
+      false
+    );
+    expect(agentMayCall("/api/wallet-connections", "GET")).toBe(false);
+    expect(agentMayCall("/api/wallet-connections/bwc_x", "DELETE")).toBe(false);
   });
 });
 

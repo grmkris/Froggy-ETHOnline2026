@@ -97,6 +97,8 @@ import type { TelegramPager } from "./telegram/pager";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
+import type { WalletRequests } from "./wallet-requests";
+import { handleWalletRoutes } from "./wallet-routes";
 import type { Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
 
@@ -198,6 +200,7 @@ export interface RouterDeps {
   readonly publishApp?: (userId: UserId, message: AppServerMessage) => void;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
+  readonly walletRequests: WalletRequests;
   readonly workspaces: Workspaces;
 }
 
@@ -768,6 +771,28 @@ const handleGranted = async (
   if (agents !== null) {
     return agents;
   }
+  const wallet = await handleWalletRoutes(
+    {
+      appId: deps.services.environment.privyAppId,
+      appSecret: deps.services.environment.privyAppSecret,
+      fetch:
+        deps.services.environment.modes.privy === "stub"
+          ? stubPrivyPolicyFetch
+          : globalThis.fetch,
+      pins: deps.services.environment.personPolicyPins,
+      policies: deps.policies ?? null,
+      stubbed:
+        deps.services.environment.modes.privy === "stub" ||
+        deps.services.environment.modes.database === "stub",
+      walletRequests: deps.walletRequests,
+    },
+    request,
+    userId,
+    pathname
+  );
+  if (wallet !== null) {
+    return wallet;
+  }
   return await handlePolicyRoutes(
     {
       appId: deps.services.environment.privyAppId,
@@ -778,8 +803,8 @@ const handleGranted = async (
           : globalThis.fetch,
       pins: deps.services.environment.personPolicyPins,
       policies: deps.policies ?? null,
-      publishWallet: (who, wallet) => {
-        deps.publishApp?.(who, { type: "wallet.state", v: 1, wallet });
+      publishWallet: (who, summary) => {
+        deps.publishApp?.(who, { type: "wallet.state", v: 1, wallet: summary });
       },
       workspaces: deps.workspaces,
     },

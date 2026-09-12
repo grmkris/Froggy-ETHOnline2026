@@ -134,6 +134,7 @@ Use the `pay` scope. The tools request work; only the signed-in person can appro
 - `failed`: the work failed after payment. It is not refunded; the output says why. Ask the person before paying again.
 - `uncertain`: payment settlement is unknown. Stop and ask for reconciliation; never buy again to find out.
 - A refusal from the wallet ("not on the allowlist", "pocket exhausted", "insufficient_scope") is the person's rule. Report it in those words and stop.
+- If a page in the shared Chrome asks to connect or sign, a card appears in Froggy. Tell the person to answer it there. Do not retry the click or invent another wallet.
 
 ## Rules
 

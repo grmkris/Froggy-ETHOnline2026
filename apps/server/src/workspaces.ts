@@ -30,6 +30,7 @@ import type {
 import type {
   BrowserPaymentRequest,
   BrowserState,
+  BrowserWalletObservation,
   ServiceModes,
 } from "@froggy/protocol";
 import type { SpendLedger, Store } from "@froggy/wallet";
@@ -75,6 +76,14 @@ export interface WorkspaceDeps {
     userId: UserId,
     request: BrowserPaymentRequest
   ) => void;
+  readonly onWalletCall?: (
+    userId: UserId,
+    observation: BrowserWalletObservation
+  ) => void;
+  /** Chrome URL patterns every tab refuses on top of the private network. */
+  readonly blockedUrls?: readonly string[];
+  /** The chain the injected wallet announces, as `0x`-hex. Null injects none. */
+  readonly walletChainIdHex?: string | null;
   /** Put an approval card in front of this user and wait. See `SessionDeps.ask`. */
   readonly ask?: (userId: UserId, input: AskInput) => Promise<ApprovalOutcome>;
   /** Off only for local development, where the app itself is on `localhost`. */
@@ -217,13 +226,20 @@ export class Workspaces {
     const browser = this.deps.createBrowser(
       {
         blockPrivateNetwork: this.deps.blockPrivateNetwork,
+        blockedUrls: this.deps.blockedUrls ?? [],
         onStateChange,
+        walletChainIdHex: this.deps.walletChainIdHex ?? null,
       },
       userId
     );
     browser.subscribePayments((request) =>
       this.deps.onBrowserPayment?.(userId, request)
     );
+    if (this.deps.onWalletCall !== undefined) {
+      browser.subscribeWalletCalls((observation) => {
+        this.deps.onWalletCall?.(userId, observation);
+      });
+    }
     const workspace: Workspace = { browser, session, userId };
     this.workspaces.set(userId, workspace);
     this.touch(userId);

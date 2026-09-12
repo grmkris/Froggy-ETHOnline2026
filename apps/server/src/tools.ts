@@ -300,6 +300,14 @@ export const buildTools = (deps: ToolDeps) => {
     toolCallId,
     budgetUsdMicros: deps.budgetUsdMicros ?? PURCHASE_RUN_USD_MICROS,
   });
+  const walletNote = async (): Promise<string> => {
+    const rows = await services.store.walletRequests.list(session.userId, 10);
+    const waiting = rows.find((row) => row.status === "awaiting_approval");
+    if (waiting === undefined) {
+      return "";
+    }
+    return `\n\n[Wallet request awaiting your approval in Froggy: ${waiting.origin} asked to ${waiting.kind.replaceAll("_", " ")}. Wait for the person. Do not retry.]`;
+  };
 
   const requestPurchase = async (
     input: typeof ChatPurchaseInput.Type,
@@ -730,7 +738,7 @@ export const buildTools = (deps: ToolDeps) => {
           purchaseNote = `\n\n[Purchase: ${JSON.stringify(purchaseToolResult(result))}]`;
         }
         const { snapshot } = await browser.agentSnapshot();
-        return cap(`${purchaseNote}\n${snapshot.text}`);
+        return cap(`${purchaseNote}${await walletNote()}\n${snapshot.text}`);
       },
       inputSchema: std(
         Schema.Struct({
@@ -768,7 +776,7 @@ export const buildTools = (deps: ToolDeps) => {
           return "Use browse_task to offer a paid browsing task first.";
         }
         const result = await browser.agentClick(ref);
-        return result.note;
+        return `${result.note}${await walletNote()}`;
       },
       inputSchema: std(
         Schema.Struct({
@@ -784,7 +792,7 @@ export const buildTools = (deps: ToolDeps) => {
           return "Use browse_task to offer a paid browsing task first.";
         }
         await browser.agentType(text);
-        return `Typed ${text.length} characters.`;
+        return `Typed ${text.length} characters.${await walletNote()}`;
       },
       inputSchema: std(Schema.Struct({ text: Schema.String })),
     }),

@@ -101,7 +101,7 @@ Each milestone is a set of small sequential commits on `main`, each green under 
 
 | # | Check | Record |
 | --- | --- | --- |
-| 5.1 | Local Chromium over `ws://` driving the real `CloudCdp` + `TabRegistry` code with a local test dapp (`e2e/fixtures/dapp/`): discovery, connect, one refused request, one stub-signed request. Harness lives outside the product tree or behind a dev-only script. | `docs/evidence/BROWSER_WALLET_LOCAL.md` |
+| 5.1 | Local Chromium over `ws://` driving the real `CloudCdp` + `TabRegistry` code with a local test dapp (`e2e/fixtures/dapp/`): discovery, connect, one refused request, one stub-signed request. That script lives outside the product tree or behind a dev-only script. | `docs/evidence/BROWSER_WALLET_LOCAL.md` |
 | 5.2 | Hosted testnet: one Browser Use browser-hour, the owner signed in, test dapp on a public URL, Base Sepolia: connect, SIWE sign, one transaction with real owner signing and server broadcast, one refused unlimited approve. | `docs/evidence/BROWSER_WALLET_HOSTED.md` with tx hash and receipts |
 | 5.3 | One real dapp (Uniswap or Aave testnet UI) connects and shows the Froggy address; a swap request produces a card with a correct decode. Signing may be declined; the decline receipt is the evidence. | same file |
 

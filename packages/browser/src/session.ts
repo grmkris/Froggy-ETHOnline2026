@@ -54,6 +54,12 @@ export interface BrowserSessionOptions {
    * local development turns it off because the app itself is on `localhost`.
    */
   readonly blockPrivateNetwork?: boolean;
+  /**
+   * Chrome URL patterns every tab refuses on top of the private network:
+   * the app's own origin, so a page the agent opens can never reach Froggy
+   * with the person's cookies.
+   */
+  readonly blockedUrls?: readonly string[];
   readonly onStateChange?: (state: BrowserState) => void;
   readonly viewport?: Viewport;
   /**
@@ -103,6 +109,7 @@ export class BrowserSession implements BrowserHandle {
     this.arbiter = new Arbitrator({ onStateChange: publish });
     this.tabs = new TabRegistry({
       blockPrivateNetwork: options.blockPrivateNetwork ?? true,
+      blockedUrls: options.blockedUrls ?? [],
       createView: async () => await this.options.createView(),
       onPayment: (request) => {
         for (const listener of this.paymentListeners) {

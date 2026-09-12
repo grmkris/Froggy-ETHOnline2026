@@ -47,12 +47,18 @@ import type { TelegramPager } from "./telegram/pager";
 import { LaunchReactor } from "./trading/reactions";
 import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
+import { chainIdHex } from "./wallet-call";
+import { WalletRequests } from "./wallet-requests";
 import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
 const SWEEP_INTERVAL_MS = 60_000;
 /** The schedule clock. A minute: the finest grain a cadence can name. */
 const SCHEDULE_TICK_MS = 60_000;
+
+interface WalletCoordinatorBox {
+  current: WalletRequests | null;
+}
 
 class FroggyServer extends Context.Service<
   FroggyServer,
@@ -158,6 +164,8 @@ class FroggyServer extends Context.Service<
         },
       });
 
+      const walletBox: WalletCoordinatorBox = { current: null };
+
       const workspaces = new Workspaces({
         // The card goes up through the registry; "stop the agent" is the one
         // answer that does more than resolve the spend: it aborts the run and
@@ -186,6 +194,7 @@ class FroggyServer extends Context.Service<
           return outcome;
         },
         blockPrivateNetwork: environment.blockPrivateNetwork,
+        blockedUrls: [`*://${new URL(environment.appOrigin).host}*`],
         browserIdleMs: environment.browserIdleMs,
         createBrowser: services.createBrowser,
         demoUserId: environment.demoUserId,
@@ -206,6 +215,15 @@ class FroggyServer extends Context.Service<
               },
               request
             );
+          });
+        },
+        onWalletCall: (userId, observation) => {
+          detached("wallet call", async () => {
+            const coordinator = walletBox.current;
+            if (coordinator === null) {
+              return;
+            }
+            await coordinator.observe(userId, observation);
           });
         },
         onBrowserState: (userId, state) => {
@@ -265,6 +283,7 @@ class FroggyServer extends Context.Service<
         spendingLimits: environment.spendingLimits,
         store: services.store,
         treasuryPayee: environment.treasuryEvmAddress,
+        walletChainIdHex: chainIdHex(environment.evmChainId),
       });
 
       // Null until a payee and a treasury are configured: with nothing to pin,
@@ -290,6 +309,47 @@ class FroggyServer extends Context.Service<
       const grants = new AgentGrants(
         policies === undefined ? grantDeps : { ...grantDeps, policies }
       );
+
+      const walletRequests = new WalletRequests({
+        appOrigin: environment.appOrigin,
+        ask: async (userId, input) => {
+          await recordHistoryWait(
+            services.store.history,
+            userId,
+            input.request,
+            null
+          );
+          sinks.pager?.postApproval(userId, input.request);
+          const outcome = await interactions.park({ ...input, userId });
+          await recordHistoryWait(
+            services.store.history,
+            userId,
+            input.request,
+            outcome.kind === "answered" ? outcome.optionId : outcome.kind
+          );
+          if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
+            runs.abort(workspaces.for(userId).session.id);
+            interactions.abortAll(userId, "stopped from the approval card");
+          }
+          return outcome;
+        },
+        chainId: environment.evmChainId,
+        interactions,
+        network: environment.evmNetwork,
+        policies: policies ?? null,
+        privy: services.privy,
+        publish: (userId, message) => {
+          sinks.publishApp?.(userId, message);
+        },
+        reads: services.evmReads,
+        rpc: services.evmRpc,
+        store: services.store,
+        stubbed:
+          environment.modes.privy === "stub" ||
+          environment.modes.database === "stub",
+        workspace: (userId) => workspaces.existing(userId),
+      });
+      walletBox.current = walletRequests;
 
       // Turns and steps per person per day; the demo account is exempt so a
       // judge mid-recording is never told to come back tomorrow.
@@ -492,6 +552,14 @@ class FroggyServer extends Context.Service<
       detached("service task recovery at startup", async () => {
         await recoverOrphanedServiceTasks(services);
       });
+      const walletTick = setInterval(() => {
+        detached("wallet recovery", async () => {
+          await walletRequests.recover();
+        });
+      }, 15_000);
+      detached("wallet recovery at startup", async () => {
+        await walletRequests.recover();
+      });
 
       const baseRouterDeps: RouterDeps = {
         budget,
@@ -506,6 +574,7 @@ class FroggyServer extends Context.Service<
         publishApp: sockets.publishApp,
         runs,
         services,
+        walletRequests,
         workspaces,
       };
       const routerDeps =
@@ -591,6 +660,7 @@ class FroggyServer extends Context.Service<
             await reactions.close();
             clearInterval(tradeTick);
             await tradeRecovery.close();
+            clearInterval(walletTick);
             await running.stop(true);
             await workspaces.closeAll();
             await services.shutdown();

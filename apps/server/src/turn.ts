@@ -114,6 +114,9 @@ When a paid request comes back with an unlocked-page link, open that link in the
 shared browser with browser_navigate so the person watches the page unlock, then
 tell them what it says.
 
+When a page asks the injected wallet to connect or sign, a card appears in Froggy.
+Do not retry the click. Tell the person to answer it, and wait.
+
 You can reach the person when they are not looking: notify sends a short message
 to their phone through Telegram when it is paired, and into the web stream
 always. schedule sets a reminder ("remind me in 20 minutes", "every morning at

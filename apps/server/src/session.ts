@@ -837,6 +837,18 @@ export class WorkspaceSession {
   }
 
   /**
+   * The embedded EOA Privy attached, whether or not the standing is `granted`.
+   * The injected wallet shows this address; signing still goes through
+   * `privy.signerFor`, which is null without an agent key.
+   */
+  get embeddedWallet(): {
+    readonly address: string;
+    readonly id: string;
+  } | null {
+    return this.wallet;
+  }
+
+  /**
    * May the agent send a request to this host at all?
    *
    * Asked *before* the request, not after. `x402_fetch` used to fetch the
@@ -1925,6 +1937,41 @@ export class WorkspaceSession {
       spendId: row.id,
       stubbed: outcome.stubbed,
     });
+  }
+
+  /**
+   * A receipt for something a web page asked the wallet to do.
+   *
+   * Not a spend: the amount is whatever the page wrote and nothing prices it,
+   * so the quote is an explicit `unpriced` zero rather than a guess a cap
+   * could be compared against. The decision on it is the person's answer to
+   * the card and nothing else, which is why it never passes through the
+   * mandate's rules — the authority table already says a dapp request is
+   * theirs to decide, whatever the amount.
+   */
+  recordDapp(input: {
+    readonly approval: ApprovalRecord | undefined;
+    readonly at: number;
+    readonly decision: PolicyDecision;
+    readonly failure: string | undefined;
+    readonly intent: SpendIntent;
+    readonly runId: RunIdValue;
+    readonly settlement: Receipt["settlement"];
+    readonly stubbed: boolean;
+  }): Receipt {
+    return this.finish({
+      abandoned: null,
+      approval: input.approval,
+      at: input.at,
+      decision: input.decision,
+      failure: input.failure,
+      intent: input.intent,
+      quote: { asOf: input.at, source: "unpriced", usdMicrosPerUnit: 0 },
+      runId: input.runId,
+      settlement: input.settlement,
+      spendId: SpendId.generate(),
+      stubbed: input.stubbed,
+    }).receipt;
   }
 
   private finish(input: {
