@@ -185,6 +185,8 @@ A signed-out person remains reachable on their phone and can still answer approv
 
 `POST /api/purchases/{id}/cancel` exists and is used by **Deny & stop** and by account deletion. No button reaches it, so "Payment in progress" cannot be stopped from the page. Stopping the chat run that requested it does not reach it either, because the work detaches at ticket time. `fix`. Raised by [purchases](workspace/wallet/purchases.md#open-questions-and-verification), [buying a service](workspace/services/buying-a-service.md#open-questions-and-verification).
 
+- **Status:** Cancel payment is on the paying card in Recent URL purchases and in the global purchase band; it posts the existing cancel endpoint and shows an error with retry if the stop is not acknowledged (`e2e/purchases.spec.ts`).
+
 ### B-20: Resubmitting the same request is a second bill
 
 `service-request-form.tsx` regenerates the idempotency key on success, so submitting identical text again is a second purchase — while its own comment claims "the same words twice are the same task". `fix` — either hold the key or correct the comment. Raised by [buying a service](workspace/services/buying-a-service.md#open-questions-and-verification).

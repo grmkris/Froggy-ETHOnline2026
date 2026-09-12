@@ -292,4 +292,61 @@ test.describe("URL purchases", () => {
     await page.screenshot({ path: testInfo.outputPath("chat-url-result.png") });
     expect(errors).toEqual([]);
   });
+
+  test("cancels a purchase that shows Payment in progress", async ({
+    page,
+    request,
+  }) => {
+    const errors = watchErrors(page);
+    const purpose = `Stopped report ${crypto.randomUUID()}`;
+    const { purchase, headers } = await requestDemo(page, purpose);
+    await page.route("**/api/purchases", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const body = decodeList(await response.json());
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          purchases: body.purchases.map((item) =>
+            item.id === purchase.id && item.status === "awaiting_approval"
+              ? { ...item, status: "paying" }
+              : item
+          ),
+        },
+      });
+    });
+    await page.reload();
+    const result = page
+      .getByRole("region", { name: "URL purchases" })
+      .locator('[data-slot="card"]')
+      .filter({ hasText: purpose });
+    await expect(result).toContainText("Payment in progress");
+    await expect(
+      page.getByRole("region", { name: "Purchase approvals" })
+    ).toContainText("Payment in progress");
+    const cancelled = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          `/api/purchases/${purchase.id}/cancel` &&
+        response.request().method() === "POST"
+    );
+    await result.getByRole("button", { name: "Cancel payment" }).click();
+    const cancelResponse = await cancelled;
+    expect(cancelResponse.ok()).toBe(true);
+    await expect(result).toContainText("Cancelled");
+    await expect(
+      result.getByRole("button", { name: "Cancel payment" })
+    ).toHaveCount(0);
+    const storedResponse = await request.get(`/api/purchases/${purchase.id}`, {
+      headers,
+    });
+    const stored = decodeTicket(await storedResponse.json());
+    expect(stored.status).toBe("cancelled");
+    expect(stored.payment.state).toBe("none");
+    expect(errors).toEqual([]);
+  });
 });
