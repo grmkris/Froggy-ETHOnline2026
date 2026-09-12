@@ -1,5 +1,5 @@
 /**
- * The welcome: four steps after sign-up, and two endings.
+ * The welcome: three steps after sign-up, and two endings.
  *
  * A local identity is not a sign-up, so Home never sends it to the welcome
  * on its own; these tests reach the flow the way anyone can, from the link
@@ -55,7 +55,7 @@ test("Home keeps a local identity, and offers the welcome from its foot", async 
   expect(errors).toEqual([]);
 });
 
-test("the welcome runs through its four steps and lands on Home", async ({
+test("the welcome runs through its three steps and lands on Home", async ({
   page,
   request,
 }, testInfo) => {
@@ -119,7 +119,6 @@ test("the welcome runs through its four steps and lands on Home", async ({
   await page.screenshot({ path: testInfo.outputPath("welcome-3.png") });
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await page.getByRole("button", { name: "Do this later" }).click();
   await expect(
     page.getByRole("heading", { name: "You’re set." })
   ).toBeVisible();
@@ -170,16 +169,6 @@ for (const viewport of [
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(
-      page.getByRole("heading", { name: "Give Froggy an email address." })
-    ).toBeVisible();
-    await page.getByLabel("Choose your permanent address").fill("a".repeat(32));
-    expect(await fits()).toBe(true);
-    await page.screenshot({
-      fullPage: true,
-      path: testInfo.outputPath(`email-step-${viewport.width}.png`),
-    });
-    await page.getByRole("button", { name: "Do this later" }).click();
-    await expect(
       page.getByRole("heading", { name: "You’re set." })
     ).toBeVisible();
     expect(await fits()).toBe(true);
@@ -212,7 +201,6 @@ test("the assistant door ends on the sentence to paste", async ({
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Do this later" }).click();
   await expect(
     page.getByRole("heading", { name: "Connect your assistant." })
   ).toBeVisible();
@@ -236,7 +224,6 @@ test("a starter on the last screen opens the conversation", async ({
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Do this later" }).click();
   await expect(
     page.getByRole("heading", { name: "You’re set." })
   ).toBeVisible();
@@ -244,119 +231,4 @@ test("a starter on the last screen opens the conversation", async ({
   await expect(page).toHaveURL(/\/chat/u);
   await expect(page.getByRole("log")).toContainText("What can you do for me?");
   await expect.poll(async () => await seenAt(page, request)).not.toBeNull();
-});
-
-const openEmailStep = async (page: Page) => {
-  await page.goto("/welcome");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Give Froggy an email address." })
-  ).toBeVisible();
-};
-
-test("email onboarding previews the real domain, handles a taken name, and remembers a claim", async ({
-  page,
-}, testInfo) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => {
-    errors.push(error.message);
-  });
-  await openEmailStep(page);
-  const handle = `welcome-${Date.now()}`;
-  await page.getByLabel("Choose your permanent address").fill(handle);
-  await expect(page.getByLabel("Your email address preview")).toHaveText(
-    `${handle}@froggy.test`
-  );
-  await expect(page.getByText(/your handle is permanent/iu)).toBeVisible();
-  await page.route("**/api/email/claim", async (route) => {
-    await route.fulfill({
-      status: 409,
-      json: { v: 1, error: "That address is already claimed." },
-    });
-  });
-  await page
-    .getByRole("button", { name: "Claim address", exact: true })
-    .click();
-  await expect(page.getByRole("alert")).toHaveText(
-    "That address is already claimed."
-  );
-  await expect(
-    page.getByRole("button", { name: "Do this later" })
-  ).toBeEnabled();
-  await page.unroute("**/api/email/claim");
-  await page.getByLabel("Choose your permanent address").press("Enter");
-  await expect(
-    page.getByText("Demo address ready", { exact: true })
-  ).toBeVisible();
-  await expect(
-    page.getByText(`${handle}@froggy.test`, { exact: true })
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Disable email" })).toHaveCount(
-    0
-  );
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.bringToFront();
-  await page.getByRole("button", { name: "Copy address", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Copied", exact: true })
-  ).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath("email-address-ready.png"),
-  });
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await expect(
-    page.getByRole("link", { name: "Claim your Froggy email" })
-  ).toHaveCount(0);
-  await openEmailStep(page);
-  await expect(
-    page.getByText(`${handle}@froggy.test`, { exact: true })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Claim address", exact: true })
-  ).toHaveCount(0);
-  expect(errors).toEqual([]);
-});
-
-test("skipping email leaves a Home reminder and can be completed in Account", async ({
-  page,
-}) => {
-  await openEmailStep(page);
-  await page.getByRole("button", { name: "Do this later" }).click();
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await page.getByRole("link", { name: /Claim your Froggy email/u }).click();
-  await expect(page).toHaveURL(/\/settings$/u);
-  await page
-    .getByLabel("Choose your permanent address")
-    .fill(`later-${Date.now()}`);
-  await page
-    .getByRole("button", { name: "Claim address", exact: true })
-    .click();
-  await expect(
-    page.getByText("Demo address ready", { exact: true })
-  ).toBeVisible();
-});
-
-test("email being unavailable never blocks finishing setup", async ({
-  page,
-}) => {
-  await page.route("**/api/email/status", async (route) => {
-    await route.fulfill({
-      status: 503,
-      json: { v: 1, error: "Email is temporarily unavailable." },
-    });
-  });
-  await openEmailStep(page);
-  await expect(page.getByRole("alert")).toHaveText(
-    "Email is temporarily unavailable."
-  );
-  await expect(
-    page.getByRole("button", { name: "Claim address", exact: true })
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Do this later" }).click();
-  await expect(
-    page.getByRole("heading", { name: "You’re set." })
-  ).toBeVisible();
 });
