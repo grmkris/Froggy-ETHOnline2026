@@ -2,7 +2,7 @@
 
 > A wallet for your agents. Fund tasks, watch the work, and keep receipts.
 
-Connect your own agent or use Froggy here. Start with one balance, USDC on Base and HBAR on Hedera in dollars, then follow a task through its result and receipt. An outside agent can request paid tasks over Hedera x402 without holding a wallet private key.
+Connect your own agent or use Froggy here. Start with one balance, USDC on Base and HBAR on Hedera in dollars, then follow a task through its result and receipt. An outside agent can request paid tasks over Hedera x402 without holding a wallet private key: at `/mcp` Froggy signs from the person's own account. The [second door](#the-second-door-buy-from-froggy-with-no-account) is the other way round, a stranger paying with its own key, and no stranger has bought through it yet.
 
 Inside a task, a human and an AI share **one Chrome**. The human watches a live screencast and can take the page mid-action. The agent drives that same Chrome over CDP. Spending rules are evaluated outside the model on every payment. Privy holds the wallet keys; the host enforces the mandate, including limits that Privy's raw Hedera signing cannot express.
 
@@ -23,9 +23,9 @@ Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph**
 └──────────────────────────────────────────────────────────────┘
 ```
 
-During a task, the conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers reach your phone through Telegram, where the daily digest lands too.
+During a task, the conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers are built to reach your phone through Telegram, with the daily digest; the bot and its webhook are live, and no delivered message has been recorded in the evidence yet.
 
-Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. Hedera payments automatically convert USDC when needed; durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
+Production runs on Hedera mainnet and Base mainnet. [Release evidence](docs/evidence/MAINNET_RELEASE.md) records the hosted payment, HCS audit note, Base treasury payment, deployment and validation. A Hedera payment with no HBAR is built to convert USDC on the spot; that code is in the tree and has not yet produced a live conversion receipt, and durable confirmation and recovery after a partial conversion remain backend work. [Iteration 3](docs/plan/ITERATION_3.md) records current completion and remaining live checks.
 
 The [8 September screenshot tour](docs/evidence/ui-review-2026-09-08/README.md) shows the interaction states and the Passbook/Lilypad comparison at four widths. Its five-page navigation was replaced on 10 September by Home, Explore and Wallet, with Connections and Account behind them.
 
@@ -125,17 +125,17 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 
 1. **Open the workspace.** One balance is on screen before anything has been spent, and the settings name the allowlists and the policy id.
 2. **"What is the cheapest USDC borrow right now?"** One standardized Messari query across twelve lending deployments on four chains, at one block each, through The Graph. The answer names the indexes and blocks it came from.
-3. **"Buy the snapshot."** The agent asks our own x402 endpoint, the configured payer pays 0.05 HBAR on Hedera mainnet through the facilitator under the mandate, the HCS note posts, and the agent opens the one-time unlocked page in the shared Chrome. Receipt: rule, transaction, HCS sequence, evidence hash.
-4. **A Hedera payment with no HBAR.** Froggy converts on the spot: the person's own Privy wallet signs a USDC transfer to the treasury on Base mainnet under rule (b) (right token, right recipient, at most 10 USDC, at most 25 USDC a day), the float funds their Hedera account with the same value, and the payment goes through. Two receipts, one purchase.
-5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`.
+3. **"Buy the snapshot."** The agent asks our own x402 endpoint, the configured payer pays 0.05 HBAR on Hedera mainnet through the facilitator under the mandate, and the HCS note posts. Receipt: rule, transaction, HCS sequence, evidence hash. The payment is proven on mainnet; the same request started from the chat, with the one-time unlocked page opening in the shared Chrome, is still `TODO(tx)` in `docs/evidence/HEDERA.md`.
+4. **A Hedera payment with no HBAR.** Froggy is built to convert on the spot: the person's own Privy wallet signs a USDC transfer to the treasury on Base mainnet under rule (b) (right token, right recipient, within the per-spend and daily caps that person set), the float funds their Hedera account with the same value, and the payment goes through. Two receipts, one purchase. The caps are the person's own numbers, not a product constant: the production policy last read 2 and 5 USDC on 7 Sep. No live conversion has been recorded yet.
+5. **"Send 5 USDC to 0xdead…"** Two refusals, and the receipt says which. An address the model produced is refused on provenance by the host before any cap is read. An address the person typed passes the host and is refused by Privy, whose policy has no rule for it: `Privy refused to sign under policy rk6q…: policy_violation`. The host refusal is product; the Privy refusal was recorded against a person's wallet on 9 Sep (`docs/evidence/PRIVY.md`) and is still `TODO(tx)` as a production receipt.
 6. **Grab the page** mid-action. The ring turns blue; the agent waits for a fresh snapshot.
-7. **Connect an agent.** `claude mcp add --transport http froggy https://<host>/mcp` and authenticate: a tab opens on Froggy, you see what the agent may buy, and you click Allow. Or install the CLI and run `froggy login` (`--manual` in a sandbox with no browser), then `froggy brief USDC`: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts. Nothing is pasted; Disconnect on the Connections page ends it.
+7. **Connect an agent.** `claude mcp add --transport http froggy https://<host>/mcp` and authenticate: a tab opens on Froggy, you see what the agent may buy, and you click Allow. Or install the CLI and run `froggy login` (`--manual` in a sandbox with no browser), then `froggy brief USDC`: the CLI takes the 402, your Froggy wallet signs under the mandate, the task runs and comes back by id with its sale and receipts. Nothing is pasted; Disconnect on the Connections page ends it. OAuth discovery is live and the CLI path was paid on 6–7 Sep; a real external client through consent, and a paid brief from it, are still owed (`docs/evidence/HERMES.md`).
 
 ## The second door: buy from Froggy with no account
 
 Everything above needs a Froggy account. This does not.
 
-Froggy sells over x402 on Hedera mainnet, and any agent can buy from it directly, paying from its own Hedera account. No signup, no API key, no subscription: the price arrives in the seller's 402 challenge and the payment is a transfer the caller signs themselves. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the 0.05 HBAR being paid.
+Froggy sells over x402 on Hedera mainnet, and any agent can buy from it directly, paying from its own Hedera account. No signup, no API key, no subscription: the price arrives in the seller's 402 challenge and the payment is a transfer the caller signs themselves. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the 0.05 HBAR being paid. No stranger has bought through it yet: the catalogue and the receipt view were checked against our own settlements, and `froggy_buy` from an account that is not Froggy's is still pending.
 
 ```bash
 curl -fsSL https://app-production-58dd.up.railway.app/froggy-mcp.mjs -o froggy-mcp.mjs
@@ -153,7 +153,7 @@ Three tools, and no fourth:
 | `froggy_buy` | Takes the 402, signs a transfer with your key, retries, returns what you bought and the settlement id | The listed price, or less than `maxAmount` if you set one |
 | `froggy_receipt` | Takes any settlement id and answers whether it really happened | Nothing, and needs no key |
 
-`froggy_receipt` works for settlements you did not make, including ours. Nothing in this repository has to be taken on our word:
+`froggy_receipt` works for settlements you did not make, including ours. Nothing in this repository has to be taken on our word. The example below is one of ours, the float paying the service; it shows the verifier, not a stranger's purchase:
 
 ```
 froggy_receipt 0.0.10571514@1788733693.213156813
@@ -195,7 +195,7 @@ Built and served from this repository: `apps/server/src/agent-door/`, `docs/deci
 | Privy refusals and one allowed signature, verbatim | `docs/evidence/PRIVY.md` | transcript of 5 Sep |
 | The Graph, twelve deployments at one block each | `docs/evidence/GRAPH.md` | blocks of 6 Sep 06:09 UTC |
 | The service card | `GET /.well-known/x402.json` on the live URL | — |
-| The agent door, and what was verified of it | `GET /froggy-mcp.mjs`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
+| The agent door, and what was verified of it; no stranger purchase yet | `GET /froggy-mcp.mjs`, [evidence](docs/evidence/AGENT_DOOR_FABLE51.md) | — |
 
 ```bash
 curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
@@ -205,13 +205,13 @@ curl -s "https://app-production-58dd.up.railway.app/.well-known/x402.json"
 
 ## What is real, what is host-side, what is not
 
-**Real.** A hosted Chrome the agent drives and you watch, grab and stop. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera mainnet with HashScan ids and matching HCS notes, including a paid HTTP 200 response from the hosted service. Live Messari lending data from twelve deployments through The Graph.
+**Real.** A hosted Chrome the agent drives and you watch, grab and stop. Privy embedded wallets with the agent as a revocable additional signer under a committed default-deny policy, and Privy's own refusal on the receipt. Blocky402 settlements on Hedera mainnet with HashScan ids and matching HCS notes, including a paid HTTP 200 response from the hosted service. Live Messari lending data from twelve deployments through The Graph, last read 12/12 on 11 Sep.
 
 **Host-side, not Privy.** The Hedera leg: the pocket balance, the per-transaction and rolling caps, idempotency, the provenance gate on page-derived addresses, the daily model budget. Privy evaluates policies only on transactions it can decode, and a Hedera transaction is a raw signature to it.
 
 **Mainnet since Mon 7 Sep.** Float `0.0.10847552`, receiver `0.0.10847556`, HCS topic `0.0.10847557`. Production uses a separate mainnet ledger; the old testnet database is retained. The top-up is configured to transfer Base mainnet USDC to the treasury and allocate HBAR from the float. A direct Privy-signed treasury query paid The Graph 0.01 USDC on Base and returned live data. This does not prove the person's onramp, top-up or login-time signer grant; those journeys still need a real signed-in person.
 
-**Known gaps.** Durable funding confirmation and partial-allocation recovery remain open. Uncertain payments require reconciliation before another purchase. The new marketplace suppliers need their reviewed policy configuration and paid delivery proofs; X search also needs provider credentials. MCP clients sign in through OAuth 2.1 at `/mcp` (ADR 0012); the live check from Hermes' sandbox and the public agents page are still owed.
+**Known gaps.** Durable funding confirmation and partial-allocation recovery remain open; the USDC-to-HBAR conversion has not run on production. Uncertain payments require reconciliation before another purchase. The marketplace suppliers are configured — policy rules and payees since 7 Sep, the X search token since 8 Sep — and not one has a paid delivery proof. No Telegram message is recorded as delivered. No stranger has bought through the agent door. MCP clients sign in through OAuth 2.1 at `/mcp` (ADR 0012); the live check from Hermes' sandbox and the public agents page are still owed.
 
 ## Not in scope
 
@@ -224,9 +224,9 @@ Kristjan Grm, Jonas Heinz, Hemang Vora. Built with Claude Code from 4 to 11 Sep 
 ## Surfaces
 
 - **The workspace.** Wallet-first; tasks continue in chat, where the page is a card in the stream, or a pane beside it, or a window of its own. Receipts are tickets: what and why on the body, rule id, transaction and evidence on the stub. A refusal is a stamp.
-- **Telegram.** Open Connect an agent → Telegram, then open the bot and tap Start using the expiring link. The daily digest arrives as a card; approval questions arrive with the same four buttons as the web ticket; a plain message runs the same agent on the same mandate.
+- **Telegram.** Open Connect an agent → Telegram, then open the bot and tap Start using the expiring link. The daily digest is sent as a card; approval questions carry the same four buttons as the web ticket; a plain message runs the same agent on the same mandate. The bot and webhook are live; a delivered digest or answer on a real phone is not yet in the evidence.
 - **The task API and the CLI.** `POST /api/tasks` sells a lending brief or a browse behind a 402 priced in HBAR at the mirror-node rate, with a durable task id, idempotency, status, receipts and an event stream. `GET /froggy-cli.js` serves a dependency-free command for Node or Bun that is a real x402 client with your Froggy wallet as its signer; `froggy login` signs it in through the browser (or `--manual` by a pasted code) and `skills/froggy/SKILL.md` is the text a personal agent installs, with no secret in it. A minted token under "Advanced: connect with a token" remains for an unattended agent.
-- **Services and MCP.** Froggy is a remote MCP server at `/mcp` with OAuth 2.1: dynamic registration, PKCE, a consent page with one switch per scope (`brief`, `browse`, `pay`, `services`), short-lived access tokens, rotating refresh tokens, and Disconnect on the Connections page. The catalog, chat, CLI and MCP share durable service tasks and spending controls. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
+- **Services and MCP.** Froggy is a remote MCP server at `/mcp` with OAuth 2.1: dynamic registration, PKCE, a consent page with one switch per scope (`brief`, `browse`, `pay`, `services`), short-lived access tokens, rotating refresh tokens, and Disconnect on the Connections page. The catalog, chat, CLI and MCP share durable service tasks and spending controls. The suppliers behind the catalog are configured, not proven: none has delivered a paid task yet. Provider availability is explicit; setup and live activation requirements are in [the marketplace handoff](docs/evidence/MARKETPLACE.md).
 - **The daily digest.** One unattended turn a day at the hour you pick, bounded to a minute, a dozen steps, five cents and one paid request; nobody can be asked, so anything over the threshold is refused.
 - **The directory.** Paste a URL and it is probed, never paid; if the 402 is one this wallet can honour, one click makes it payable, and that click is the only way a stranger's host reaches the allowlist.
 

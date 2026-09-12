@@ -2,7 +2,7 @@
 
 A consolidated list of the defects and inconsistencies the feature documents raised, in their bodies and in their "Open questions and verification" sections. Every entry was read from the Froggy tree at commit `5caed50` and its tests.
 
-**No entry has been confirmed in the running product.** None carries a Status line; a verification pass is what would add them. Several of the high entries are claims about wiring that a five-minute check in the deployed app would settle either way, and those are the ones to check first.
+**An entry without a Status line has not been confirmed in the running product.** A Status line is added only by a verification or fix pass, and names what it settled and where. Several of the high entries are claims about wiring that a five-minute check in the deployed app would settle either way, and those are the ones to check first.
 
 ## Summary
 
@@ -60,6 +60,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** The denial code `frozen` appears exactly once in the tree, as a literal in the list at `packages/domain/src/mandate.ts:148`. Nothing constructs a refusal carrying it. There is no freeze, unfreeze, or frozen state in `apps/server/src` or `apps/web/src`. `apps/web/src/lib/denial.ts:22` maps the code to "The wallet is frozen." — a renderer for something never emitted. The promise is at `apps/web/src/components/sign-in-gate.tsx:11`. `mandate.ts` records the cause in an aside: one field is absent "for `frozen` on receipts written before **the kill switch was removed**". Two further remnants survive: `claimTradeStep` takes a `frozen` flag whose only two callers pass `false` as a literal (`apps/server/src/trading/coordinator.ts:518` and `:581`), and this description's own thirteen-row interrupt list asks every feature what freezing does.
 - **Severity:** `high`. It is the panic control, it is named in the pitch, and it is promised to people who have not signed up yet. Disconnecting an agent — the other half of the same sentence — does exist, so the promise is half true, which is worse than plainly false.
 - **Decision needed:** `fix`. Either restore a kill switch, or remove the promise and the remnants. If it is deliberately out of scope for this build, the signed-out page must stop offering it before anyone demonstrates the product.
+- **Status:** Copy fixed 11 Sep: the signed-out page promises stop, the caps and Disconnect, and no user-facing freeze promise remains (`docs/plan/REVIEW_2026-09-11.md`). Freeze is not being restored. Remnants remain in code: the `frozen` denial code and its renderer, kept so old receipts decode, and `claimTradeStep`'s `frozen` flag passed as a literal `false`.
 - **Raised by:** [stopping and freezing](workspace/conversation/freeze.md#open-questions-and-verification), [the leash everywhere](cross-cutting/the-leash-everywhere.md), [trades](workspace/trades.md#open-questions-and-verification), [the leash](foundations/the-leash.md#open-questions-and-verification)
 
 ### B-02: The action-kind authority table is never consulted, so `transfer` and `trade` do not always ask
@@ -90,6 +91,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `balanceLabel` is declared at `packages/protocol/src/app.ts:182` and read only in `webmcp.ts`. No component under `apps/web/src/components/wallet/` reads it or renders any stub marker; the only visible marker anywhere is one aggregate badge in `apps/web/src/components/top-bar.tsx`. Both the root `AGENTS.md` and the header of `apps/server/src/environment.ts` still describe the per-integration chip on the wallet pane. The marker moved and the comments did not.
 - **Severity:** `high`. `AGENTS.md` states the rule this breaks: "A faked run that could pass for a real one is the one failure mode this design exists to prevent." A screenshot of this Wallet cannot be told from a real one.
 - **Decision needed:** `fix`. Render `balanceLabel`, and a per-integration marker, where the money is.
+- **Status:** Fixed in [PR #2](https://github.com/grmkris/Froggy-ETHOnline2026/pull/2), merged as `827272d` on 12 Sep. The Wallet shows a chip per stubbed integration and the server's `balanceLabel` when the total is unavailable.
 - **Raised by:** [the balance](workspace/wallet/the-balance.md#open-questions-and-verification), [stubs](cross-cutting/stubs.md#open-questions-and-verification)
 
 ### B-05: The warning that the balance is only a floor is computed and never shown
@@ -100,6 +102,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `ledgerNote` is set at `apps/server/src/session.ts:981-1035` and asserted by `apps/server/src/session.test.ts:155-156`. Grepping `apps/web/src` returns only test fixtures — no component reads it.
 - **Severity:** `high`. The product withholds the one sentence that would explain what follows, and a server test proves someone thought the sentence worth writing.
 - **Decision needed:** `fix`. Render it beside the balance.
+- **Status:** Fixed in [PR #2](https://github.com/grmkris/Froggy-ETHOnline2026/pull/2), merged as `827272d` on 12 Sep. `ledgerNote` is rendered beside the balance.
 - **Raised by:** [the balance](workspace/wallet/the-balance.md#open-questions-and-verification)
 
 ### B-06: A minted token is displayed as holding fewer scopes than it actually has
@@ -110,6 +113,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `apps/server/src/agent-invocations.ts:325` synthesises `OAUTH_SCOPES.filter((scope) => scope !== "history")` for display. The caller is built with `scopes: null` at `apps/server/src/router.ts:429`, and `apps/server/src/mcp.ts` guards with `caller.scopes !== null && !caller.scopes.has(scope)`, so a null set skips rather than denies. `apps/server/src/tasks.ts:123` says so: "null for a person or a legacy `fgy_` token, which may do everything an agent may".
 - **Severity:** `high`. It misstates a permission in the permissive direction on the page a person visits to audit what they gave away, and it is the one place in this surface where a missing restriction fails open.
 - **Decision needed:** `fix`. Display the token's true reach, or give tokens a real scope set and check it.
+- **Status:** Fixed in [PR #2](https://github.com/grmkris/Froggy-ETHOnline2026/pull/2), merged as `827272d` on 12 Sep, on the display side: a minted token's detail page lists every scope, `history` included, and says the token is not limited by consent. Tokens still carry no scope set of their own.
 - **Raised by:** [the agent detail](workspace/connections/the-agent-detail.md#open-questions-and-verification), [identity and agents](foundations/identity-and-agents.md#open-questions-and-verification), [oauth consent](agent-surface/oauth-consent.md#open-questions-and-verification)
 
 ### B-07: One agent can read another agent's service tasks
@@ -120,6 +124,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `froggy_service_status`, `GET /api/services/tasks` and `GET /api/tasks/{id}` check only `caller.userId`. Purchases, trades, watches and history all additionally check `connectionId`.
 - **Severity:** `high`. It is a cross-agent read of work and results, and the inconsistency with every neighbouring route suggests an oversight rather than a decision.
 - **Decision needed:** `fix`. Scope these to the connection, as the neighbours are.
+- **Status:** Fixed in [PR #2](https://github.com/grmkris/Froggy-ETHOnline2026/pull/2), merged as `827272d` on 12 Sep. Tasks store `connectionId` (migration `0020` backfills it from `agent_token_id`); `froggy_service_status`, `GET /api/services/tasks`, `GET /api/tasks/{id}` and its events are scoped to the connection that created the task. The person still sees every task of theirs.
 - **Raised by:** [reading results and receipts](agent-surface/reading-results-and-receipts.md#open-questions-and-verification), [asking for a paid task](agent-surface/asking-for-a-paid-task.md#open-questions-and-verification)
 
 ### B-08: "Send a test now" spends real money with no warning
