@@ -12,7 +12,12 @@ export {
   isEvmAddress,
 } from "./erc20";
 export { evmRpc, EvmRpcError } from "./evm-rpc";
-export type { EvmRpc, EvmTransactionReceipt } from "./evm-rpc";
+export type {
+  EvmReads,
+  EvmRpc,
+  EvmTransactionReceipt,
+  RpcJson,
+} from "./evm-rpc";
 export { sendErc20Transfer } from "./transfer";
 export type { Erc20TransferInput, Erc20TransferOutcome } from "./transfer";
 export {

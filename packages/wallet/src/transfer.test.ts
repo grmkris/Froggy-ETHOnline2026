@@ -51,6 +51,7 @@ const signerRecording = () => {
   const signed: UnsignedEvmTransaction[] = [];
   const signer: AgentEvmSigner = {
     address: "0x1111111111111111111111111111111111111111",
+    signMessage: async () => await Promise.resolve("0xsig"),
     signTransaction: async (transaction) => {
       signed.push(transaction);
       await Promise.resolve();
@@ -133,6 +134,7 @@ describe("sendErc20Transfer", () => {
     let broadcasts = 0;
     const signer: AgentEvmSigner = {
       address: "0x1111111111111111111111111111111111111111",
+      signMessage: async () => await Promise.resolve("0xsig"),
       signTransaction: async () => {
         await Promise.resolve();
         throw new Error("Privy refused to sign: policy rk6q… denied");

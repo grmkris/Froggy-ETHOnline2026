@@ -84,6 +84,36 @@ export interface EvmRpc {
   ) => Promise<EvmTransactionReceipt>;
 }
 
+/** A JSON value as a node returns it, before anyone has read meaning into it. */
+export type RpcJson =
+  | boolean
+  | null
+  | number
+  | string
+  | readonly RpcJson[]
+  | { readonly [key: string]: RpcJson };
+
+/**
+ * What the injected wallet needs of a node beyond a transfer: a gas estimate
+ * for a page's transaction, and the read methods a dapp asks its provider
+ * for. Separate from `EvmRpc` so the transfer path's fakes stay small; the
+ * caller has already decided the method is one a page may ask, and caps what
+ * goes back to it.
+ */
+export interface EvmReads {
+  /** `eth_estimateGas` for a call from `from`; quantities as hex. */
+  readonly estimateGas: (transaction: {
+    readonly data: string;
+    readonly from: string;
+    readonly to: string;
+    readonly value: string;
+  }) => Promise<bigint>;
+  readonly request: (
+    method: string,
+    params: readonly RpcJson[]
+  ) => Promise<RpcJson>;
+}
+
 /** The one request shape this client sends. Injected in tests. */
 export type RpcTransport = (
   url: string,
@@ -110,7 +140,19 @@ const overFetch: RpcTransport = async (url, init) => await fetch(url, init);
 /** `0x` alone is how some nodes spell zero. */
 const toBigInt = (hex: string): bigint => BigInt(hex === "0x" ? "0x0" : hex);
 
-export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
+const RpcJsonSchema: Schema.Codec<RpcJson> = Schema.Union([
+  Schema.Boolean,
+  Schema.Null,
+  Schema.Number,
+  Schema.String,
+  Schema.Array(Schema.suspend((): Schema.Codec<RpcJson> => RpcJsonSchema)),
+  Schema.Record(
+    Schema.String,
+    Schema.suspend((): Schema.Codec<RpcJson> => RpcJsonSchema)
+  ),
+]);
+
+export const evmRpc = (options: EvmRpcOptions): EvmRpc & EvmReads => {
   const transport = options.transport ?? overFetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let nextId = 0;
@@ -118,7 +160,7 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
   /** One round trip, with the result parsed against `codec` before it leaves. */
   const call = async <T>(
     method: string,
-    params: readonly (string | { readonly [key: string]: string })[],
+    params: readonly unknown[],
     codec: Schema.Codec<T>
   ): Promise<T> => {
     nextId += 1;
@@ -178,7 +220,11 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
     call: async (to, data) =>
       await call("eth_call", [{ data, to }, "latest"], Hex),
     chainId: async () => Number(await quantity("eth_chainId", [])),
+    estimateGas: async (transaction) =>
+      toBigInt(await call("eth_estimateGas", [transaction], Hex)),
     gasPrice: async () => await quantity("eth_gasPrice", []),
+    request: async (method, params) =>
+      await call(method, params, RpcJsonSchema),
     maxPriorityFeePerGas: async () =>
       await quantity("eth_maxPriorityFeePerGas", []),
     sendRawTransaction: async (signed) =>

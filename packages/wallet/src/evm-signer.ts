@@ -63,8 +63,15 @@ export interface UnsignedEvmTransaction {
   readonly value: bigint;
 }
 
-/** Both signatures the agent can ask for, from one wallet under one policy. */
+/** Every signature the agent can ask for, from one wallet under one policy. */
 export interface AgentEvmSigner extends AgentTypedDataSigner {
+  /**
+   * EIP-191 `personal_sign` over raw bytes, for a dapp's sign-in or terms
+   * message. Bytes rather than text, so a message that is not UTF-8 signs as
+   * the page meant it; the policy's `message.content` condition still reads
+   * the text form when there is one.
+   */
+  readonly signMessage: (message: Uint8Array) => Promise<string>;
   /** Returns the RLP-encoded signed transaction, ready to broadcast. */
   readonly signTransaction: (
     transaction: UnsignedEvmTransaction
@@ -146,6 +153,22 @@ export const privyAgentSigner = (
   };
   return {
     address: input.wallet.address,
+    signMessage: async (message) => {
+      try {
+        const signed = await client
+          .wallets()
+          .ethereum()
+          .signMessage(input.wallet.id, { authorization_context, message });
+        return signed.signature;
+      } catch (error) {
+        if (error instanceof APIError) {
+          throw new PrivySignerRefusedError(
+            `Privy refused to sign under policy ${input.agent.policyId}: ${error.message}`
+          );
+        }
+        throw error;
+      }
+    },
     signTransaction: async (transaction) => {
       try {
         const signed = await client
