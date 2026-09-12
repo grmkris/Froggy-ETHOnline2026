@@ -24,6 +24,7 @@ import type { ReactElement } from "react";
 import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { Composer } from "../components/composer";
 import { StopFeedback } from "../components/stop-feedback";
+import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
 import { copyForHome, poseForHome } from "../lib/frog-pose";
@@ -59,6 +60,7 @@ const Home = (): ReactElement => {
   const { busy, send, stopRun } = useChatSurface();
   const navigate = useNavigate();
   const { getToken } = useSessionToken();
+  const connectionLock = useConnectionLock(app.connected);
 
   const needsUser = app.approvals.length + pendingPurchases;
   const pose = poseForHome(needsUser, busy);
@@ -125,7 +127,7 @@ const Home = (): ReactElement => {
         <Composer
           asking={needsUser > 0}
           busy={busy}
-          disabledReason={app.connected ? null : "Connecting…"}
+          disabledReason={connectionLock}
           onCommand={(command) => {
             applySlash(command, { send, stop: stopRun.stop });
             if (command.kind === "status") {

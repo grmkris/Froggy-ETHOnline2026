@@ -7,45 +7,58 @@ import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
 import { useMediaQuery } from "../hooks/use-media-query";
+import { useOnline } from "../hooks/use-online";
+import { connectionKind, connectionWords } from "../lib/connection";
 import { SECONDARY_ITEMS } from "../lib/nav";
 import { useIdentity } from "../lib/privy";
 import { stubsOf } from "../lib/stubs";
 
-/** Reconnecting, a local identity, how much is stubbed. */
+/** Offline, a down server, signed out, a local identity, how much is stubbed. */
 const Flags = ({
+  authenticated,
   connected,
+  online,
+  ready,
   stubbed,
   stubs,
 }: {
+  readonly authenticated: boolean;
   readonly connected: boolean;
+  readonly online: boolean;
+  readonly ready: boolean;
   readonly stubbed: boolean;
   readonly stubs: readonly string[];
-}): ReactElement => (
-  <>
-    {connected ? null : (
-      <Badge className="text-[10px]" variant="secondary">
-        reconnecting…
-      </Badge>
-    )}
-    {stubbed ? (
-      <Badge
-        className="border-drive-agent text-[10px] uppercase"
-        variant="outline"
-      >
-        local identity
-      </Badge>
-    ) : null}
-    {stubs.length > 0 ? (
-      <Badge
-        className="border-drive-agent/60 text-drive-agent-foreground shrink-0 text-[10px] whitespace-nowrap"
-        title={`Stubbed: ${stubs.join(", ")}. Nothing here is a real settlement.`}
-        variant="outline"
-      >
-        {stubs.length} stub{stubs.length === 1 ? "" : "s"}
-      </Badge>
-    ) : null}
-  </>
-);
+}): ReactElement => {
+  const status = connectionWords(
+    connectionKind({ authenticated, connected, online, ready })
+  );
+  return (
+    <>
+      {status === null ? null : (
+        <Badge className="text-[10px]" variant="secondary">
+          {status}
+        </Badge>
+      )}
+      {stubbed ? (
+        <Badge
+          className="border-drive-agent text-[10px] uppercase"
+          variant="outline"
+        >
+          local identity
+        </Badge>
+      ) : null}
+      {stubs.length > 0 ? (
+        <Badge
+          className="border-drive-agent/60 text-drive-agent-foreground shrink-0 text-[10px] whitespace-nowrap"
+          title={`Stubbed: ${stubs.join(", ")}. Nothing here is a real settlement.`}
+          variant="outline"
+        >
+          {stubs.length} stub{stubs.length === 1 ? "" : "s"}
+        </Badge>
+      ) : null}
+    </>
+  );
+};
 
 export const TopBar = ({
   connected,
@@ -55,6 +68,7 @@ export const TopBar = ({
   readonly modes: ServiceModes | null;
 }): ReactElement | null => {
   const identity = useIdentity();
+  const online = useOnline();
   const stubs = stubsOf(modes);
   const wide = useMediaQuery("(min-width: 768px)");
   return (
@@ -75,7 +89,10 @@ export const TopBar = ({
         )}
         <div className="flex flex-wrap items-center justify-end gap-1">
           <Flags
+            authenticated={identity.authenticated}
             connected={connected}
+            online={online}
+            ready={identity.ready}
             stubbed={identity.stubbed}
             stubs={stubs}
           />

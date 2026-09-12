@@ -24,6 +24,7 @@ import { LiveCardSlot } from "../components/chat/live-card-slot";
 import { ConversationHeader } from "../components/chat/recent-conversations";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
+import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useChatSurface } from "../lib/chat-context";
 import { scrollToLive } from "../lib/scroll-to-live";
 import { applySlash } from "../lib/slash";
@@ -41,9 +42,6 @@ const hasLivePage = (
   lastTurn: string | null
 ): boolean => state !== null && (state.status !== "idle" || lastTurn !== null);
 
-const composerLock = (connected: boolean): string | null =>
-  connected ? null : "Connecting…";
-
 const activeUrl = (
   state: ReturnType<typeof useChatSurface>["browser"]["state"]
 ): string | null =>
@@ -52,7 +50,7 @@ const historyDisabled = (
   loading: boolean,
   error: string | null,
   blocked: boolean,
-  connected: boolean
+  connectionLock: string | null
 ): string | null => {
   if (blocked) {
     return "Waiting for the stop request. Check its status below.";
@@ -63,7 +61,7 @@ const historyDisabled = (
   if (error !== null) {
     return "Reload history before sending.";
   }
-  return composerLock(connected);
+  return connectionLock;
 };
 export const ChatPage = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
@@ -89,6 +87,7 @@ export const ChatPage = (): ReactElement => {
     stopRun,
   } = useChatSurface();
   const [liveVisible, setLiveVisible] = useState(true);
+  const connectionLock = useConnectionLock(app.connected);
 
   const drive = driveModeOf(browser.state);
   const receipts = useMemo(() => {
@@ -152,7 +151,7 @@ export const ChatPage = (): ReactElement => {
     historyLoading,
     historyError,
     stopRun.blocked,
-    app.connected
+    connectionLock
   );
   // Loading earlier receipts or restoring Chrome must not dismiss onboarding.
   // Only work in this conversation or an explicit browser action replaces it.
