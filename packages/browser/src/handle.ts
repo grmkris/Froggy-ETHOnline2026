@@ -8,13 +8,16 @@
  * once, in the composition root, and tests drive a fixture without a provider.
  */
 
-import type { BrowserPaymentId } from "@froggy/domain";
+import type { BrowserPaymentId, TabId } from "@froggy/domain";
 import type {
   BrowserClientMessage,
   BrowserPaymentReplay,
   BrowserPaymentRequest,
   BrowserPaymentResult,
   BrowserState,
+  BrowserWalletEvent,
+  BrowserWalletObservation,
+  BrowserWalletReply,
 } from "@froggy/protocol";
 
 import type { WaitReason } from "./arbitration";
@@ -45,6 +48,23 @@ export interface BrowserHandle {
     payment: BrowserPaymentReplay
   ) => Promise<BrowserPaymentResult>;
   readonly cancelPayment: (id: BrowserPaymentId) => Promise<void>;
+  /**
+   * The injected wallet. Calls arrive attributed by Chrome to a tab and an
+   * execution context; a reply goes back to exactly that context, and false
+   * means it is gone. Deciding what to reply is never this package's job.
+   */
+  readonly subscribeWalletCalls: (
+    listener: (observation: BrowserWalletObservation) => void
+  ) => () => void;
+  readonly replyWalletCall: (
+    tabId: TabId,
+    contextId: string,
+    reply: BrowserWalletReply
+  ) => Promise<boolean>;
+  readonly emitWalletEvent: (
+    event: BrowserWalletEvent,
+    tabId?: TabId
+  ) => Promise<void>;
   /** Callers abort the agent run first. See `BrowserSession.takePage`. */
   readonly takePage: () => Promise<void>;
   /** Release the browser. A round trip to the provider, which stops billing. */

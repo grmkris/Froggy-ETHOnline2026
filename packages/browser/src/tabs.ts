@@ -12,6 +12,10 @@ import type {
   BrowserPaymentReplay,
   BrowserPaymentRequest,
   BrowserPaymentResult,
+  BrowserWalletContext,
+  BrowserWalletEvent,
+  BrowserWalletObservation,
+  BrowserWalletReply,
   TabSummary,
 } from "@froggy/protocol";
 
@@ -20,6 +24,7 @@ import { tabCdp } from "./cdp";
 import type { CdpPayload, CdpTab } from "./cdp";
 import { browserPaymentRefused, PaymentNavigation } from "./payment-navigation";
 import { PRIVATE_URL_PATTERNS } from "./private-network";
+import { WalletBridge } from "./wallet-bridge";
 
 export interface TabView extends EventTarget {
   readonly attached?: boolean;
@@ -54,6 +59,14 @@ export interface TabRegistryDeps {
   readonly createView: () => TabView | Promise<TabView>;
   readonly onStateChange: () => void;
   readonly onPayment: (request: BrowserPaymentRequest) => void;
+  /**
+   * Inject the wallet into every tab, on this chain. Null leaves pages with no
+   * wallet at all, which is what a deployment without an EVM network wants.
+   */
+  readonly wallet: {
+    readonly chainIdHex: string;
+    readonly onCall: (observation: BrowserWalletObservation) => void;
+  } | null;
 }
 
 /**
@@ -73,6 +86,7 @@ export class TabRegistry {
   private readonly deps: TabRegistryDeps;
   private readonly tabs = new Map<TabId, Tab>();
   private readonly payments = new Map<TabId, PaymentNavigation>();
+  private readonly bridges = new Map<TabId, WalletBridge>();
   private readonly refreshTimers = new Map<
     TabId,
     ReturnType<typeof setTimeout>
@@ -156,6 +170,21 @@ export class TabRegistry {
         cdp.send("Network.setBlockedURLs", { urls: PRIVATE_URL_PATTERNS })
       );
     }
+    if (this.deps.wallet !== null) {
+      // Before `ready()`: the binding and the provider script must be in
+      // place before the first document's scripts run, or the dapp's wallet
+      // discovery happens against an empty window.
+      const bridge = new WalletBridge({
+        cdp,
+        chainIdHex: this.deps.wallet.chainIdHex,
+        onCall: this.deps.wallet.onCall,
+        tabId: id,
+      });
+      this.bridges.set(id, bridge);
+      await (view.attached === true
+        ? bridge.start()
+        : bestEffort(bridge.start()));
+    }
     cdp.on("Page.domContentEventFired", () => {
       this.scheduleRefresh(tab);
     });
@@ -186,6 +215,8 @@ export class TabRegistry {
     this.clearRefresh(id);
     this.payments.get(id)?.dispose();
     this.payments.delete(id);
+    this.bridges.get(id)?.dispose();
+    this.bridges.delete(id);
     try {
       tab.view.close();
     } catch {
@@ -228,6 +259,33 @@ export class TabRegistry {
     for (const payment of this.payments.values()) {
       payment.cancelReplay();
     }
+  }
+
+  async replyWalletCall(
+    tabId: TabId,
+    contextId: string,
+    reply: BrowserWalletReply
+  ): Promise<boolean> {
+    const bridge = this.bridges.get(tabId);
+    return bridge === undefined ? false : await bridge.reply(contextId, reply);
+  }
+
+  /** Raise an EIP-1193 event in one tab, or in every tab. */
+  async emitWalletEvent(
+    event: BrowserWalletEvent,
+    tabId?: TabId
+  ): Promise<void> {
+    const bridges =
+      tabId === undefined
+        ? [...this.bridges.values()]
+        : [this.bridges.get(tabId)].filter(
+            (bridge): bridge is WalletBridge => bridge !== undefined
+          );
+    await Promise.all(bridges.map(async (bridge) => await bridge.emit(event)));
+  }
+
+  walletContexts(tabId: TabId): readonly BrowserWalletContext[] {
+    return this.bridges.get(tabId)?.liveContexts() ?? [];
   }
 
   dispose(): void {

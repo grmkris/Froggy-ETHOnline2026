@@ -1,10 +1,13 @@
-import type { BrowserPaymentId } from "@froggy/domain";
+import type { BrowserPaymentId, TabId } from "@froggy/domain";
 import type {
   BrowserClientMessage,
   BrowserPaymentReplay,
   BrowserPaymentRequest,
   BrowserPaymentResult,
   BrowserState,
+  BrowserWalletEvent,
+  BrowserWalletObservation,
+  BrowserWalletReply,
 } from "@froggy/protocol";
 
 import { bestEffort } from "./best-effort";
@@ -47,6 +50,9 @@ export class CloudBrowser implements BrowserHandle {
   private failure: string | null = null;
   private readonly listeners = new Set<
     (request: BrowserPaymentRequest) => void
+  >();
+  private readonly walletListeners = new Set<
+    (observation: BrowserWalletObservation) => void
   >();
 
   private readonly options: CloudBrowserOptions;
@@ -143,6 +149,30 @@ export class CloudBrowser implements BrowserHandle {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  subscribeWalletCalls(
+    listener: (observation: BrowserWalletObservation) => void
+  ): () => void {
+    this.walletListeners.add(listener);
+    return () => {
+      this.walletListeners.delete(listener);
+    };
+  }
+  async replyWalletCall(
+    tabId: TabId,
+    contextId: string,
+    reply: BrowserWalletReply
+  ): Promise<boolean> {
+    // Not gated on who holds the page: the answer to a request the person
+    // approved must reach the page whether the agent or the person is driving.
+    return await this.session.replyWalletCall(tabId, contextId, reply);
+  }
+  async emitWalletEvent(
+    event: BrowserWalletEvent,
+    tabId?: TabId
+  ): Promise<void> {
+    await this.session.emitWalletEvent(event, tabId);
   }
 
   async takePage(): Promise<void> {
@@ -247,6 +277,11 @@ export class CloudBrowser implements BrowserHandle {
     session.subscribePayments((request) => {
       for (const listener of this.listeners) {
         listener(request);
+      }
+    });
+    session.subscribeWalletCalls((observation) => {
+      for (const listener of this.walletListeners) {
+        listener(observation);
       }
     });
     return session;

@@ -14,13 +14,16 @@
  * should be reachable from.
  */
 
-import type { BrowserPaymentId } from "@froggy/domain";
+import type { BrowserPaymentId, TabId } from "@froggy/domain";
 import type {
   BrowserClientMessage,
   BrowserPaymentReplay,
   BrowserPaymentRequest,
   BrowserPaymentResult,
   BrowserState,
+  BrowserWalletEvent,
+  BrowserWalletObservation,
+  BrowserWalletReply,
 } from "@froggy/protocol";
 
 import { Arbitrator } from "./arbitration";
@@ -53,6 +56,11 @@ export interface BrowserSessionOptions {
   readonly blockPrivateNetwork?: boolean;
   readonly onStateChange?: (state: BrowserState) => void;
   readonly viewport?: Viewport;
+  /**
+   * The chain the injected wallet announces, as `0x`-hex. Omitted or null
+   * means no wallet is injected and pages see no `window.ethereum`.
+   */
+  readonly walletChainIdHex?: string | null;
 }
 
 /**
@@ -78,6 +86,9 @@ export class BrowserSession implements BrowserHandle {
   private readonly paymentListeners = new Set<
     (request: BrowserPaymentRequest) => void
   >();
+  private readonly walletListeners = new Set<
+    (observation: BrowserWalletObservation) => void
+  >();
   private status: BrowserState["status"] = "idle";
   private error: string | null = null;
   /** De-dupes concurrent `start()`: the second caller awaits the first. */
@@ -102,6 +113,18 @@ export class BrowserSession implements BrowserHandle {
         publish();
         void this.screencast.sync();
       },
+      wallet:
+        options.walletChainIdHex === undefined ||
+        options.walletChainIdHex === null
+          ? null
+          : {
+              chainIdHex: options.walletChainIdHex,
+              onCall: (observation) => {
+                for (const listener of this.walletListeners) {
+                  listener(observation);
+                }
+              },
+            },
     });
     this.screencast = new Screencast({
       activeTab: () => this.tabs.activeTab?.cdp ?? null,
@@ -330,6 +353,30 @@ export class BrowserSession implements BrowserHandle {
 
   async cancelPayment(id: BrowserPaymentId): Promise<void> {
     await this.tabs.cancelPayment(id);
+  }
+
+  subscribeWalletCalls(
+    listener: (observation: BrowserWalletObservation) => void
+  ): () => void {
+    this.walletListeners.add(listener);
+    return () => {
+      this.walletListeners.delete(listener);
+    };
+  }
+
+  async replyWalletCall(
+    tabId: TabId,
+    contextId: string,
+    reply: BrowserWalletReply
+  ): Promise<boolean> {
+    return await this.tabs.replyWalletCall(tabId, contextId, reply);
+  }
+
+  async emitWalletEvent(
+    event: BrowserWalletEvent,
+    tabId?: TabId
+  ): Promise<void> {
+    await this.tabs.emitWalletEvent(event, tabId);
   }
 
   async openTab(url?: string): Promise<Tab> {

@@ -17,6 +17,14 @@ export type {
   Viewport,
 } from "./session";
 export { PAGE_CONTENT_FENCE } from "./snapshot";
+export { WalletBridge } from "./wallet-bridge";
+export type { WalletBridgeDeps } from "./wallet-bridge";
+export {
+  DEFAULT_PROVIDER_IDENTITY,
+  WALLET_EVENT_GLOBAL,
+  WALLET_REPLY_GLOBAL,
+  walletProviderScript,
+} from "./wallet-provider-script";
 export type { Snapshot } from "./snapshot";
 
 export { CloudBrowser, StubCloudBrowser } from "./cloud";

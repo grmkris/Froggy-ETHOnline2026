@@ -123,6 +123,14 @@ const createFakeBrowser = (
     subscribePayments: () => () => {
       // No payment observations in registry tests.
     },
+    subscribeWalletCalls: () => () => {
+      // No injected wallet in registry tests.
+    },
+    replyWalletCall: async () => {
+      await settled();
+      return false;
+    },
+    emitWalletEvent: settled,
     close: async () => {
       await settled();
       status = "idle";
