@@ -276,8 +276,9 @@ const Home = (): ReactElement => {
  * everyone else gets Home. A local identity is not a sign-up — it walks
  * straight through the gate — so it is never sent, and reaches the welcome
  * from the link at the foot of the page like anyone who wants to see it
- * again. Nothing is drawn while the answer is on its way, so Home does not
- * flash before the welcome replaces it; if the answer never comes, Home it is.
+ * again. While the answer is on its way the skeleton stands in, so Home does
+ * not flash and the page is not a blank column; if the answer never comes,
+ * Home it is.
  */
 const useWelcomeGate = (): "welcome" | "waiting" | "home" => {
   const identity = useIdentity();
@@ -291,10 +292,24 @@ const useWelcomeGate = (): "welcome" | "waiting" | "home" => {
   return setup.seenAt === null ? "welcome" : "home";
 };
 
-export const HomePage = (): ReactElement | null => {
+const HomeSkeleton = (): ReactElement => (
+  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <output
+      aria-label="Loading home"
+      className="mx-auto flex w-full max-w-2xl flex-col gap-3.5 px-4 py-6 sm:py-10"
+    >
+      <Skeleton className="size-12 rounded-full" />
+      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </output>
+  </div>
+);
+
+export const HomePage = (): ReactElement => {
   const gate = useWelcomeGate();
   if (gate === "welcome") {
     return <Navigate replace to="/welcome" />;
   }
-  return gate === "home" ? <Home /> : null;
+  return gate === "home" ? <Home /> : <HomeSkeleton />;
 };
