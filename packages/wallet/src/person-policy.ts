@@ -33,6 +33,8 @@ import type {
 import { authorityFor, ceilingFor, parseTypedData } from "@froggy/domain";
 import { Schema } from "effect";
 
+import { ERC20_TRANSFER_ABI } from "./erc20";
+
 /**
  * The addresses a person's rules are pinned to. Supplied, never guessed.
  *
@@ -349,7 +351,7 @@ const PERMIT2_APPROVE_ABI = [
 const PINNABLE_CALLS: ReadonlyMap<
   string,
   {
-    readonly abi: unknown;
+    readonly abi: typeof ERC20_TRANSFER_ABI;
     readonly name: string;
     readonly args: readonly {
       readonly name: string;
@@ -360,7 +362,7 @@ const PINNABLE_CALLS: ReadonlyMap<
   [
     "a9059cbb",
     {
-      abi: TRANSFER_ABI,
+      abi: ERC20_TRANSFER_ABI,
       args: [
         { kind: "address", name: "to" },
         { kind: "uint", name: "amount" },
