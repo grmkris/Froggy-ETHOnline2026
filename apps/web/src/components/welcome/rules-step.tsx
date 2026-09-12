@@ -142,6 +142,10 @@ const Notes = ({
     <li>{balanceWords(wallet)}</li>
     <li className="text-muted-foreground">{rulesWords(allowance)}</li>
     <li className="text-muted-foreground">
+      Privy enforces those numbers on the EVM leg today. Froggy’s own engine
+      holds the daily cap.
+    </li>
+    <li className="text-muted-foreground">
       Only services you have added can be paid. A link you paste is checked
       first, never paid.
     </li>
@@ -288,7 +292,7 @@ export const RulesStep = ({
   return (
     <>
       <StepHeading
-        detail="One click sets the rules. They are checked by code on every payment, outside the AI — Froggy cannot talk its way past them."
+        detail="One click sets the rules. Privy enforces the numbers on the EVM leg today, and Froggy’s own engine holds the daily cap — Froggy cannot talk its way past them."
         illustration={
           <StepGlyph>
             <SlidersHorizontalIcon aria-hidden className="size-6" />

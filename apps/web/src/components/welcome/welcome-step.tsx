@@ -59,7 +59,7 @@ const NOTICE: readonly { readonly icon: LucideIcon; readonly text: string }[] =
     },
     {
       icon: DatabaseIcon,
-      text: "We keep your email, your receipts and that Chrome’s session, which is wiped when you leave. Delete everything from Account, in one click.",
+      text: "We keep your email, your receipts, and a Browser Use Chrome profile that stays with you so the agent browses as you. Delete everything from Account, in one click.",
     },
   ];
 

@@ -70,6 +70,10 @@ test("the welcome runs through its three steps and lands on Home", async ({
     page.getByRole("radio", { name: "Use Froggy here" })
   ).toBeChecked();
   await expect(page.getByText("You are talking to an AI agent.")).toBeVisible();
+  await expect(
+    page.getByText("a Browser Use Chrome profile that stays with you")
+  ).toBeVisible();
+  await expect(page.getByText("wiped when you leave")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("welcome-1.png") });
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -88,6 +92,15 @@ test("the welcome runs through its three steps and lands on Home", async ({
   await expect(
     page.getByText("Froggy can look but not pay here.")
   ).toBeVisible();
+  await expect(
+    page.getByText("Privy enforces those numbers on the EVM leg today.")
+  ).toBeVisible();
+  await expect(
+    page.getByText("Froggy’s own engine holds the daily cap.")
+  ).toBeVisible();
+  await expect(
+    page.getByText(/\bleash\b|\bpocket\b|\ballowance\b|\btop-up\b/iu)
+  ).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("welcome-2.png") });
   await page.getByRole("button", { name: "Back" }).click();
   await expect(
