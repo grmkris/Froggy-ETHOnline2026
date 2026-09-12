@@ -27,6 +27,18 @@ Observed at block `58375958`, hash `0x8f3f1361377a38b20817bca272d62ac69bd04608db
 | permit | `0x000000000022D473030F116dDEE9F6B43aC78BA3` | `0x5208783f52488f7d3493e5e38311ab707c1d75457fe472a19b0b4d57d66a7fca` |
 | quote | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` | `0x864cc9ad53b338b82da1f7cab85ab0b3d5c8861acb422b6fec63cf36234f36a6` |
 
+## Token template fingerprint
+
+Observed at block `60969329` on eight factory-registered tokens (including the curve and graduated fixtures below). Every token's runtime is exactly 3248 bytes. Three 20-byte immutable address slots differ between tokens — deployer/fee recipient at offsets `391` and `541`, and the registered curve at offset `1106`. Zeroing those slots before hashing yields one shared fingerprint:
+
+| Field | Value |
+| --- | --- |
+| length | `3248` |
+| maskedOffsets | `391, 541, 1106` |
+| masked keccak256 | `0x36133854884d6c3e4287713e2d4f213db1fcc39913fcdf619960ab8fd0bd9101` |
+
+A factory registration plus this masked hash match is the control screen for a genuine, unmodified Pons V2 token. A registration without a hash match is reported, not treated as a clean template.
+
 ## Synthetic local fork
 
 A localhost-only Anvil fork used synthetic ETH and USDG balances and an impersonated local test address. Its upstream proxy allowed only reads pinned to one block, rejected transaction-submission methods and never forwarded local transaction identifiers. Synthetic balance changes were accepted only after an independent token balance read matched the injected amount.

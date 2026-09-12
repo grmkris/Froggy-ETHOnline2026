@@ -6,19 +6,22 @@ The prompt that started this is kept as a research note at [`docs/research/robin
 
 ## The short version
 
-Froggy was already further into this than the prompt assumes. The Pons V2 deployments were pinned by address _and_ runtime hash, launch logs were read with reorg-safe cursors, and an archive-capable Robinhood endpoint was configured. Three commits closed the cheap gaps. The expensive remaining gap is holder distribution, and it is tractable.
+Froggy was already further into this than the prompt assumes. The Pons V2 deployments were pinned by address _and_ runtime hash, launch logs were read with reorg-safe cursors, and an archive-capable Robinhood endpoint was configured. Holder reconstruction, bounded `eth_getLogs`, GoPlus screening, a composite paid `token_research` op, Pools.trade venue detection, and fail-closed research predicates on trading rules landed on 12 September 2026. See [decision 0023](../decisions/0023-research-gated-rules.md).
 
-**No API keys need to be bought.** Every remaining gap is either free or already paid for. See [Provider decisions](#provider-decisions) for what not to buy and why.
+**No API keys need to be bought** for the remaining free adapters (Sourcify, GeckoTerminal). See [Provider decisions](#provider-decisions) for what not to buy and why.
 
 ## What landed
 
-| Commit | Change |
+| Change | Detail |
 | --- | --- |
-| `55171da` | Birdeye reads Robinhood markets. One CAIP-2 mapping; the provider already supported the chain. |
-| `b92aecc` | Uniswap quotes Robinhood pools by default. The adapter already listed the chain; nothing selected it. |
-| `e333e00` | `pons_token` exposes Pons launch state as a read-only tool. |
+| Birdeye / Uniswap on Robinhood | Markets and ordinary pool quotes |
+| `pons_token` | Free Pons launch state at one pinned block, including template fingerprint |
+| `token_research` | Paid composite: launcher detection (Pons + Pools.trade), template, cohort, reconstructed holders, GoPlus |
+| Bounded `eth_getLogs` | On `rpc_read` and inside research; span ≤ 10k blocks, ≤ 100 logs |
+| Research-gated rules | Human attaches fail-closed predicates; only own-RPC bases may refuse signing |
+| Venue adapters | Pons and Pools.trade on Robinhood; Clanker, Zora, Flaunch, Virtuals on Base (see `docs/evidence/`) |
 
-`pons_token` reports, at one pinned block: whether the Pons V2 factory registered the token at all, its phase, curve address, deployer, creator fee recipient, creator tax, graduation threshold and buyback flag, then either the curve's reserves, sellable supply and fee basis points, or the graduated pool's key, price, tick and active liquidity.
+`pons_token` reports, at one pinned block: whether the Pons V2 factory registered the token at all, its phase, curve address, deployer, creator fee recipient, creator tax, graduation threshold and buyback flag, then either the curve's reserves, sellable supply and fee basis points, or the graduated pool's key, price, tick and active liquidity. It also reports whether runtime bytecode matches the reviewed masked template.
 
 It reads through its own function rather than `readPonsSnapshot`, which refuses exactly the states research cares about — a closed curve, a pool with no active liquidity, an unsupported phase. Those refusals are correct in front of the signer and wrong for research, where "this curve is closed" is the answer. The pool key and its hashing are imported from the execution path rather than re-derived, so a second encoding cannot drift from the one that gets signed. A changed dependency runtime hash stops the read instead of answering through a contract nobody reviewed.
 
@@ -30,6 +33,7 @@ Verified against Robinhood mainnet on four addresses: a curve-phase token, a gra
 | --- | --- | --- |
 | Chain-pinned bounded reads | `rpc_read` | Verifies `eth_chainId` against the requested CAIP-2 before every read, which is the prompt's "never silently switch chains" rule |
 | Pons launch state, curve or pool | `pons_token` | Four live addresses, above |
+| Composite research | `token_research` | Launcher, template, cohort, holders, GoPlus at one block |
 | Pons launch detection | `watch_launches` / `watch_status` | `TokenLaunched` logs on bounded block cursors, reorg-safe |
 | Market cap, price, volume, new listings, trending | `market_search`, `token_inspect` | Live: YOLO overview; listings STUBO / VESSEL / WHADAR minutes old |
 | Quotes on ordinary Robinhood pools | `quote_action` | Live USDG→WETH quote with approval information |
@@ -50,25 +54,13 @@ Measured on the public RPC (`https://rpc.mainnet.chain.robinhood.com`) and on th
 
 ## What does not work
 
-### Holder count and distribution — the real gap, and tractable
+### Holder count and distribution — landed in `token_research`
 
-There is no cheap source. Birdeye's holder endpoint answers `"Chain robinhood is not supported yet"`. Alchemy's `getOwnersForContract` is NFT-only and returns an empty set for an ERC-20. So it has to be reconstructed from Transfer history.
+Birdeye's holder endpoint still answers `"Chain robinhood is not supported yet"`. Reconstruction pages `Transfer` logs via bounded `eth_getLogs`, sums balances, excludes venue custody addresses, and reconciles against `totalSupply()` at the same pinned block. Partial coverage and supply mismatch are reported, never rounded into an authoritative number. Rule gates require `basis: "reconstructed"` and a reconciled complete scan.
 
-The shape of the work:
+### Token security screening — landed (research-only)
 
-1. Page `alchemy_getAssetTransfers` from block 0, 1,000 transfers per page, with an explicit page budget. Both sampled Pons tokens exceed one page — the first 1,000 transfers alone held 230 and 214 distinct addresses — so paging is mandatory, and the budget has to be a stated ceiling rather than "until done".
-2. Sum deltas into a balance map. Holders are addresses with a positive balance.
-3. **Cross-check the reconstructed total against `totalSupply()`.** A match proves the reconstruction is complete. A mismatch must be reported as a gap, never rounded into a number that reads as authoritative.
-
-Two open decisions, in [Open decisions](#open-decisions).
-
-Effort: about half a day including the stub and tests. This is the item that answers "paste an address and tell me about the holders", which is what a pasted address usually means in practice.
-
-### Token security screening — free, not built
-
-**GoPlus** supports chain 4663 with **no key at all**. On a graduated Pons token it returned the full screen: `is_honeypot`, `is_mintable`, `is_proxy`, `transfer_pausable`, `is_blacklisted`, `selfdestruct`, `hidden_owner`, `can_take_back_ownership`, `slippage_modifiable`, owner percent.
-
-Coverage is partial and the adapter must say which it got. A pre-graduation curve token came back thin (`is_open_source: 0`, no tax figures) and one trending token was absent from the response entirely. "Screened clean" and "not indexed" are different answers and must not collapse into one.
+**GoPlus** supports chain 4663 with **no key at all**. The adapter distinguishes observed / not indexed / unavailable. GoPlus never gates signing.
 
 Birdeye cannot fill this: its `token_security` endpoint answers **401** for Robinhood on this plan. `token_inspect` therefore reports `security.status = "unavailable"` with no facts, which is the honest result — an absence of evidence, not a clean screen.
 
@@ -80,9 +72,9 @@ Birdeye cannot fill this: its `token_security` endpoint answers **401** for Robi
 
 **GeckoTerminal** carries a `robinhood` network with live pools and token detail, free and without a key. Nothing else we have provides OHLCV or liquidity history. It is also how the non-Pons side of the chain becomes visible — the USDG/WETH 0.01% pool surfaced there first.
 
-### `eth_getLogs` is not reachable from any tool
+### Bounded `eth_getLogs` — landed
 
-The `rpc_read` allowlist is exactly `eth_blockNumber`, `eth_getBalance`, `eth_getCode`, `eth_call`, `eth_getTransactionReceipt`. No logs, no `eth_getStorageAt`, no block-by-number. Log history exists at the RPC layer and no agent can reach it. Adding it needs a bounded block range and a result cap, matching the existing method guards.
+`rpc_read` allows `eth_getLogs` with a required address, span ≤ 10,000 blocks, ≤ 4 topics and ≤ 100 logs. Research uses the same helper internally; the model never drives the paging loop.
 
 ### Not easily fixable — stop trying
 
@@ -115,23 +107,20 @@ Buy nothing. Recorded so the question is not reopened from scratch:
 | Price, volume, liquidity history | GeckoTerminal |
 | Market cap, new listings, trending | Birdeye |
 | Curve phase, reserves, sellable supply, taxes, graduation | `pons_token`, our own read |
-| Holder concentration, launch cohort | `alchemy_getAssetTransfers` |
+| Holder concentration, launch cohort | `token_research` (reconstructed Transfer history + venue events) |
 | Quote at size | The Pons quoter for Pons tokens; Uniswap for everything else |
 
 ## Next steps
 
 Ordered. Each new provider costs a loud stub and both markers as well as the adapter — per [`AGENTS.md`](../../AGENTS.md), that is the per-integration tax, not the HTTP call.
 
-1. **GoPlus adapter.** Largest capability gain per hour, and it closes the question a pasted address usually means. Must distinguish "screened clean" from "not indexed".
-2. **Holder reconstruction**, with `eth_getLogs` added to the `rpc_read` allowlist as part of the same work.
-3. **Sourcify adapter.** Removes the Blockscout dependency entirely.
-4. **GeckoTerminal adapter.** History, and visibility into the non-Pons side of the chain.
+1. **Sourcify adapter.** Removes the Blockscout dependency entirely.
+2. **GeckoTerminal adapter.** History, and visibility into the non-Pons side of the chain.
+3. **Pools.trade insider trades.** Registration is live; v4 Swap cohort filtering is still empty (`capabilities.insiders: false`).
 
 ## Open decisions
 
-- **Is holder reconstruction a paid service or a free tool?** It is many provider calls per answer, so it fits the `watch_launches` fixed-bundle-price pattern better than a free tool. `pons_token` was made free because it is a handful of reads of our own pinned contracts.
-- **What is the page budget** before holder reconstruction stops and reports "counted from N transfers up to block B, more history unread"?
-- **Should `pons_token` stay free?** It is currently the only unpaid chain read in the trading surface, which is a slight inconsistency with `rpc_read` being sold.
+- **Should `pons_token` stay free?** It is currently the only unpaid chain read in the trading surface, which is a slight inconsistency with `rpc_read` and `token_research` being sold.
 
 ## Repeating these checks
 

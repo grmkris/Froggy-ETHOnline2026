@@ -1,6 +1,6 @@
 # Trading services and execution
 
-Froggy exposes token search, token inspection, bounded RPC reads, unsigned swap quotes and fixed-capacity listing watches through Services, chat, HTTP and MCP. Each purchase uses the existing service-task coordinator and the person's spending rules. The customer pays Froggy's configured Hedera x402 service fee; ordinary server credentials cover the upstream provider call. These operations do not spend investment capital or submit trades.
+Froggy exposes token search, token inspection, composite token research, bounded RPC reads, unsigned swap quotes and fixed-capacity listing watches through Services, chat, HTTP and MCP. Each purchase uses the existing service-task coordinator and the person's spending rules. The customer pays Froggy's configured Hedera x402 service fee; ordinary server credentials cover the upstream provider call. These operations do not spend investment capital or submit trades.
 
 ## Configure the providers
 
@@ -14,11 +14,11 @@ UNISWAP_CHAINS='[{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip1
 TRADING_PRICES_USD_MICROS={}
 ```
 
-Birdeye supplies search and inspection. Uniswap supplies quotes and approval checks. `TRADING_RPC_ENDPOINTS` maps each supported CAIP-2 network to its Quicknode HTTPS endpoint, for example `{"eip155:8453":"https://YOUR_ENDPOINT.quiknode.pro/YOUR_TOKEN/"}`. Replace that illustrative URL through server configuration. API keys and credential-bearing URLs are held as redacted configuration and never belong in tool arguments or browser code. Restart the server after configuration changes.
+Birdeye supplies search and inspection. Uniswap supplies quotes and approval checks. GoPlus supplies optional token screens for research (never for signing). `TRADING_RPC_ENDPOINTS` maps each supported CAIP-2 network to an HTTPS JSON-RPC endpoint (Quicknode, Alchemy, or the chain's public RPC), for example `{"eip155:8453":"https://YOUR_ENDPOINT.example/"}`. Replace that illustrative URL through server configuration. API keys and credential-bearing URLs are held as redacted configuration and never belong in tool arguments or browser code. Restart the server after configuration changes.
 
 `UNISWAP_CHAINS` selects configured networks and router versions. The default enables Ethereum, Sepolia, Base, Base Sepolia and Robinhood with version `2.1.1`; the adapter filters out unsupported network/version combinations. Data-network support is separate from the wallet and payment networks.
 
-`TRADING_PRICES_USD_MICROS` sets the price of each operation. Keys are `market_search`, `token_inspect`, `rpc_read`, `quote_action` and `watch_launches`; values are positive integers up to `100000000`. One dollar is `1000000` USD micros. For example, `{"rpc_read":10000}` sets a one-cent RPC service fee. Choose prices after reviewing provider costs and quotas; this example is not a measured cost recommendation.
+`TRADING_PRICES_USD_MICROS` sets the price of each operation. Keys are `market_search`, `token_inspect`, `rpc_read`, `quote_action`, `watch_launches` and `token_research`; values are positive integers up to `100000000`. One dollar is `1000000` USD micros. For example, `{"rpc_read":10000}` sets a one-cent RPC service fee. Choose prices after reviewing provider costs and quotas; this example is not a measured cost recommendation.
 
 A live paid operation is unavailable unless its provider is configured, its network is supported and its price is explicitly set. Existing wallet, Hedera funding and spending requirements still apply. With simulated Hedera payments, an omitted price uses the fixture price of `10000` USD micros. Missing provider credentials select fixtures. Configured providers still make live API calls when payment is simulated, so inspect the catalog's `note` as well as its status.
 
@@ -54,6 +54,22 @@ Inspect a token's market data and reported security facts:
     "address": "0x1111111111111111111111111111111111111111"
   },
   "idempotencyKey": "inspect-example-1"
+}
+```
+
+Composite token research at one pinned block (launcher detection, template, launch cohort, reconstructed holders, optional GoPlus screen). Networks are every EVM entry in `TRADING_RPC_ENDPOINTS`. Sources report per-status; GoPlus never authorizes a trade. MCP `froggy_token_research` and chat `token_research` buy the same operation.
+
+```json
+{
+  "v": 1,
+  "service": "token_research",
+  "input": {
+    "network": "eip155:4663",
+    "address": "0x1111111111111111111111111111111111111111",
+    "cohortWindowBlocks": 600,
+    "holderPageBudget": 20
+  },
+  "idempotencyKey": "research-example-1"
 }
 ```
 
@@ -98,12 +114,13 @@ Quote amounts are decimal integer strings in token base units, not display amoun
 
 Connect an authenticated Streamable HTTP MCP client to `/mcp` and grant `services` scope. `/api/mcp` is also supported. Use `froggy_services` to inspect the catalog.
 
-| Operation                 | MCP tool               | Chat tool       |
-| ------------------------- | ---------------------- | --------------- |
-| Search or recent listings | `froggy_market_search` | `market_search` |
-| Token inspection          | `froggy_token_inspect` | `token_inspect` |
-| Bounded RPC read          | `froggy_rpc_read`      | `rpc_read`      |
-| Unsigned swap quote       | `froggy_quote_action`  | `quote_action`  |
+| Operation                 | MCP tool                | Chat tool        |
+| ------------------------- | ----------------------- | ---------------- |
+| Search or recent listings | `froggy_market_search`  | `market_search`  |
+| Token inspection          | `froggy_token_inspect`  | `token_inspect`  |
+| Token research            | `froggy_token_research` | `token_research` |
+| Bounded RPC read          | `froggy_rpc_read`       | `rpc_read`       |
+| Unsigned swap quote       | `froggy_quote_action`   | `quote_action`   |
 
 Each named tool takes the same object shape: `{"idempotencyKey":"…","input":{…}}`. Its `input` matches the corresponding HTTP example; the tool name supplies the operation and the server supplies the wire version. For example, `froggy_rpc_read` accepts:
 
@@ -132,14 +149,14 @@ A failed paid task is not automatically refunded or purchased again. An uncertai
 ## Current limits
 
 - Market results are bounded provider snapshots. Missing prices, token controls, taxes or security facts remain unknown. Recent listings are not a complete launch-event stream.
-- EVM RPC allows `eth_blockNumber`, `eth_getBalance`, `eth_getCode`, `eth_call` and `eth_getTransactionReceipt`. Block-dependent calls require an explicit block number or supported tag; `pending` is refused. `eth_call` accepts at most 4096 calldata bytes and uses a fixed 500,000 gas ceiling.
+- EVM RPC allows `eth_blockNumber`, `eth_getBalance`, `eth_getCode`, `eth_call`, `eth_getTransactionReceipt` and bounded `eth_getLogs` (required `address`, span ≤ 10,000 blocks, ≤ 4 topics, ≤ 100 logs). Block-dependent calls require an explicit block number or supported tag; `pending` is refused. `eth_call` accepts at most 4096 calldata bytes and uses a fixed 500,000 gas ceiling.
 - Solana RPC allows `getSlot`, `getBalance`, `getAccountInfo`, mint-filtered `getTokenAccountsByOwner` and `getSignatureStatuses`. Account reads require `confirmed` or `finalized`; account data uses a base64 slice of at most 1024 bytes. Account lists and signature lists are capped at 20. Signature lookup uses the recent cache; null means unknown.
 - RPC verifies the endpoint's chain ID or genesis before the first read. Provider responses are capped at 64,000 bytes and normalized results at 48,000 serialized characters. Unsafe numeric account amounts are refused. Arbitrary endpoints, sending, signing, debug methods, broad account scans and log queries are unavailable.
 - Quotes use Uniswap Classic routing with V2/V3 and no-hook V4 routes. Approval and permit information is an unsigned summary; Froggy obtains no trade signature and returns no execution capability. Native wrapping, order routes, hook-dependent pools and launch-curve builders are unsupported. Any provider simulation result is explicitly not independent verification; token taxes are not assessed and gas estimates exclude approvals.
 
 ## Robinhood Chain coverage
 
-`eip155:4663` is supported by `market_search`, `token_inspect`, `rpc_read`, `quote_action` and `watch_launches`, and by the unpaid `pons_token` read described below. Each still requires its provider to be configured and its price to be set.
+`eip155:4663` is supported by `market_search`, `token_inspect`, `token_research`, `rpc_read`, `quote_action` and `watch_launches`, and by the unpaid `pons_token` read described below. Each still requires its provider to be configured and its price to be set.
 
 Two consequences are worth knowing before reading a result:
 
@@ -158,9 +175,9 @@ It is chain state and nothing more. It does not count holders, does not describe
 
 Execution uses a separate capital ledger and immutable approvals. It does not inherit authority from buying a research service. Open the wallet trade panel or inspect `GET /api/trades/capabilities` (`froggy_trade_capabilities` in MCP, `trade_capabilities` in chat). Its `routes` describe the venue, action, network, wallet, mode and limitations. A live mode indicates configuration, not a verified fill.
 
-Uniswap execution requires the Uniswap key, configured chain and Quicknode endpoint, live Privy, and `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT`. Only reviewed Ethereum execution networks are enabled; Base execution remains unavailable until rollup data costs have an approved accounting model. Current execution is exact-input legacy ERC-20 through a single V3 path. Allowances and swaps each require review.
+Uniswap execution requires the Uniswap key, a configured chain and HTTPS JSON-RPC endpoint in `TRADING_RPC_ENDPOINTS`, live Privy, and `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT`. Reviewed deployments on Ethereum mainnet, Sepolia, Base, Base Sepolia and Robinhood Chain are executable for ordinary (no-hook) V3 pools. Robinhood uses Universal Router 2.1.1 with an empty `minHopPriceX36` array; mainnet and Base pin Universal Router 2.0. Rollup L1 data fees and Isthmus operator fees on Base are reserved inside `maxNativeFee` using a margined GasPriceOracle estimate at prepare and again before sign; see [decision 0022](decisions/0022-rollup-fee-budget.md). Robinhood Nitro parent gas stays inside `gasUsed` (same receipt path as Pons). Pons curve and hooked graduated pools remain on the Pons venue — see [UNISWAP_ROBINHOOD.md](evidence/UNISWAP_ROBINHOOD.md). Current Uniswap execution is exact-input legacy ERC-20 through a single V3 path. Allowances and swaps each require review.
 
-Jupiter execution requires `JUPITER_API_KEY`, a Solana mainnet entry in `TRADING_RPC_ENDPOINTS`, and live Privy with the person's Solana wallet. It uses owner-paid Metis transactions and independent Quicknode simulation. Reviewed Raydium, Meteora and Lifinity instruction variants are supported; unknown variants, Token-2022, extra signers and delegated accounts are refused. Enter `native` for SOL. Native budgets are integer lamports; EVM budgets are integer wei. The budget includes conservative account-creation costs where applicable.
+Jupiter execution requires `JUPITER_API_KEY`, a Solana mainnet entry in `TRADING_RPC_ENDPOINTS`, and live Privy with the person's Solana wallet. It uses owner-paid Metis transactions and independent RPC simulation. Reviewed Raydium, Meteora and Lifinity instruction variants are supported; unknown variants, Token-2022, extra signers and delegated accounts are refused. Enter `native` for SOL. Native budgets are integer lamports; EVM budgets are integer wei. The budget includes conservative account-creation costs where applicable.
 
 `POST /api/trades` prepares a versioned `TradePrepare` request. `GET /api/trades/<id>` retrieves it and `POST /api/trades/<id>/simulate` rechecks the saved payload. MCP exposes `froggy_trade_prepare`, `froggy_trade_status` and `froggy_trade_simulate`; chat exposes the same names without the prefix. Reusing the same key returns the original proposal, and changing inputs under that key is refused.
 
@@ -198,7 +215,7 @@ The provider has no replay cursor. Every watch therefore reports incomplete cove
 
 ## Human-issued rules and automatic launch reactions
 
-The Trading rules panel is in **Services → Trading desk**. Choose a route, exact assets, principal and native-fee caps, maximum entries, maximum open positions, slippage and expiry. Only the authenticated human can authorize or revoke a rule. An agent may call `froggy_trade_execute` with `tradeId` and an existing `ruleId`; HTTP uses `POST /api/trades/<id>/execute` with `{ "v": 1, "ruleId": "…" }`. Preparation and simulation do not create authority.
+The Trading rules panel is in **Services → Trading desk**. Choose a route, exact assets, principal and native-fee caps, maximum entries, maximum open positions, slippage and expiry. On the Pons route, optional research requirements (template match, launch-window insiders, top-holder share) fail closed before signing; see [decision 0023](decisions/0023-research-gated-rules.md). Only the authenticated human can authorize or revoke a rule. An agent may call `froggy_trade_execute` with `tradeId` and an existing `ruleId`; HTTP uses `POST /api/trades/<id>/execute` with `{ "v": 1, "ruleId": "…" }`. Preparation and simulation do not create authority.
 
 For automatic Pons or Pump reactions, buy a bounded listing watch first and select it in the rule form. The rule applies only to fresh observations after authorization and native membership is checked before signing. Configure a maximum holding time, optional profit/loss or quote-reserve thresholds and at most three exit attempts. Checks run every 30 seconds, share the watch's fixed capacity, and never renew automatically. A position may remain open after capacity, authority or route availability ends. Revocation and Stop watch prevent further authorized signing; already submitted transactions retain their recovery path.
 

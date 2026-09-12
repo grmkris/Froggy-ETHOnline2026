@@ -22,3 +22,5 @@ Reserve on the ledger **before** the outbound call, with an idempotency key. Too
 Write a receipt for a refusal as well as a payment. "It did not spend" and "it was told not to" are different facts, and only one of them is reassuring.
 
 A stub must be visibly a stub in the data, not only in the UI. A screenshot of a faked run must never pass for a settled one.
+
+Token research reads are tolerant: every source says `observed`, `not_indexed`, `unavailable`, or `not_applicable`, and GoPlus never authorizes a trade. Research predicates on a trading rule are the opposite — fail closed, ≤30 s fresh, and only own-RPC bases (template, venue-event cohort, reconstructed holders) may refuse signing. Buying research does not grant trading authority; a human attaches the policy to a rule.

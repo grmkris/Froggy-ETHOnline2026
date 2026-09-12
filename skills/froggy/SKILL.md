@@ -80,7 +80,8 @@ It has every scope and does not expire until the person disconnects it. Keep it 
 
 - `froggy_services` takes no arguments and returns availability, prices and input limits without a purchase.
 - `froggy_service_run` takes `v: 1`, `service`, `prompt` and a stable `idempotencyKey`; it buys and starts the requested service.
-- `froggy_market_search`, `froggy_token_inspect`, `froggy_rpc_read` and `froggy_quote_action` each take `input` and a stable `idempotencyKey`. Their object schemas define the structured inputs; these named tools do not take `v` or `service`. Read supported networks and prices from the catalog first.
+- `froggy_market_search`, `froggy_token_inspect`, `froggy_rpc_read`, `froggy_quote_action` and `froggy_token_research` each take `input` and a stable `idempotencyKey`. Their object schemas define the structured inputs; these named tools do not take `v` or `service`. Read supported networks and prices from the catalog first.
+- `froggy_token_research` returns per-source status (observed / not_indexed / unavailable / not_applicable) for launcher, template, cohort, holders and GoPlus. Absence of evidence is not a clean screen and does not create trading authority.
 - `froggy_service_status` takes `id` and returns that service task's state, result and artifacts.
 
 - `froggy_trade_capabilities` lists execution routes, owner wallets and live, simulated or unavailable status. Discovery coverage is separate from execution coverage.
