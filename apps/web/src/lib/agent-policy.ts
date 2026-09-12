@@ -20,16 +20,26 @@ export type PolicyChange =
   | { readonly kind: "changed"; readonly allowance: Allowance }
   | { readonly kind: "refused"; readonly reason: string };
 
-/** The signer attached, or not; and if the person chose numbers, saved or not. */
+/**
+ * The signer attached, or not; and if the person chose numbers, saved or not.
+ *
+ * `half-moved` is a move that got as far as taking the old signer off and no
+ * further. The agent can pay nothing until the person presses again, and the
+ * button they press will now offer to attach rather than to move.
+ */
 export type SignerGrant =
   | { readonly kind: "granted" }
   | { readonly kind: "granted-unsaved"; readonly reason: string }
+  | { readonly kind: "half-moved"; readonly reason: string }
   | { readonly kind: "refused"; readonly reason: string };
 
 /** What the person is told about a grant, wherever it was asked for. */
 export const signerGrantWords = (grant: SignerGrant): string => {
   if (grant.kind === "refused") {
     return `Privy refused: ${grant.reason}`;
+  }
+  if (grant.kind === "half-moved") {
+    return `The old rules were removed but yours were not attached: ${grant.reason} Press again to attach them; the agent can pay nothing until you do.`;
   }
   if (grant.kind === "granted-unsaved") {
     return `Granted, but your numbers were not saved: ${grant.reason}`;
@@ -186,28 +196,46 @@ export const attachAgentSigner = async (input: {
   readonly grant: (request: {
     readonly address: string;
     readonly policyId: string;
+    readonly replace: boolean;
     readonly signerId: string;
   }) => Promise<
     | { readonly kind: "granted" }
-    | { readonly kind: "refused"; readonly reason: string }
+    | {
+        readonly kind: "refused";
+        readonly reason: string;
+        readonly removed: boolean;
+      }
   >;
   readonly policyId: string;
+  /** The signer is on the wallet under the app-wide rules and has to move. */
+  readonly replace: boolean;
   readonly sign: Parameters<typeof changeAllowance>[0]["sign"];
   readonly signerId: string;
 }): Promise<SignerGrant> => {
   const result = await input.grant({
     address: input.address,
     policyId: input.policyId,
+    replace: input.replace,
     signerId: input.signerId,
   });
+  const token = await input.getToken();
+  // Read back whenever Privy may have changed the wallet — after a grant, and
+  // after a move that got as far as the removal — so the pane says what is
+  // actually there and the button offers the right next step.
+  const refresh = async (): Promise<void> => {
+    await fetch("/api/agent-signer/refresh", {
+      headers: token === null ? {} : { authorization: `Bearer ${token}` },
+      method: "POST",
+    }).catch(() => null);
+  };
   if (result.kind === "refused") {
+    if (result.removed) {
+      await refresh();
+      return { kind: "half-moved", reason: result.reason };
+    }
     return { kind: "refused", reason: result.reason };
   }
-  const token = await input.getToken();
-  await fetch("/api/agent-signer/refresh", {
-    headers: token === null ? {} : { authorization: `Bearer ${token}` },
-    method: "POST",
-  }).catch(() => null);
+  await refresh();
   if (input.chosen === null) {
     return { kind: "granted" };
   }

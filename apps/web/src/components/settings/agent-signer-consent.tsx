@@ -70,6 +70,7 @@ export const AgentSignerConsent = ({
       getToken,
       grant,
       policyId: theirs,
+      replace: standing === "shared",
       sign: identity.signPrivyRequest,
       signerId: agentSignerId,
     });
