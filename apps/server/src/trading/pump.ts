@@ -5,6 +5,7 @@ import { Schema } from "effect";
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
 import { jupiterMint, WRAPPED_SOL } from "./jupiter";
+import { SOLANA_MAINNET } from "./networks";
 
 const Positive = TradingUnits.check(
   Schema.makeFilter((value) => BigInt(value) > 0n)
@@ -25,7 +26,7 @@ export const pumpOrder = async (
   outbound?: OutboundOptions
 ) => {
   if (
-    input.network !== "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" ||
+    input.network !== SOLANA_MAINNET ||
     input.venue !== "pump" ||
     input.action !== "swap" ||
     (input.tokenIn === "native") === (input.tokenOut === "native") ||

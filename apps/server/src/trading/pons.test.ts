@@ -13,6 +13,7 @@ import {
 } from "viem";
 import type { Address, TransactionReceipt } from "viem";
 
+import { PONS_NETWORK } from "./networks";
 import { PONS_ABI, PONS_DEPLOYMENTS, ponsCurveQuote, ponsToken } from "./pons";
 import type { PonsSnapshot } from "./pons";
 import { ponsSettlementValues } from "./pons-receipt";
@@ -23,7 +24,7 @@ const TOKEN = "0x2222222222222222222222222222222222222222";
 const CURVE = "0x3333333333333333333333333333333333333333";
 const OWNER = "0x1111111111111111111111111111111111111111";
 const input = Schema.decodeUnknownSync(TradeInput)({
-  network: "eip155:4663",
+  network: PONS_NETWORK,
   venue: "pons",
   action: "swap",
   wallet: OWNER,

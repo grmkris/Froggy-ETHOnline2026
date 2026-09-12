@@ -4,10 +4,11 @@ import { RpcReadInput, RpcReadResult } from "@froggy/protocol";
 import { Redacted, Schema } from "effect";
 
 import { std } from "../std";
+import { SOLANA_MAINNET } from "./networks";
 import { liveTradingRpc, preflightRpcRead, stubTradingRpc } from "./rpc";
 
 const EVM = "eip155:8453";
-const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const SOLANA = SOLANA_MAINNET;
 // Synthetic fixtures, never deployment identities or configured live endpoints.
 const ADDRESS = "0x1111111111111111111111111111111111111111";
 const HASH = `0x${"ab".repeat(32)}`;

@@ -6,6 +6,8 @@ import {
   recoverTransactionAddress,
 } from "viem";
 
+import { chainIdOf } from "./networks";
+
 const isType2 = (value: string): value is `0x02${string}` =>
   isHex(value) && value.startsWith("0x02") && value.length % 2 === 0;
 
@@ -14,12 +16,12 @@ const checkTransaction = (
   expected: Extract<TradePayload, { kind: "evm" }>,
   transaction: ReturnType<typeof parseTransaction>
 ): void => {
-  const chainId = Number(network.slice(7));
+  const chainId = chainIdOf(network);
   if (transaction.type !== "eip1559") {
     throw new Error("trade.signature: unsupported transaction type.");
   }
   if (
-    !Number.isSafeInteger(chainId) ||
+    chainId === null ||
     transaction.chainId !== chainId ||
     transaction.to?.toLowerCase() !== expected.to.toLowerCase() ||
     (transaction.data ?? "0x").toLowerCase() !== expected.data.toLowerCase() ||

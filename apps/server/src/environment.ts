@@ -41,6 +41,8 @@ import type {
 } from "@froggy/protocol";
 import { Config, Effect, Redacted, Result, Schema } from "effect";
 
+import { PONS_NETWORK, SOLANA_MAINNET } from "./trading/networks";
+
 /**
  * The placeholder values. A variable equal to its placeholder is *unset* as far
  * as this module is concerned — which is what makes a `.env.example` copied
@@ -533,7 +535,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
     ).pipe(Config.withDefault("{}"));
     const uniswapChainsRaw = yield* Config.string("UNISWAP_CHAINS").pipe(
       Config.withDefault(
-        '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"eip155:4663","routerVersion":"2.1.1"}]'
+        `[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"${PONS_NETWORK}","routerVersion":"2.1.1"}]`
       )
     );
     const rpcEndpoints: Record<string, Redacted.Redacted> = {};
@@ -596,8 +598,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
     const jupiterLive =
       modeOf([Redacted.value(jupiterApiKey), "REPLACE_ME_JUPITER_API_KEY"]) ===
       "live";
-    const solanaRpc =
-      rpcEndpoints["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"] !== undefined;
+    const solanaRpc = rpcEndpoints[SOLANA_MAINNET] !== undefined;
     const jupiterMode = jupiterModeFor(jupiterLive, solanaRpc);
     const ensoMode = executionModeFor({
       providerLive:
@@ -618,7 +619,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
           ? "unavailable"
           : nativeLaunchModeFor(
               ponsEnabled,
-              rpcEndpoints["eip155:4663"] !== undefined
+              rpcEndpoints[PONS_NETWORK] !== undefined
             ),
       uniswapMode,
       tenderly,

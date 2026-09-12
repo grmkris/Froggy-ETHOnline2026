@@ -21,6 +21,7 @@ import type { Instruction } from "@solana/kit";
 import { Redacted, Schema } from "effect";
 
 import { WRAPPED_SOL } from "./jupiter";
+import { SOLANA_MAINNET } from "./networks";
 import { SolanaTradeRpc } from "./solana-chain";
 import type { SolanaTradeAccount } from "./solana-chain";
 import {
@@ -28,7 +29,7 @@ import {
   solanaAssociatedAccount,
 } from "./solana-transactions";
 
-const NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const NETWORK = SOLANA_MAINNET;
 const Call = Schema.Struct({
   id: Schema.Int,
   method: Schema.String,

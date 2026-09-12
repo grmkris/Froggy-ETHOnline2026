@@ -77,6 +77,7 @@ import { executionProviders } from "./trading/execution-providers";
 import type { ChainLaunchReader } from "./trading/launch-chain";
 import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
 import { LaunchCoordinator } from "./trading/launches";
+import { PONS_NETWORK } from "./trading/networks";
 import type { PonsReports } from "./trading/pons-report";
 import { livePonsReports, stubPonsReports } from "./trading/pons-report";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
@@ -203,7 +204,7 @@ export const createServices = (options: ServiceOptions): Services => {
     return makeStub();
   };
 
-  const ponsRpc = environment.trading.rpcEndpoints["eip155:4663"];
+  const ponsRpc = environment.trading.rpcEndpoints[PONS_NETWORK];
   // Same guarantee as `liveOr`, written out because the endpoint has to narrow
   // before it reaches the client rather than inside a thunk.
   const ponsReportsFor = (

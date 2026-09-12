@@ -8,11 +8,12 @@ import { WorkspaceSession } from "../session";
 import { stubBirdeye } from "./birdeye";
 import { TradeCoordinator } from "./coordinator";
 import { LaunchCoordinator } from "./launches";
+import { SOLANA_MAINNET } from "./networks";
 import { PUMP_PROGRAMS } from "./pump-state";
 import { LaunchReactor } from "./reactions";
 import { stubTradeBackend } from "./stub-execution";
 
-const NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const NETWORK = SOLANA_MAINNET;
 const MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const setup = async () => {
   const store = memoryStore();

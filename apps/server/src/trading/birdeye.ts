@@ -11,6 +11,7 @@ import { Redacted, Schema } from "effect";
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
+import { PONS_NETWORK, SOLANA_MAINNET } from "./networks";
 
 // https://data.birdeye.so/docs/resources/data-coverage/supported-networks
 // Solana CAIP-2: https://namespaces.chainagnostic.org/solana/caip2
@@ -24,12 +25,12 @@ const CHAINS = {
   // Robinhood Chain. Birdeye answers overview, listings and trending here, but
   // `token_security` returns 401 on this plan, so inspection reports security
   // as unavailable rather than as a clean screen.
-  "eip155:4663": "robinhood",
+  [PONS_NETWORK]: "robinhood",
   "eip155:5000": "mantle",
   "eip155:8453": "base",
   "eip155:42161": "arbitrum",
   "eip155:43114": "avalanche",
-  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "solana",
+  [SOLANA_MAINNET]: "solana",
 };
 export const BIRDEYE_NETWORKS: readonly TradingNetwork[] = Object.keys(CHAINS);
 

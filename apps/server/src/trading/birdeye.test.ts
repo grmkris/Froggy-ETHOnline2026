@@ -9,12 +9,13 @@ import {
 import { Redacted, Schema } from "effect";
 
 import { BIRDEYE_NETWORKS, liveBirdeye, stubBirdeye } from "./birdeye";
+import { SOLANA_MAINNET } from "./networks";
 
 // These addresses are synthetic fixtures, never configured as live assets.
 const ADDRESS = "0x1111111111111111111111111111111111111111";
 const OTHER = "0x2222222222222222222222222222222222222222";
 const SOL_ADDRESS = "22222222222222222222222222222222222222222222";
-const SOL_NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const SOL_NETWORK = SOLANA_MAINNET;
 const KEY = "test-only-birdeye-secret";
 type ProviderFixture = Readonly<
   Record<string, string | number | boolean | null>

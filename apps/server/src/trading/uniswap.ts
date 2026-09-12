@@ -8,6 +8,7 @@ import { Redacted, Schema } from "effect";
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
+import { chainIdOf, PONS_NETWORK } from "./networks";
 
 const ORIGIN = "https://trade-api.gateway.uniswap.org/v1";
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -28,7 +29,7 @@ const UNISWAP_NETWORKS = [
   "eip155:1868",
   "eip155:4217",
   "eip155:4326",
-  "eip155:4663",
+  PONS_NETWORK,
   "eip155:8453",
   "eip155:42161",
   "eip155:42220",
@@ -48,7 +49,7 @@ export interface UniswapChain {
 
 export const supportsUniswapChain = (chain: UniswapChain): boolean =>
   UNISWAP_NETWORKS.some((network) => network === chain.network) &&
-  !(chain.network === "eip155:4663" && chain.routerVersion === "2.0") &&
+  !(chain.network === PONS_NETWORK && chain.routerVersion === "2.0") &&
   !(chain.network === "eip155:324" && chain.routerVersion === "2.1.1");
 
 export interface UniswapOptions {
@@ -205,8 +206,13 @@ const same = (first: string, second: string): boolean =>
 const fail = (message: string): never => {
   throw new UniswapQuoteError("invalid_response", message);
 };
-const chainIdOf = (input: SwapQuoteInput): number =>
-  Number(input.network.slice(7));
+const chainIdOfQuote = (input: SwapQuoteInput): number => {
+  const chainId = chainIdOf(input.network);
+  if (chainId === null) {
+    throw new UniswapQuoteError("unsupported_network", "Unsupported network.");
+  }
+  return chainId;
+};
 
 /** Run before buying a quote, so known input failures do not consume a paid task. */
 export const preflightSwapQuote = (request: SwapQuoteInput): SwapQuoteInput => {
@@ -308,7 +314,7 @@ const verifyQuote = (
   input: SwapQuoteInput
 ): void => {
   if (
-    quote.chainId !== chainIdOf(input) ||
+    quote.chainId !== chainIdOfQuote(input) ||
     !same(quote.swapper, input.wallet) ||
     !same(quote.input.token, input.tokenIn) ||
     quote.input.amount !== input.amount ||
@@ -334,8 +340,8 @@ const routeSummary = (
     let previous = input.tokenIn;
     const result = path.map((pool) => {
       if (
-        pool.tokenIn.chainId !== chainIdOf(input) ||
-        pool.tokenOut.chainId !== chainIdOf(input) ||
+        pool.tokenIn.chainId !== chainIdOfQuote(input) ||
+        pool.tokenOut.chainId !== chainIdOfQuote(input) ||
         !same(pool.tokenIn.address, previous)
       ) {
         fail("Uniswap returned an inconsistent route.");
@@ -460,7 +466,7 @@ const permitSummary = (
   const permit = data;
   const { details } = permit.values;
   if (
-    permit.domain.chainId !== chainIdOf(input) ||
+    permit.domain.chainId !== chainIdOfQuote(input) ||
     !same(details.token, input.tokenIn) ||
     details.amount !== input.amount ||
     BigInt(details.amount) >= 2n ** 160n ||
@@ -492,7 +498,7 @@ const approvalTransaction = (
   if (
     !same(tx.to, input.tokenIn) ||
     !same(tx.from, input.wallet) ||
-    tx.chainId !== chainIdOf(input) ||
+    tx.chainId !== chainIdOfQuote(input) ||
     BigInt(tx.value) !== 0n
   ) {
     fail("Uniswap returned an inconsistent approval transaction.");
@@ -541,7 +547,7 @@ const approvals = async (
       walletAddress: input.wallet,
       token: input.tokenIn,
       amount: input.amount,
-      chainId: chainIdOf(input),
+      chainId: chainIdOfQuote(input),
       includeGasInfo: true,
     },
     ApprovalResponse
@@ -632,8 +638,8 @@ const quoteLive = async (
       amount: input.amount,
       tokenIn: input.tokenIn,
       tokenOut: input.tokenOut,
-      tokenInChainId: chainIdOf(input),
-      tokenOutChainId: chainIdOf(input),
+      tokenInChainId: chainIdOfQuote(input),
+      tokenOutChainId: chainIdOfQuote(input),
       swapper: input.wallet,
       recipient: input.wallet,
       slippageTolerance: input.slippageBps / 100,

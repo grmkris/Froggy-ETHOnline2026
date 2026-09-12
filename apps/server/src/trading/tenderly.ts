@@ -9,6 +9,7 @@ import { Redacted, Schema } from "effect";
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
+import { chainIdOf } from "./networks";
 
 type EvmPayload = Extract<TradePayload, { kind: "evm" }>;
 const Integer = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
@@ -138,6 +139,12 @@ export const tenderlySimulation = async (
       "trade.simulation_unavailable: Tenderly credentials are incomplete."
     );
   }
+  const chainId = chainIdOf(input.network);
+  if (chainId === null) {
+    throw new Error(
+      "trade.simulation_unavailable: Tenderly requires an EVM network."
+    );
+  }
   const response = await safeFetch(
     `https://api.tenderly.co/api/v2/account/${options.account}/project/${options.project}/simulations/simulate/bundle`,
     {
@@ -147,7 +154,7 @@ export const tenderlySimulation = async (
         "X-Access-Key": Redacted.value(options.accessKey),
       },
       body: JSON.stringify({
-        network_id: input.network.slice(7),
+        network_id: String(chainId),
         call_args: calls,
         block_number_or_hash: { blockNumber: input.blockNumber },
         overrides: null,

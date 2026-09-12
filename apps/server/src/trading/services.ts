@@ -21,6 +21,7 @@ import type { Services } from "../services";
 import { std } from "../std";
 import { BIRDEYE_NETWORKS } from "./birdeye";
 import type { liveBirdeye } from "./birdeye";
+import { PONS_NETWORK, SOLANA_MAINNET } from "./networks";
 import type { PonsReports } from "./pons-report";
 import { preflightRpcRead } from "./rpc";
 import type { TradingRpc } from "./rpc";
@@ -92,7 +93,7 @@ export const TRADING_TOOL_DEFINITIONS = [
 const DEMO_RPC_NETWORKS = [
   "eip155:8453",
   "eip155:84532",
-  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  SOLANA_MAINNET,
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 ] as const;
 
@@ -169,7 +170,7 @@ export const preflightTrading = (
   switch (request.service) {
     case "watch_launches": {
       if (
-        request.input.network === "eip155:4663" &&
+        request.input.network === PONS_NETWORK &&
         request.input.minimumLiquidityUsd !== null
       ) {
         throw new Error(

@@ -13,6 +13,7 @@ import {
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
+import { chainIdOf, PONS_NETWORK } from "./networks";
 
 const Request = Schema.Struct({
   method: Schema.String,
@@ -91,10 +92,8 @@ export const assertTradeNetwork = async (
   client: TradeEvmClient,
   network: string
 ): Promise<void> => {
-  if (
-    !network.startsWith("eip155:") ||
-    (await client.getChainId()) !== Number(network.slice(7))
-  ) {
+  const chainId = chainIdOf(network);
+  if (chainId === null || (await client.getChainId()) !== chainId) {
     throw new Error("trade.network: execution RPC belongs to another network.");
   }
 };
@@ -182,7 +181,7 @@ const receiptNativeFee = (
       "trade.receipt: Base data fee is missing; keep the reservation until accounting is available."
     );
   }
-  if (network === "eip155:4663") {
+  if (network === PONS_NETWORK) {
     // Nitro accounts for poster costs in gasUsed; adding a separate L1 fee would double-count it.
     if (
       extra.gasUsedForL1 === undefined ||
