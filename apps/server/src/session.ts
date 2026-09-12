@@ -33,6 +33,7 @@ import {
   ceilingFor,
   formatUsd,
   priceInUsdMicros,
+  usdMicros as toUsdMicros,
   KNOWN_ASSETS,
 } from "@froggy/domain";
 import type {
@@ -58,6 +59,7 @@ import type {
 } from "@froggy/domain";
 import type {
   AgentSignerState,
+  ApprovalBreakdownLine,
   ApprovalRequest,
   ServiceModes,
   WalletSummary,
@@ -411,6 +413,59 @@ const approvalOptions = (): ApprovalRequest["options"] =>
   ApprovalKindSchema.literals
     .toSorted((a, b) => APPROVAL_KIND_ORDER[a] - APPROVAL_KIND_ORDER[b])
     .map((kind) => ({ id: kind, kind, label: APPROVAL_LABELS[kind] }));
+
+const utcDayStart = (at: number): number => {
+  const day = new Date(at);
+  return Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
+};
+
+const breakdownLine = (
+  label: string,
+  amount: number,
+  note: string | null
+): ApprovalBreakdownLine => {
+  const line: Draft<ApprovalBreakdownLine, "note"> = {
+    amountLabel: formatUsd(amount),
+    amountUsdMicros: toUsdMicros(amount),
+    label,
+  };
+  if (note !== null && note !== "") {
+    line.note = note;
+  }
+  return line;
+};
+
+/**
+ * The design pack's ledger: product, a known delivery or network fee, fees,
+ * and today's agent spend. Built from the judgement only — unknown lines
+ * are omitted, never invented, and nothing here changes a decision.
+ */
+const approvalBreakdown = (input: {
+  readonly at: number;
+  readonly because: string | null;
+  readonly intent: SpendIntent;
+  readonly recent:
+    | readonly {
+        readonly at: number;
+        readonly usdMicros: number;
+      }[]
+    | null;
+}): readonly ApprovalBreakdownLine[] => {
+  const lines: ApprovalBreakdownLine[] = [
+    breakdownLine("Product", input.intent.usdMicros, input.because),
+  ];
+  if (input.recent !== null) {
+    const start = utcDayStart(input.at);
+    let spent = 0;
+    for (const row of input.recent) {
+      if (row.at >= start) {
+        spent += row.usdMicros;
+      }
+    }
+    lines.push(breakdownLine("Agent spend so far today", spent, null));
+  }
+  return lines.slice(0, 6);
+};
 
 /** What the human said, or why nothing was said, as the receipt records it. */
 const resolutionOf = (outcome: ApprovalOutcome): ApprovalResolution => {
@@ -1579,18 +1634,40 @@ export class WorkspaceSession {
       authority !== null && authority.side === "ask"
         ? authority.because
         : "Over the automatic limit, so it is your call.";
+    let recent:
+      | readonly {
+          readonly at: number;
+          readonly usdMicros: number;
+        }[]
+      | null = null;
+    try {
+      recent = await this.deps.ledger.since(
+        this.userId,
+        utcDayStart(judged.at)
+      );
+    } catch {
+      // Display only. A ledger that cannot be read still asks; it just
+      // omits the spend-so-far line rather than inventing a zero.
+    }
+    const card: ApprovalRequest = {
+      runId: request.runId,
+      amountLabel: formatUsd(intent.usdMicros),
+      breakdown: approvalBreakdown({
+        at: judged.at,
+        because: authority?.because ?? null,
+        intent,
+        recent,
+      }),
+      detail: `${intent.purpose}. ${because}`,
+      expiresAt: judged.at + APPROVAL_TTL_MS,
+      id,
+      options: approvalOptions(),
+      payeeLabel: intent.payee.label,
+      purpose: intent.purpose,
+      title: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}?`,
+    };
     const outcome = await ask({
-      request: {
-        runId: request.runId,
-        amountLabel: formatUsd(intent.usdMicros),
-        detail: `${intent.purpose}. ${because}`,
-        expiresAt: judged.at + APPROVAL_TTL_MS,
-        id,
-        options: approvalOptions(),
-        payeeLabel: intent.payee.label,
-        purpose: intent.purpose,
-        title: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}?`,
-      },
+      request: card,
       signal: request.signal,
     });
     const resolution = resolutionOf(outcome);

@@ -1,7 +1,7 @@
 export { APPROVAL_KIND_ORDER, ApprovalKind } from "@froggy/domain";
 export {
   AgentSignerState,
-  ApprovalOption,
+  ApprovalBreakdownLine,
   ApprovalRequest,
   AppClientMessage,
   AppServerMessage,
