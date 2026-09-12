@@ -4,13 +4,13 @@ What the Hedera track asks for: a **hosted** x402 service on Hedera, and an agen
 
 ## The service
 
-- `GET /oracle/snapshot?symbol=USDC` answers **402** with an x402 v2 challenge: scheme `exact`, network `hedera:testnet`, asset HBAR (`0.0.0`), `payTo 0.0.10377647`, and `extra.feePayer` read from the facilitator's `/supported` at boot (Blocky402, `https://api.testnet.blocky402.com`). Without the fee payer no Hedera payment can be built; it is read rather than hardcoded because it changed once already.
+- `GET /oracle/snapshot?symbol=USDC` answers **402** with an x402 v2 challenge: scheme `exact`, network `hedera:mainnet` since 7 Sep, asset HBAR (`0.0.0`), amount `5000000` tinybars (0.05 HBAR), `payTo 0.0.10847556`, and `extra.feePayer` read from the facilitator's `/supported` at boot (Blocky402, `https://api.blocky402.com`, fee payer `0.0.10571514`). Without the fee payer no Hedera payment can be built; it is read rather than hardcoded because it changed once already. Settlements are noted on HCS topic `0.0.10847557`. The testnet rows below (`0.0.10377647`, `api.testnet.blocky402.com`, topic `0.0.10381647`) are the history before the flip.
 - A request carrying `X-PAYMENT` is settled through the facilitator; the answer comes back with `x-payment-response` holding the base64 `SettleResponse` envelope, and the settlement's transaction id lands on the agent's receipt.
 - Hosted at `https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC`. Try it:
 
 ```bash
 curl -i "https://app-production-58dd.up.railway.app/oracle/snapshot?symbol=USDC"
-# HTTP/1.1 402 … {"x402Version":2,"accepts":[{"scheme":"exact","network":"hedera:testnet",…}]}
+# HTTP/1.1 402 … {"x402Version":2,"accepts":[{"scheme":"exact","network":"hedera:mainnet","amount":"5000000","payTo":"0.0.10847556",…,"extra":{"feePayer":"0.0.10571514",…}}]}
 ```
 
 ## The agent's side
@@ -60,7 +60,7 @@ The owner's direction on the evening of 6 Sep was mainnet everywhere, with no te
 
 ## The service card and the unlocked page
 
-- `GET /.well-known/x402.json` describes what this server sells before anyone pays: the resource, `hedera:testnet`, the `exact` scheme, the price in tinybars, the payee account, the facilitator, and the HCS topic the settlements are noted on. Built from the same challenge the 402 carries, so the card and the 402 cannot disagree.
+- `GET /.well-known/x402.json` describes what this server sells before anyone pays: the resource, the network (`hedera:mainnet` on production), the `exact` scheme, the price in tinybars, the payee account, the facilitator, and the HCS topic the settlements are noted on. Built from the same challenge the 402 carries, so the card and the 402 cannot disagree.
 - When the agent pays a 402, the answer comes back with a one-time link and the agent opens it in the shared Chrome, so the person watches the page unlock. The page shows the seller, the price, the transaction with its HashScan link, the HCS note and the answer. It works once and expires in ten minutes: the browser that opens it holds no token, so the link is the whole credential and is treated like one. The receipt in the workspace is the durable record.
 
 ## Not yet
