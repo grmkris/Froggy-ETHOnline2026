@@ -12,7 +12,7 @@ import { Button } from "@froggy/ui/components/button";
 import { Kbd, KbdGroup } from "@froggy/ui/components/kbd";
 import { Textarea } from "@froggy/ui/components/textarea";
 import { ArrowUpIcon, SquareIcon, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { sendsOnKey } from "../lib/keymap";
 import { parseSlash, slashMatches } from "../lib/slash";
@@ -64,6 +64,8 @@ export const Composer = ({
   const [hint, setHint] = useState<string | null>(null);
   const disabled = disabledReason !== null;
   const commands = slashMatches(draft);
+  const reasonId = useId();
+  const messageId = "composer-message";
 
   // The queued message goes when the turn ends; if the composer has been
   // locked meanwhile — a lost socket — it goes back to the draft
@@ -170,6 +172,11 @@ export const Composer = ({
       {hint === null ? null : (
         <p className="text-refused px-2 text-xs">{hint}</p>
       )}
+      {disabledReason === null ? null : (
+        <p className="text-muted-foreground px-2 text-xs" id={reasonId}>
+          {disabledReason}
+        </p>
+      )}
       <form
         className="bg-card shadow-card focus-within:ring-ring/40 flex items-end gap-2 rounded-2xl p-2 focus-within:ring-3"
         onSubmit={(event) => {
@@ -178,9 +185,11 @@ export const Composer = ({
         }}
       >
         <Textarea
+          aria-describedby={disabledReason === null ? undefined : reasonId}
           aria-label="Message"
           className="max-h-40 min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
           disabled={disabled}
+          id={messageId}
           onChange={(event) => {
             setDraft(event.target.value);
             setHint(null);

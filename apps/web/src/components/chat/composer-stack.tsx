@@ -5,6 +5,7 @@
  */
 
 import { AnimatePresence } from "motion/react";
+import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 
 import type { AppStream } from "../../hooks/use-app-socket";
@@ -40,6 +41,26 @@ export const ComposerStack = ({
   readonly suggestions: readonly string[];
 }): ReactElement => {
   const delays = useArrivalDelays(app.approvals.map((request) => request.id));
+  const approvalCount = app.approvals.length;
+  const previousCount = useRef(approvalCount);
+  useEffect(() => {
+    const lost = previousCount.current > approvalCount;
+    previousCount.current = approvalCount;
+    if (!lost) {
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && document.contains(active)) {
+      return;
+    }
+    const nextDeny =
+      document.querySelector<HTMLButtonElement>('[data-kind="deny"]');
+    if (nextDeny !== null) {
+      nextDeny.focus();
+      return;
+    }
+    document.querySelector<HTMLTextAreaElement>("#composer-message")?.focus();
+  }, [approvalCount]);
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <NoticeList

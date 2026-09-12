@@ -49,11 +49,10 @@ const Flags = ({
       ) : null}
       {stubs.length > 0 ? (
         <Badge
-          className="border-drive-agent/60 text-drive-agent-foreground shrink-0 text-[10px] whitespace-nowrap"
-          title={`Stubbed: ${stubs.join(", ")}. Nothing here is a real settlement.`}
+          className="border-drive-agent/60 text-drive-agent-foreground max-w-[min(100%,20rem)] shrink text-[10px] text-wrap whitespace-normal"
           variant="outline"
         >
-          {stubs.length} stub{stubs.length === 1 ? "" : "s"}
+          {stubs.length} stub{stubs.length === 1 ? "" : "s"}: {stubs.join(", ")}
         </Badge>
       ) : null}
     </>

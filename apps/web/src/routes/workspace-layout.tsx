@@ -7,7 +7,7 @@ import { Outlet, useLocation } from "@tanstack/react-router";
  * a person can leave the chat mid-turn for their wallet and come back to a
  * turn that never stopped.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Announcer } from "../components/announcer";
@@ -67,6 +67,25 @@ export const WorkspaceLayout = (): ReactElement => {
     purchases.purchases.data?.purchases.filter(
       (purchase) => purchase.status === "awaiting_approval"
     ).length ?? 0;
+  const previousPurchases = useRef(pendingPurchases);
+  useEffect(() => {
+    const lost = previousPurchases.current > pendingPurchases;
+    previousPurchases.current = pendingPurchases;
+    if (!lost) {
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && document.contains(active)) {
+      return;
+    }
+    const nextDeny =
+      document.querySelector<HTMLButtonElement>('[data-kind="deny"]');
+    if (nextDeny !== null) {
+      nextDeny.focus();
+      return;
+    }
+    document.querySelector<HTMLTextAreaElement>("#composer-message")?.focus();
+  }, [pendingPurchases]);
   // While a window holds the page this tab has no screencast of its own.
   const browser = useBrowserSocket(painter, popOut.mode !== "window");
   const identity = useIdentity();
