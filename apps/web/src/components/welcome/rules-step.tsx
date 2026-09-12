@@ -245,11 +245,13 @@ const useGrant = (
       getToken,
       grant,
       policyId: theirs,
+      // A new account has never had a signer, so there is nothing to move.
+      replace: false,
       sign: identity.signPrivyRequest,
       signerId: agentSignerId,
     });
     setBusy(false);
-    if (result.kind === "refused") {
+    if (result.kind === "refused" || result.kind === "half-moved") {
       setOutcome(signerGrantWords(result));
       return;
     }

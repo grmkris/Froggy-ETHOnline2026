@@ -98,10 +98,19 @@ const depositReason = (words: string): string => {
 /**
  * What came of asking the person, through Privy's own prompt, to let the
  * agent sign on their wallet under the policy. `refused` carries Privy's words.
+ *
+ * `removed` is true when the refusal came *after* the old signer was taken
+ * off: a move is two Privy calls, and a failure between them leaves the agent
+ * able to pay nothing, which the person has to be told is a state and not a
+ * button that did nothing.
  */
 type GrantOutcome =
   | { readonly kind: "granted" }
-  | { readonly kind: "refused"; readonly reason: string };
+  | {
+      readonly kind: "refused";
+      readonly reason: string;
+      readonly removed: boolean;
+    };
 
 /**
  * Where sign-in stands.
@@ -161,6 +170,8 @@ export interface Identity {
     | ((input: {
         readonly address: string;
         readonly policyId: string;
+        /** The signer is already on the wallet under other rules: take it off first. */
+        readonly replace: boolean;
         readonly signerId: string;
       }) => Promise<GrantOutcome>)
     | null;
@@ -277,6 +288,8 @@ interface PrivyModule {
       address: string;
       signers: { policyIds?: string[]; signerId: string }[];
     }) => Promise<object>;
+    /** Every signer at once; Privy offers no narrower removal from the browser. */
+    removeSigners: (input: { address: string }) => Promise<object>;
   };
   readonly usePrivy: () => {
     authenticated: boolean;
@@ -318,7 +331,7 @@ const PrivyBridge = ({
   const { authenticated, getAccessToken, logout, ready, user } = mod.usePrivy();
   const { login } = mod.useLogin();
   const { fund } = mod.useFiatOnramp();
-  const { addSigners } = mod.useSigners();
+  const { addSigners, removeSigners } = mod.useSigners();
   const { createDepositAddress } = mod.useDepositAddress();
   const { generateAuthorizationSignature } = mod.useAuthorizationSignature();
   const callbacksSign = useRef(generateAuthorizationSignature);
@@ -365,6 +378,7 @@ const PrivyBridge = ({
     getAccessToken,
     login,
     logout,
+    removeSigners,
   });
   useEffect(() => {
     callbacks.current = {
@@ -374,6 +388,7 @@ const PrivyBridge = ({
       getAccessToken,
       login,
       logout,
+      removeSigners,
     };
   });
 
@@ -418,13 +433,25 @@ const PrivyBridge = ({
     async ({
       address: wallet,
       policyId,
+      replace,
       signerId,
     }: {
       readonly address: string;
       readonly policyId: string;
+      readonly replace: boolean;
       readonly signerId: string;
     }): Promise<GrantOutcome> => {
+      // Privy holds a signer to one set of policies and refuses the same
+      // signer twice ("Duplicate signer(s) provided"), so moving it from the
+      // app-wide rules to the person's own is a removal and then an addition.
+      // Between the two the agent can pay nothing; `removed` tells the caller
+      // which side of that gap a refusal landed on.
+      let removed = false;
       try {
+        if (replace) {
+          await callbacks.current.removeSigners({ address: wallet });
+          removed = true;
+        }
         await callbacks.current.addSigners({
           address: wallet,
           signers: [{ policyIds: [policyId], signerId }],
@@ -436,6 +463,7 @@ const PrivyBridge = ({
         return {
           kind: "refused",
           reason: error instanceof Error ? error.message : String(error),
+          removed,
         };
       }
     },
