@@ -156,7 +156,8 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
           await page.evaluate(() =>
             window.motionSamples.some(
               (sample) =>
-                sample.name === "surface-in" && sample.duration === 250
+                sample.name === "surface-in" &&
+                sample.duration === (reducedMotion === "reduce" ? 125 : 250)
             )
           )
       )
