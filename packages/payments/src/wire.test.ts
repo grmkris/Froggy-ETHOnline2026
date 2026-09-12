@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { PaymentRequired } from "@x402/core/types";
 
+import { decodePaymentChallenge } from "./types";
 import {
   challengeFrom,
   encodeChallengeHeader,
@@ -165,5 +166,45 @@ describe("headers", () => {
       "s"
     );
     expect(settlementHeaderFrom(new Headers())).toBeNull();
+  });
+});
+
+describe("decodePaymentChallenge", () => {
+  it("reads a seller's resource block into one canonical shape, whatever else it carried", () => {
+    // A saved quote carries the seller's full block; the card that pays it
+    // only ever carried url, description and mimeType, in its own order. The
+    // two are compared field for field, so both must decode to the same thing.
+    const saved = decodePaymentChallenge({
+      ...challenge,
+      resource: {
+        description: "A browse",
+        mimeType: "application/json",
+        serviceName: "Froggy",
+        tags: ["browser"],
+        url: "https://seller.test/tasks?quote=1",
+      },
+    });
+    const card = decodePaymentChallenge({
+      ...challenge,
+      resource: {
+        url: "https://seller.test/tasks?quote=1",
+        description: "A browse",
+        mimeType: "application/json",
+      },
+    });
+    if (saved._tag !== "Success" || card._tag !== "Success") {
+      throw new Error("A well-formed challenge must decode.");
+    }
+    expect(JSON.stringify(saved.success)).toBe(JSON.stringify(card.success));
+    expect(saved.success.resource).toEqual({
+      url: "https://seller.test/tasks?quote=1",
+      description: "A browse",
+      mimeType: "application/json",
+    });
+  });
+
+  it("keeps an odd resource block rather than refusing the challenge", () => {
+    const odd = decodePaymentChallenge({ ...challenge, resource: { url: 42 } });
+    expect(odd._tag).toBe("Success");
   });
 });

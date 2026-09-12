@@ -87,7 +87,14 @@ export const challengeResource = (
 };
 
 export const PaymentChallenge = Schema.Struct({
-  resource: Schema.optional(Schema.Unknown),
+  /**
+   * Canonical `{url, description, mimeType}` when the seller's block fits,
+   * otherwise kept verbatim so an odd block never refuses a payable
+   * challenge. The canonical form matters: a saved quote and the card that
+   * pays it are compared field for field, and the card only ever carried
+   * those three keys.
+   */
+  resource: Schema.optional(Schema.Union([ChallengeResource, Schema.Unknown])),
   accepts: Schema.Array(
     Schema.Struct({
       amount: Schema.String,
