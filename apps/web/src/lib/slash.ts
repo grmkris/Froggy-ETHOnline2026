@@ -56,3 +56,27 @@ export const parseSlash = (text: string): SlashCommand | null => {
   }
   return { kind: "unknown", name, reason: "no such command" };
 };
+
+/** What /status asks, in the conversation, so Home and chat send the same turn. */
+export const STATUS_PROMPT = "What is the state of the wallet and the mandate?";
+
+/**
+ * Run a recognised slash command. Home and chat share this so a verb typed
+ * on either surface does the same thing; unknown names are left to the
+ * composer’s own hint.
+ */
+export const applySlash = (
+  command: SlashCommand,
+  actions: {
+    readonly send: (text: string) => void;
+    readonly stop: () => void;
+  }
+): void => {
+  if (command.kind === "stop") {
+    actions.stop();
+    return;
+  }
+  if (command.kind === "status") {
+    actions.send(STATUS_PROMPT);
+  }
+};

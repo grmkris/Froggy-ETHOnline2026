@@ -23,6 +23,7 @@ import type { ReactElement } from "react";
 
 import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { Composer } from "../components/composer";
+import { StopFeedback } from "../components/stop-feedback";
 import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
 import { copyForHome, poseForHome } from "../lib/frog-pose";
@@ -30,6 +31,7 @@ import { useHistoryPage } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { cadenceWords, nextRunWords } from "../lib/schedule-words";
 import { useSessionToken } from "../lib/session-token";
+import { applySlash } from "../lib/slash";
 import { useWorkspace } from "../lib/workspace-context";
 
 const decodeSchedules = Schema.decodeUnknownSync(ScheduleListSchema);
@@ -125,11 +127,8 @@ const Home = (): ReactElement => {
           busy={busy}
           disabledReason={app.connected ? null : "Connecting…"}
           onCommand={(command) => {
-            // Slash commands belong to the conversation, so hand them over
-            // rather than answering half of them here.
-            if (command.kind === "stop") {
-              stopRun.stop();
-            } else {
+            applySlash(command, { send, stop: stopRun.stop });
+            if (command.kind === "status") {
               openChat();
             }
           }}
@@ -141,6 +140,15 @@ const Home = (): ReactElement => {
             stopRun.stop();
           }}
           suggestions={[]}
+        />
+        <StopFeedback
+          state={stopRun.state}
+          onRetry={() => {
+            stopRun.stop();
+          }}
+          onDismiss={() => {
+            stopRun.clear();
+          }}
         />
 
         {needsUser > 0 ? (

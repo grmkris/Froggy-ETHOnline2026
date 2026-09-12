@@ -26,6 +26,7 @@ import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
 import { useChatSurface } from "../lib/chat-context";
 import { scrollToLive } from "../lib/scroll-to-live";
+import { applySlash } from "../lib/slash";
 import {
   buildStream,
   lastBrowserTurn,
@@ -256,11 +257,7 @@ export const ChatPage = (): ReactElement => {
             chat.clearError();
           }}
           onCommand={(command) => {
-            if (command.kind === "stop") {
-              stopRun.stop();
-            } else if (command.kind === "status") {
-              send("What is the state of the wallet and the mandate?");
-            }
+            applySlash(command, { send, stop: stopRun.stop });
           }}
           onSend={send}
           stopRun={stopRun}
