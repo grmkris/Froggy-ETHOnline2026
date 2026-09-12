@@ -560,7 +560,6 @@ const handleTasks = async (
       request
     );
   }
-  const { userId } = caller;
   if (pathname === TASKS_PATH && request.method === "POST") {
     return await handleTaskPost(taskDeps, request, workspace, caller);
   }
@@ -575,7 +574,7 @@ const handleTasks = async (
         await handleTaskList(
           taskDeps,
           workspace,
-          userId,
+          caller,
           new URL(request.url).searchParams.get("idempotencyKey")
         )
     );
@@ -591,7 +590,7 @@ const handleTasks = async (
         const response = await handleTaskEvents(
           taskDeps,
           workspace,
-          userId,
+          caller,
           events
         );
         invocation.outcome = response.ok ? "ok" : "error";
@@ -608,7 +607,7 @@ const handleTasks = async (
       "task",
       "tasks.get",
       "GET",
-      async () => await handleTaskGet(taskDeps, workspace, userId, one)
+      async () => await handleTaskGet(taskDeps, workspace, caller, one)
     );
   }
   if (pathname === "/api/wallet/pay" && request.method === "POST") {

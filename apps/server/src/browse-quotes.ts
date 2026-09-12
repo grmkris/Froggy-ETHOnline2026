@@ -108,6 +108,7 @@ const createQuote = async (
   const task: Task = {
     id,
     agentTokenId: caller.agentTokenId,
+    connectionId: caller.grantId ?? caller.agentTokenId,
     createdAt: now,
     updatedAt: now,
     idempotencyKey: key,

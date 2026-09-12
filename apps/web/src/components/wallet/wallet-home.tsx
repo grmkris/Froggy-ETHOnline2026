@@ -7,13 +7,15 @@
  */
 
 import { formatUsd } from "@froggy/domain";
-import type { WalletSummary } from "@froggy/protocol";
+import type { ServiceModes, WalletSummary } from "@froggy/protocol";
+import { Badge } from "@froggy/ui/components/badge";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { WalletIcon } from "lucide-react";
 import { useEffect } from "react";
 import type { ReactElement } from "react";
 import { useTextMorph } from "torph/react";
 
+import { stubsOf } from "../../lib/stubs";
 import { walletAmounts } from "../../lib/wallet-view";
 import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { AddFunds } from "./add-funds";
@@ -84,12 +86,47 @@ const balanceDescription = (wallet: WalletSummary | null): string => {
     : "USDC on Base and HBAR on Hedera, in dollars.";
 };
 
+const balanceUnavailableLabel = (wallet: WalletSummary): string | null =>
+  wallet.totalUsdMicros === null &&
+  wallet.balanceLabel !== "" &&
+  wallet.balanceLabel !== "—"
+    ? wallet.balanceLabel
+    : null;
+
+const StubChips = ({
+  modes,
+}: {
+  readonly modes: ServiceModes | null;
+}): ReactElement | null => {
+  const stubs = stubsOf(modes);
+  if (stubs.length === 0) {
+    return null;
+  }
+  return (
+    <ul aria-label="Stubbed integrations" className="flex flex-wrap gap-1.5">
+      {stubs.map((name) => (
+        <li key={name}>
+          <Badge
+            className="border-drive-agent/60 text-drive-agent-foreground text-[10px] uppercase"
+            variant="outline"
+          >
+            {name} stub
+          </Badge>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 export const WalletHome = ({
+  modes,
   wallet,
 }: {
+  readonly modes: ServiceModes | null;
   readonly wallet: WalletSummary | null;
 }): ReactElement => {
   const amounts = walletAmounts(wallet);
+  const unavailable = wallet === null ? null : balanceUnavailableLabel(wallet);
   return (
     <section
       aria-label="Wallet"
@@ -111,7 +148,16 @@ export const WalletHome = ({
         <p className="text-muted-foreground mt-2 min-h-8 text-xs">
           {balanceDescription(wallet)}
         </p>
+        {unavailable === null ? null : (
+          <p className="text-muted-foreground mt-1 text-xs">{unavailable}</p>
+        )}
+        {wallet?.ledgerNote === null || wallet === null ? null : (
+          <output className="text-refused mt-2 text-xs">
+            {wallet.ledgerNote}
+          </output>
+        )}
       </div>
+      <StubChips modes={modes} />
       <div className="flex flex-wrap items-start gap-2">
         <AddFunds wallet={wallet} />
         <AgentOnboarding />

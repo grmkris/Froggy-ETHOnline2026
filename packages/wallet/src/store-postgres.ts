@@ -110,6 +110,7 @@ const saleOf = (row: SaleRow): Sale | null => {
 const taskOf = (row: TaskRow): Task | null => {
   const decoded = decodeTask({
     agentTokenId: row.agentTokenId,
+    connectionId: row.connectionId,
     createdAt: row.createdAt.getTime(),
     error: row.error,
     id: row.id,
@@ -843,6 +844,7 @@ export const postgresStore = (sql: Sql): Store => {
         await ensureUser(userId);
         await database.insert(tasks).values({
           agentTokenId: task.agentTokenId,
+          connectionId: task.connectionId,
           createdAt: new Date(task.createdAt),
           error: task.error,
           id: task.id,

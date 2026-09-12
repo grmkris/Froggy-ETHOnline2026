@@ -9,13 +9,7 @@ import type { ReactElement } from "react";
 import { useMediaQuery } from "../hooks/use-media-query";
 import { SECONDARY_ITEMS } from "../lib/nav";
 import { useIdentity } from "../lib/privy";
-
-const stubsOf = (modes: ServiceModes | null): readonly string[] =>
-  modes === null
-    ? []
-    : Object.entries(modes)
-        .filter(([, mode]) => mode === "stub")
-        .map(([name]) => name);
+import { stubsOf } from "../lib/stubs";
 
 /** Reconnecting, a local identity, how much is stubbed. */
 const Flags = ({

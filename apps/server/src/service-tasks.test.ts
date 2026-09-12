@@ -97,7 +97,10 @@ const rpc = (
     jsonrpc: string;
     id?: number;
     method: string;
-    params?: { name: string; arguments?: ReturnType<typeof request> };
+    params?: {
+      name: string;
+      arguments?: ReturnType<typeof request> | { id: string };
+    };
   },
   origin?: string
 ) =>
@@ -280,6 +283,80 @@ describe("service purchases", () => {
       new Request(`https://froggy.example/api/services/tasks/${ticket.id}`)
     );
     expect(response.status).toBe(404);
+  });
+  it("keeps service tasks private to the connection that created them", async () => {
+    const context = await fixture();
+    const owner = {
+      userId: context.session.userId,
+      agentTokenId: null,
+      grantId: null,
+      scopes: null,
+    };
+    const grantA = OAuthGrantId.generate();
+    const grantB = OAuthGrantId.generate();
+    const ticket = await purchaseService(
+      { ...context, connectionId: grantA },
+      request()
+    );
+    await done(context, ticket.id);
+    const callerA = { ...owner, grantId: grantA };
+    const callerB = { ...owner, grantId: grantB };
+    const url = `https://froggy.example/api/services/tasks/${ticket.id}`;
+    const asB = await handleServices(
+      context.services,
+      context.session,
+      callerB,
+      new Request(url)
+    );
+    const asA = await handleServices(
+      context.services,
+      context.session,
+      callerA,
+      new Request(url)
+    );
+    const asOwner = await handleServices(
+      context.services,
+      context.session,
+      owner,
+      new Request(url)
+    );
+    expect(asB.status).toBe(404);
+    expect(asA.status).toBe(200);
+    expect(asOwner.status).toBe(200);
+    const listedResponse = await handleServices(
+      context.services,
+      context.session,
+      callerB,
+      new Request("https://froggy.example/api/services/tasks")
+    );
+    const listed = Schema.decodeUnknownSync(
+      Schema.Struct({ tasks: Schema.Array(ServiceTicket) })
+    )(await listedResponse.json());
+    expect(listed.tasks).toEqual([]);
+    const status = await handleMcp(
+      context.services,
+      context.session,
+      callerB,
+      rpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "froggy_service_status", arguments: { id: ticket.id } },
+      })
+    );
+    expect(await status.text()).toContain("No such service task");
+    const own = await handleMcp(
+      context.services,
+      context.session,
+      callerA,
+      rpc({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "froggy_service_status", arguments: { id: ticket.id } },
+      })
+    );
+    expect(await own.text()).toContain(ticket.id);
   });
   it("serves media only to its owner and leaves bytes out of task tickets", async () => {
     const context = await fixture();

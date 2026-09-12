@@ -1,4 +1,4 @@
-import { formatUsd } from "@froggy/domain";
+import { AgentTokenId, formatUsd } from "@froggy/domain";
 import type { AgentInvocationView } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
@@ -124,6 +124,15 @@ export const AgentDetailPage = (): ReactElement => {
               <dd className="wrap-anywhere">
                 {agent.scopes.join(", ") || "No scopes"}
               </dd>
+              {AgentTokenId.is(agent.id) ? (
+                <>
+                  <dt className="text-muted-foreground">Reach</dt>
+                  <dd>
+                    This minted token is not limited by consent scopes. It may
+                    call every agent tool, including history.
+                  </dd>
+                </>
+              ) : null}
               <dt className="text-muted-foreground">Connected since</dt>
               <dd>{when(agent.createdAt)}</dd>
               <dt className="text-muted-foreground">Last used</dt>

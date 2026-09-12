@@ -76,6 +76,14 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
     page.getByRole("heading", { name: "Research agent", exact: true })
   ).toBeVisible();
   await expect(page.getByText("No invocations yet.")).toBeVisible();
+  await expect(
+    page.getByText("brief, browse, pay, services, history")
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "This minted token is not limited by consent scopes. It may call every agent tool, including history."
+    )
+  ).toBeVisible();
   await call("froggy_services");
   await call("not_a_tool");
   await call("froggy_service_run", { secret: "NEVER_PERSIST_ARGUMENTS" });

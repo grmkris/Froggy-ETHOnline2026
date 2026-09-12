@@ -15,6 +15,7 @@
 
 import { RunId, SaleId, TaskId, usdMicros } from "@froggy/domain";
 import type {
+  AgentConnectionId,
   OAuthGrantId,
   OAuthScope,
   Receipt,
@@ -124,6 +125,32 @@ export interface TaskCaller {
   readonly scopes: ReadonlySet<OAuthScope> | null;
   readonly userId: UserId;
 }
+
+/** The grant or token this caller is, or null when the person is calling. */
+export const callerConnection = (
+  caller: TaskCaller
+): AgentConnectionId | null => caller.grantId ?? caller.agentTokenId;
+
+/**
+ * An agent sees only the work it created. The person sees every task of
+ * theirs, including ones an agent started.
+ */
+export const visibleTask = (
+  task: Task | null,
+  caller: TaskCaller
+): Task | null => {
+  if (task === null) {
+    return null;
+  }
+  const connection = callerConnection(caller);
+  return connection === null || task.connectionId === connection ? task : null;
+};
+
+export const visibleTasks = (
+  tasks: readonly Task[],
+  caller: TaskCaller
+): readonly Task[] =>
+  tasks.filter((task) => visibleTask(task, caller) !== null);
 
 type Workspace = Awaited<ReturnType<Workspaces["hydrate"]>>;
 
@@ -680,6 +707,7 @@ const postLegacyTask = async (
   }
   const task: Task = {
     agentTokenId: caller.agentTokenId,
+    connectionId: caller.grantId ?? caller.agentTokenId,
     createdAt: now(),
     error: null,
     id: TaskId.generate(),
@@ -817,13 +845,16 @@ export const handleTaskPost = async (
 export const handleTaskGet = async (
   deps: TaskDeps,
   workspace: Workspace,
-  userId: UserId,
+  caller: TaskCaller,
   id: string
 ): Promise<Response> => {
   if (!TaskId.is(id)) {
     return json({ error: "Not a task id." }, 404);
   }
-  const task = await deps.services.store.tasks.byId(userId, id);
+  const task = visibleTask(
+    await deps.services.store.tasks.byId(caller.userId, id),
+    caller
+  );
   if (task === null) {
     return json({ error: "No such task." }, 404);
   }
@@ -833,19 +864,23 @@ export const handleTaskGet = async (
 export const handleTaskList = async (
   deps: TaskDeps,
   workspace: Workspace,
-  userId: UserId,
+  caller: TaskCaller,
   idempotencyKey: string | null = null
 ): Promise<Response> => {
+  const { userId } = caller;
   if (idempotencyKey !== null) {
-    const task = await deps.services.store.tasks.byIdempotencyKey(
-      userId,
-      idempotencyKey
+    const task = visibleTask(
+      await deps.services.store.tasks.byIdempotencyKey(userId, idempotencyKey),
+      caller
     );
     return json({
       tasks: task === null ? [] : [taskView(task, deps, workspace)],
     });
   }
-  const tasks = await deps.services.store.tasks.list(userId, 50);
+  const tasks = visibleTasks(
+    await deps.services.store.tasks.list(userId, 50),
+    caller
+  );
   return json({ tasks: tasks.map((task) => taskView(task, deps, workspace)) });
 };
 
@@ -853,13 +888,16 @@ export const handleTaskList = async (
 export const handleTaskEvents = async (
   deps: TaskDeps,
   workspace: Workspace,
-  userId: UserId,
+  caller: TaskCaller,
   id: string
 ): Promise<Response> => {
   if (!TaskId.is(id)) {
     return json({ error: "Not a task id." }, 404);
   }
-  const task = await deps.services.store.tasks.byId(userId, id);
+  const task = visibleTask(
+    await deps.services.store.tasks.byId(caller.userId, id),
+    caller
+  );
   if (task === null) {
     return json({ error: "No such task." }, 404);
   }
