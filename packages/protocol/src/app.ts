@@ -92,12 +92,11 @@ export type Notice = typeof Notice.Type;
  * "no, and stop the run" and "no, try something else" are different
  * instructions and collapsing them loses the ability to say the first one.
  */
-export const ApprovalOption = Schema.Struct({
+const ApprovalOption = Schema.Struct({
   id: Schema.String,
   kind: ApprovalKind,
   label: Schema.String,
 });
-export type ApprovalOption = typeof ApprovalOption.Type;
 
 const BreakdownLabel = Schema.String.check(
   Schema.isMinLength(1),
