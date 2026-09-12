@@ -13,7 +13,7 @@ import { MAX_MEMO_BYTES } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { Schema } from "effect";
 
-import { X402_VERSION } from "./types";
+import { challengeResource, X402_VERSION } from "./types";
 import type { PaymentAttempt, PaymentChallenge, Payer } from "./types";
 
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
@@ -115,6 +115,10 @@ export const solanaPayer = (options: SolanaPayerOptions): Payer => ({
       payload: signed.payload,
       x402Version: signed.x402Version,
     };
+    const resource = challengeResource(challenge);
+    if (resource !== undefined) {
+      payload.resource = resource;
+    }
     return {
       header: Buffer.from(JSON.stringify(payload), "utf-8").toString("base64"),
       requirements,

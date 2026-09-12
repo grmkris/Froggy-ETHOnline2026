@@ -55,7 +55,39 @@ export interface SettleOutcome {
  * type to hand it on. The one place the two meet is inside the payer, which is
  * the package that owns x402 in the first place.
  */
+/**
+ * The v2 `resource` block a seller sends once per challenge. The reference
+ * client echoes it back inside the payment payload, and at least one seller
+ * (You.com) validates the payload strictly, so a payer that drops it is not
+ * the client the seller tested against.
+ */
+export const ChallengeResource = Schema.Struct({
+  url: Schema.String.check(Schema.isMaxLength(2048)),
+  description: Schema.optionalKey(
+    Schema.String.check(Schema.isMaxLength(2000))
+  ),
+  mimeType: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
+});
+
+const decodeResource = Schema.decodeUnknownResult(ChallengeResource);
+
+/**
+ * The resource block to echo, or nothing. A seller's odd `resource` must not
+ * turn a payable challenge into a refusal, so it is carried untyped in the
+ * challenge and only narrowed here, at the point of echoing it back.
+ */
+export const challengeResource = (
+  challenge: PaymentChallenge
+): typeof ChallengeResource.Type | undefined => {
+  if (challenge.resource === undefined) {
+    return undefined;
+  }
+  const decoded = decodeResource(challenge.resource);
+  return decoded._tag === "Success" ? decoded.success : undefined;
+};
+
 export const PaymentChallenge = Schema.Struct({
+  resource: Schema.optional(Schema.Unknown),
   accepts: Schema.Array(
     Schema.Struct({
       amount: Schema.String,

@@ -28,7 +28,12 @@ import {
 import type { ClientHederaSigner } from "@x402/hedera";
 import { Schema } from "effect";
 
-import { HBAR_ASSET, HEDERA_TESTNET, X402_VERSION } from "./types";
+import {
+  challengeResource,
+  HBAR_ASSET,
+  HEDERA_TESTNET,
+  X402_VERSION,
+} from "./types";
 import type {
   HederaNetwork,
   PaymentAttempt,
@@ -119,6 +124,10 @@ const payerFromSigner = (
           payload: result.payload,
           x402Version: result.x402Version,
         };
+        const resource = challengeResource(challenge);
+        if (resource !== undefined) {
+          payload.resource = resource;
+        }
         if (result.extensions !== undefined) {
           // Schemes may attach their own extension data (gas sponsoring, for
           // one). It is passed through untouched rather than merged.

@@ -256,6 +256,38 @@ const supplier = async (
   };
 };
 
+/**
+ * What a failed provider answer is allowed to say in a task error.
+ *
+ * The web search task that "seemed stuck" had in fact been answered 422 on
+ * its paid retry, and the row recorded only the number: nothing to tell a
+ * payment-header rejection from a bad query parameter. A short excerpt of
+ * the body, with control characters and length capped, is untrusted data the
+ * person can read; headers are not repeated because the request's own carry
+ * the signed payment.
+ */
+const PROVIDER_BODY_EXCERPT = 200;
+const providerFailure = async (
+  response: Response,
+  bought: Awaited<ReturnType<typeof supplier>>
+): Promise<string> => {
+  let excerpt = "";
+  try {
+    excerpt = new TextDecoder()
+      .decode(await boundedBytes(response, 4000))
+      .replaceAll(/\p{Cc}+/gu, " ")
+      .trim()
+      .slice(0, PROVIDER_BODY_EXCERPT);
+  } catch {
+    excerpt = "";
+  }
+  const paid = bought.headers.has("payment-signature");
+  const phase = paid
+    ? `on the paid retry (settlement header ${bought.transactionId === null ? "absent" : "present"})`
+    : "before any payment";
+  return `Provider returned ${response.status} ${phase}.${excerpt === "" ? "" : ` Body: ${JSON.stringify(excerpt)}.`} ${paid ? "Paid work was not refunded; do" : "Do"} not automatically retry.`;
+};
+
 interface ProviderRequest {
   readonly url: string;
   readonly init: RequestInit;
@@ -565,9 +597,7 @@ export const runServiceProvider = async (
     response = await pollImage(job.id, bought.headers, outbound);
   }
   if (!response.ok || response.status === 202) {
-    throw new Error(
-      `Provider returned ${response.status}. Paid work was not refunded; do not automatically retry.`
-    );
+    throw new Error(await providerFailure(response, bought));
   }
   const settlement = decodeSettlementHeader(
     settlementHeaderFrom(response.headers)

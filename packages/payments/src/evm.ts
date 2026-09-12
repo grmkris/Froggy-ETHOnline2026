@@ -17,7 +17,7 @@ import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
 import { ExactEvmScheme } from "@x402/evm";
 import { Schema } from "effect";
 
-import { X402_VERSION } from "./types";
+import { challengeResource, X402_VERSION } from "./types";
 import type { PaymentAttempt, PaymentChallenge, Payer } from "./types";
 
 const DEFAULT_TIMEOUT_SECONDS = 300;
@@ -209,6 +209,10 @@ export const evmPayer = (options: EvmPayerOptions): Payer => {
         payload: result.payload,
         x402Version: result.x402Version,
       };
+      const resource = challengeResource(challenge);
+      if (resource !== undefined) {
+        payload.resource = resource;
+      }
       if (result.extensions !== undefined) {
         payload.extensions = result.extensions;
       }

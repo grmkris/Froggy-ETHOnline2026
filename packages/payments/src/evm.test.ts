@@ -18,6 +18,12 @@ const offer = {
 };
 const challenge = { accepts: [offer], x402Version: 2 };
 
+const decodePayload = (header: string | null) =>
+  // SAFETY: the tests build the header from a known payload one line up.
+  JSON.parse(Buffer.from(header ?? "", "base64").toString("utf-8")) as {
+    resource?: unknown;
+  };
+
 describe("evmPayer", () => {
   it("signs an EIP-3009 authorization to the payee for the exact amount", async () => {
     const signed: TypedData["message"][] = [];
@@ -45,6 +51,32 @@ describe("evmPayer", () => {
     ) as { accepted: { network: string }; payload: { signature: string } };
     expect(payload.accepted.network).toBe("eip155:8453");
     expect(payload.payload.signature.startsWith("0x")).toBe(true);
+  });
+
+  it("echoes the seller's resource block like the reference client, and drops a malformed one", async () => {
+    const payer = evmPayer({
+      network: "eip155:8453",
+      signer: {
+        address: ADDRESS,
+        signTypedData: async () =>
+          await Promise.resolve(`0x${"ab".repeat(65)}`),
+      },
+    });
+    const resource = {
+      url: "https://api.you.com/v1/search",
+      description: "Web search",
+      mimeType: "application/json",
+    };
+    const echoed = await payer.pay({ ...challenge, resource });
+    expect(decodePayload(echoed.header).resource).toEqual(resource);
+
+    const bare = await payer.pay(challenge);
+    expect("resource" in decodePayload(bare.header)).toBe(false);
+
+    // A seller's odd resource block is not a reason to refuse to pay.
+    const odd = await payer.pay({ ...challenge, resource: { url: 42 } });
+    expect(odd.header).not.toBeNull();
+    expect("resource" in decodePayload(odd.header)).toBe(false);
   });
 
   it("declines a challenge for another network without asking the signer", async () => {

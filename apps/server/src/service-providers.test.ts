@@ -190,6 +190,42 @@ describe("service providers", () => {
     expect(setup.signatures()).toBe(1);
     expect(setup.requests).toHaveLength(2);
   });
+  it("records a capped, header-free excerpt of a paid 4xx so the failure can be diagnosed", async () => {
+    // The production web search that looked stuck had been answered 422 on
+    // its paid retry; the row said "422" and nothing else.
+    const body = `{"detail":"payment header invalid\\n\\ttoken=secret"}${"x".repeat(500)}`;
+    const setup = fixture([
+      Response.json(offer(), { status: 402 }),
+      new Response(body, {
+        status: 422,
+        headers: { "x-upstream-secret": "never-copied" },
+      }),
+    ]);
+    let message = "";
+    try {
+      await runServiceProvider(setup.services, input, setup.outbound);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain(
+      "Provider returned 422 on the paid retry (settlement header absent)"
+    );
+    expect(message).toContain('Body: "{\\"detail\\":\\"payment header invalid');
+    expect(message).not.toContain("never-copied");
+    expect(message).not.toContain("\n");
+    expect(message.length).toBeLessThan(400);
+    expect(message).toContain("Paid work was not refunded");
+    expect(setup.signatures()).toBe(1);
+    expect(setup.requests).toHaveLength(2);
+
+    // A refusal before the 402 dance says so, and owes nobody a refund note.
+    const unpaid = fixture([new Response("bad query", { status: 400 })]);
+    await rejectsWith(
+      runServiceProvider(unpaid.services, input, unpaid.outbound),
+      'Provider returned 400 before any payment. Body: "bad query". Do not automatically retry.'
+    );
+    expect(unpaid.signatures()).toBe(0);
+  });
   it("does not forward payment authorization to redirects", async () => {
     const setup = fixture([
       Response.json(offer(), { status: 402 }),
