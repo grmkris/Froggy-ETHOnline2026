@@ -93,10 +93,7 @@ test("the welcome runs through its three steps and lands on Home", async ({
     page.getByText("Froggy can look but not pay here.")
   ).toBeVisible();
   await expect(
-    page.getByText("Privy enforces those numbers on the EVM leg today.")
-  ).toBeVisible();
-  await expect(
-    page.getByText("Froggy’s own engine holds the daily cap.")
+    page.getByText("Froggy’s engine and Privy both enforce these numbers.")
   ).toBeVisible();
   await expect(
     page.getByText(/\bleash\b|\bpocket\b|\ballowance\b|\btop-up\b/iu)

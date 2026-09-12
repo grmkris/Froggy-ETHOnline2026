@@ -70,21 +70,24 @@ const CLOSING: readonly string[] = [
   "| 3 | `wallet_status` | The ledger and the pocket read back |\n\nSet `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and `OPENAI_COMPATIBLE_MODEL` (or `ANTHROPIC_API_KEY`) for a model that can actually reason about this.",
 ];
 
+const userText = (prompt: LanguageModelV3Prompt): string => {
+  const message = prompt.findLast((entry) => entry.role === "user");
+  if (message?.role !== "user") {
+    return "";
+  }
+  return message.content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join(" ");
+};
+
 /** The local paid report also exercises chat approvals without a model key. */
 const demoUrlFrom = (
   prompt: LanguageModelV3Prompt,
   oracleUrl: string
 ): string | null => {
-  const message = prompt.findLast((entry) => entry.role === "user");
-  if (message?.role !== "user") {
-    return null;
-  }
-  const text = message.content
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join(" ");
-  const candidates = text.match(/https?:\/\/[^\s<>"`]+/gu) ?? [];
   const { origin } = new URL(oracleUrl);
+  const candidates = userText(prompt).match(/https?:\/\/[^\s<>"`]+/gu) ?? [];
   return (
     candidates.find(
       (candidate) =>
@@ -93,6 +96,25 @@ const demoUrlFrom = (
         new URL(candidate).pathname === "/demo/x402/report"
     ) ?? null
   );
+};
+
+const SEND =
+  /send\s+(?<amount>[\d.]+)\s+usdc\s+to\s+(?<to>0x[a-fA-F0-9]{40})/iu;
+
+/** A typed send, so the scripted model can exercise `wallet_send` without a key. */
+const sendFrom = (
+  prompt: LanguageModelV3Prompt
+): { readonly amountUsd: number; readonly to: string } | null => {
+  const match = SEND.exec(userText(prompt));
+  if (match === null) {
+    return null;
+  }
+  const amountUsd = Number(match.groups?.["amount"]);
+  const to = match.groups?.["to"];
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || to === undefined) {
+    return null;
+  }
+  return { amountUsd, to };
 };
 const URL_CLOSING = [
   "**The scripted URL request has finished.** Its tool result shows the approval outcome, delivered content and any receipt. This demo does not interpret the report. Configure a model key for a conversational summary.",
@@ -120,20 +142,35 @@ const scriptedModel = (oracleUrl: string): LanguageModel =>
             message.content.some((part) => part.type === "tool-call"))
       ).length;
       const demoUrl = demoUrlFrom(recent, oracleUrl);
-      const steps =
-        demoUrl === null
-          ? script(oracleUrl)
-          : [
-              {
-                args: JSON.stringify({
-                  url: demoUrl,
-                  purpose: "Read the USDC lending report",
-                  maxUsdMicros: 50_000,
-                }),
-                tool: "x402_fetch",
-              },
-              { args: "{}", tool: "wallet_status" },
-            ];
+      const send = sendFrom(recent);
+      let steps: readonly { readonly args: string; readonly tool: string }[];
+      if (send !== null) {
+        steps = [
+          {
+            args: JSON.stringify({
+              amountUsd: send.amountUsd,
+              purpose: "a transfer the person asked for",
+              to: send.to,
+            }),
+            tool: "wallet_send",
+          },
+          { args: "{}", tool: "wallet_status" },
+        ];
+      } else if (demoUrl === null) {
+        steps = script(oracleUrl);
+      } else {
+        steps = [
+          {
+            args: JSON.stringify({
+              url: demoUrl,
+              purpose: "Read the USDC lending report",
+              maxUsdMicros: 50_000,
+            }),
+            tool: "x402_fetch",
+          },
+          { args: "{}", tool: "wallet_status" },
+        ];
+      }
       const step = steps[Math.floor(completed / 2)];
       const closing = demoUrl === null ? CLOSING : URL_CLOSING;
 

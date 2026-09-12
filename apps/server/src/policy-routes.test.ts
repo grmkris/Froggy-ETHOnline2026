@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
-import { defaultAllowance, userId } from "@froggy/domain";
+import {
+  defaultAllowance,
+  MandateId,
+  SessionId,
+  userId,
+  usd,
+} from "@froggy/domain";
 import type { Allowance } from "@froggy/domain";
+import type { WalletSummary } from "@froggy/protocol";
 import type { PersonPolicyRecord } from "@froggy/wallet";
 
 import { handlePolicyRoutes } from "./policy-routes";
@@ -149,5 +156,152 @@ describe("preparing a policy change", () => {
       "/api/agents"
     );
     expect(response).toBeNull();
+  });
+});
+
+const SUMMARY: WalletSummary = {
+  address: null,
+  agentNote: null,
+  agentAllowance: defaultAllowance(NOW),
+  agentPolicyId: "pol_alice",
+  agentSigner: "absent",
+  balanceLabel: "—",
+  balances: {
+    evmNetwork: "eip155:84532",
+    hbarTinybars: null,
+    hederaNetwork: "hedera:testnet",
+    usdMicrosPerHbar: null,
+    usdcUnits: null,
+  },
+  hederaAccountId: null,
+  ledgerNote: null,
+  pocketUsdMicros: null,
+  signerAddress: null,
+  totalUsdMicros: null,
+  windowSpentUsdMicros: 0,
+};
+
+const privyFetch = (status = 200): typeof fetch =>
+  Object.assign(
+    async (
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ): Promise<Response> => {
+      await Promise.resolve();
+      if (init?.method === "PATCH") {
+        return new Response("{}", {
+          headers: { "content-type": "application/json" },
+          status,
+        });
+      }
+      return Response.json({ owner_id: null });
+    },
+    { preconnect: (): void => undefined }
+  );
+
+const commit = async (
+  allowance: Allowance,
+  routeDeps: ReturnType<typeof deps>
+) =>
+  await handlePolicyRoutes(
+    routeDeps,
+    new Request("http://localhost/api/agent-policy/commit", {
+      body: JSON.stringify({
+        allowance,
+        expiry: NOW + 60_000,
+        signature: null,
+      }),
+      method: "POST",
+    }),
+    ALICE,
+    "/api/agent-policy/commit"
+  );
+
+describe("committing a policy change", () => {
+  it("applies the allowance to the live session after Privy accepts", async () => {
+    const applied: PersonPolicyRecord[] = [];
+    const wallets: WalletSummary[] = [];
+    const next = {
+      ...defaultAllowance(NOW),
+      perSpendUsdMicros: usd(0.04),
+    };
+    const response = await commit(
+      next,
+      deps({
+        fetch: privyFetch(),
+        publishWallet: (_userId, wallet) => {
+          wallets.push(wallet);
+        },
+        workspaces: {
+          existing: () => ({
+            session: {
+              applyAllowance: (record) => {
+                if (record !== null) {
+                  applied.push(record);
+                }
+                return {
+                  createdAt: NOW,
+                  id: MandateId.generate(),
+                  rules: [],
+                  sessionId: SessionId.generate(),
+                };
+              },
+              walletSummary: async () =>
+                await Promise.resolve({
+                  ...SUMMARY,
+                  agentAllowance: next,
+                }),
+            },
+          }),
+        },
+      })
+    );
+    expect(statusOf(response)).toBe(200);
+    expect(applied[0]?.allowance.perSpendUsdMicros).toBe(usd(0.04));
+    expect(wallets[0]?.agentAllowance?.perSpendUsdMicros).toBe(usd(0.04));
+  });
+
+  it("does not apply when there is no live session, and still stores the change", async () => {
+    const next = {
+      ...defaultAllowance(NOW),
+      perSpendUsdMicros: usd(0.04),
+    };
+    const response = await commit(next, deps({ fetch: privyFetch() }));
+    expect(statusOf(response)).toBe(200);
+    const body = await bodyOf<{ allowance?: Allowance; ok?: boolean }>(
+      response
+    );
+    expect(body.ok).toBe(true);
+    expect(body.allowance?.perSpendUsdMicros).toBe(usd(0.04));
+  });
+
+  it("does not apply when Privy refuses the change", async () => {
+    const applied: PersonPolicyRecord[] = [];
+    const response = await commit(
+      defaultAllowance(NOW),
+      deps({
+        fetch: privyFetch(401),
+        workspaces: {
+          existing: () => ({
+            session: {
+              applyAllowance: (record) => {
+                if (record !== null) {
+                  applied.push(record);
+                }
+                return {
+                  createdAt: NOW,
+                  id: MandateId.generate(),
+                  rules: [],
+                  sessionId: SessionId.generate(),
+                };
+              },
+              walletSummary: async () => await Promise.resolve(SUMMARY),
+            },
+          }),
+        },
+      })
+    );
+    expect(statusOf(response)).toBe(502);
+    expect(applied).toEqual([]);
   });
 });

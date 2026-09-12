@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { defaultAllowance, userId } from "@froggy/domain";
+import { defaultAllowance, MandateId, SessionId, userId } from "@froggy/domain";
 import type { AppServerMessage, WalletSummary } from "@froggy/protocol";
 import type { AgentGrant, PersonPolicyRecord } from "@froggy/wallet";
 
@@ -56,6 +56,15 @@ const harness = (
         },
         setAgentPolicy: (policy) => {
           calls.push(`policy:${policy?.policyId ?? "none"}`);
+        },
+        applyAllowance: (policy) => {
+          calls.push(`allowance:${policy?.policyId ?? "none"}`);
+          return {
+            createdAt: 0,
+            id: MandateId.generate(),
+            rules: [],
+            sessionId: SessionId.generate(),
+          };
         },
         setAgentSigner: (state, note) => {
           calls.push(`signer:${state}:${note ?? ""}`);
@@ -153,6 +162,7 @@ describe("AgentGrants", () => {
       "addresses:0xabc",
       "wallet:wallet-1",
       "policy:none",
+      "allowance:none",
       "signer:granted:",
     ]);
     h.advance(RETRY_WINDOW_MS * 10);
@@ -172,6 +182,7 @@ describe("AgentGrants", () => {
       "addresses:0xabc",
       "wallet:wallet-1",
       "policy:none",
+      "allowance:none",
       "signer:absent:Privy said no.",
     ]);
     expect(h.published).toHaveLength(1);
@@ -247,6 +258,7 @@ describe("AgentGrants", () => {
     await flush();
     expect(h.calls).toEqual([
       "policy:none",
+      "allowance:none",
       "signer:absent:No embedded wallet on this account yet.",
     ]);
 

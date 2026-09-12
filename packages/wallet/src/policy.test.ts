@@ -683,6 +683,43 @@ describe("under a person's own allowance", () => {
       intent: { kind: "transfer", usdMicros: micros(1) },
     });
     expect(decision._tag).toBe("ask");
+    if (decision._tag === "ask") {
+      expect(decision.question).toContain(
+        "Paying a person is your decision, whatever the amount."
+      );
+    }
+  });
+
+  it("asks from the allowance even when the mandate has no approval_threshold", () => {
+    const decision = authorize({
+      allowance,
+      intent: intent({ kind: "transfer", usdMicros: micros(1) }),
+      mandate: mandate(
+        allowanceRules().filter((entry) => entry._tag !== "approval_threshold")
+      ),
+      now: NOW,
+      recent: [],
+    });
+    expect(decision._tag).toBe("ask");
+    if (decision._tag === "ask") {
+      expect(decision.ruleId).toBeUndefined();
+      expect(decision.question).toContain(
+        "Paying a person is your decision, whatever the amount."
+      );
+    }
+  });
+
+  it("lets a service payment under askOver run without a threshold rule", () => {
+    const decision = authorize({
+      allowance,
+      intent: intent({ kind: "service_payment", usdMicros: micros(50_000) }),
+      mandate: mandate(
+        allowanceRules().filter((entry) => entry._tag !== "approval_threshold")
+      ),
+      now: NOW,
+      recent: [],
+    });
+    expect(decision._tag).toBe("allow");
   });
 
   it("names a real rule on a kind-driven question", () => {
@@ -713,6 +750,21 @@ describe("under a person's own allowance", () => {
   it("does not ask for the nested conversion, which rides an allowed payment", () => {
     const decision = judge({
       intent: { kind: "conversion", usdMicros: micros(500_000) },
+    });
+    expect(decision._tag).toBe("allow");
+  });
+
+  it("would ask for a conversion over the ask line if it were judged alone", () => {
+    const decision = judge({
+      intent: { kind: "conversion", usdMicros: micros(1_500_000) },
+    });
+    expect(decision._tag).toBe("ask");
+  });
+
+  it("does not ask for a conversion over the ask line once the parent is approved", () => {
+    const decision = judge({
+      approved: true,
+      intent: { kind: "conversion", usdMicros: micros(1_500_000) },
     });
     expect(decision._tag).toBe("allow");
   });

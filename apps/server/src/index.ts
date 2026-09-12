@@ -492,6 +492,7 @@ class FroggyServer extends Context.Service<
         notices,
         oracleUrl,
         pager,
+        publishApp: sockets.publishApp,
         runs,
         services,
         workspaces,

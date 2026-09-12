@@ -63,12 +63,12 @@ export const AgentRules = ({
     setOutcome("Saved. Your agent is held to these from now on.");
   };
   const allowance = wallet?.agentAllowance ?? null;
-  // Only once the agent can actually pay. A person's policy is minted before
-  // they grant, so without this the card would say "your agent may pay up to
-  // $2.00 at a time" while the agent has no signer and can pay nothing — and
-  // would say it directly beneath the grant sheet, which is already showing
-  // those same four numbers as a proposal.
-  if (wallet?.agentSigner !== "granted" || allowance === null) {
+  const grantSheetHandlesIt =
+    identity.grantAgentSigner !== null &&
+    (wallet?.agentSigner === "absent" || wallet?.agentSigner === "shared");
+  // Shown once there are numbers to edit. Until they grant, the consent sheet
+  // is the editor; a local identity cannot grant, so this is the editor.
+  if (allowance === null || grantSheetHandlesIt) {
     return null;
   }
   if (editing) {

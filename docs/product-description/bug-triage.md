@@ -71,6 +71,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `authorize` in `packages/wallet/src/policy.ts` draws the human line from `STANDING_AUTHORITY` **only when `input.allowance` is present** — `kindNeedsPerson` and `ceilingFor` are both guarded on it. The judgement object built at `apps/server/src/session.ts:1388` passes `purchase`, `approved`, `intent`, `mandate`, `now`, `recent` and `pocket`, and never `allowance`. `AuthorizeInput`'s own comment describes the fallback honestly — "Absent … the `approval_threshold` rules decide exactly as they always have" — but nothing supplies it, so the fallback is the only regime that ever runs.
 - **Severity:** `high`. A safety rule that is displayed and not enforced is worse than one never claimed, and `authority.ts` is explicit that this table is the part a person is shown.
 - **Decision needed:** `fix`. Pass the person's allowance into the judgement. If this build is meant to run on the threshold-only regime, stop presenting the table as current behaviour.
+- **Status:** Fixed 12 Sep. The judgement passed to `authorize` carries the person's allowance, so `transfer` always asks, `askOverUsdMicros` decides even without an `approval_threshold` rule, and a nested conversion carries the parent's approval so it cannot ask on its own. People with no allowance still run the threshold-only regime.
 - **Raised by:** [the leash](foundations/the-leash.md#open-questions-and-verification), [the policy editor](workspace/wallet/the-policy-editor.md#open-questions-and-verification), [the leash everywhere](cross-cutting/the-leash-everywhere.md)
 
 ### B-03: Editing your allowance does not reach Froggy's own mandate
@@ -81,6 +82,7 @@ Nothing here suggests the design is wrong. It is a young codebase whose intent i
 - **Why (from the code):** `WorkspaceSession.applyAllowance` (`apps/server/src/session.ts:887`) is what rebuilds the mandate's cap, window, expiry and threshold from an allowance. Its only callers are `apps/server/src/session.test.ts:1308` and `:1324`. `PersonPolicies.adjust` writes the record and tells no live session.
 - **Severity:** `high`. It is exactly the drift the one-shape design was built to prevent, and it fails on the side of the local engine, which is described as the synchronous backstop for a Privy outage.
 - **Decision needed:** `fix`. Apply the allowance to the live session on commit.
+- **Status:** Fixed 12 Sep. A policy-editor commit looks up the live session through `Workspaces`, calls `applyAllowance`, and republishes the wallet state so a lowered cap binds in the same session without a reload.
 - **Raised by:** [the policy editor](workspace/wallet/the-policy-editor.md#open-questions-and-verification), [the leash](foundations/the-leash.md#open-questions-and-verification)
 
 ### B-04: A stubbed build is not marked on the Wallet, breaking the loud-stub rule
