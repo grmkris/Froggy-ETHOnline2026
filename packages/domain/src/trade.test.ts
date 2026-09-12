@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { Schema } from "effect";
 
 import { TradeRuleId } from "./id";
+import { TokenResearchFacts, TradeResearchPolicy } from "./token-research";
 import { TradeInput, TradeRule, tradeRuleRefusal } from "./trade";
 
 const wallet = `0x${"1".repeat(40)}`;
@@ -140,5 +141,89 @@ it("treats EVM checksums as one authority identity", () => {
         outputAssets: [lower],
       },
     })
+  ).toBeNull();
+});
+
+it("fails closed on a research policy when facts are absent", () => {
+  const research = Schema.decodeUnknownSync(TradeResearchPolicy)({
+    requireTemplateMatch: true,
+    forbidLaunchInsiders: false,
+    insiderWindowBlocks: 100,
+    maxTopHoldersBps: null,
+    topHolderCount: 10,
+  });
+  const gated = { ...rule, research };
+  expect(
+    tradeRuleRefusal({ ...context, rule: gated, research: null })
+  ).toContain("trade.research_missing");
+  const facts = Schema.decodeUnknownSync(TokenResearchFacts)({
+    v: 1,
+    network: trade.network,
+    address: tokenOut,
+    block: "1",
+    blockHash: `0x${"1".repeat(64)}`,
+    observedAt: context.now,
+    launcher: {
+      status: "observed",
+      launcher: "unknown",
+      factory: null,
+      deployer: null,
+      feeRecipient: null,
+      curveOrPool: null,
+      phase: null,
+      registrationBlock: null,
+      note: null,
+    },
+    template: {
+      status: "observed",
+      matches: true,
+      hash: `0x${"2".repeat(64)}`,
+      venue: "pons",
+      note: null,
+    },
+    cohort: {
+      status: "not_applicable",
+      basis: "none",
+      launchBlock: null,
+      launchTransaction: null,
+      windowBlocks: 0,
+      sameBlockBuyers: [],
+      insiderBuyers: [],
+      earlySellers: [],
+      buyerCount: 0,
+      sellerCount: 0,
+      note: null,
+    },
+    holders: {
+      status: "not_applicable",
+      basis: "none",
+      block: null,
+      holdersCounted: 0,
+      topHolderCount: 0,
+      topShareBps: null,
+      denominator: "none",
+      denominatorUnits: null,
+      exclusions: [],
+      supplyReconciled: false,
+      coverage: "none",
+      transfersRead: 0,
+      pageBudget: 0,
+      note: null,
+    },
+    screen: {
+      status: "unavailable",
+      isHoneypot: null,
+      isMintable: null,
+      isProxy: null,
+      transferPausable: null,
+      isBlacklisted: null,
+      canTakeBackOwnership: null,
+      ownerPercent: null,
+      note: null,
+    },
+    stubbed: false,
+  });
+  expect(
+    tradeRuleRefusal({ ...context, rule: gated, research: facts })
   ).toBeNull();
 });

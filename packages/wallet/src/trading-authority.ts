@@ -7,6 +7,7 @@ import {
 } from "@froggy/domain";
 import type {
   ApprovalId,
+  TokenResearchFacts,
   Trade,
   TradeAssetAmount,
   TradeId,
@@ -28,6 +29,7 @@ export type TradeAuthority =
       readonly kind: "rule";
       readonly ruleId: TradeRuleId;
       readonly verifiedFactory: string | null;
+      readonly research: TokenResearchFacts | null;
     };
 
 export interface TradeClaimRequest {
@@ -148,6 +150,7 @@ const checkAuthority = (
     frozen: request.frozen,
     usage,
     verifiedFactory: authority.verifiedFactory,
+    research: authority.research,
   });
 };
 

@@ -193,6 +193,21 @@ export {
 export type { TradeRuleUsage } from "./trade";
 
 export {
+  LauncherId,
+  ResearchStatus,
+  LauncherFact,
+  TokenTemplateFact,
+  LaunchCohortFact,
+  HolderConcentrationFact,
+  TokenScreenFact,
+  TokenResearchFacts,
+  TradeResearchPolicy,
+  RESEARCH_FRESHNESS_MS,
+  tradeResearchRefusal,
+  emptyTokenResearchFacts,
+} from "./token-research";
+
+export {
   LaunchWatch,
   LaunchReaction,
   LaunchWatchInput,

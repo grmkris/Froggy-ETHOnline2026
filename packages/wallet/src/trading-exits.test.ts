@@ -93,6 +93,7 @@ const fixture = () => {
       kind: "rule" as const,
       ruleId: rule.id,
       verifiedFactory: null,
+      research: null,
     },
     now: 10,
     frozen: false,

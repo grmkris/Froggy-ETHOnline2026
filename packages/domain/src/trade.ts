@@ -10,6 +10,8 @@ import {
   TradeRuleId,
   TradeStepId,
 } from "./id";
+import type { TokenResearchFacts } from "./token-research";
+import { TradeResearchPolicy, tradeResearchRefusal } from "./token-research";
 import {
   sameTradingAddress,
   TradingAddress,
@@ -271,6 +273,8 @@ export const TradeRule = Schema.Struct({
   launchFactory: Schema.NullOr(TradingAddress),
   watchId: Schema.optionalKey(LaunchWatchId),
   exits: Schema.optionalKey(TradeExitPolicy),
+  /** Fail-closed research predicates; absent means no research gate. */
+  research: Schema.optionalKey(TradeResearchPolicy),
   maxInputPerTrade: PositiveUnits,
   maxTotalInput: PositiveUnits,
   maxNativeFeePerTrade: PositiveUnits,
@@ -292,51 +296,38 @@ export interface TradeRuleUsage {
   readonly openPositions: number;
 }
 
-/** Pure authorization: callers supply time, durable usage and independently verified membership. */
-export const tradeRuleRefusal = (input: {
+const tradeOutputAssetRefusal = (input: {
   readonly rule: TradeRule;
   readonly trade: TradeInput;
-  readonly now: number;
-  readonly frozen: boolean;
-  readonly usage: TradeRuleUsage;
   readonly verifiedFactory: string | null;
 }): string | null => {
-  const { rule, trade, now, usage } = input;
-  if (input.frozen) {
-    return "trade.frozen: the person froze this workspace.";
+  const { rule, trade } = input;
+  const authorizedOutput = rule.outputAssets.some((asset) =>
+    sameTradingAddress(trade.network, asset, trade.tokenOut)
+  );
+  if (authorizedOutput) {
+    return null;
   }
-  if (rule.revokedAt !== null || rule.expiresAt <= now) {
-    return "trade.rule_inactive: the trading rule was revoked or expired.";
+  const verifiedLaunch =
+    rule.launchFactory !== null &&
+    input.verifiedFactory !== null &&
+    sameTradingAddress(
+      trade.network,
+      input.verifiedFactory,
+      rule.launchFactory
+    );
+  if (verifiedLaunch) {
+    return null;
   }
-  if (
-    rule.network !== trade.network ||
-    !sameTradingAddress(trade.network, rule.wallet, trade.wallet)
-  ) {
-    return "trade.wallet: network or wallet differs from the trading rule.";
-  }
-  if (
-    !rule.venues.includes(trade.venue) ||
-    !rule.actions.includes(trade.action)
-  ) {
-    return "trade.action: the venue or action is not authorized.";
-  }
-  if (!sameTradingAddress(trade.network, rule.inputAsset, trade.tokenIn)) {
-    return "trade.input_asset: the input asset is not authorized.";
-  }
-  if (
-    !rule.outputAssets.some((asset) =>
-      sameTradingAddress(trade.network, asset, trade.tokenOut)
-    ) &&
-    (rule.launchFactory === null ||
-      input.verifiedFactory === null ||
-      !sameTradingAddress(
-        trade.network,
-        input.verifiedFactory,
-        rule.launchFactory
-      ))
-  ) {
-    return "trade.output_asset: no authorized token or verified launch factory.";
-  }
+  return "trade.output_asset: no authorized token or verified launch factory.";
+};
+
+const tradeUsageCapRefusal = (input: {
+  readonly rule: TradeRule;
+  readonly trade: TradeInput;
+  readonly usage: TradeRuleUsage;
+}): string | null => {
+  const { rule, trade, usage } = input;
   if (
     BigInt(trade.amount) > BigInt(rule.maxInputPerTrade) ||
     usage.input + BigInt(trade.amount) > BigInt(rule.maxTotalInput)
@@ -360,6 +351,55 @@ export const tradeRuleRefusal = (input: {
     return "trade.positions: the trade or open-position limit would be exceeded.";
   }
   return null;
+};
+
+/** Pure authorization: callers supply time, durable usage and independently verified membership. */
+export const tradeRuleRefusal = (input: {
+  readonly rule: TradeRule;
+  readonly trade: TradeInput;
+  readonly now: number;
+  readonly frozen: boolean;
+  readonly usage: TradeRuleUsage;
+  readonly verifiedFactory: string | null;
+  readonly research?: TokenResearchFacts | null;
+}): string | null => {
+  const { rule, trade, now, usage } = input;
+  if (input.frozen) {
+    return "trade.frozen: the person froze this workspace.";
+  }
+  if (rule.revokedAt !== null || rule.expiresAt <= now) {
+    return "trade.rule_inactive: the trading rule was revoked or expired.";
+  }
+  if (
+    rule.network !== trade.network ||
+    !sameTradingAddress(trade.network, rule.wallet, trade.wallet)
+  ) {
+    return "trade.wallet: network or wallet differs from the trading rule.";
+  }
+  if (
+    !rule.venues.includes(trade.venue) ||
+    !rule.actions.includes(trade.action)
+  ) {
+    return "trade.action: the venue or action is not authorized.";
+  }
+  if (!sameTradingAddress(trade.network, rule.inputAsset, trade.tokenIn)) {
+    return "trade.input_asset: the input asset is not authorized.";
+  }
+  const outputRefusal = tradeOutputAssetRefusal(input);
+  if (outputRefusal !== null) {
+    return outputRefusal;
+  }
+  if (rule.research !== undefined) {
+    const researchRefusal = tradeResearchRefusal({
+      policy: rule.research,
+      facts: input.research ?? null,
+      now,
+    });
+    if (researchRefusal !== null) {
+      return researchRefusal;
+    }
+  }
+  return tradeUsageCapRefusal({ rule, trade, usage });
 };
 
 export const tradeFinished = (status: TradeStatus): boolean =>

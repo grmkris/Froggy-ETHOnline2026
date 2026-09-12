@@ -9,6 +9,7 @@ import {
   TokenInspectResult,
 } from "./trading-market";
 import { SwapQuoteInput, SwapQuoteResult } from "./trading-quote";
+import { TokenResearchInput, TokenResearchResult } from "./trading-research";
 import { RpcReadInput, RpcReadResult } from "./trading-rpc";
 
 export const TradingServiceName = Schema.Literals([
@@ -17,6 +18,7 @@ export const TradingServiceName = Schema.Literals([
   "token_inspect",
   "rpc_read",
   "quote_action",
+  "token_research",
 ]);
 export type TradingServiceName = typeof TradingServiceName.Type;
 
@@ -54,6 +56,11 @@ export const SwapQuoteRequest = Schema.Struct({
   service: Schema.Literals(["quote_action"]),
   input: SwapQuoteInput,
 });
+export const TokenResearchRequest = Schema.Struct({
+  ...requestFields,
+  service: Schema.Literals(["token_research"]),
+  input: TokenResearchInput,
+});
 
 export const TradingServiceRequest = Schema.Union([
   LaunchWatchRequest,
@@ -61,6 +68,7 @@ export const TradingServiceRequest = Schema.Union([
   TokenInspectRequest,
   RpcReadRequest,
   SwapQuoteRequest,
+  TokenResearchRequest,
 ]);
 export type TradingServiceRequest = typeof TradingServiceRequest.Type;
 
@@ -70,5 +78,6 @@ export const TradingResult = Schema.Union([
   TokenInspectResult,
   RpcReadResult,
   SwapQuoteResult,
+  TokenResearchResult,
 ]);
 export type TradingResult = typeof TradingResult.Type;

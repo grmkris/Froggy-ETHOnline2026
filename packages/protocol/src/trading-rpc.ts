@@ -52,6 +52,41 @@ const RpcCall = Schema.Union([
     params: Schema.Tuple([Hash]),
   }),
   Schema.Struct({
+    method: Schema.Literals(["eth_getLogs"]),
+    params: Schema.Tuple([
+      Schema.Struct({
+        address: EvmAddress,
+        fromBlock: Quantity,
+        toBlock: Quantity,
+        topics: Schema.optionalKey(
+          Schema.Array(
+            Schema.Union([
+              Hash,
+              Schema.Null,
+              Schema.Array(Hash).check(Schema.isMaxLength(16)),
+            ])
+          ).check(Schema.isMaxLength(4))
+        ),
+      }).check(
+        Schema.makeFilter(
+          (filter) => {
+            try {
+              const from = BigInt(filter.fromBlock);
+              const to = BigInt(filter.toBlock);
+              return to >= from && to - from < 10_000n;
+            } catch {
+              return false;
+            }
+          },
+          {
+            message:
+              "eth_getLogs requires an explicit quantity range of at most 10,000 blocks.",
+          }
+        )
+      ),
+    ]),
+  }),
+  Schema.Struct({
     method: Schema.Literals(["getSlot"]),
     params: Schema.Tuple([CommitmentConfig]),
   }),
@@ -115,6 +150,7 @@ export const RpcReadResult = Schema.Struct({
     "eth_getCode",
     "eth_call",
     "eth_getTransactionReceipt",
+    "eth_getLogs",
     "getSlot",
     "getBalance",
     "getAccountInfo",
