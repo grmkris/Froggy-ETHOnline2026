@@ -18,7 +18,7 @@ Froggy was already further into this than the prompt assumes. The Pons V2 deploy
 | `pons_token` | Free Pons launch state at one pinned block, including template fingerprint |
 | `token_research` | Paid composite: launcher detection (Pons + Pools.trade), template, cohort, reconstructed holders, GoPlus |
 | Bounded `eth_getLogs` | On `rpc_read` and inside research; span ≤ 10k blocks, ≤ 100 logs |
-| Research-gated rules | Human attaches fail-closed predicates; only own-RPC bases may refuse signing |
+| Research-gated rules | Human attaches fail-closed predicates; only own-RPC bases may refuse signing. Pons: template, insiders, concentration. Uniswap on Base, Ethereum and Robinhood: concentration only. Entries only; exits are never gated |
 | Venue adapters | Pons and Pools.trade on Robinhood; Clanker, Zora, Flaunch, Virtuals on Base (see `docs/evidence/`) |
 
 `pons_token` reports, at one pinned block: whether the Pons V2 factory registered the token at all, its phase, curve address, deployer, creator fee recipient, creator tax, graduation threshold and buyback flag, then either the curve's reserves, sellable supply and fee basis points, or the graduated pool's key, price, tick and active liquidity. It also reports whether runtime bytecode matches the reviewed masked template.

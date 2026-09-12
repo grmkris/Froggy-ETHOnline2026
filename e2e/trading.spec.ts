@@ -570,3 +570,65 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
   });
   expect(errors).toEqual([]);
 });
+
+test("a Uniswap rule can require a holder-concentration cap without launcher predicates", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  await page.goto("/services");
+  const rules = page.getByRole("region", {
+    name: "Trading rules",
+    exact: true,
+  });
+  await rules
+    .getByLabel("Rule network & route")
+    .selectOption("eip155:8453:uniswap:swap");
+  const form = rules.getByRole("form", { name: "Create trading rule" });
+  await form.getByLabel("Rule name").fill("Base concentration rule");
+  await form
+    .getByLabel("Authorized input asset")
+    .fill("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+  await form
+    .getByLabel("Authorized output token")
+    .fill("0x4200000000000000000000000000000000000006");
+  await expect(form.getByText("Research requirements")).toBeVisible();
+  await expect(form.getByText("Exits are never gated.")).toBeVisible();
+  await expect(
+    form.getByLabel("Require reviewed Pons token template")
+  ).toHaveCount(0);
+  await expect(
+    form.getByLabel(
+      "Forbid deployer or fee-recipient buys in the launch window"
+    )
+  ).toHaveCount(0);
+  await expect(form.getByLabel("Insider window · blocks")).toHaveCount(0);
+  await form.getByLabel("Require research checks before signing").check();
+  await form
+    .getByLabel("Max top-holder share · basis points", { exact: true })
+    .fill("4000");
+  await form
+    .getByLabel("Maximum entry input · base units", { exact: true })
+    .fill("100");
+  await form
+    .getByLabel("Total entry input · base units", { exact: true })
+    .fill("200");
+  await form
+    .getByLabel("Maximum native fee per trade · base units", { exact: true })
+    .fill("10");
+  await form
+    .getByLabel("Total native fees · base units", { exact: true })
+    .fill("40");
+  await form.getByLabel("Maximum entries", { exact: true }).fill("2");
+  await form
+    .getByRole("button", { name: "Authorize this trading rule" })
+    .click();
+  await expect(
+    rules.getByRole("heading", { name: "Base concentration rule" })
+  ).toBeVisible();
+  await expect(rules).toContainText("Research: top 10 ≤ 4000 bps");
+  await expect(rules).not.toContainText("template");
+  expect(errors).toEqual([]);
+});
