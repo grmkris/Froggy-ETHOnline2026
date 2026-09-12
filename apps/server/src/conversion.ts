@@ -10,6 +10,31 @@ import { sendUsdc } from "./usdc-transfer";
 const pendingWords = (record: ConversionRecord): string =>
   `Conversion ${record.id} is waiting for ${record.phase === "usdc_pending" ? "USDC confirmation" : "HBAR funding"}. Pending funds cannot be spent. Retry to check confirmation; USDC will not be charged again.${record.error === null ? "" : ` ${record.error}`}`;
 
+/**
+ * What a settled USDC leg makes of the record.
+ *
+ * A broadcast the node refused was never sent: the hash persisted before it
+ * names nothing, and keeping it would leave the record "waiting for USDC
+ * confirmation" for ever and block every later spend. It is cleared, so the
+ * record fails and a retry may claim the same key.
+ */
+const settledPatch = (
+  record: ConversionRecord,
+  transfer: Settled
+): Pick<ConversionRecord, "phase" | "error"> &
+  Partial<Pick<ConversionRecord, "usdcHash">> => {
+  let phase: ConversionRecord["phase"] = "usdc_pending";
+  if (transfer.ok) {
+    phase = "usdc_confirmed";
+  } else if (record.usdcHash === null || transfer.confirmation === "failed") {
+    phase = "failed";
+  }
+  const error = transfer.error ?? null;
+  return transfer.sent === false && record.usdcHash !== null
+    ? { phase, error, usdcHash: null }
+    : { phase, error };
+};
+
 export const createConversion = (
   services: Services
 ): SessionDeps["convert"] | undefined => {
@@ -217,19 +242,7 @@ export const createConversion = (
               record = await update(record, { usdcHash: hash });
             }
           );
-          let phase: ConversionRecord["phase"] = "usdc_pending";
-          if (transfer.ok) {
-            phase = "usdc_confirmed";
-          } else if (
-            record.usdcHash === null ||
-            transfer.confirmation === "failed"
-          ) {
-            phase = "failed";
-          }
-          record = await update(record, {
-            phase,
-            error: transfer.error ?? null,
-          });
+          record = await update(record, settledPatch(record, transfer));
         } catch (error) {
           // Preserve the known submission even if persistence itself is down.
           // The pre-broadcast record still lets a later worker reconcile it.

@@ -11,9 +11,18 @@ import { Schema } from "effect";
 
 /** The endpoint refused, timed out, or answered something that was not JSON-RPC. */
 export class EvmRpcError extends Error {
-  constructor(detail: string) {
+  /**
+   * True when the node itself answered with a JSON-RPC error: it saw the
+   * request and rejected it, so for a broadcast nothing entered the mempool.
+   * False for a transport failure, an HTTP error or an unreadable reply,
+   * where the request may or may not have been acted on.
+   */
+  readonly refused: boolean;
+
+  constructor(detail: string, refused = false) {
     super(detail);
     this.name = "EvmRpcError";
+    this.refused = refused;
   }
 }
 
@@ -128,7 +137,7 @@ export const evmRpc = (options: EvmRpcOptions): EvmRpc => {
     }
     const { error, result } = envelope.success;
     if (error !== undefined) {
-      throw new EvmRpcError(`${method}: ${error.message}`);
+      throw new EvmRpcError(`${method}: ${error.message}`, true);
     }
     const decoded = Schema.decodeUnknownResult(codec)(result);
     if (decoded._tag === "Failure") {

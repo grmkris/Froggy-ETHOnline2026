@@ -53,6 +53,21 @@ export const sendUsdc = async (
       ? settled
       : { ...settled, error: "the transfer reverted on chain" };
   } catch (error) {
+    if (error instanceof EvmRpcError && error.refused) {
+      // The node answered the broadcast with an error: it rejected the bytes
+      // and nothing entered the mempool. That is a failed send, not an
+      // unknown one, and the hash written before the broadcast names a
+      // transaction that will never exist — so it is not reported as sent.
+      return {
+        confirmation: "failed",
+        error: error.message,
+        network,
+        ok: false,
+        sent: false,
+        stubbed: false,
+        transactionId: null,
+      };
+    }
     if (
       error instanceof PrivySignerRefusedError ||
       error instanceof EvmRpcError
