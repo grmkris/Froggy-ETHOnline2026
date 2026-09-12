@@ -13,6 +13,7 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowUpRightIcon,
   ChartNoAxesCombinedIcon,
+  SearchIcon,
   SparklesIcon,
 } from "lucide-react";
 import type { ReactElement } from "react";
@@ -92,6 +93,23 @@ export const EmptyState = ({
     </div>
     <AgentOnboarding />
     <div className="grid gap-3 sm:grid-cols-2">
+      <Button
+        aria-label="What is the cheapest USDC borrow right now?"
+        className={ACTION}
+        disabled={disabled}
+        onClick={() => {
+          onSend("What is the cheapest USDC borrow right now?");
+        }}
+        variant="outline"
+      >
+        <SearchIcon aria-hidden data-icon="inline-start" />
+        <span className="flex flex-col gap-1">
+          <span>What is the cheapest USDC borrow right now?</span>
+          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
+            A live Graph query across the lending markets.
+          </span>
+        </span>
+      </Button>
       <Button
         aria-label="Buy the lending snapshot"
         className={ACTION}
