@@ -33,7 +33,7 @@ const OPERATOR_FEE = parseAbi([
   "function getOperatorFee(uint256 _gasUsed) view returns (uint256)",
 ]);
 
-export const ROLLUP_NETWORKS: ReadonlySet<string> = new Set([
+const ROLLUP_NETWORKS: ReadonlySet<string> = new Set([
   "eip155:8453",
   "eip155:84532",
 ]);
