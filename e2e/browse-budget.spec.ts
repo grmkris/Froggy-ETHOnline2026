@@ -140,6 +140,12 @@ for (const uncertain of [false, true]) {
       page.getByRole("button", { name: "Pay $1 and browse", exact: true })
     ).toHaveCount(0);
     expect(errors).toEqual([]);
+    if (!uncertain) {
+      await page
+        .getByRole("button", { name: "Open browser", exact: true })
+        .click();
+      await expect(page.locator('[data-slot="driving-ring"]')).toBeVisible();
+    }
   });
 }
 

@@ -22,6 +22,7 @@ import { useEffect, useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useChatSurface } from "../../lib/chat-context";
+import { scrollToLive } from "../../lib/scroll-to-live";
 import { useSessionToken } from "../../lib/session-token";
 import { useWorkspace } from "../../lib/workspace-context";
 
@@ -242,6 +243,14 @@ export const BrowseTaskForm = ({
   const { getToken } = useSessionToken();
   const { showBrowser } = useChatSurface();
   const { app } = useWorkspace();
+  const revealBrowser = (): void => {
+    showBrowser();
+    // The live card mounts on the next paint; scrolling in this tick finds
+    // nothing, which is how Open browser looked like a dead button.
+    requestAnimationFrame(() => {
+      scrollToLive();
+    });
+  };
   // The leash judges this payment like any other, so a budget over the
   // person's own per-payment cap is refused the moment they press Pay. Better
   // to say so here, where the number is chosen, than after a signature.
@@ -325,7 +334,7 @@ export const BrowseTaskForm = ({
     setChallenge(null);
     setBusy(false);
     if (result.error === null) {
-      showBrowser();
+      revealBrowser();
     }
   };
   if (task !== null) {
@@ -353,7 +362,7 @@ export const BrowseTaskForm = ({
             {text.success.text}
           </p>
         ) : null}
-        <Button size="sm" variant="outline" onClick={showBrowser}>
+        <Button size="sm" variant="outline" onClick={revealBrowser}>
           Open browser
         </Button>
       </div>

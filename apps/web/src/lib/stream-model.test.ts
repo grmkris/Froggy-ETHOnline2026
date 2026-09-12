@@ -133,6 +133,19 @@ describe("buildStream", () => {
     expect(lastBrowserTurn([turn("m1"), browserTurn, turn("m3")])).toBe("m2");
     expect(lastBrowserTurn([turn("m1")])).toBeNull();
   });
+
+  it("treats a paid browse card as a page touch, so the live card sits under it", () => {
+    const browseTurn = turn("m2", RunId.generate(), [
+      {
+        input: { prompt: "Read Wikipedia" },
+        state: "output-available",
+        toolCallId: "c1",
+        type: "tool-browse_task",
+        output: "Choose a budget in the browsing card.",
+      },
+    ]);
+    expect(lastBrowserTurn([turn("m1"), browseTurn, turn("m3")])).toBe("m2");
+  });
 });
 
 describe("showThinking", () => {

@@ -69,7 +69,6 @@ export const ChatPage = (): ReactElement => {
     conversationId,
     historyLoading,
     historyError,
-    historyRecords,
     historyReceipts,
     crossThreadHistory,
     setCrossThreadHistory,
@@ -119,14 +118,12 @@ export const ChatPage = (): ReactElement => {
   // Only the turn that just failed can be asked again, and only while the
   // error stands; clearing it is part of asking.
   const retryId = retryIdOf(chat.messages, chat.status);
-  const selectedActive = historyRecords.some((record) =>
-    ["running", "waiting", "accepted"].includes(record.status)
-  );
+  // A paid browse outlives the chat turn that offered the card. Busy is not
+  // a gate: Open browser and a live page are each enough on their own.
   const showLive =
-    (busy || selectedActive || chat.messages.length === 0) &&
-    (browserRequested ||
-      popOut.mode === "window" ||
-      hasLivePage(browser.state, liveAfter));
+    browserRequested ||
+    popOut.mode === "window" ||
+    hasLivePage(browser.state, liveAfter);
   const currentUrl = activeUrl(browser.state);
 
   const card = (fill: boolean): ReactElement => (

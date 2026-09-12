@@ -38,10 +38,16 @@ export type StreamItem =
     };
 
 const BROWSER_TOOL_PREFIX = "tool-browser_";
+/** The paid card that starts a hosted session; the live page sits under it too. */
+const BROWSE_TASK_TYPE = "tool-browse_task";
 
 /** Did this turn touch the shared page? The live card sits under the last one that did. */
 const usesBrowser = (message: FroggyMessage): boolean =>
-  message.parts.some((part) => part.type.startsWith(BROWSER_TOOL_PREFIX));
+  message.parts.some(
+    (part) =>
+      part.type.startsWith(BROWSER_TOOL_PREFIX) ||
+      part.type === BROWSE_TASK_TYPE
+  );
 
 export const lastBrowserTurn = (
   messages: readonly FroggyMessage[]
