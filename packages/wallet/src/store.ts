@@ -100,9 +100,25 @@ export interface OAuthTokenRow {
   readonly usedAt: number | null;
 }
 
-/** What a task update may change. Everything else is fixed at creation. */
+/**
+ * What a task update may change. Everything else is fixed at creation.
+ *
+ * `input` and `priceUsdMicros` are here for one caller: re-pricing a browse
+ * quote nobody has paid, through `claim(..., "quoted", ...)`, so the same card
+ * can ask for another budget or a fresh expiry. A quote is a draft; once a
+ * task is paid its price and input are what the sale bought and stay put.
+ */
 type TaskPatch = Partial<
-  Pick<Task, "error" | "result" | "runId" | "saleId" | "status">
+  Pick<
+    Task,
+    | "error"
+    | "input"
+    | "priceUsdMicros"
+    | "result"
+    | "runId"
+    | "saleId"
+    | "status"
+  >
 > & { readonly updatedAt: number };
 
 /** What a sale update may change once the proof is on file. */
