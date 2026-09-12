@@ -17,7 +17,7 @@ export const AgentsPage = (): ReactElement => {
   return (
     <Page
       intro="Talk to Froggy from your phone, or let another agent request tasks on this wallet."
-      title="Agents"
+      title="Connections"
     >
       <section
         aria-label="Connect your agent"

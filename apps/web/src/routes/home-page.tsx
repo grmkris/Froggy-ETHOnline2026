@@ -11,6 +11,7 @@
  * same thing is how a person pays twice.
  */
 
+import type { Conversation } from "@froggy/domain";
 import { ScheduleList as ScheduleListSchema } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
@@ -65,12 +66,12 @@ const Home = (): ReactElement => {
   const needsUser = app.approvals.length + pendingPurchases;
   const pose = poseForHome(needsUser, busy);
 
-  const conversations = useHistoryPage("/api/conversations?limit=4&q=");
+  const conversations = useHistoryPage("/api/conversations?limit=3&q=");
   const recent = useMemo(
     () =>
-      conversations.records
-        .filter((record) => record.kind === "conversation")
-        .slice(0, 3),
+      conversations.records.filter(
+        (record): record is Conversation => record.kind === "conversation"
+      ),
     [conversations.records]
   );
 
@@ -196,17 +197,9 @@ const Home = (): ReactElement => {
           ? null
           : recent.map((record) => (
               <Card key={record.id}>
-                <h2 className="text-[15px] font-semibold">
-                  {record.kind === "conversation" && record.title !== null
-                    ? record.title
-                    : "Untitled task"}
-                </h2>
+                <h2 className="text-[15px] font-semibold">{record.title}</h2>
                 <p className="text-muted-foreground mt-0.5 text-xs font-[var(--machine)]">
-                  {new Date(
-                    record.kind === "conversation"
-                      ? record.updatedAt
-                      : record.createdAt
-                  ).toLocaleString()}
+                  {new Date(record.updatedAt).toLocaleString()}
                 </p>
                 <div className="mt-3">
                   <Button

@@ -43,7 +43,9 @@ export const ServiceCard = ({
             })}
           </span>
           <Badge className="tabular-nums" variant="secondary">
-            {formatUsd(card.priceUsdMicros)}
+            {card.status === "unavailable"
+              ? "Unpriced"
+              : formatUsd(card.priceUsdMicros)}
           </Badge>
         </div>
         <CardTitle className="pt-1">{card.title}</CardTitle>

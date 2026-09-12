@@ -260,7 +260,7 @@ const Consent = ({
         ))}
       </ul>
       <p className="text-muted-foreground">
-        Your spending rules still apply. Disconnect any time on the Agents page.
+        Your spending rules still apply. Disconnect any time on Connections.
       </p>
       {decide.isError ? (
         <p className="text-refused text-xs" role="alert">

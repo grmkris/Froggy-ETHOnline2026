@@ -6,13 +6,11 @@
  * they set their own rules?" should be shown this in two seconds, and one tap
  * should still be enough for everyone who does not care.
  *
- * It sends on the app socket rather than over HTTP, like an approval and a
- * mandate edit. What may be spent is changed by a human on that channel and
- * nowhere else; a route the model could reach would be the one hole this whole
- * design exists to keep shut.
- *
- * Dollars on the way in and out, micro-dollars on the wire: the person types
- * `2.50`, the leash compares `2500000`, and nothing in between rounds.
+ * It saves over HTTP, like Settings and the grant sheet. The server is what
+ * keeps a model from reaching that route; this form is only mounted for a
+ * person. Dollars on the way in and out, micro-dollars on the wire: the
+ * person types `2.50`, the leash compares `2500000`, and nothing in between
+ * rounds.
  */
 
 import { usd } from "@froggy/domain";

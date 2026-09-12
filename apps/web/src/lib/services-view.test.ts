@@ -16,7 +16,7 @@ describe("services view", () => {
     expect(statusWords("awaiting_approval").label).toBe(
       "Waiting for your answer"
     );
-    expect(statusWords("uncertain").label).toBe("Payment uncertain");
+    expect(statusWords("paused").label).toBe("Paused");
     expect(isSettling("running")).toBe(true);
     expect(isSettling("done")).toBe(false);
   });

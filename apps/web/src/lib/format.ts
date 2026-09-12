@@ -49,6 +49,12 @@ export const explorerUrl = (
     case "eip155:8453": {
       return `https://basescan.org/tx/${id}`;
     }
+    case "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": {
+      return `https://solscan.io/tx/${id}`;
+    }
+    case "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": {
+      return `https://solscan.io/tx/${id}?cluster=devnet`;
+    }
     default: {
       return null;
     }
@@ -65,13 +71,27 @@ const COMPACT_USD = new Intl.NumberFormat("en", {
 /** "$96M", "$1.2B", "$412K": a market's size at a glance. */
 export const compactUsd = (usd: number): string => COMPACT_USD.format(usd);
 
-/** HashScan's path segment for a Hedera network; testnet for anything unknown. */
-const hashscanNetwork = (network: string): string =>
-  network === "hedera:mainnet" ? "mainnet" : "testnet";
+/** HashScan's path segment for a Hedera network; null when it is not Hedera. */
+const hashscanNetwork = (network: string): "mainnet" | "testnet" | null => {
+  if (network === "hedera:mainnet") {
+    return "mainnet";
+  }
+  if (network === "hedera:testnet") {
+    return "testnet";
+  }
+  return null;
+};
 
 /** A person's own Hedera account on HashScan. */
-export const hederaAccountUrl = (accountId: string, network: string): string =>
-  `https://hashscan.io/${hashscanNetwork(network)}/account/${encodeURIComponent(accountId)}`;
+export const hederaAccountUrl = (
+  accountId: string,
+  network: string
+): string | null => {
+  const segment = hashscanNetwork(network);
+  return segment === null
+    ? null
+    : `https://hashscan.io/${segment}/account/${encodeURIComponent(accountId)}`;
+};
 
 /** An EVM address on the explorer of its Base. */
 export const evmAddressUrl = (address: string, network: string): string =>
@@ -84,5 +104,7 @@ export const hcsMessageUrl = (
   topicId: string,
   sequence: number,
   network = "hedera:testnet"
-): string =>
-  `https://hashscan.io/${hashscanNetwork(network)}/topic/${encodeURIComponent(topicId)}/message/${sequence}`;
+): string => {
+  const segment = hashscanNetwork(network) ?? "testnet";
+  return `https://hashscan.io/${segment}/topic/${encodeURIComponent(topicId)}/message/${sequence}`;
+};

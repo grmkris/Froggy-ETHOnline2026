@@ -5,7 +5,7 @@
  * becomes Stop, and stopping is two things: the local detach and the server
  * abort, because the run belongs to the server and would otherwise keep
  * spending with nobody watching. Enter while a turn runs queues one message
- * for the moment the turn ends; a slash opens the four commands.
+ * for the moment the turn ends; a slash opens the two commands.
  */
 
 import { Button } from "@froggy/ui/components/button";

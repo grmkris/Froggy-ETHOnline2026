@@ -25,6 +25,15 @@ describe("explorerUrl", () => {
     );
   });
 
+  it("sends Solana settlements to Solscan", () => {
+    expect(explorerUrl("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "sig")).toBe(
+      "https://solscan.io/tx/sig"
+    );
+    expect(explorerUrl("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "sig")).toBe(
+      "https://solscan.io/tx/sig?cluster=devnet"
+    );
+  });
+
   it("would rather show no explorer than a wrong one", () => {
     expect(explorerUrl("eip155:1", "0xabc")).toBeNull();
   });
@@ -55,5 +64,6 @@ describe("hederaAccountUrl", () => {
     expect(hederaAccountUrl("0.0.10396162", "hedera:mainnet")).toBe(
       "https://hashscan.io/mainnet/account/0.0.10396162"
     );
+    expect(hederaAccountUrl("0.0.1", "eip155:8453")).toBeNull();
   });
 });
