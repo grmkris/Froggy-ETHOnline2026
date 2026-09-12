@@ -1,12 +1,13 @@
 /**
- * One button, one dialog, two ways in.
+ * One button, one dialog, three ways in.
  *
- * Money reaches the wallet as USDC on Base either by sending it there from
- * any wallet or exchange, which needs nothing but the address, or by card
- * through Privy's onramp, which needs a Privy sign-in and a provider that
- * serves the person's region. The address comes first because it always
- * works; the card is the convenience. Without a sign-in the dialog says what
- * is missing instead of pretending.
+ * Money reaches the wallet as USDC on Base by sending it there from any
+ * wallet or exchange, which needs nothing but the address; by converting
+ * from another chain through Privy; or by card through Privy's onramp, which
+ * needs a Privy sign-in and a provider that serves the person's region. The
+ * address comes first because it always works; the other two are
+ * conveniences. Without a sign-in the dialog says what is missing instead of
+ * pretending.
  */
 
 import type { WalletSummary } from "@froggy/protocol";
@@ -265,10 +266,10 @@ export const AddFunds = ({
               </span>
             </output>
           ) : null}
-          <FromAnotherChain address={address} />
           {address === null ? null : (
             <SendToAddress address={address} wallet={wallet} />
           )}
+          <FromAnotherChain address={address} />
           {wallet === null ? null : (
             <PayByCard address={address} wallet={wallet} />
           )}
