@@ -1,3 +1,11 @@
+/**
+ * The trading loop: prepare, approve, reserve, sign, broadcast.
+ *
+ * Every fill goes through `session.spendTrade()`. This file sequences the
+ * human or rule approval and the venue backend; it does not price, authorize
+ * or pay. A stub backend is loud (`provider: "fixture"`) so a synthetic fill
+ * cannot be mistaken for a chain fill.
+ */
 import {
   ReceiptId,
   Trade,

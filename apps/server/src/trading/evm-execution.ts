@@ -19,6 +19,7 @@ import {
 } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
 import { verifySignedTradeTransaction } from "./evm-signed";
+import { chainIdOf, PONS_NETWORK } from "./networks";
 import { tenderlySimulation } from "./tenderly";
 import type { TenderlyOptions } from "./tenderly";
 import { uniswapExecutionNetwork } from "./uniswap-transactions";
@@ -174,7 +175,7 @@ export const evmTradeSubmission =
       }
       if (
         !uniswapExecutionNetwork(trade.input.network) &&
-        !(trade.input.venue === "pons" && trade.input.network === "eip155:4663")
+        !(trade.input.venue === "pons" && trade.input.network === PONS_NETWORK)
       ) {
         throw new Error(
           "trade.fee_bound: this network has fees outside the signed transaction cap; execution is unavailable."
@@ -182,8 +183,12 @@ export const evmTradeSubmission =
       }
       await checkTradeBeforeSigning(options.client, trade, step);
       const { payload } = step;
+      const chainId = chainIdOf(trade.input.network);
+      if (chainId === null) {
+        throw new Error("trade.signature: invalid EVM transaction encoding.");
+      }
       const signed = await signer.signer.signTransaction({
-        chainId: Number(trade.input.network.slice(7)),
+        chainId,
         to: payload.to,
         data: payload.data,
         value: BigInt(payload.value),

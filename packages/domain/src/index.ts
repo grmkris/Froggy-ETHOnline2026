@@ -100,7 +100,9 @@ export {
 export {
   Amount,
   Asset,
+  formatAmount,
   formatUsd,
+  knownAsset,
   KNOWN_ASSETS,
   Network,
   parQuote,

@@ -8,6 +8,7 @@ import {
   confirmedTradeReceipt,
   tradeEvmClient,
 } from "./evm-chain";
+import { PONS_NETWORK } from "./networks";
 
 const ADDRESS = "0x1111111111111111111111111111111111111111";
 const TARGET = "0x2222222222222222222222222222222222222222";
@@ -221,7 +222,7 @@ test("an absent receipt is pending rather than a provider failure", async () => 
 test("Robinhood Nitro includes parent gas in gasUsed without double charging l1Fee", async () => {
   const pons = Schema.decodeUnknownSync(Trade)({
     ...trade,
-    input: { ...trade.input, network: "eip155:4663", venue: "pons" },
+    input: { ...trade.input, network: PONS_NETWORK, venue: "pons" },
     phase: "curve",
   });
   const base = responder();
@@ -242,7 +243,7 @@ test("Robinhood Nitro includes parent gas in gasUsed without double charging l1F
 test("Robinhood receipts require consistent parent gas evidence", async () => {
   const pons = Schema.decodeUnknownSync(Trade)({
     ...trade,
-    input: { ...trade.input, network: "eip155:4663", venue: "pons" },
+    input: { ...trade.input, network: PONS_NETWORK, venue: "pons" },
     phase: "curve",
   });
   await Promise.all(

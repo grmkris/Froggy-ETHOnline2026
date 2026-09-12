@@ -4,7 +4,8 @@ import { getAddress, keccak256, parseAbiItem } from "viem";
 
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
-import { PONS_DEPLOYMENTS, PONS_NETWORK } from "./pons";
+import { PONS_NETWORK } from "./networks";
+import { PONS_DEPLOYMENTS } from "./pons";
 
 const LAUNCH = parseAbiItem(
   "event TokenLaunched(address indexed token,address indexed curve,address indexed deployer,address pairToken,uint256 launchConfigId,uint256 graduationThreshold)"

@@ -1,3 +1,9 @@
+/**
+ * Test-only fake Jupiter RPC server.
+ *
+ * Speaks the Swap v2 codecs and produces real signatures over a synthetic
+ * local bank. No network request leaves the test. Not a production adapter.
+ */
 import type { TradeInput } from "@froggy/domain";
 import {
   AccountRole,
@@ -21,6 +27,7 @@ import type { Instruction } from "@solana/kit";
 import { Redacted, Schema } from "effect";
 
 import { WRAPPED_SOL } from "./jupiter";
+import { SOLANA_MAINNET } from "./networks";
 import { SolanaTradeRpc } from "./solana-chain";
 import type { SolanaTradeAccount } from "./solana-chain";
 import {
@@ -28,7 +35,7 @@ import {
   solanaAssociatedAccount,
 } from "./solana-transactions";
 
-const NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const NETWORK = SOLANA_MAINNET;
 const Call = Schema.Struct({
   id: Schema.Int,
   method: Schema.String,

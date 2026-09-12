@@ -4,6 +4,7 @@ import { Redacted, Schema } from "effect";
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
+import { SOLANA_MAINNET } from "./networks";
 
 // Jupiter's Swap v2 reference and Solana's native mint, reviewed 2026-09-08.
 const API = "https://api.jup.ag/swap/v2";
@@ -89,7 +90,7 @@ const request = async <S extends Schema.Codec<unknown>>(
 export const jupiterOrders = (options: JupiterOptions) => ({
   order: async (input: TradeInput): Promise<JupiterOrder> => {
     if (
-      input.network !== "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" ||
+      input.network !== SOLANA_MAINNET ||
       input.venue !== "jupiter" ||
       input.action !== "swap"
     ) {

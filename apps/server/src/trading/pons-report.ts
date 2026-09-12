@@ -16,7 +16,8 @@ import type { Address } from "viem";
 
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
-import { PONS_ABI, PONS_DEPLOYMENTS, PONS_NETWORK, ponsPoolId } from "./pons";
+import { PONS_NETWORK } from "./networks";
+import { PONS_ABI, PONS_DEPLOYMENTS, ponsPoolId } from "./pons";
 import type { PonsPool } from "./pons";
 
 const LIMITATIONS = [

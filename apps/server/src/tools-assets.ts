@@ -7,7 +7,7 @@
  * this wallet does not know at all.
  */
 
-import { KNOWN_ASSETS, Network } from "@froggy/domain";
+import { knownAsset, Network } from "@froggy/domain";
 import type { PaymentChallenge } from "@froggy/payments";
 import { Schema } from "effect";
 
@@ -22,13 +22,7 @@ export const assetFor = (
     return null;
   }
   const { network } = requirement;
-  const known = Object.values(KNOWN_ASSETS).find(
-    (asset) =>
-      asset.network === network &&
-      (network.startsWith("eip155:")
-        ? asset.id.toLowerCase() === requirement.asset.toLowerCase()
-        : asset.id === requirement.asset)
-  );
+  const known = knownAsset(requirement.asset, network);
   if (known !== undefined) {
     return { asset: known, units: requirement.amount };
   }

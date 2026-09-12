@@ -154,6 +154,46 @@ export const KNOWN_ASSETS = {
 } as const satisfies Record<string, Asset>;
 
 /**
+ * The asset this build knows for an id on a network, or nothing.
+ *
+ * EVM contract ids are compared case-insensitively: a 402 that quotes USDC
+ * in a different hex case than Circle's registry is still that USDC. Hedera
+ * and Solana ids stay exact.
+ */
+export const knownAsset = (id: string, network: string): Asset | undefined => {
+  const eip155 = network.startsWith("eip155:");
+  return Object.values(KNOWN_ASSETS).find(
+    (asset) =>
+      asset.network === network &&
+      (eip155 ? asset.id.toLowerCase() === id.toLowerCase() : asset.id === id)
+  );
+};
+
+/**
+ * Smallest units into something a person can read, without rounding the
+ * number away: `5000000` tinybars is `0.05 HBAR`, and an unknown token keeps
+ * its base units rather than pretending to a decimal place.
+ */
+export const formatAmount = (
+  units: string,
+  asset: string,
+  network: string
+): string => {
+  const known = knownAsset(asset, network);
+  if (known === undefined) {
+    return `${units} units of token ${asset}`;
+  }
+  const digits = units.padStart(known.decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - known.decimals);
+  const fraction = digits
+    .slice(digits.length - known.decimals)
+    .replace(/0+$/u, "");
+  return fraction === ""
+    ? `${whole} ${known.symbol}`
+    : `${whole}.${fraction} ${known.symbol}`;
+};
+
+/**
  * A price quote used to convert an `Amount` into `UsdMicros`.
  *
  * It is a value, not a lookup, because the rate that authorised a spend has to

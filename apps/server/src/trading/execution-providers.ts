@@ -7,6 +7,7 @@ import type { TradeBackend } from "./coordinator";
 import { ensoExecution } from "./enso-execution";
 import { tradeEvmClient } from "./evm-chain";
 import { jupiterExecution } from "./jupiter-execution";
+import { PONS_NETWORK, SOLANA_MAINNET } from "./networks";
 import { PONS_DEPLOYMENTS } from "./pons";
 import { ponsExecution } from "./pons-execution";
 import { pumpExecution } from "./pump-execution";
@@ -20,7 +21,7 @@ import {
   uniswapExecutionNetwork,
 } from "./uniswap-transactions";
 
-const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const SOLANA = SOLANA_MAINNET;
 type Mode = "live" | "stub" | "unavailable";
 const routeMode = (
   environment: TradingEnvironment,
@@ -84,7 +85,7 @@ export const executionCapabilities = (
         };
       });
   const mode = routeMode(environment, "jupiter", SOLANA, privyLive);
-  const ponsMode = routeMode(environment, "pons", "eip155:4663", privyLive);
+  const ponsMode = routeMode(environment, "pons", PONS_NETWORK, privyLive);
   const pumpMode = routeMode(environment, "pump", SOLANA, privyLive);
   return {
     v: 1,
@@ -93,7 +94,7 @@ export const executionCapabilities = (
       {
         venue: "pons",
         action: "swap",
-        network: "eip155:4663",
+        network: PONS_NETWORK,
         mode: ponsMode,
         launchFactory: PONS_DEPLOYMENTS.factory.address,
         quoteAsset: PONS_DEPLOYMENTS.quote.address,
@@ -177,7 +178,7 @@ const supportsExecution = (
     ["deposit", "withdraw"].includes(input.action);
   const ponsSupported =
     input.venue === "pons" &&
-    input.network === "eip155:4663" &&
+    input.network === PONS_NETWORK &&
     input.action === "swap";
   return supported || ensoSupported || ponsSupported;
 };

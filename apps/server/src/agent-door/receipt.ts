@@ -12,11 +12,11 @@
  * note alone proves nothing; the pair is the evidence.
  */
 
+import { formatAmount } from "@froggy/domain";
 import {
   HBAR_ASSET,
   lookupHcsNote,
   lookupHederaTransactionDetails,
-  mirrorTransactionId,
 } from "@froggy/payments";
 import type {
   HcsNoteRecord,
@@ -25,7 +25,7 @@ import type {
   MirrorVerdict,
 } from "@froggy/payments";
 
-import { formatAmount } from "./catalogue";
+import { clipField } from "./catalogue";
 
 export interface Settlement {
   readonly note: HcsNoteRecord | null;
@@ -40,13 +40,13 @@ const hashscanNetwork = (network: string): string =>
   network === "hedera:testnet" ? "testnet" : "mainnet";
 
 const hashscanTransaction = (transactionId: string, network: string): string =>
-  `https://hashscan.io/${hashscanNetwork(network)}/transaction/${mirrorTransactionId(transactionId)}`;
+  `https://hashscan.io/${hashscanNetwork(network)}/transaction/${encodeURIComponent(transactionId)}`;
 
 export const hashscanAccount = (accountId: string, network: string): string =>
-  `https://hashscan.io/${hashscanNetwork(network)}/account/${accountId}`;
+  `https://hashscan.io/${hashscanNetwork(network)}/account/${encodeURIComponent(accountId)}`;
 
 const hashscanTopic = (topicId: string, network: string): string =>
-  `https://hashscan.io/${hashscanNetwork(network)}/topic/${topicId}`;
+  `https://hashscan.io/${hashscanNetwork(network)}/topic/${encodeURIComponent(topicId)}`;
 
 /**
  * Look the settlement up on both sources.
@@ -163,14 +163,16 @@ const describeKind = (
   ref: string | null | undefined
 ): string => {
   const reference =
-    ref === undefined || ref === null ? "" : `, reference ${ref}`;
+    ref === undefined || ref === null
+      ? ""
+      : `, reference ${clipField(ref, 80)}`;
   if (kind === undefined) {
     return "It refers to this transaction.";
   }
   if (kind === "sold" || kind === "paid") {
     return `It records this as ${kind === "sold" ? "a sale by the seller" : "a purchase by the buyer"}${reference}.`;
   }
-  return `It records this with a kind this door does not recognise, "${kind}"${reference}.`;
+  return `It records this with a kind this door does not recognise, "${clipField(kind, 80)}"${reference}.`;
 };
 
 /** Why there is no note below: because none was found, or because none was sought. */

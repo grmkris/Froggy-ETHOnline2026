@@ -4,6 +4,7 @@ import { EvmAddress } from "@froggy/domain";
 import { SwapQuoteInput, SwapQuoteResult } from "@froggy/protocol";
 import { Redacted, Schema } from "effect";
 
+import { PONS_NETWORK } from "./networks";
 import {
   liveUniswap,
   preflightSwapQuote,
@@ -282,10 +283,10 @@ describe("Uniswap read-only quotes", () => {
     );
     expect(setup.requests).toHaveLength(0);
     expect(
-      supportsUniswapChain({ network: "eip155:4663", routerVersion: "2.0" })
+      supportsUniswapChain({ network: PONS_NETWORK, routerVersion: "2.0" })
     ).toBe(false);
     expect(
-      supportsUniswapChain({ network: "eip155:4663", routerVersion: "2.1.1" })
+      supportsUniswapChain({ network: PONS_NETWORK, routerVersion: "2.1.1" })
     ).toBe(true);
   });
 

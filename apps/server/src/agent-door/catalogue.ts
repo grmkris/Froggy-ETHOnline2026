@@ -10,7 +10,7 @@
  * same challenge as the 402, so the two cannot drift apart.
  */
 
-import { KNOWN_ASSETS } from "@froggy/domain";
+import { formatAmount } from "@froggy/domain";
 import { Schema } from "effect";
 
 const Resource = Schema.Struct({
@@ -121,6 +121,16 @@ export const refuse = <A>(reason: string): Read<A> => ({
 });
 
 /**
+ * Bound a stranger-supplied field before it is interpolated into a receipt.
+ *
+ * The topic has no submit key, so `kind` and `ref` are a stranger's strings,
+ * and a seller's card is the same: none of these fields have earned an
+ * unbounded place in a tool result.
+ */
+export const clipField = (value: string, max = 240): string =>
+  value.length <= max ? value : `${value.slice(0, max)}…`;
+
+/**
  * Read the card, or say why not.
  *
  * A seller that cannot describe itself is a seller nothing should be bought
@@ -161,75 +171,32 @@ export const readCatalogue = async (input: {
     : refuse(`${url} answered something that is not a service card.`);
 };
 
-/** Decimals for an asset id on a network, or null when nobody here knows. */
-const decimalsOf = (asset: string, network: string): number | null => {
-  for (const known of Object.values(KNOWN_ASSETS)) {
-    if (known.network === network && known.id === asset) {
-      return known.decimals;
-    }
-  }
-  return null;
-};
-
-/** The symbol for an asset id on a network, or the id itself. */
-const symbolOf = (asset: string, network: string): string => {
-  for (const known of Object.values(KNOWN_ASSETS)) {
-    if (known.network === network && known.id === asset) {
-      return known.symbol;
-    }
-  }
-  return asset;
-};
-
-/**
- * Smallest units into something a person can read, without rounding the
- * number away: `5000000` tinybars is `0.05 HBAR`, and an unknown token keeps
- * its base units rather than pretending to a decimal place.
- */
-export const formatAmount = (
-  units: string,
-  asset: string,
-  network: string
-): string => {
-  const symbol = symbolOf(asset, network);
-  const decimals = decimalsOf(asset, network);
-  if (decimals === null) {
-    return `${units} units of token ${asset}`;
-  }
-  const digits = units.padStart(decimals + 1, "0");
-  const whole = digits.slice(0, digits.length - decimals);
-  const fraction = digits.slice(digits.length - decimals).replace(/0+$/u, "");
-  return fraction === ""
-    ? `${whole} ${symbol}`
-    : `${whole}.${fraction} ${symbol}`;
-};
-
 /** One resource, as a line a caller can choose from. */
 const describeResource = (resource: Resource): string =>
   [
-    `- ${resource.url}`,
-    `  ${resource.description}`,
-    `  ${formatAmount(resource.price, resource.asset, resource.network)} per call on ${resource.network}, ${resource.scheme} scheme, paid to ${resource.payTo}.`,
+    `- ${clipField(resource.url)}`,
+    `  ${clipField(resource.description)}`,
+    `  ${formatAmount(resource.price, resource.asset, resource.network)} per call on ${clipField(resource.network, 80)}, ${clipField(resource.scheme, 80)} scheme, paid to ${clipField(resource.payTo, 80)}.`,
   ].join("\n");
 
 /** The whole card, as the catalogue view answers it. */
 export const describeCatalogue = (card: ServiceCard, url: string): string => {
   const lines = [
-    `${card.name} — ${card.description}`,
+    `${clipField(card.name)} — ${clipField(card.description)}`,
     "",
     "For sale:",
     ...card.resources.map(describeResource),
     "",
-    `Settled through the facilitator at ${card.facilitator}. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the amount itself.`,
+    `Settled through the facilitator at ${clipField(card.facilitator)}. The facilitator pays the Hedera transaction fee, so a buyer needs no HBAR for gas — only the amount itself.`,
   ];
   if (card.hcsTopic !== null) {
     lines.push(
-      `Every settlement leaves a public note on Hedera Consensus Service topic ${card.hcsTopic}. Check any one of them with froggy_receipt.`
+      `Every settlement leaves a public note on Hedera Consensus Service topic ${clipField(card.hcsTopic, 80)}. Check any one of them with froggy_receipt.`
     );
   }
   lines.push(
     "",
-    `Source: ${card.source}`,
+    `Source: ${clipField(card.source)}`,
     `Card: ${url}${CARD_PATH}`,
     "Buy one with froggy_buy. Nothing here costs anything and nothing here needs an account."
   );

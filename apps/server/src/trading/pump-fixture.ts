@@ -1,3 +1,9 @@
+/**
+ * Test-only fake Pump RPC server.
+ *
+ * Real codecs and signatures over a wholly synthetic local bank. No
+ * network request leaves this fixture. Not a production adapter.
+ */
 import type { TradeInput } from "@froggy/domain";
 import {
   AccountRole,
@@ -21,6 +27,7 @@ import type { Instruction } from "@solana/kit";
 import { Redacted, Schema } from "effect";
 
 import { WRAPPED_SOL } from "./jupiter";
+import { SOLANA_MAINNET } from "./networks";
 import { pumpPda, pumpPoolAddress, PUMP_PROGRAMS } from "./pump-state";
 import { SolanaTradeRpc } from "./solana-chain";
 import type { SolanaTradeAccount } from "./solana-chain";
@@ -29,7 +36,7 @@ import {
   solanaAssociatedAccount,
 } from "./solana-transactions";
 
-const NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const NETWORK = SOLANA_MAINNET;
 const keyFor = (byte: number): string =>
   getAddressDecoder().decode(Buffer.alloc(32, byte));
 const putKey = (bytes: Buffer, key: string, offset: number): void => {

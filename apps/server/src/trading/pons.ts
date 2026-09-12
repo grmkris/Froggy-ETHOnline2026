@@ -10,10 +10,10 @@ import type { Address } from "viem";
 
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
+import { PONS_NETWORK } from "./networks";
 
 // Addresses: Pons official README, Robinhood token registry, Uniswap deployment feed.
 // Runtime hashes observed at Robinhood block 58375958; see docs/evidence/PONS_DEPLOYMENTS.md.
-export const PONS_NETWORK = "eip155:4663";
 export const PONS_DEPLOYMENTS = {
   factory: {
     address: getAddress("0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e"),

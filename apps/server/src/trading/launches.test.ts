@@ -5,6 +5,7 @@ import { memoryStore } from "@froggy/wallet";
 
 import { stubBirdeye } from "./birdeye";
 import { LaunchCoordinator } from "./launches";
+import { SOLANA_MAINNET } from "./networks";
 
 const setup = () => {
   const store = memoryStore().launches;
@@ -52,7 +53,7 @@ const setup = () => {
     connectionId: AgentTokenId.generate(),
     sourceTaskId: TaskId.generate(),
     input: {
-      network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      network: SOLANA_MAINNET,
       durationMinutes: 1,
       minimumLiquidityUsd: null,
       source: null,
