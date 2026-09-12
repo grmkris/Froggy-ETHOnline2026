@@ -983,6 +983,19 @@ const validateQuotePayment = async (
   return null;
 };
 
+/**
+ * The person, in their own session, pressing "Pay $X" on a quote whose amount
+ * the card showed them *is* the answer to the ask line. Putting a second card
+ * in front of them for the same number would be theatre, and this request
+ * carries no signal for one anyway. Only the ask half is satisfied: expiry,
+ * allowlists and every cap still refuse first. An agent calling this route
+ * has answered nothing on anyone's behalf, so it is not approved.
+ */
+const personAnswered = (
+  caller: TaskCaller,
+  quoteTaskId: TaskId | undefined
+): boolean => caller.agentTokenId === null && quoteTaskId !== undefined;
+
 const performWalletPay = async (
   deps: TaskDeps,
   request: Request,
@@ -1044,6 +1057,7 @@ const performWalletPay = async (
       body.success.quoteTaskId === undefined
         ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
         : `pay:quote:${body.success.quoteTaskId}`,
+    approved: personAnswered(caller, body.success.quoteTaskId),
     interactive: true,
     payeeId: requirement.payTo,
     payeeLabel: `${requirement.payTo} (x402, signed for an agent)`,
