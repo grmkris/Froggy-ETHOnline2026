@@ -153,12 +153,13 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await expect
       .poll(
         async () =>
-          await page.evaluate(() =>
-            window.motionSamples.some(
-              (sample) =>
-                sample.name === "surface-in" &&
-                sample.duration === (reducedMotion === "reduce" ? 125 : 250)
-            )
+          await page.evaluate(
+            (duration) =>
+              window.motionSamples.some(
+                (sample) =>
+                  sample.name === "surface-in" && sample.duration === duration
+              ),
+            reducedMotion === "reduce" ? 125 : 250
           )
       )
       .toBe(true);
