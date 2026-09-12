@@ -7,7 +7,12 @@ const requests: string[] = [];
 const mockFetch = (): void => {
   spyOn(globalThis, "fetch").mockImplementation(
     Object.assign(async (input: Parameters<typeof fetch>[0]) => {
-      requests.push(String(input));
+      // A Request or URL would resolve against the test's origin; the path is
+      // what the code under test sends and what these assert on.
+      requests.push(
+        new URL(input instanceof Request ? input.url : input, "http://froggy")
+          .pathname
+      );
       return await Promise.resolve(Response.json({ ok: true }));
     }, originalFetch)
   );
