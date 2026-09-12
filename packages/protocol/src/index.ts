@@ -100,7 +100,13 @@ export {
 } from "./trading-market";
 export { SwapQuoteInput, SwapQuoteResult } from "./trading-quote";
 export { RpcReadInput, RpcReadResult } from "./trading-rpc";
-export { TokenResearchInput, TokenResearchResult } from "./trading-research";
+export {
+  AddressLookupInput,
+  AddressLookupNetwork,
+  AddressLookupResult,
+  TokenResearchInput,
+  TokenResearchResult,
+} from "./trading-research";
 export {
   LaunchWatchRequest,
   MarketSearchRequest,

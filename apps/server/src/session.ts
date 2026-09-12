@@ -803,6 +803,28 @@ export class WorkspaceSession {
     this.addresses = addresses;
   }
 
+  /**
+   * The EVM addresses Froggy itself controls for this person, labelled, so a
+   * pasted address can be told apart from "your own wallet" without a read.
+   */
+  ownEvmAddresses(): readonly {
+    readonly label: "agent_signer" | "agent_smart_account";
+    readonly address: string;
+  }[] {
+    const own: {
+      readonly label: "agent_signer" | "agent_smart_account";
+      readonly address: string;
+    }[] = [];
+    const signer = this.addresses.signer ?? this.wallet?.address ?? null;
+    if (signer !== null) {
+      own.push({ label: "agent_signer", address: signer });
+    }
+    if (this.addresses.smart !== null) {
+      own.push({ label: "agent_smart_account", address: this.addresses.smart });
+    }
+    return own;
+  }
+
   setWallet(
     wallet: { readonly address: string; readonly id: string } | null
   ): void {

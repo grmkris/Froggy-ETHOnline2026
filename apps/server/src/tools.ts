@@ -44,6 +44,7 @@ import {
 import type { Deployment, GraphClient, GraphSnapshot } from "@froggy/graph";
 import { EVM_NETWORK_LABELS } from "@froggy/payments";
 import {
+  AddressLookupInput,
   ScheduleRequestBody,
   TradePositionsInput,
   PromptServiceRequest,
@@ -71,6 +72,7 @@ import type { Services } from "./services";
 import { MalformedSpendError, UnpricedAssetError } from "./session";
 import type { SpendResult, WorkspaceSession } from "./session";
 import { std } from "./std";
+import { runAddressLookup } from "./trading/address-lookup";
 import { executionCapabilities } from "./trading/execution-providers";
 import { LaunchStatusInput, launchToolResult } from "./trading/launch-tools";
 import { getTradingPositions } from "./trading/positions";
@@ -448,9 +450,16 @@ export const buildTools = (deps: ToolDeps) => {
           )
         ),
     }),
+    address_lookup: tool({
+      description:
+        "Read, for free, what an EVM address is before spending anything on it: wallet or contract, native and USDC balances, ERC-20 symbol, decimals and supply when it is a contract, and whether it is one of the person's own wallets. Fans out over every configured EVM network, or one named network, at one pinned block each. Use this first whenever the person pastes a bare 0x address; then ask what they want to know rather than buying research or web search. Chain state only: not a screen, quote or trade.",
+      inputSchema: std(AddressLookupInput),
+      execute: async (input) =>
+        cap(JSON.stringify(await runAddressLookup(services, session, input))),
+    }),
     pons_token: tool({
       description:
-        "Read Pons launch state for one token on Robinhood: whether the factory registered it, its phase, deployer, creator fee recipient and tax, curve reserves and sellable supply, or the graduated pool's price and active liquidity. Pinned to one block, with every reviewed Pons dependency's runtime hash checked first. This is chain state only: it does not count holders, and it is not a quote or a trade.",
+        "Read Pons launch state for one token on Robinhood: whether the factory registered it, its phase, deployer, creator fee recipient and tax, curve reserves and sellable supply, or the graduated pool's price and active liquidity. Pinned to one block, with every reviewed Pons dependency's runtime hash checked first. This is chain state only: it does not count holders, and it is not a quote or a trade. For an unknown address use address_lookup first; a wallet address will simply not be registered here.",
       inputSchema: std(Schema.Struct({ token: EvmAddress })),
       execute: async ({ token }) =>
         cap(JSON.stringify(await services.trading.pons.read(token))),
@@ -593,7 +602,7 @@ export const buildTools = (deps: ToolDeps) => {
     }),
     rpc_read: tool({
       description:
-        "Buy one allowlisted bounded chain read. No signing or submission. Reuse the idempotency key and poll service_status.",
+        "Buy one allowlisted bounded chain read. No signing or submission. Reuse the idempotency key and poll service_status. Do not buy this to learn what an address is or what it holds; address_lookup answers that for free.",
       inputSchema: std(
         Schema.Struct({
           input: RpcReadInput,

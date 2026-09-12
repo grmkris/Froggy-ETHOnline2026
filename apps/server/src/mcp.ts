@@ -3,6 +3,7 @@ import type { OAuthScope } from "@froggy/domain";
 import { PurchaseId, TaskId } from "@froggy/domain";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import {
+  AddressLookupInput,
   PromptServiceRequest,
   TradingServiceRequest,
   TradePositionsInput,
@@ -21,6 +22,7 @@ import type { WorkspaceSession } from "./session";
 import { std } from "./std";
 import { visibleTask } from "./tasks";
 import type { TaskCaller } from "./tasks";
+import { runAddressLookup } from "./trading/address-lookup";
 import { executionCapabilities } from "./trading/execution-providers";
 import { LaunchStatusInput, launchToolResult } from "./trading/launch-tools";
 import { getTradingPositions } from "./trading/positions";
@@ -57,6 +59,13 @@ const TradingToolEnvelope = Schema.Struct({
   input: Schema.Unknown,
 });
 const tools = [
+  {
+    name: "froggy_address_lookup",
+    description:
+      "Read, for free, what an EVM address is before spending on it: wallet or contract, native and USDC balances, ERC-20 metadata for contracts, and whether it is one of the person's own wallets, per configured network at one pinned block. Use first for any bare 0x address. Chain state only: not a screen, quote or trade.",
+    inputSchema: inputSchema(AddressLookupInput),
+    annotations: { readOnlyHint: true },
+  },
   {
     name: "froggy_positions",
     description:
@@ -343,9 +352,18 @@ const invokeTradeCall = async (
 
 const invokeTradeRead = async (
   services: Services,
+  session: WorkspaceSession,
   caller: TaskCaller,
   call: typeof Call.Type
 ) => {
+  if (call.name === "froggy_address_lookup") {
+    const value = await runAddressLookup(
+      services,
+      session,
+      Schema.decodeUnknownSync(AddressLookupInput)(call.arguments ?? {})
+    );
+    return { value, stubbed: value.stubbed };
+  }
   if (call.name === "froggy_positions") {
     const input = Schema.decodeUnknownSync(TradePositionsInput)(call.arguments);
     const value = await getTradingPositions(
@@ -374,6 +392,9 @@ const capturedInput = (call: typeof Call.Type): Schema.Json => {
   }
   if (call.name === "froggy_positions") {
     schema = TradePositionsInput;
+  }
+  if (call.name === "froggy_address_lookup") {
+    schema = AddressLookupInput;
   }
   if (["froggy_watch_status", "froggy_watch_cancel"].includes(call.name)) {
     schema = LaunchStatusInput;
@@ -469,9 +490,13 @@ const invokeTool = async (
           return { content: [{ type: "text", text }], isError: false };
         }
         if (
-          ["froggy_positions", "froggy_trade_capabilities"].includes(call.name)
+          [
+            "froggy_address_lookup",
+            "froggy_positions",
+            "froggy_trade_capabilities",
+          ].includes(call.name)
         ) {
-          const result = await invokeTradeRead(services, caller, call);
+          const result = await invokeTradeRead(services, session, caller, call);
           invocation.outcome = "completed";
           invocation.stubbed = result.stubbed;
           return {
