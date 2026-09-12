@@ -146,22 +146,19 @@ export const WalletHome = ({
         </h2>
         <WalletBalance wallet={wallet} />
         <p className="text-muted-foreground mt-2 min-h-8 text-xs">
-          {balanceDescription(wallet)}
+          {unavailable ?? balanceDescription(wallet)}
         </p>
-        {unavailable === null ? null : (
-          <p className="text-muted-foreground mt-1 text-xs">{unavailable}</p>
-        )}
         {wallet?.ledgerNote === null || wallet === null ? null : (
           <output className="text-refused mt-2 text-xs">
             {wallet.ledgerNote}
           </output>
         )}
       </div>
-      <StubChips modes={modes} />
       <div className="flex flex-wrap items-start gap-2">
         <AddFunds wallet={wallet} />
         <AgentOnboarding />
       </div>
+      <StubChips modes={modes} />
       {wallet === null ? (
         <div aria-hidden className="border-t pt-4">
           <div className="flex min-h-11 items-center justify-between">
