@@ -28,6 +28,26 @@ export {
   InteractionMode,
   TabSummary,
 } from "./browser";
+export { ApprovalWalletBlock } from "./app";
+export {
+  BROWSER_WALLET_BINDING,
+  BROWSER_WALLET_CALL_LIMIT,
+  BROWSER_WALLET_PENDING_PER_TAB,
+  BrowserWalletCall,
+  BrowserWalletContext,
+  BrowserWalletEvent,
+  BrowserWalletObservation,
+  BrowserWalletReply,
+  SignedPrivyRequest,
+  WalletConnectionList,
+  WalletConnectionView,
+  WalletRequestCommit,
+  WalletRequestCommitted,
+  WalletRequestPrepared,
+  WalletRequestView,
+  WalletRpcError,
+  WalletRpcMethod,
+} from "./browser-wallet";
 export {
   BROWSER_PAYMENT_BODY_LIMIT,
   BROWSER_PAYMENT_CHALLENGE_LIMIT,

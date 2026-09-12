@@ -1,10 +1,23 @@
 import { describe, expect, it } from "bun:test";
 
-import { defaultAllowance, usd } from "@froggy/domain";
+import {
+  defaultAllowance,
+  EvmAddress,
+  usd,
+  WalletRequestId,
+} from "@froggy/domain";
 import type { Allowance } from "@froggy/domain";
+import { Schema } from "effect";
 
-import { personPolicyName, personPolicyRules } from "./person-policy";
+import {
+  dappRule,
+  personPolicyName,
+  personPolicyRules,
+  policyRulesWithDapps,
+} from "./person-policy";
 import type { PolicyPins, PolicyRule } from "./person-policy";
+
+const address = Schema.decodeUnknownSync(EvmAddress);
 
 const NOW = 1_789_000_000_000;
 const ALLOWANCE = defaultAllowance(NOW);
@@ -151,5 +164,187 @@ describe("personPolicyName", () => {
     expect(personPolicyName("did:privy:aaaaaaaaaaaaaaaaaaaa")).not.toBe(
       personPolicyName("did:privy:bbbbbbbbbbbbbbbbbbbb")
     );
+  });
+});
+
+const pad = (hex: string): string => hex.replace(/^0x/u, "").padStart(64, "0");
+const must = (rule: PolicyRule | null): PolicyRule => {
+  if (rule === null) {
+    throw new Error("expected a rule");
+  }
+  return rule;
+};
+
+describe("dappRule", () => {
+  const ME = address("0x1111111111111111111111111111111111111111");
+  const SHOP = address("0x2222222222222222222222222222222222222222");
+  const NOT_AFTER = NOW + 10 * 60 * 1000;
+  const id = WalletRequestId.generate();
+
+  it("pins a USDC transfer to the chain, the token, the recipient and the exact amount", () => {
+    const rule = must(
+      dappRule({
+        chainId: 8453,
+        id,
+        notAfterMs: NOT_AFTER,
+        payload: {
+          data: `0xa9059cbb${pad(SHOP)}${pad((12_500_000).toString(16))}`,
+          from: ME,
+          kind: "send_transaction",
+          to: address(PINS.usdc),
+          value: "0x0",
+        },
+      })
+    );
+    expect(rule.method).toBe("eth_signTransaction");
+    expect(conditionOn(rule, "ethereum_transaction", "chain_id").value).toBe(
+      "8453"
+    );
+    expect(conditionOn(rule, "ethereum_transaction", "to").value).toBe(
+      PINS.usdc
+    );
+    expect(conditionOn(rule, "ethereum_transaction", "value").value).toBe("0");
+    expect(conditionOn(rule, "ethereum_calldata", "transfer.to").value).toBe(
+      SHOP.toLowerCase()
+    );
+    const amount = conditionOn(rule, "ethereum_calldata", "transfer.amount");
+    expect(amount.operator).toBe("eq");
+    expect(amount.value).toBe("12500000");
+    expect(conditionOn(rule, "system", "current_unix_timestamp").value).toBe(
+      String(Math.floor(NOT_AFTER / 1000))
+    );
+  });
+
+  it("pins an unknown call to its recipient and value only, and says nothing more", () => {
+    const rule = dappRule({
+      chainId: 8453,
+      id,
+      notAfterMs: NOT_AFTER,
+      payload: {
+        data: "0xdeadbeef",
+        from: ME,
+        kind: "send_transaction",
+        to: SHOP,
+        value: "0x2386f26fc10000",
+      },
+    });
+    expect(rule?.conditions.map((condition) => condition.field_source)).toEqual(
+      [
+        "ethereum_transaction",
+        "ethereum_transaction",
+        "ethereum_transaction",
+        "system",
+      ]
+    );
+    expect(conditionOn(must(rule), "ethereum_transaction", "value").value).toBe(
+      "10000000000000000"
+    );
+  });
+
+  it("refuses to write a rule for contract creation or a connection", () => {
+    expect(
+      dappRule({
+        chainId: 8453,
+        id,
+        notAfterMs: NOT_AFTER,
+        payload: {
+          data: "0x60",
+          from: ME,
+          kind: "send_transaction",
+          to: null,
+          value: "0x0",
+        },
+      })
+    ).toBeNull();
+    expect(
+      dappRule({
+        chainId: 8453,
+        id,
+        notAfterMs: NOT_AFTER,
+        payload: { kind: "connect" },
+      })
+    ).toBeNull();
+  });
+
+  it("pins a personal_sign to the exact decoded text", () => {
+    const text = `app.uniswap.org wants you to sign in with your Ethereum account:\n${ME}`;
+    const rule = dappRule({
+      chainId: 8453,
+      id,
+      notAfterMs: NOT_AFTER,
+      payload: {
+        address: ME,
+        kind: "personal_sign",
+        message: `0x${Buffer.from(text, "utf-8").toString("hex")}`,
+      },
+    });
+    expect(rule?.method).toBe("personal_sign");
+    const content = conditionOn(must(rule), "message", "content");
+    expect(content.operator).toBe("eq");
+    expect(content.value).toBe(text);
+  });
+
+  it("pins typed data to its domain and every scalar of its message", () => {
+    const typedData = JSON.stringify({
+      domain: { chainId: 8453, name: "Permit2", verifyingContract: SHOP },
+      message: {
+        details: {
+          amount: "2500000",
+          expiration: 1,
+          nonce: 0,
+          token: PINS.usdc,
+        },
+        sigDeadline: "99",
+        spender: ME,
+      },
+      primaryType: "PermitSingle",
+      types: { PermitSingle: [] },
+    });
+    const rule = dappRule({
+      chainId: 8453,
+      id,
+      notAfterMs: NOT_AFTER,
+      payload: { address: ME, kind: "sign_typed_data_v4", typedData },
+    });
+    expect(rule?.method).toBe("eth_signTypedData_v4");
+    expect(
+      conditionOn(must(rule), "ethereum_typed_data_domain", "verifyingContract")
+        .value
+    ).toBe(SHOP);
+    const amount = conditionOn(
+      must(rule),
+      "ethereum_typed_data_message",
+      "details.amount"
+    );
+    expect(amount.value).toBe("2500000");
+    expect(amount.typed_data).toEqual({
+      primary_type: "PermitSingle",
+      types: { PermitSingle: [] },
+    });
+    expect(
+      conditionOn(must(rule), "ethereum_typed_data_message", "spender").value
+    ).toBe(ME);
+  });
+
+  it("appends the one-shots after the standing rules in the full set", () => {
+    const all = policyRulesWithDapps(ALLOWANCE, PINS, [
+      {
+        chainId: 8453,
+        id,
+        notAfterMs: NOT_AFTER,
+        payload: { kind: "connect" },
+      },
+      {
+        chainId: 8453,
+        id,
+        notAfterMs: NOT_AFTER,
+        payload: { address: ME, kind: "personal_sign", message: "0x68690a" },
+      },
+    ]);
+    expect(all.map((rule) => rule.name)).toEqual([
+      "service-payment-x402-usdc",
+      "conversion-usdc-to-treasury",
+      `dapp-personal-sign-${id.slice(-8)}`,
+    ]);
   });
 });

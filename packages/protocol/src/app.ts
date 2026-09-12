@@ -20,8 +20,13 @@ import {
   ScheduleId,
   SessionId,
   UsdMicros,
+  WalletRequestId,
+  WalletRequestInitiator,
+  WalletRequestKind,
 } from "@froggy/domain";
 import { Schema } from "effect";
+
+import { WalletRequestView } from "./browser-wallet";
 
 const Envelope = { v: ProtocolVersion };
 
@@ -134,8 +139,34 @@ export const ApprovalBreakdownLine = Schema.Struct({
 );
 export type ApprovalBreakdownLine = typeof ApprovalBreakdownLine.Type;
 
+/**
+ * What a card about a dapp request carries beyond the money ledger.
+ *
+ * `needsSignature` is the difference between two cards that look alike: an
+ * allow on a connect resolves over the socket like any approval, while an
+ * allow on a signature makes the browser sign a one-shot Privy rule first,
+ * because the person's key is the only one that can widen their own policy.
+ */
+export const ApprovalWalletBlock = Schema.Struct({
+  requestId: WalletRequestId,
+  kind: WalletRequestKind,
+  origin: Schema.String,
+  chainId: Schema.Int,
+  initiatedDuring: WalletRequestInitiator,
+  lines: Schema.Array(Schema.String.check(Schema.isMaxLength(300))).check(
+    Schema.isMaxLength(12)
+  ),
+  warnings: Schema.Array(Schema.String.check(Schema.isMaxLength(300))).check(
+    Schema.isMaxLength(6)
+  ),
+  needsSignature: Schema.Boolean,
+});
+export type ApprovalWalletBlock = typeof ApprovalWalletBlock.Type;
+
 export const ApprovalRequest = Schema.Struct({
   runId: Schema.optional(RunId),
+  /** Present only on a card about a dapp request. */
+  wallet: Schema.optionalKey(ApprovalWalletBlock),
   /** "$0.50", "0.05 tHBAR" — what the card prints large. */
   amountLabel: Schema.String,
   /**
@@ -331,6 +362,12 @@ export const AppServerMessage = Schema.Union([
     ...Envelope,
     requestId: Schema.String,
     type: Schema.Literals(["approval.resolved"]),
+  }),
+  /** A dapp request moved. The Activity pane and the ticket follow it by id. */
+  Schema.Struct({
+    ...Envelope,
+    request: WalletRequestView,
+    type: Schema.Literals(["wallet.request.state"]),
   }),
   /**
    * A turn began somewhere other than this tab — a Telegram message, the

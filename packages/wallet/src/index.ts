@@ -44,8 +44,18 @@ export type {
   PurchasePatch,
 } from "./store";
 export { postgresStore } from "./store-postgres";
-export { personPolicyName, personPolicyRules } from "./person-policy";
-export type { PolicyCondition, PolicyPins, PolicyRule } from "./person-policy";
+export {
+  dappRule,
+  personPolicyName,
+  personPolicyRules,
+  policyRulesWithDapps,
+} from "./person-policy";
+export type {
+  DappRuleInput,
+  PolicyCondition,
+  PolicyPins,
+  PolicyRule,
+} from "./person-policy";
 export { authorize } from "./policy";
 export type { AuthorizeInput, LedgerEntry } from "./policy";
 export type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";

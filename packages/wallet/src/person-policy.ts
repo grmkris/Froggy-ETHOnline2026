@@ -24,8 +24,14 @@
  *     by the standing key at all, and the human path is the only way through.
  */
 
-import type { ActionKind, Allowance } from "@froggy/domain";
-import { authorityFor, ceilingFor } from "@froggy/domain";
+import type {
+  ActionKind,
+  Allowance,
+  WalletRequestId,
+  WalletRequestPayload,
+} from "@froggy/domain";
+import { authorityFor, ceilingFor, parseTypedData } from "@froggy/domain";
+import { Schema } from "effect";
 
 /**
  * The addresses a person's rules are pinned to. Supplied, never guessed.
@@ -273,6 +279,341 @@ export const personPolicyRules = (
   }
   return rules;
 };
+
+// ---------------------------------------------------------------------------
+// One-shot rules for dapp requests
+// ---------------------------------------------------------------------------
+
+/**
+ * One approved dapp request, as the rule builder needs it. The payload is the
+ * exact thing the page asked for and the person saw; `notAfterMs` is when the
+ * rule dies whether or not it was used.
+ */
+export interface DappRuleInput {
+  readonly id: WalletRequestId;
+  readonly chainId: number;
+  readonly payload: WalletRequestPayload;
+  readonly notAfterMs: number;
+}
+
+const ERC20_APPROVE_ABI = [
+  {
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+];
+
+const ERC20_TRANSFER_FROM_ABI = [
+  {
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "transferFrom",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+];
+
+const PERMIT2_APPROVE_ABI = [
+  {
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" },
+    ],
+    name: "approve",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+];
+
+/**
+ * The ABI shapes whose arguments a rule can pin. Keyed by selector; the value
+ * says which ABI decodes it and which arguments to compare, in order.
+ *
+ * A call outside this table is pinned to `to`, `value` and `chain_id` only:
+ * Privy decodes calldata against an ABI or not at all, and there is no ABI for
+ * a function we do not know. That is the residual the card's warning names.
+ */
+const PINNABLE_CALLS: ReadonlyMap<
+  string,
+  {
+    readonly abi: unknown;
+    readonly name: string;
+    readonly args: readonly {
+      readonly name: string;
+      readonly kind: "address" | "uint";
+    }[];
+  }
+> = new Map([
+  [
+    "a9059cbb",
+    {
+      abi: TRANSFER_ABI,
+      args: [
+        { kind: "address", name: "to" },
+        { kind: "uint", name: "amount" },
+      ],
+      name: "transfer",
+    },
+  ],
+  [
+    "095ea7b3",
+    {
+      abi: ERC20_APPROVE_ABI,
+      args: [
+        { kind: "address", name: "spender" },
+        { kind: "uint", name: "amount" },
+      ],
+      name: "approve",
+    },
+  ],
+  [
+    "23b872dd",
+    {
+      abi: ERC20_TRANSFER_FROM_ABI,
+      args: [
+        { kind: "address", name: "from" },
+        { kind: "address", name: "to" },
+        { kind: "uint", name: "amount" },
+      ],
+      name: "transferFrom",
+    },
+  ],
+  [
+    "87517c45",
+    {
+      abi: PERMIT2_APPROVE_ABI,
+      args: [
+        { kind: "address", name: "token" },
+        { kind: "address", name: "spender" },
+        { kind: "uint", name: "amount" },
+        { kind: "uint", name: "expiration" },
+      ],
+      name: "approve",
+    },
+  ],
+]);
+
+const abiWord = (data: string, index: number): string | null => {
+  const start = 8 + index * 64;
+  const chunk = data.slice(start, start + 64);
+  return chunk.length === 64 ? chunk : null;
+};
+
+/** Calldata conditions for a known call, or null when the call is not one we can decode. */
+const calldataConditions = (
+  data: string
+): readonly PolicyCondition[] | null => {
+  const hex = data.slice(2).toLowerCase();
+  const known = PINNABLE_CALLS.get(hex.slice(0, 8));
+  if (known === undefined) {
+    return null;
+  }
+  const conditions: PolicyCondition[] = [];
+  for (const [index, arg] of known.args.entries()) {
+    const chunk = abiWord(hex, index);
+    if (chunk === null) {
+      return null;
+    }
+    conditions.push({
+      abi: known.abi,
+      field: `${known.name}.${arg.name}`,
+      field_source: "ethereum_calldata",
+      operator: "eq",
+      value:
+        arg.kind === "address"
+          ? `0x${chunk.slice(24)}`
+          : BigInt(`0x${chunk}`).toString(),
+    });
+  }
+  return conditions;
+};
+
+const expiresAt = (notAfterMs: number): PolicyCondition => ({
+  field: "current_unix_timestamp",
+  field_source: "system",
+  operator: "lt",
+  value: String(Math.floor(notAfterMs / 1000)),
+});
+
+const ruleName = (input: DappRuleInput): string =>
+  `dapp-${input.payload.kind.replaceAll("_", "-")}-${input.id.slice(-8)}`;
+
+const transactionRule = (
+  input: DappRuleInput,
+  payload: Extract<WalletRequestPayload, { kind: "send_transaction" }>
+): PolicyRule | null => {
+  if (payload.to === null) {
+    return null;
+  }
+  return {
+    action: "ALLOW",
+    conditions: [
+      {
+        field: "chain_id",
+        field_source: "ethereum_transaction",
+        operator: "eq",
+        value: String(input.chainId),
+      },
+      {
+        field: "to",
+        field_source: "ethereum_transaction",
+        operator: "eq",
+        value: payload.to,
+      },
+      {
+        field: "value",
+        field_source: "ethereum_transaction",
+        operator: "eq",
+        value: BigInt(payload.value).toString(),
+      },
+      ...(calldataConditions(payload.data) ?? []),
+      expiresAt(input.notAfterMs),
+    ],
+    method: "eth_signTransaction",
+    name: ruleName(input),
+  };
+};
+
+const messageRule = (
+  input: DappRuleInput,
+  payload: Extract<WalletRequestPayload, { kind: "personal_sign" }>
+): PolicyRule => ({
+  action: "ALLOW",
+  conditions: [
+    {
+      field: "content",
+      field_source: "message",
+      operator: "eq",
+      value: Buffer.from(payload.message.slice(2), "hex").toString("utf-8"),
+    },
+    expiresAt(input.notAfterMs),
+  ],
+  method: "personal_sign",
+  name: ruleName(input),
+});
+
+/**
+ * The primitive leaves of an EIP-712 message, as dot paths, two levels deep.
+ * Arrays are skipped: Privy's path syntax names one value, and a batch permit
+ * is pinned by its domain, its primary type and its scalar fields instead.
+ */
+const TypedMessage = Schema.Record(Schema.String, Schema.Unknown);
+const isLeaf = Schema.is(Schema.Union([Schema.String, Schema.Number]));
+const isNested = Schema.is(TypedMessage);
+
+const messageLeaves = (
+  message: typeof TypedMessage.Type,
+  prefix = ""
+): readonly { readonly path: string; readonly value: string }[] => {
+  const leaves: { readonly path: string; readonly value: string }[] = [];
+  for (const [key, raw] of Object.entries(message)) {
+    const path = `${prefix}${key}`;
+    if (isLeaf(raw)) {
+      leaves.push({ path, value: String(raw) });
+    } else if (prefix === "" && isNested(raw)) {
+      leaves.push(...messageLeaves(raw, `${path}.`));
+    }
+  }
+  return leaves;
+};
+
+const typedDataRule = (
+  input: DappRuleInput,
+  payload: Extract<WalletRequestPayload, { kind: "sign_typed_data_v4" }>
+): PolicyRule | null => {
+  const document = parseTypedData(payload.typedData);
+  if (document === null) {
+    return null;
+  }
+  const typed = { primary_type: document.primaryType, types: document.types };
+  const conditions: PolicyCondition[] = [
+    {
+      field: "chainId",
+      field_source: "ethereum_typed_data_domain",
+      operator: "eq",
+      value: String(input.chainId),
+    },
+  ];
+  if (document.domain.verifyingContract !== undefined) {
+    conditions.push({
+      field: "verifyingContract",
+      field_source: "ethereum_typed_data_domain",
+      operator: "eq",
+      value: document.domain.verifyingContract,
+    });
+  }
+  for (const leaf of messageLeaves(document.message)) {
+    conditions.push({
+      field: leaf.path,
+      field_source: "ethereum_typed_data_message",
+      operator: "eq",
+      typed_data: typed,
+      value: leaf.value,
+    });
+  }
+  conditions.push(expiresAt(input.notAfterMs));
+  return {
+    action: "ALLOW",
+    conditions,
+    method: "eth_signTypedData_v4",
+    name: ruleName(input),
+  };
+};
+
+/**
+ * One exact rule per approved dapp request, or nothing for a request no rule
+ * can express — which the caller must treat as a refusal, not a pass.
+ *
+ * Every rule pins the chain and the exact thing the person saw, and dies at
+ * `notAfterMs`. The transaction rule cannot pin the nonce or, for an unknown
+ * function, the calldata: Privy's transaction conditions are `to`, `value` and
+ * `chain_id`, and calldata decodes only against an ABI we have. Our own status
+ * machine never signs a request twice; the rule's lifetime bounds what a
+ * compromised host could do with the rest.
+ */
+export const dappRule = (input: DappRuleInput): PolicyRule | null => {
+  const { payload } = input;
+  switch (payload.kind) {
+    case "connect": {
+      return null;
+    }
+    case "send_transaction": {
+      return transactionRule(input, payload);
+    }
+    case "personal_sign": {
+      return messageRule(input, payload);
+    }
+    case "sign_typed_data_v4": {
+      return typedDataRule(input, payload);
+    }
+  }
+};
+
+/** The full rule set the policy is patched to: the standing rules plus the live one-shots. */
+export const policyRulesWithDapps = (
+  allowance: Allowance,
+  pins: PolicyPins,
+  dapps: readonly DappRuleInput[]
+): readonly PolicyRule[] => [
+  ...personPolicyRules(allowance, pins),
+  ...dapps.flatMap((input) => {
+    const rule = dappRule(input);
+    return rule === null ? [] : [rule];
+  }),
+];
 
 /** What a person's policy is called at Privy. The DID suffix keeps it findable. */
 export const personPolicyName = (did: string): string =>
