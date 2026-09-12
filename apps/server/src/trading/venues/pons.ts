@@ -11,12 +11,8 @@ import type { Address, Hex } from "viem";
 
 import type { TradeEvmClient } from "../evm-chain";
 import { PONS_NETWORK } from "../networks";
-import {
-  PONS_ABI,
-  PONS_DEPLOYMENTS,
-  PONS_TOKEN_TEMPLATE,
-  ponsTokenTemplateMatches,
-} from "../pons";
+import { PONS_ABI, PONS_DEPLOYMENTS, PONS_TOKEN_TEMPLATE } from "../pons";
+import { maskedTemplateFact } from "./common";
 import type {
   LaunchVenue,
   LaunchVenueRegistration,
@@ -120,36 +116,15 @@ export const ponsLaunchVenue = (
         note: null,
       };
     },
-    template: (code) => {
-      if (stubbed) {
-        return {
-          status: "unavailable",
-          matches: null,
-          hash: null,
-          venue: "pons",
-          note: "Stub Pons venue: no template read.",
-        };
-      }
-      if (code === undefined || code === "0x") {
-        return {
-          status: "not_indexed",
-          matches: null,
-          hash: null,
-          venue: "pons",
-          note: "No runtime code at this address.",
-        };
-      }
-      const matches = ponsTokenTemplateMatches(code);
-      return {
-        status: "observed",
-        matches,
-        hash: PONS_TOKEN_TEMPLATE.hash,
+    template: (code) =>
+      maskedTemplateFact({
         venue: "pons",
-        note: matches
-          ? null
-          : "Runtime bytecode does not match the reviewed Pons V2 token template.",
-      };
-    },
+        template: PONS_TOKEN_TEMPLATE,
+        code,
+        stubbed,
+        mismatchNote:
+          "Runtime bytecode does not match the reviewed Pons V2 token template.",
+      }),
     launchBlock: async (token, headBlock) => {
       if (stubbed) {
         return {

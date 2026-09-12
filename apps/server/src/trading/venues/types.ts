@@ -52,7 +52,7 @@ export interface LaunchVenue {
     token: TradingAddress,
     blockNumber: bigint
   ) => Promise<LaunchVenueRegistration>;
-  readonly template: (code: `0x${string}` | undefined) => TokenTemplateFact;
+  readonly template: (code?: `0x${string}`) => TokenTemplateFact;
   readonly launchBlock: (
     token: TradingAddress,
     headBlock: bigint

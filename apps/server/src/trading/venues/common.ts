@@ -7,6 +7,7 @@ import type {
   LaunchCohortFact,
   LauncherFact,
   LauncherId,
+  TokenTemplateFact,
   TradingAddress,
 } from "@froggy/domain";
 import { getAddress, keccak256 } from "viem";
@@ -222,3 +223,70 @@ export const notApplicableTemplate = (venue: LauncherId, note: string) => ({
   venue,
   note,
 });
+
+/**
+ * A reviewed token runtime with its per-deployment immutables masked. Regions
+ * are zeroed before hashing so every token the factory deploys hashes alike
+ * while a modified runtime, or a token from elsewhere, does not.
+ */
+export interface MaskedTemplate {
+  readonly length: number;
+  readonly regions: readonly {
+    readonly offset: number;
+    readonly length: number;
+  }[];
+  readonly hash: Hex;
+}
+
+export const maskedTemplateMatches = (
+  code: Hex | undefined,
+  template: MaskedTemplate
+): boolean => {
+  if (code === undefined || code === "0x") {
+    return false;
+  }
+  const bytes = Buffer.from(code.slice(2), "hex");
+  if (bytes.length !== template.length) {
+    return false;
+  }
+  for (const region of template.regions) {
+    bytes.fill(0, region.offset, region.offset + region.length);
+  }
+  return keccak256(`0x${bytes.toString("hex")}`) === template.hash;
+};
+
+/** Template fact for a venue whose token runtime is pinned as a masked template. */
+export const maskedTemplateFact = (input: {
+  readonly venue: LauncherId;
+  readonly template: MaskedTemplate;
+  readonly code: Hex | undefined;
+  readonly stubbed: boolean;
+  readonly mismatchNote: string;
+}): TokenTemplateFact => {
+  if (input.stubbed) {
+    return {
+      status: "unavailable",
+      matches: null,
+      hash: null,
+      venue: input.venue,
+      note: `Stub ${input.venue} venue: no template read.`,
+    };
+  }
+  if (input.code === undefined || input.code === "0x") {
+    return {
+      status: "not_indexed",
+      matches: null,
+      hash: null,
+      venue: input.venue,
+      note: "No runtime code at this address.",
+    };
+  }
+  const matches = maskedTemplateMatches(input.code, input.template);
+  return {
+    status: "observed",
+    matches,
+    hash: input.template.hash,
+    venue: input.venue,
+    note: matches ? null : input.mismatchNote,
+  };
+};

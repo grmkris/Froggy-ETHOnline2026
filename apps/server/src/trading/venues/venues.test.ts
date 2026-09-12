@@ -7,9 +7,11 @@ import type { Address, Hex } from "viem";
 import type { TradeEvmClient } from "../evm-chain";
 import {
   CLANKER_DEPLOYMENTS,
+  CLANKER_TOKEN_TEMPLATE,
   clankerLaunchVenue,
   stubClankerLaunchVenue,
 } from "./clanker";
+import { CLANKER_TOKEN_RUNTIME } from "./clanker-token-fixture";
 import { verifyPinnedDeployments } from "./common";
 import { flaunchLaunchVenue, stubFlaunchLaunchVenue } from "./flaunch";
 import { stubVirtualsLaunchVenue, virtualsLaunchVenue } from "./virtuals";
@@ -50,11 +52,44 @@ test("stub Base venues never claim registration and mark stubbed", async () => {
     expect(await venue.verifyDeployments(BLOCK)).toEqual([]);
     const registration = await venue.registration(tokenAddress, BLOCK);
     expect(registration.registered).toBe(false);
-    expect(venue.template("0x").status).toBe("not_applicable");
+    expect(venue.template("0x").status).toBe(
+      venue.id === "clanker" ? "unavailable" : "not_applicable"
+    );
+    expect(venue.template("0x").matches).toBeNull();
     expect(await venue.tradeEvents(tokenAddress, tokenAddress, 0n, 1n)).toEqual(
       []
     );
   }
+});
+
+test("Clanker template matches a captured token runtime and nothing else", () => {
+  const venue = clankerLaunchVenue(stubClient({}));
+  const observed = venue.template(CLANKER_TOKEN_RUNTIME);
+  expect(observed).toMatchObject({
+    status: "observed",
+    matches: true,
+    hash: CLANKER_TOKEN_TEMPLATE.hash,
+    venue: "clanker",
+    note: null,
+  });
+  expect(venue.template().status).toBe("not_indexed");
+
+  const bytes = Buffer.from(CLANKER_TOKEN_RUNTIME.slice(2), "hex");
+  expect(bytes.length).toBe(CLANKER_TOKEN_TEMPLATE.length);
+  const otherAdmin = Buffer.from(bytes);
+  for (const region of CLANKER_TOKEN_TEMPLATE.regions) {
+    otherAdmin.fill(0x5a, region.offset, region.offset + region.length);
+  }
+  expect(venue.template(`0x${otherAdmin.toString("hex")}`).matches).toBe(true);
+
+  const flipped = Buffer.from(bytes);
+  flipped[100] = flipped[100] === 0 ? 1 : 0;
+  const mismatch = venue.template(`0x${flipped.toString("hex")}`);
+  expect(mismatch.matches).toBe(false);
+  expect(mismatch.note).toContain("does not match");
+  expect(
+    venue.template(`0x${bytes.subarray(0, -1).toString("hex")}`).matches
+  ).toBe(false);
 });
 
 test("verifyDeployments fails when runtime hash does not match the pin", async () => {

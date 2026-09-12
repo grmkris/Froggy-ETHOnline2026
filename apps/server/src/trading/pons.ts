@@ -11,6 +11,8 @@ import type { Address } from "viem";
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
 import { PONS_NETWORK } from "./networks";
+import { maskedTemplateMatches } from "./venues/common";
+import type { MaskedTemplate } from "./venues/common";
 
 // Addresses: Pons official README, Robinhood token registry, Uniswap deployment feed.
 // Runtime hashes observed at Robinhood block 58375958; see docs/evidence/PONS_DEPLOYMENTS.md.
@@ -61,25 +63,17 @@ export const PONS_DEPLOYMENTS = {
  */
 export const PONS_TOKEN_TEMPLATE = {
   length: 3248,
-  maskedOffsets: [391, 541, 1106] as const,
+  regions: [
+    { offset: 391, length: 20 },
+    { offset: 541, length: 20 },
+    { offset: 1106, length: 20 },
+  ],
   hash: "0x36133854884d6c3e4287713e2d4f213db1fcc39913fcdf619960ab8fd0bd9101",
-} as const;
+} as const satisfies MaskedTemplate;
 
 /** True when runtime bytecode matches the reviewed Pons V2 token template. */
-export const ponsTokenTemplateMatches = (code?: `0x${string}`): boolean => {
-  if (code === undefined || code === "0x") {
-    return false;
-  }
-  const bytes = Buffer.from(code.slice(2), "hex");
-  if (bytes.length !== PONS_TOKEN_TEMPLATE.length) {
-    return false;
-  }
-  const masked = Buffer.from(bytes);
-  for (const offset of PONS_TOKEN_TEMPLATE.maskedOffsets) {
-    masked.fill(0, offset, offset + 20);
-  }
-  return keccak256(`0x${masked.toString("hex")}`) === PONS_TOKEN_TEMPLATE.hash;
-};
+export const ponsTokenTemplateMatches = (code?: `0x${string}`): boolean =>
+  maskedTemplateMatches(code, PONS_TOKEN_TEMPLATE);
 
 export const PONS_ABI = parseAbi([
   "struct LaunchedToken { address token; address curve; address deployer; address creatorFeeRecipient; address pairToken; uint256 graduationThreshold; uint24 poolFee; int24 tickSpacing; uint16 creatorTaxBps; bool buybackEnabled; uint8 phase; uint256 sweptQuote; uint256 sweptTokens; uint256 sweptAt; bool exists; }",

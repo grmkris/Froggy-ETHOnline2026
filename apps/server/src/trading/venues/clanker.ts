@@ -16,12 +16,13 @@ import {
   launcherFactFor,
   LOG_MAX_PAGES,
   LOG_PAGE,
-  notApplicableTemplate,
+  maskedTemplateFact,
   stubVenueClient,
   uniqueAddresses,
   verifyPinnedDeployments,
   ZERO,
 } from "./common";
+import type { MaskedTemplate } from "./common";
 import type { LaunchVenue, LaunchVenueRegistration } from "./types";
 
 // Primary: https://github.com/clanker-devco/v4-contracts README (Base mainnet v4.0).
@@ -40,6 +41,26 @@ export const CLANKER_DEPLOYMENTS = {
     hash: "0x216d1e06b97f936ddace1453431fec8b8d2d75dfc1ca013b4ea7ed594a734939",
   },
 } as const;
+
+/**
+ * Clanker v4 token runtime with per-token immutables masked: the admin address
+ * (three sites), the ShortString name word, the token's own address and two
+ * 32-byte deployment salts. Observed identical on six tokens at Base block
+ * 51208941; see docs/evidence/CLANKER_DEPLOYMENTS.md.
+ */
+export const CLANKER_TOKEN_TEMPLATE = {
+  length: 12_791,
+  regions: [
+    { offset: 1849, length: 20 },
+    { offset: 3148, length: 32 },
+    { offset: 4905, length: 20 },
+    { offset: 6785, length: 20 },
+    { offset: 9056, length: 20 },
+    { offset: 9091, length: 32 },
+    { offset: 9170, length: 32 },
+  ],
+  hash: "0x7e60889bd35b49b4aec7446d94e67b59dfbcd5456b5dd560d0e108963834a5bf",
+} as const satisfies MaskedTemplate;
 
 /** Vault from the same README — exclusion only, not hash-pinned in verifyDeployments. */
 export const CLANKER_VAULT = getAddress(
@@ -91,7 +112,7 @@ export const clankerLaunchVenue = (
     id: "clanker",
     network: BASE_NETWORK,
     capabilities: {
-      template: false,
+      template: true,
       insiders: false,
       concentration: true,
     },
@@ -157,11 +178,15 @@ export const clankerLaunchVenue = (
       };
       return registration;
     },
-    template: () =>
-      notApplicableTemplate(
-        "clanker",
-        "Clanker token template fingerprint is not yet recorded across 2+ tokens."
-      ),
+    template: (code) =>
+      maskedTemplateFact({
+        venue: "clanker",
+        template: CLANKER_TOKEN_TEMPLATE,
+        code,
+        stubbed,
+        mismatchNote:
+          "Runtime bytecode does not match the reviewed Clanker v4 token template.",
+      }),
     launchBlock: async (token, headBlock) => {
       if (stubbed) {
         return {
