@@ -17,8 +17,8 @@ import { describe, expect, it } from "bun:test";
 import { assess, liveOracleGate } from "@froggy/payments";
 
 import { universalAgentId } from "./agent-identity";
-import { discoveryDocument, serviceCard } from "./router";
-import type { CardDeps } from "./router";
+import { discoveryDocument, serviceCard } from "./discovery-route";
+import type { CardDeps } from "./discovery-route";
 
 const ORIGIN = "https://froggy.test";
 const FEE_PAYER = "0.0.10571514";
