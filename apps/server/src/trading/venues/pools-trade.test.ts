@@ -143,6 +143,7 @@ describe("poolsTradeLaunchVenue", () => {
     expect(registration.curveOrPool).toBe(
       POOLS_TRADE_DEPLOYMENTS.poolManager.address
     );
+    expect(registration.poolId).toBe(poolId);
     expect(registration.phase).toBe("standard");
     expect(registration.registrationBlock).toBe("42");
     expect(registration.deployer).toBeNull();
@@ -154,6 +155,7 @@ describe("poolsTradeLaunchVenue", () => {
     const fact = venue.launcherFact(registration, []);
     expect(fact.status).toBe("observed");
     expect(fact.launcher).toBe("pools_trade");
+    expect(fact.poolId).toBe(poolId);
 
     const cohort = venue.cohortFact({
       registration,

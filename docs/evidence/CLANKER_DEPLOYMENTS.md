@@ -24,6 +24,7 @@ Vault `0x8E845EAd15737bF71904A30BdDD3aEE76d6ADF6C` is listed in the same README 
 - Launch: `TokenCreated` with indexed `tokenAddress` / `tokenAdmin` (same interface).
 - Template: masked runtime fingerprint, see below.
 - Trade events: empty. Uniswap v4 `Swap.sender` is the router or unlock callback, not the trader, so no insider cohort is claimed.
+- `poolId`: `TokenCreated.poolId`, reported on the launcher fact as research metadata.
 
 ## Token template
 

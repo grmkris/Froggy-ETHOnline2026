@@ -37,6 +37,7 @@ const observedFacts = (): TokenResearchFacts =>
       deployer: wallet,
       feeRecipient: wallet,
       curveOrPool: address,
+      poolId: null,
       phase: "curve",
       registrationBlock: "900",
       note: null,

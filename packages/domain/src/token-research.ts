@@ -46,6 +46,8 @@ export const LauncherFact = Schema.Struct({
   deployer: Schema.NullOr(TradingAddress),
   feeRecipient: Schema.NullOr(TradingAddress),
   curveOrPool: Schema.NullOr(TradingAddress),
+  /** Uniswap v4 PoolId when the launcher trades through the singleton PoolManager. */
+  poolId: Schema.NullOr(HexHash),
   phase: Schema.NullOr(Schema.Literals(["curve", "graduated", "standard"])),
   registrationBlock: Schema.NullOr(BlockNumber),
   note: Schema.NullOr(Note),
@@ -275,6 +277,7 @@ export const emptyTokenResearchFacts = (input: {
       deployer: null,
       feeRecipient: null,
       curveOrPool: null,
+      poolId: null,
       phase: null,
       registrationBlock: null,
       note,

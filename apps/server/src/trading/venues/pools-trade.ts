@@ -133,6 +133,7 @@ const registrationFromLog = (
     feeRecipient: getAddress(feeRecipient) as TradingAddress,
     // SAFETY: PoolManager is the shared v4 singleton; pool identity is bytes32 poolId.
     curveOrPool: POOLS_TRADE_DEPLOYMENTS.poolManager.address as TradingAddress,
+    poolId: log.args?.poolId ?? null,
     phase: "standard",
     registrationBlock: log.blockNumber.toString(),
     note: "Pools.trade launches into a Uniswap v4 pool (no bonding-curve contract).",

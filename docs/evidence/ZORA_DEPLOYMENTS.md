@@ -21,4 +21,5 @@ The factory runtime is 130 bytes (EIP-1167 minimal proxy). The pin is the proxy 
 - Views on the coin: `currency()`, `payoutRecipient()`, `hooks()` (`ICoin` / `IHasRewardsRecipients`).
 - Launch confirmation: factory creation logs (coin address is not indexed — decode and match `coin`).
 - Trade events: `CoinBuy` / `CoinSell` on the coin when present (`insiders: true`).
+- `poolId`: `poolKeyHash` from the v4 creation events, reported on the launcher fact as research metadata; legacy `CoinCreated` (v3 pool) reports `null`.
 - Template: `not_applicable` (no masked fingerprint verified across 2+ tokens).

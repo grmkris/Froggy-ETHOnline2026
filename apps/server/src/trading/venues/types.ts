@@ -26,6 +26,8 @@ export interface LaunchVenueRegistration {
   readonly deployer: TradingAddress | null;
   readonly feeRecipient: TradingAddress | null;
   readonly curveOrPool: TradingAddress | null;
+  /** Uniswap v4 PoolId (bytes32) when curveOrPool is the singleton PoolManager or its hook. */
+  readonly poolId: `0x${string}` | null;
   readonly phase: "curve" | "graduated" | "standard" | null;
   readonly registrationBlock: string | null;
   readonly note: string | null;

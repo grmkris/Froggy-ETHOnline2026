@@ -76,6 +76,11 @@ export const TokenResearchResultView = ({
         {facts.address}
         {facts.block === null ? null : ` · block ${facts.block}`}
       </p>
+      {facts.launcher.poolId === null ? null : (
+        <p className="text-muted-foreground text-xs break-all">
+          Uniswap v4 pool {facts.launcher.poolId}
+        </p>
+      )}
     </div>
     <div className="flex flex-col gap-2">
       <SourceStatus label="Launcher" status={facts.launcher.status} />

@@ -21,4 +21,5 @@ Observed at block `51206991`, hash `0x01d7115283e20c341b05bf59d90bbfe78b04c13a4d
 - Views: `tokenId(memecoin)` then round-trip `memecoin(tokenId)` / `memecoinTreasury(tokenId)` on Flaunch; optional `poolKey(token)` on PositionManager.
 - Launch: `PoolCreated` on PositionManager (`_memecoin` not indexed — decode and match).
 - Trade events: empty (v4 / internal swap complexity; `insiders: false`).
+- `poolId`: `PoolCreated._poolId`, reported on the launcher fact as research metadata. Uniswap v4 `Swap.sender` is the router or unlock callback, so the pool id is not used to claim insiders.
 - Template: `not_applicable` (no masked fingerprint verified across 2+ tokens).

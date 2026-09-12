@@ -44,6 +44,7 @@ PoolManager runtime hash matches the Pons evidence pin at an earlier block (`doc
 ## Event and adapter notes
 
 - Registration and launch block: `TokenLaunched` filtered by indexed `token` across the four InstantLaunchStrategy addresses.
+- `poolId`: the indexed `poolId` of the same log, reported on the launcher fact as research metadata; `curveOrPool` stays the shared PoolManager.
 - `finalPositionRecipient` is the fee-splitter (or equivalent permanent LP recipient), not the human creator; `deployer` is left null until a primary creator field is wired.
 - There is no bonding-curve contract: phase is `standard`, `curveOrPool` is the shared PoolManager, and `tradeEvents` stays empty until v4 `Swap` filtering by `poolId` is implemented. `capabilities.insiders` is therefore false.
 - Template fingerprint: `not_applicable` — no stable masked bytecode clone recorded yet.

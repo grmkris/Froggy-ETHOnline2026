@@ -188,6 +188,7 @@ export const flaunchLaunchVenue = (
           hooks === null
             ? (FLAUNCH_DEPLOYMENTS.positionManager.address as TradingAddress)
             : (getAddress(hooks) as TradingAddress),
+        poolId: created?.args._poolId ?? null,
         phase: "standard",
         registrationBlock:
           created === null ? null : created.blockNumber.toString(),

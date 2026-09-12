@@ -144,6 +144,7 @@ export const virtualsLaunchVenue = (
         feeRecipient: null,
         // SAFETY: pair from tokenInfo is a checksummed 20-byte address.
         curveOrPool: getAddress(pair) as TradingAddress,
+        poolId: null,
         phase: (() => {
           if (tradingOnUniswap) {
             return "graduated";

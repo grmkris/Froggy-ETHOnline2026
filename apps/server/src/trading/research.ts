@@ -182,6 +182,7 @@ const researchUnknownPath = async (input: {
     deployer: null,
     feeRecipient: null,
     curveOrPool: null,
+    poolId: null,
     phase: null,
     registrationBlock: null,
     note: "No configured launcher claimed this token.",

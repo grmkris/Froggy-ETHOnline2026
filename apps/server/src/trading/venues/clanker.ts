@@ -168,6 +168,7 @@ export const clankerLaunchVenue = (
         feeRecipient: null,
         // SAFETY: getAddress returns a checksummed 20-byte address from factory record.
         curveOrPool: getAddress(info.hook) as TradingAddress,
+        poolId: created?.args.poolId ?? null,
         phase: "standard",
         registrationBlock:
           created === null ? null : created.blockNumber.toString(),

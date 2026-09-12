@@ -75,6 +75,7 @@ interface CreationHit {
   readonly caller: Address | null;
   readonly payoutRecipient: Address | null;
   readonly hooksOrPool: Address | null;
+  readonly poolId: `0x${string}` | null;
 }
 
 const hooksOrPoolFromArgs = (args: {
@@ -133,6 +134,10 @@ const findCreation = async (
               ? getAddress(log.args.payoutRecipient)
               : null,
           hooksOrPool: hooksOrPoolFromArgs(log.args),
+          poolId:
+            "poolKeyHash" in log.args && log.args.poolKeyHash !== undefined
+              ? log.args.poolKeyHash
+              : null,
         };
       }
     }
@@ -215,6 +220,7 @@ export const zoraLaunchVenue = (
         curveOrPool: getAddress(
           created?.hooksOrPool ?? hooks
         ) as TradingAddress,
+        poolId: created?.poolId ?? null,
         phase: "standard",
         registrationBlock:
           created === null ? null : created.blockNumber.toString(),
