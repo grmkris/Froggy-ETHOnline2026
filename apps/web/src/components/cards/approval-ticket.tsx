@@ -6,9 +6,10 @@
  * click. A countdown says how long the question stays open, and the whole
  * thing disappears on every tab the moment anyone answers.
  *
- * A dapp's Allow is different: the person's key has to sign a one-shot Privy
- * rule before the agent key may sign, so that button runs prepare/sign/commit
- * instead of the socket used for Deny.
+ * A dapp signature's Allow is different: the person's key has to sign a
+ * one-shot Privy rule before the agent key may sign, so that button runs
+ * prepare/sign/commit instead of the socket. Connect does not: it answers
+ * over the socket like any other approval, so the ticket leaves.
  */
 
 import type { ApprovalKind } from "@froggy/domain";
@@ -201,7 +202,7 @@ export const ApprovalTicket = ({
             onClick={() => {
               if (
                 option.kind === "allow_once" &&
-                request.wallet !== undefined
+                request.wallet?.needsSignature === true
               ) {
                 void allowWallet();
                 return;

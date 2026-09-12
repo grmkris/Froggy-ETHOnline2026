@@ -141,6 +141,25 @@ const readyPolicy = async (
   };
 };
 
+const unsignedPrepare = (appId: string): Response =>
+  json(
+    {
+      expiry: Date.now() + SIGNING_WINDOW_MS,
+      needsSignature: false,
+      payload: {
+        body: { rules: [] },
+        headers: {
+          "privy-app-id": appId,
+          "privy-request-expiry": "0",
+        },
+        method: "PATCH",
+        url: `${PRIVY_API}/v1/policies/stub`,
+        version: 1,
+      },
+    },
+    200
+  );
+
 const prepare = async (
   deps: WalletRouteDeps,
   userId: UserId,
@@ -155,29 +174,21 @@ const prepare = async (
     return json({ error: "That request is not yours." }, 404);
   }
   if (row.status !== "awaiting_approval" && row.status !== "approved") {
+    if (row.status === "confirmed") {
+      // A stuck connect ticket: Uniswap already has the address, the card
+      // never left. Take it down so Allow can finish without a red error.
+      deps.walletRequests.releaseAllow(userId, row);
+      if (row.kind === "connect" || deps.stubbed) {
+        return unsignedPrepare(deps.appId);
+      }
+    }
     return json(
       { error: "That request is no longer waiting for an answer." },
       409
     );
   }
   if (row.kind === "connect" || deps.stubbed) {
-    return json(
-      {
-        expiry: Date.now() + SIGNING_WINDOW_MS,
-        needsSignature: false,
-        payload: {
-          body: { rules: [] },
-          headers: {
-            "privy-app-id": deps.appId,
-            "privy-request-expiry": "0",
-          },
-          method: "PATCH",
-          url: `${PRIVY_API}/v1/policies/stub`,
-          version: 1,
-        },
-      },
-      200
-    );
+    return unsignedPrepare(deps.appId);
   }
   const state = await readyPolicy(deps, userId);
   if (state instanceof Response) {

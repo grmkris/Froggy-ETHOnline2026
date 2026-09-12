@@ -1143,6 +1143,8 @@ export class WalletRequests {
       if (approved === null) {
         const latest = await this.deps.store.walletRequests.byId(userId, id);
         if (latest !== null) {
+          // A concurrent Allow already settled this: still take the card down.
+          this.releaseAllow(userId, latest);
           return walletRequestView(latest, reading);
         }
       }
@@ -1150,23 +1152,37 @@ export class WalletRequests {
     const latest =
       (await this.deps.store.walletRequests.byId(userId, id)) ?? request;
     if (latest.kind === "connect") {
-      await this.grantConnect(userId, workspace, latest, account, reading);
+      if (!walletRequestFinished(latest.status)) {
+        await this.grantConnect(userId, workspace, latest, account, reading);
+      }
+      // Connect used to return here without resolving, so Uniswap got the
+      // address and the ticket stayed above the composer.
+      this.releaseAllow(userId, latest);
       return walletRequestView(
         (await this.deps.store.walletRequests.byId(userId, id)) ?? latest,
         reading
       );
     }
-    this.deps.interactions.resolve(
-      userId,
-      latest.approvalId ?? latest.id,
-      "allow_once"
-    );
+    this.releaseAllow(userId, latest);
     await (this.deps.privy.mode === "stub"
       ? this.fulfillStub(userId, workspace, latest, reading)
       : this.fulfill(userId, workspace, latest, reading));
     return walletRequestView(
       (await this.deps.store.walletRequests.byId(userId, id)) ?? latest,
       reading
+    );
+  }
+
+  /**
+   * Take the parked ticket down. Connect Allow is HTTP, not the socket
+   * `approval.resolve` path, so this is what publishes `approval.resolved`
+   * and unlocks the composer.
+   */
+  releaseAllow(userId: UserId, request: WalletRequest): void {
+    this.deps.interactions.resolve(
+      userId,
+      request.approvalId ?? request.id,
+      "allow_once"
     );
   }
 

@@ -146,6 +146,7 @@ const coordinator = (input: {
   readonly answer?: ApprovalOutcome;
   readonly asked?: AskInput[];
   readonly browser: BrowserHandle;
+  readonly released?: string[];
   readonly session: WorkspaceSession;
   readonly store: ReturnType<typeof memoryStore>;
 }): WalletRequests =>
@@ -163,7 +164,10 @@ const coordinator = (input: {
     },
     chainId: 8453,
     interactions: {
-      resolve: () => true,
+      resolve: (_userId, requestId) => {
+        input.released?.push(requestId);
+        return true;
+      },
     },
     network: "eip155:8453",
     now: () => NOW,
@@ -268,6 +272,58 @@ describe("WalletRequests", () => {
     });
     bag.replies.length = 0;
     await requests.observe(ALICE, observation("eth_accounts", []));
+    expect(accountsResult(bag.replies[0])).toEqual([ADDRESS]);
+  });
+
+  it("HTTP Allow on connect takes the ticket down after granting", async () => {
+    const store = memoryStore();
+    const bag = emptyBag();
+    const released: string[] = [];
+    const parked = Promise.withResolvers<ApprovalOutcome>();
+    const ready = Promise.withResolvers<AskInput>();
+    const session = sessionOf(store);
+    const requests = new WalletRequests({
+      appOrigin: APP_ORIGIN,
+      ask: async (_userId, card) => {
+        ready.resolve(card);
+        return await parked.promise;
+      },
+      chainId: 8453,
+      interactions: {
+        resolve: (_userId, requestId, optionId) => {
+          released.push(requestId);
+          parked.resolve({
+            accessToken: "token",
+            kind: "answered",
+            optionId,
+          });
+          return true;
+        },
+      },
+      network: "eip155:8453",
+      now: () => NOW,
+      policies: null,
+      privy: stubPrivyServer(),
+      publish: () => {},
+      reads,
+      rpc,
+      store,
+      stubbed: true,
+      workspace: () => ({ browser: fakeBrowser(bag), session }),
+    });
+    const observing = requests.observe(
+      ALICE,
+      observation("eth_requestAccounts", [])
+    );
+    const card = await ready.promise;
+    const requestId = card.request.wallet?.requestId;
+    if (requestId === undefined) {
+      throw new Error("expected a wallet request id");
+    }
+    const view = await requests.fulfillApproved(ALICE, requestId);
+    expect(view.status).toBe("confirmed");
+    expect(released).toEqual([card.request.id]);
+    await observing;
     expect(accountsResult(bag.replies[0])).toEqual([ADDRESS]);
   });
 
