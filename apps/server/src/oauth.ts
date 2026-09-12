@@ -450,7 +450,7 @@ const requestedScopes = (
   scope: string | undefined
 ): readonly OAuthScope[] | null => {
   if (scope === undefined || scope.trim() === "") {
-    return OAUTH_SCOPES;
+    return OAUTH_SCOPES.filter((candidate) => !candidate.startsWith("email:"));
   }
   const names = scope.split(" ").filter((name) => name !== "");
   const scopes: OAuthScope[] = [];

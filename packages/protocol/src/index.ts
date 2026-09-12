@@ -168,3 +168,18 @@ export {
 
 export { LaunchWatchTicket, LaunchWatchResult } from "./trading-launches";
 export { HistoryBusiness, HistoryDetail, HistoryUpdate } from "./history";
+
+export {
+  EmailClaim,
+  EmailDraftRequest,
+  EmailRevision,
+  EmailStatus,
+  EmailPage,
+  EmailInbound,
+  EmailDelivery,
+  EmailMove,
+  EmailWorkerSend,
+  EmailSendResult,
+} from "./email";
+
+export { WatchlistCreate, WatchlistPatch, WatchlistList } from "./watchlist";

@@ -21,8 +21,9 @@ for (const failure of ["http", "network"] as const) {
     await page.goto("/chat");
     await leash.applied;
     await page
-      .getByRole("button", { name: "Buy the lending snapshot" })
-      .click();
+      .getByRole("textbox", { name: "Message" })
+      .fill("Buy the lending snapshot");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
       timeout: 20_000,
     });

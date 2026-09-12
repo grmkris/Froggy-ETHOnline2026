@@ -56,6 +56,8 @@ import { memoryLaunchStore } from "./launch-store";
 import type { LaunchStore } from "./launch-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
+import { memoryWatchlistStore } from "./watchlist-store";
+import type { WatchlistStore } from "./watchlist-store";
 
 /** A token row with the one field the domain record leaves out. */
 interface AgentTokenRow extends AgentToken {
@@ -281,6 +283,7 @@ export interface Store {
       record: BrowserProfileRecord
     ) => Promise<void>;
   };
+  readonly watchlist: WatchlistStore;
   readonly history: HistoryStore;
   readonly trading: TradingStore;
   readonly launches: LaunchStore;
@@ -725,6 +728,7 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
+  const watchlist = memoryWatchlistStore();
   const purchases = new Map<
     PurchaseId,
     { userId: UserId; purchase: Purchase }
@@ -776,6 +780,7 @@ export const memoryStore = (): Store => {
       },
     },
     history,
+    watchlist,
     trading: memoryTradingStore(),
     launches: memoryLaunchStore(),
     purchases: {
@@ -1425,6 +1430,7 @@ export const memoryStore = (): Store => {
       },
     },
     forget: async (userId) => {
+      await watchlist.forget(userId);
       browsers.delete(userId);
       setupSeen.delete(userId);
       await history.clearTelegramCache(userId);

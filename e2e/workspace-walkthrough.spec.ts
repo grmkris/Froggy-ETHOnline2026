@@ -30,8 +30,8 @@ for (const size of [
     await captureScreen(page, testInfo, "add-funds");
     await page.keyboard.press("Escape");
 
-    const nav = page.getByRole("navigation", { name: "Primary" });
-    await nav.getByRole("link", { name: "Explore" }).click();
+    await page.getByRole("button", { name: "Workspace menu" }).click();
+    await page.getByRole("link", { name: "Tools", exact: true }).click();
     await page.goto("/services");
     await page.getByRole("button", { name: "Choose search the web" }).click();
     await page
@@ -48,6 +48,7 @@ for (const size of [
 
     // The secondary places live in the rail at desktop width and in the top
     // bar below it — exactly one of the two exists at any given width.
+    await page.getByRole("button", { name: "Workspace menu" }).click();
     await page.getByRole("link", { name: "Connections" }).click();
     await expect(
       page.getByRole("button", { name: "Copy for your agent" })
@@ -82,6 +83,7 @@ for (const size of [
       page.getByRole("heading", { name: "My research assistant" })
     ).toHaveCount(0);
 
+    await page.getByRole("button", { name: "Workspace menu" }).click();
     await page.getByRole("link", { name: "Account" }).click();
     await page.getByRole("button", { name: "Delete my data" }).click();
     await expect(page.getByRole("alertdialog")).toBeVisible();

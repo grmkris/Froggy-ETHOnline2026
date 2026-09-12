@@ -11,12 +11,12 @@
 import { SetupState } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useSessionToken } from "../lib/session-token";
+import { useWorkspace } from "../lib/workspace-context";
 
 const decodeState = Schema.decodeUnknownSync(SetupState);
-const KEY = ["setup"] as const;
 
 export interface Setup {
   /** Undefined while unknown, null while never seen. */
@@ -27,7 +27,9 @@ export interface Setup {
 }
 
 export const useSetup = (): Setup => {
-  const { getToken } = useSessionToken();
+  const { getToken, canConnect } = useSessionToken();
+  const { app } = useWorkspace();
+  const key = useMemo(() => ["setup", app.sessionId] as const, [app.sessionId]);
   const queries = useQueryClient();
   const headers = useCallback(async (): Promise<Record<string, string>> => {
     const token = await getToken();
@@ -35,6 +37,7 @@ export const useSetup = (): Setup => {
   }, [getToken]);
 
   const state = useQuery({
+    enabled: canConnect && app.sessionId !== null,
     queryFn: async () => {
       const response = await fetch("/api/setup", { headers: await headers() });
       if (!response.ok) {
@@ -42,12 +45,13 @@ export const useSetup = (): Setup => {
       }
       return decodeState(await response.json());
     },
-    queryKey: KEY,
+    queryKey: key,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
   const save = useMutation({
+    onMutate: () => ({ key }),
     mutationFn: async () => {
       const response = await fetch("/api/setup", {
         body: JSON.stringify({ seen: true, v: 1 }),
@@ -59,16 +63,16 @@ export const useSetup = (): Setup => {
       }
       return decodeState(await response.json());
     },
-    onSuccess: (next) => {
-      queries.setQueryData(KEY, next);
+    onSuccess: (next, _input, context) => {
+      queries.setQueryData(context.key, next);
     },
   });
 
   const { mutate } = save;
   const markSeen = useCallback((): void => {
-    queries.setQueryData<SetupState>(KEY, { seenAt: Date.now(), v: 1 });
+    queries.setQueryData<SetupState>(key, { seenAt: Date.now(), v: 1 });
     mutate();
-  }, [mutate, queries]);
+  }, [key, mutate, queries]);
 
   return {
     failed: state.isError,

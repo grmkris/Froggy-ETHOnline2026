@@ -2,6 +2,13 @@ import { cloudApi, CloudBrowser, StubCloudBrowser } from "@froggy/browser";
 import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
 import type { TradingNetwork, UserId } from "@froggy/domain";
+import {
+  Email,
+  memoryEmailStore,
+  postgresEmailStore,
+  memoryEmailTransport,
+  cloudflareEmailTransport,
+} from "@froggy/email";
 /**
  * The composition root's composition root.
  *
@@ -113,7 +120,34 @@ interface Balances {
   readonly usdc: (address: string) => Promise<bigint | null>;
 }
 
+const createEmail = (
+  environment: Environment,
+  sql: postgres.Sql | null
+): Email | null => {
+  if (environment.email) {
+    if (!sql) {
+      throw new Error("Live email requires durable Postgres storage.");
+    }
+    return new Email({
+      store: postgresEmailStore(sql),
+      transport: cloudflareEmailTransport(
+        environment.email.workerUrl,
+        environment.email.secret
+      ),
+      domain: environment.email.domain,
+    });
+  }
+  if (environment.allowStubs) {
+    return new Email({
+      store: memoryEmailStore(),
+      transport: memoryEmailTransport(),
+      domain: "froggy.test",
+    });
+  }
+  return null;
+};
 export interface Services {
+  readonly email: Email | null;
   readonly createBrowser: (
     options: BrowserSessionOptions,
     userId: UserId
@@ -435,6 +469,7 @@ export const createServices = (options: ServiceOptions): Services => {
   const rpc = evmRpc({ url: environment.evmRpcUrl });
   const usdc = KNOWN_ASSETS[`${environment.evmNetwork}:usdc`];
   const store = sql === null ? memoryStore() : postgresStore(sql);
+  const email = createEmail(environment, sql);
 
   const host =
     environment.hederaAccounts && environment.hederaKek !== null
@@ -584,6 +619,7 @@ export const createServices = (options: ServiceOptions): Services => {
     ponsReader = stubPonsLaunchReader(Date.now);
   }
   const adapters: Omit<Services, "purchases" | "createBrowser"> = {
+    email,
     launches: new LaunchCoordinator({
       store: store.launches,
       chainReaders:

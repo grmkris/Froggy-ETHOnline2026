@@ -1109,67 +1109,8 @@ button:not(:disabled),
   }
 }
 
-/* Route snapshots are visual only: there is still one live route and one canvas. */
-:root:active-view-transition-type(workspace-forward),
-:root:active-view-transition-type(workspace-back) {
-  view-transition-name: none;
-  [data-slot="workspace-page"] {
-    view-transition-name: workspace-page;
-  }
-}
 ::view-transition {
   pointer-events: none;
-}
-::view-transition-group(workspace-page) {
-  animation: none;
-  overflow: clip;
-}
-::view-transition-old(workspace-page),
-::view-transition-new(workspace-page) {
-  animation-duration: 300ms;
-  animation-timing-function: var(--ease-out);
-  animation-fill-mode: both;
-  mix-blend-mode: normal;
-}
-:root:active-view-transition-type(workspace-forward) {
-  &::view-transition-old(workspace-page) {
-    animation-name: page-out-left;
-  }
-  &::view-transition-new(workspace-page) {
-    animation-name: page-in-right;
-  }
-}
-:root:active-view-transition-type(workspace-back) {
-  &::view-transition-old(workspace-page) {
-    animation-name: page-out-right;
-  }
-  &::view-transition-new(workspace-page) {
-    animation-name: page-in-left;
-  }
-}
-@keyframes page-in-right {
-  from {
-    transform: translateX(56px);
-    opacity: 0;
-  }
-}
-@keyframes page-in-left {
-  from {
-    transform: translateX(-56px);
-    opacity: 0;
-  }
-}
-@keyframes page-out-left {
-  to {
-    transform: translateX(-56px);
-    opacity: 0;
-  }
-}
-@keyframes page-out-right {
-  to {
-    transform: translateX(56px);
-    opacity: 0;
-  }
 }
 @keyframes surface-in {
   from {
@@ -1223,15 +1164,6 @@ button:not(:disabled),
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root:active-view-transition-type(workspace-forward),
-  :root:active-view-transition-type(workspace-back) {
-    &::view-transition-old(workspace-page) {
-      animation: surface-out 125ms var(--ease-out) both;
-    }
-    &::view-transition-new(workspace-page) {
-      animation: surface-in 125ms var(--ease-out) both;
-    }
-  }
   :root:active-view-transition-type(appearance) {
     &::view-transition-old(root) {
       animation: surface-out 125ms var(--ease-out) both;
@@ -1339,4 +1271,50 @@ button:not(:disabled),
   width: auto !important;
   height: auto !important;
   will-change: auto;
+}
+
+/* Completion feedback never shifts the surrounding reading geometry. */
+.saved-feedback {
+  transition: opacity var(--motion-feedback) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.setup-celebration {
+  transition:
+    opacity var(--motion-panel) var(--ease-out),
+    transform var(--motion-panel) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+:root[data-motion-input="keyboard"] .press-feedback,
+:root[data-motion-input="keyboard"] .press-feedback:active,
+:root[data-motion-input="keyboard"]
+  .press-feedback.action-primary:hover:not(:active):not(:disabled) {
+  transform: none;
+  transition-duration: 0ms;
+}
+:root[data-motion-input="keyboard"] .saved-feedback,
+:root[data-motion-input="keyboard"] .setup-celebration {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-celebration {
+    transform: none;
+    transition: opacity var(--motion-feedback) var(--ease-out);
+    @starting-style {
+      transform: none;
+    }
+  }
+}
+@media (max-width: 767px) {
+  .workspace-frame:has([data-slot="composer"]:focus-within) {
+    padding-bottom: 0;
+  }
+  .workspace-frame:has([data-slot="composer"]:focus-within)
+    [data-slot="mobile-navigation"] {
+    display: none;
+  }
 }

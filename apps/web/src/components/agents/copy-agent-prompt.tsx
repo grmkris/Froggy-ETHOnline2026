@@ -7,7 +7,7 @@ import { useAgentTokens } from "../../hooks/use-agent-tokens";
 import { useWorkspace } from "../../lib/workspace-context";
 import { CopyButton } from "../copy-button";
 
-export const CopyAgentPrompt = (): ReactElement => {
+const CopyAgentPrompt = (): ReactElement => {
   const { app } = useWorkspace();
   const origin =
     app.mcpUrl === null ? window.location.origin : new URL(app.mcpUrl).origin;

@@ -1,0 +1,41 @@
+name = "froggy-email"
+main = "src/index.ts"
+account_id = "bceaeae4788dce3493514fde194b4a7e"
+compatibility_date = "2026-09-12"
+
+# Set GATEWAY_URL and EMAIL_DOMAIN for the target environment before deployment.
+# Store EMAIL_WEBHOOK_SECRET with `bunx --bun wrangler secret put`.
+[vars]
+GATEWAY_URL = "https://app-production-58dd.up.railway.app"
+EMAIL_DOMAIN = "yoda.fun"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "froggy-email"
+
+[[queues.producers]]
+binding = "INCOMING"
+queue = "froggy-email-incoming"
+
+[[queues.consumers]]
+queue = "froggy-email-incoming"
+max_batch_size = 5
+max_retries = 10
+dead_letter_queue = "froggy-email-dead-letter"
+
+[[queues.consumers]]
+queue = "froggy-email-delivery"
+max_batch_size = 10
+max_retries = 10
+dead_letter_queue = "froggy-email-dead-letter"
+
+[[send_email]]
+name = "EMAIL"
+
+[[durable_objects.bindings]]
+name = "SENDS"
+class_name = "EmailSend"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["EmailSend"]

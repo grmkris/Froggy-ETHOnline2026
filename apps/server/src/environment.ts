@@ -263,6 +263,13 @@ const optionalResearchKey = (
 ): Redacted.Redacted | null => (Redacted.value(key).trim() === "" ? null : key);
 
 export interface Environment {
+  readonly email?:
+    | {
+        readonly domain: string;
+        readonly workerUrl: string;
+        readonly secret: Redacted.Redacted;
+      }
+    | undefined;
   readonly trading: TradingEnvironment;
   readonly xApiBearer: Redacted.Redacted;
   readonly supplierPayees: Readonly<Record<string, string>>;
@@ -784,8 +791,34 @@ const assertPriceableAsset = (asset: string, network: HederaNetwork): void => {
   }
 };
 
+const loadEmailEnvironment = Effect.fn("loadEmailEnvironment")(
+  function* loadEmailEnvironment() {
+    const emailDomain = yield* Config.string("EMAIL_DOMAIN").pipe(
+      Config.withDefault("")
+    );
+    const emailWorkerUrl = yield* Config.string("EMAIL_WORKER_URL").pipe(
+      Config.withDefault("")
+    );
+    const emailSecret = yield* secret("EMAIL_WEBHOOK_SECRET", "");
+    if (
+      (emailDomain || emailWorkerUrl || Redacted.value(emailSecret)) &&
+      (!/^[a-z0-9.-]+\.[a-z]{2,}$/u.test(emailDomain) ||
+        !emailWorkerUrl.startsWith("https://") ||
+        Redacted.value(emailSecret).length < 32)
+    ) {
+      throw new Error(
+        "Email needs a domain, HTTPS Worker URL, and at least a 32-character webhook secret."
+      );
+    }
+    return emailDomain
+      ? { domain: emailDomain, workerUrl: emailWorkerUrl, secret: emailSecret }
+      : undefined;
+  }
+);
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
+    const email = yield* loadEmailEnvironment();
     const port = yield* Config.number("PORT").pipe(Config.withDefault(3001));
     const appOrigin = yield* Config.string("APP_ORIGIN").pipe(
       Config.withDefault("http://localhost:3000")
@@ -1101,6 +1134,7 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     refuseStubbedBoot(appOrigin, stubbedNames(modes, trading));
 
     return {
+      email,
       trading,
       xApiBearer,
       supplierPayees,

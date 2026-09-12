@@ -324,7 +324,7 @@ export const agentDetail = async (
       name: token.label,
       // A minted token has no scope set and may call every agent tool,
       // including history. Listing a subset would understate what it can do.
-      scopes: [...OAUTH_SCOPES],
+      scopes: OAUTH_SCOPES.filter((scope) => !scope.startsWith("email:")),
     };
   } else {
     const found = await store.oauth.grants.byId(id);

@@ -12,6 +12,11 @@ import {
 import { Schema } from "effect";
 
 import { trackAgentInvocation, recordMcpDiagnostic } from "./agent-invocations";
+import {
+  emailToolDefinitions,
+  invokeEmailTool,
+  readEmailAttachment,
+} from "./email-tools";
 import { decodeHistoryJson } from "./history";
 import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
 import { boundedBytes } from "./outbound";
@@ -88,6 +93,12 @@ const tools = [
     description: `Included bounded ${name.replaceAll("_", " ")}. Research only; no spending or execution authority.`,
     inputSchema: inputSchema(schema),
     annotations: { readOnlyHint: true },
+  })),
+  ...emailToolDefinitions.map((entry) => ({
+    name: entry.name,
+    description: entry.description,
+    inputSchema: inputSchema(entry.schema),
+    annotations: { readOnlyHint: entry.scope === "email:read" },
   })),
   {
     name: "froggy_address_lookup",
@@ -237,7 +248,14 @@ const tools = [
 ];
 
 interface ToolResult {
-  readonly content: readonly { readonly type: "text"; readonly text: string }[];
+  readonly content: readonly (
+    | { readonly type: "text"; readonly text: string }
+    | {
+        readonly type: "image";
+        readonly mimeType: string;
+        readonly data: string;
+      }
+  )[];
   readonly isError: boolean;
 }
 type McpResult =
@@ -492,6 +510,10 @@ const classifyCall = (name: string) => {
   if (name === "froggy_history") {
     scope = "history";
   }
+  const email = emailToolDefinitions.find((entry) => entry.name === name);
+  if (email) {
+    ({ scope } = email);
+  }
   return { isPurchase, isTrade, scope };
 };
 const invokeResearch = async (
@@ -561,13 +583,78 @@ const invokeResearch = async (
 };
 const missingScope = (caller: TaskCaller, scope: OAuthScope): boolean =>
   caller.scopes !== null && !caller.scopes.has(scope);
+const invokeEmailMcp = async (
+  services: Services,
+  caller: TaskCaller,
+  call: typeof Call.Type
+): Promise<ToolResult> =>
+  await trackAgentInvocation(
+    services,
+    caller,
+    "mcp",
+    call.name,
+    async (invocation) => {
+      try {
+        const text = await invokeEmailTool(
+          services,
+          caller.userId,
+          call.name,
+          Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
+          caller.scopes
+        );
+        if (call.name === "froggy_email_file_read") {
+          const attachment = await readEmailAttachment(
+            services,
+            caller.userId,
+            Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {})
+          );
+          invocation.outcome = "completed";
+          return {
+            content: [
+              { type: "text" as const, text: attachment.text },
+              ...attachment.images.map((image) => ({
+                type: "image" as const,
+                ...image,
+              })),
+            ],
+            isError: false,
+          };
+        }
+        invocation.outcome = "completed";
+        return { content: [{ type: "text", text }], isError: false };
+      } catch (error) {
+        invocation.outcome = "refused";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                error instanceof Error ? error.message : "Email tool refused.",
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+    {
+      input: { redacted: true },
+      output: () => ({
+        redacted: true,
+        reason: "Read through explicitly scoped email tools.",
+      }),
+    }
+  );
+
 const invokeTool = async (
   services: Services,
   session: WorkspaceSession,
   caller: TaskCaller,
   call: typeof Call.Type
-): Promise<ToolResult> =>
-  await trackAgentInvocation(
+): Promise<ToolResult> => {
+  if (call.name.startsWith("froggy_email_")) {
+    return await invokeEmailMcp(services, caller, call);
+  }
+  return await trackAgentInvocation(
     services,
     caller,
     "mcp",
@@ -729,9 +816,17 @@ const invokeTool = async (
     },
     {
       input: capturedInput(call),
-      output: (result) => decodeHistoryJson(JSON.stringify(result)),
+      output: (result) =>
+        call.name.startsWith("froggy_email_")
+          ? {
+              redacted: true,
+              reason:
+                "Email requires current email permission; read it through email tools.",
+            }
+          : decodeHistoryJson(JSON.stringify(result)),
     }
   );
+};
 
 export const handleMcp = async (
   services: Services,

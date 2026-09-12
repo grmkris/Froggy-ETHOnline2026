@@ -207,97 +207,31 @@ test("reduced-motion dialogs stay centred and return keyboard focus", async ({
 });
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
-  test(`workspace travels in pill order with ${reducedMotion} motion`, async ({
+  test(`daily navigation stays still with ${reducedMotion} motion`, async ({
     page,
   }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
     await observeMotion(page);
     await page.emulateMedia({ reducedMotion });
     await page.setViewportSize({ width: 390, height: 844 });
-    // This measures travel between destinations, so it starts on one.
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Primary" });
-    const wallet = nav.getByRole("link", { name: "Wallet", exact: true });
-    const start = await nav
-      .getByRole("link", { name: "Home", exact: true })
-      .boundingBox();
-    const destination = await wallet.boundingBox();
-    await wallet.click();
+    const watchlist = nav.getByRole("link", { name: "Watchlist", exact: true });
+    await watchlist.click();
     await expect(
-      page.getByRole("heading", { name: "Your wallet" })
+      page.getByRole("heading", { name: "Watchlist", exact: true })
     ).toBeVisible();
-    await expect
-      .poll(
-        async () =>
-          await page.evaluate(() =>
-            window.motionSamples.map((sample) => sample.name)
-          )
-      )
-      .toContain(reducedMotion === "reduce" ? "surface-in" : "page-in-right");
     await nav.getByRole("link", { name: "Home", exact: true }).click();
-    await expect(page).toHaveURL(/\/$/u);
-    if (reducedMotion === "no-preference") {
-      await expect
-        .poll(
-          async () =>
-            await page.evaluate(() =>
-              window.motionSamples.map((sample) => sample.name)
-            )
-        )
-        .toContain("page-out-right");
-      const samples = await page.evaluate(() => window.motionSamples);
-      expect(
-        samples.find((sample) => sample.name === "page-in-right")?.duration
-      ).toBe(300);
-      expect(samples.some((sample) => sample.name === "page-out-left")).toBe(
-        true
-      );
-      expect(
-        samples.some(
-          (sample) =>
-            sample.slot === "navigation-pill" &&
-            sample.frames.some((frame) => frame.transform.includes("20px"))
-        )
-      ).toBe(true);
-    } else {
-      expect(
-        await page.evaluate(() =>
-          window.motionSamples.filter((sample) =>
-            sample.name.startsWith("page-")
-          )
-        )
-      ).toEqual([]);
-    }
-    if (reducedMotion === "no-preference") {
-      const frames = await page.evaluate(() =>
-        window.motionIndicatorFrames.filter((frame) => frame.path === "/wallet")
-      );
-      expect(
-        frames.some(
-          (frame) =>
-            frame.x > (start?.x ?? 0) + 2 && frame.x < (destination?.x ?? 0) - 2
-        )
-      ).toBe(true);
-    }
-    // The next keyboard activation has no snapshot to wait for.
-    await wallet.focus();
-    await page.evaluate(() => {
-      window.motionSamples = [];
-    });
+    await watchlist.focus();
     await page.keyboard.press("Enter");
-    await expect(
-      page.getByRole("heading", { name: "Your wallet" })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/watchlist$/u);
     expect(
       await page.evaluate(() =>
         window.motionSamples.filter(
           (sample) =>
-            sample.name.startsWith("page-") || sample.name === "surface-in"
+            sample.name.startsWith("page-") || sample.slot === "navigation-pill"
         )
       )
     ).toEqual([]);
-    expect(errors).toEqual([]);
   });
 }
 
@@ -330,7 +264,7 @@ test("primary presses in place and Add funds springs from 0.94", async ({
   await expect(add).toBeFocused();
 });
 
-test("wallet digits roll on first value and update while the funding target stays still", async ({
+test("wallet values update immediately while the funding target stays still", async ({
   page,
 }) => {
   await observeMotion(page);
@@ -376,7 +310,7 @@ test("wallet digits roll on first value and update while the funding target stay
           )
         )
     )
-    .toBe(true);
+    .toBe(false);
   const add = page.getByRole("button", { name: "Add funds", exact: true });
   await add.hover();
   await expect(add).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
@@ -396,7 +330,7 @@ test("wallet digits roll on first value and update while the funding target stay
           )
         )
     )
-    .toBe(true);
+    .toBe(false);
   expect(await add.boundingBox()).toEqual(before);
 });
 

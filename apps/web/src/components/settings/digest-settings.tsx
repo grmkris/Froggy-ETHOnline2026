@@ -33,6 +33,7 @@ import type { ReactElement } from "react";
 
 import { digestZone } from "../../lib/digest-zone";
 import { useSessionToken } from "../../lib/session-token";
+import { useWorkspace } from "../../lib/workspace-context";
 
 const decodeSchedule = Schema.decodeUnknownSync(DigestSchedule);
 
@@ -57,6 +58,12 @@ const testWords = (report: TestReport): string => {
   return report.summary === "" ? where : `${where} “${report.summary}”`;
 };
 
+const inputDisabled = (
+  pending: boolean,
+  failed: boolean,
+  saving: boolean
+): boolean => pending || failed || saving;
+
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 const label = (hour: number): string =>
@@ -69,7 +76,8 @@ export const DigestSettings = ({
   readonly withTest?: boolean;
 } = {}): ReactElement => {
   const inputId = useId();
-  const { getToken } = useSessionToken();
+  const { getToken, canConnect } = useSessionToken();
+  const { app } = useWorkspace();
   const queries = useQueryClient();
   const browserZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [ask, setAsk] = useState(false);
@@ -80,6 +88,7 @@ export const DigestSettings = ({
   };
 
   const schedule = useQuery({
+    enabled: canConnect && app.sessionId !== null,
     queryFn: async () => {
       const response = await fetch("/api/digest", { headers: await headers() });
       if (!response.ok) {
@@ -87,11 +96,12 @@ export const DigestSettings = ({
       }
       return decodeSchedule(await response.json());
     },
-    queryKey: ["digest"],
+    queryKey: ["digest", app.sessionId],
     retry: false,
   });
 
   const save = useMutation({
+    onMutate: () => ({ key: ["digest", app.sessionId] }),
     mutationFn: async (next: DigestSchedule) => {
       const response = await fetch("/api/digest", {
         body: JSON.stringify(next),
@@ -103,9 +113,11 @@ export const DigestSettings = ({
       }
       return decodeSchedule(await response.json());
     },
-    onSuccess: (next) => {
-      queries.setQueryData(["digest"], next);
-      void queries.invalidateQueries({ queryKey: ["schedules"] });
+    onSuccess: (next, _input, context) => {
+      queries.setQueryData(context.key, next);
+      void queries.invalidateQueries({
+        queryKey: ["schedules", app.sessionId],
+      });
     },
   });
 
@@ -141,7 +153,11 @@ export const DigestSettings = ({
           aria-invalid={save.isError}
           id={inputId}
           className="border-input focus-visible:ring-ring bg-muted shadow-inset min-h-11 rounded-lg px-2.5 text-sm outline-none focus-visible:ring-2"
-          disabled={schedule.isPending || schedule.isError || save.isPending}
+          disabled={inputDisabled(
+            schedule.isPending,
+            schedule.isError,
+            save.isPending
+          )}
           onChange={(event) => {
             const hour =
               event.target.value === "off" ? null : Number(event.target.value);

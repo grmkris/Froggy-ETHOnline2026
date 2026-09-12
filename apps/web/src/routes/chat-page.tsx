@@ -1,7 +1,8 @@
 import type { BrowserState } from "@froggy/protocol";
-import { Field, FieldLabel } from "@froggy/ui/components/field";
+import { Button } from "@froggy/ui/components/button";
 import { Skeleton } from "@froggy/ui/components/skeleton";
-import { Switch } from "@froggy/ui/components/switch";
+import { Link } from "@tanstack/react-router";
+import { XIcon } from "lucide-react";
 /**
  * The conversation: the stream with the ledger filed into it and the live
  * page under the turn that opened it, the composer beneath.
@@ -20,11 +21,17 @@ import {
 } from "../components/browser/live-browser-card";
 import { ChatToolbar } from "../components/chat/chat-toolbar";
 import { ComposerStack } from "../components/chat/composer-stack";
+import { HomeSummary } from "../components/chat/home-summary";
 import { LiveCardSlot } from "../components/chat/live-card-slot";
 import { ConversationHeader } from "../components/chat/recent-conversations";
+import { EmailHomeLink } from "../components/email/email-account";
+import { EmailThread } from "../components/email/email-thread";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
+import { SaveItem } from "../components/watchlist/item-form";
+import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useConnectionLock } from "../hooks/use-connection-lock";
+import { useMediaQuery } from "../hooks/use-media-query";
 import { useChatSurface } from "../lib/chat-context";
 import { scrollToLive } from "../lib/scroll-to-live";
 import { applySlash } from "../lib/slash";
@@ -36,6 +43,12 @@ import {
 } from "../lib/stream-model";
 import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 import { useWorkspace } from "../lib/workspace-context";
+
+const showWatchlistPane = (
+  roomy: boolean,
+  open: boolean,
+  split: boolean
+): boolean => roomy && open && !split;
 
 const hasLivePage = (
   state: BrowserState | null,
@@ -70,8 +83,8 @@ export const ChatPage = (): ReactElement => {
     historyLoading,
     historyError,
     historyReceipts,
-    crossThreadHistory,
-    setCrossThreadHistory,
+    watchlistOpen,
+    setWatchlistOpen,
     browser,
     browserRequested,
     showBrowser,
@@ -85,6 +98,7 @@ export const ChatPage = (): ReactElement => {
     split,
     stopRun,
   } = useChatSurface();
+  const roomy = useMediaQuery("(min-width: 1280px)");
   const [liveVisible, setLiveVisible] = useState(true);
   const connectionLock = useConnectionLock(app.connected);
 
@@ -124,6 +138,12 @@ export const ChatPage = (): ReactElement => {
     browserRequested ||
     popOut.mode === "window" ||
     hasLivePage(browser.state, liveAfter);
+  const browserSplit = popOut.mode === "split" && showLive;
+  const watchlistVisible = showWatchlistPane(
+    roomy,
+    watchlistOpen,
+    browserSplit
+  );
   const currentUrl = activeUrl(browser.state);
 
   const card = (fill: boolean): ReactElement => (
@@ -161,8 +181,20 @@ export const ChatPage = (): ReactElement => {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        {firstUse ? <HomeSummary /> : null}
         <ChatToolbar
           drive={drive}
+          onToggleWatchlist={
+            roomy
+              ? () => {
+                  if (browserSplit) {
+                    popOut.handleDock();
+                  }
+                  setWatchlistOpen(!watchlistVisible);
+                }
+              : undefined
+          }
+          watchlistOpen={watchlistVisible}
           onShowBrowser={() => {
             showBrowser();
             scrollToLive();
@@ -182,6 +214,7 @@ export const ChatPage = (): ReactElement => {
           </div>
         ) : null}
         <ConversationHeader />
+        <EmailThread conversationId={conversationId} />
         {historyLoading ? (
           <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-6">
             <Skeleton className="h-20 w-2/3" />
@@ -195,12 +228,11 @@ export const ChatPage = (): ReactElement => {
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 data-slot="chat-welcome-scroll"
               >
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-12">
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-8">
+                  <EmailHomeLink />
                   <EmptyState
                     disabled={disabledReason !== null}
-                    modes={app.modes}
                     onSend={send}
-                    wallet={app.wallet}
                   />
                 </div>
               </div>
@@ -232,18 +264,6 @@ export const ChatPage = (): ReactElement => {
             )}
           </div>
         )}
-        <Field className="mx-auto max-w-3xl px-4 py-1" orientation="horizontal">
-          <Switch
-            checked={crossThreadHistory}
-            id="history-scope"
-            onCheckedChange={(checked) => {
-              setCrossThreadHistory(checked);
-            }}
-          />
-          <FieldLabel className="text-muted-foreground" htmlFor="history-scope">
-            Allow searching my other conversations
-          </FieldLabel>
-        </Field>
         <ComposerStack
           app={app}
           busy={busy}
@@ -260,7 +280,37 @@ export const ChatPage = (): ReactElement => {
           suggestions={suggestions}
         />
       </div>
-      {popOut.mode === "split" && showLive ? (
+      {watchlistVisible ? (
+        <aside
+          aria-label="Watchlist pane"
+          className="border-border bg-muted/30 flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l p-5 2xl:w-96"
+        >
+          <div className="flex items-center justify-between">
+            <Link
+              to="/watchlist"
+              className="text-lg font-semibold tracking-tight"
+            >
+              Watchlist
+            </Link>
+            <Button
+              aria-label="Close watchlist"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setWatchlistOpen(false);
+              }}
+            >
+              <XIcon />
+            </Button>
+          </div>
+          <p className="text-muted-foreground -mt-3 text-xs">
+            Good things to come back to.
+          </p>
+          <WatchlistItems compact />
+          <SaveItem />
+        </aside>
+      ) : null}
+      {browserSplit ? (
         <SplitPane
           onPointerDownHandle={split.handlePointerDown}
           width={split.width}

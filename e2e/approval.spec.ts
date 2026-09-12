@@ -18,7 +18,10 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
   await page.goto("/chat");
   await leash.applied;
 
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
 
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
@@ -58,7 +61,10 @@ test("saying no files a refusal, and nothing is paid", async ({ page }) => {
   await page.goto("/chat");
   await leash.applied;
 
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
   await ticket.getByRole("button", { name: "Not this time" }).click();

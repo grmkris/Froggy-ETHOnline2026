@@ -1,3 +1,4 @@
+import type { WatchlistItem } from "@froggy/domain";
 import { Outlet, useLocation } from "@tanstack/react-router";
 /**
  * The workspace: everything that must outlive a page change.
@@ -35,10 +36,13 @@ import { HistoryContext, useWorkspaceHistory } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { SessionIdsContext } from "../lib/session-ids";
 import { useSessionToken } from "../lib/session-token";
+import { withWatchlistContext } from "../lib/watchlist-context";
 import { WorkspaceContext } from "../lib/workspace-context";
 import type { Workspace } from "../lib/workspace-context";
 
 export const WorkspaceLayout = (): ReactElement => {
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [attachedItem, setAttachedItem] = useState<WatchlistItem | null>(null);
   const painter = useMemo(() => createBrowserPainter(), []);
   useEffect(
     () => () => {
@@ -61,6 +65,12 @@ export const WorkspaceLayout = (): ReactElement => {
   const phone = useMediaQuery("(max-width: 767px)");
   const split = useSplitWidth();
   const app = useAppSocket();
+  const [workspaceSession, setWorkspaceSession] = useState(app.sessionId);
+  if (workspaceSession !== app.sessionId) {
+    setWorkspaceSession(app.sessionId);
+    setWatchlistOpen(false);
+    setAttachedItem(null);
+  }
   const purchases = usePurchases(app.sessionId);
   const trades = useTrades(app.sessionId);
   const pendingPurchases =
@@ -128,9 +138,13 @@ export const WorkspaceLayout = (): ReactElement => {
   const send = useCallback(
     (text: string, includeOtherThreads?: boolean): void => {
       clearStop();
-      sendPersistent(text, includeOtherThreads);
+      sendPersistent(
+        attachedItem === null ? text : withWatchlistContext(attachedItem, text),
+        includeOtherThreads
+      );
+      setAttachedItem(null);
     },
-    [clearStop, sendPersistent]
+    [attachedItem, clearStop, sendPersistent]
   );
 
   // The wallet as tools for this browser's own agent, through the same leash.
@@ -174,6 +188,10 @@ export const WorkspaceLayout = (): ReactElement => {
   const surface = useMemo(
     (): ChatSurface => ({
       ...persistent,
+      watchlistOpen,
+      setWatchlistOpen,
+      attachedItem,
+      attachItem: setAttachedItem,
       browser,
       browserRequested,
       showBrowser,
@@ -189,6 +207,9 @@ export const WorkspaceLayout = (): ReactElement => {
     }),
     [
       persistent,
+      watchlistOpen,
+      setWatchlistOpen,
+      attachedItem,
       browser,
       browserRequested,
       showBrowser,

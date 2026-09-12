@@ -1,6 +1,5 @@
+import { Button, buttonVariants } from "@froggy/ui/components/button";
 /** The account: the daily digest, the plumbing, paid endpoints, and the way out. */
-
-import { Button } from "@froggy/ui/components/button";
 import {
   Card,
   CardContent,
@@ -8,8 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@froggy/ui/components/card";
+import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
+import { EmailAccount } from "../components/email/email-account";
 import { Page } from "../components/nav/page";
 import { AppearanceSettings } from "../components/settings/appearance-settings";
 import { ConnectionDetails } from "../components/settings/connection-details";
@@ -31,6 +32,7 @@ export const SettingsPage = (): ReactElement => {
     >
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-6">
+          <EmailAccount />
           <Card>
             <CardHeader>
               <CardTitle>Reminders</CardTitle>
@@ -90,6 +92,12 @@ export const SettingsPage = (): ReactElement => {
                   Sign out
                 </Button>
               )}
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                to="/welcome"
+              >
+                Show the welcome again
+              </Link>
               <DeleteData onConfirm={deleteMyData} />
             </CardContent>
           </Card>

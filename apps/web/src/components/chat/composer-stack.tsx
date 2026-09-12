@@ -18,6 +18,8 @@ import { Composer } from "../composer";
 import { MotionItem, useArrivalDelays } from "../motion-item";
 import { StopFeedback } from "../stop-feedback";
 import type { useStopRun } from "../stop-feedback";
+import { AttachedItem } from "../watchlist/attached-item";
+import { ConversationOptions } from "./conversation-options";
 
 export const ComposerStack = ({
   app,
@@ -107,6 +109,10 @@ export const ComposerStack = ({
           stopRun.clear();
         }}
       />
+      <div className="flex items-center gap-2">
+        <ConversationOptions />
+        <AttachedItem />
+      </div>
       <Composer
         asking={app.approvals.length > 0}
         busy={busy}

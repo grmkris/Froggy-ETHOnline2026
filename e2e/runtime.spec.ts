@@ -20,7 +20,7 @@ test("boots the workspace with the primary pill and no browser errors", async ({
   // Three destinations plus the two demoted places, and nothing behind a More.
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-  ).toHaveCount(5);
+  ).toHaveCount(2);
   await expect(
     page
       .getByRole("navigation", { name: "Primary" })

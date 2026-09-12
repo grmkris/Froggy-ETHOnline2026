@@ -4,6 +4,9 @@ import type { Sql } from "postgres";
 
 export { typeIdColumn, typeIdPrimaryKey } from "./columns";
 export {
+  savedItems,
+  emailMailboxes,
+  emailRecords,
   browserProfiles,
   conversations,
   historyMessages,

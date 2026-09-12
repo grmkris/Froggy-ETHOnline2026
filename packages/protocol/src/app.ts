@@ -71,6 +71,7 @@ export type ServiceModes = typeof ServiceModes.Type;
  * can be honest about which surface the person actually saw it on.
  */
 export const NoticeSource = Schema.Literals([
+  "email",
   "notify",
   "reminder",
   "scheduled_run",

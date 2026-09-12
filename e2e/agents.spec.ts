@@ -59,18 +59,14 @@ test("connect an agent, read the skill once, disconnect it", async ({
   const connectionToken = await page
     .getByRole("textbox", { name: "Connection token" })
     .inputValue();
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Wallet" })
-    .click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("link", { name: "Your money" }).click();
   await expect(page).toHaveURL(/\/wallet$/u);
   await expect(
     page.getByRole("heading", { name: "Wallet", exact: true })
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Connections" })
-    .click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("link", { name: "Connections" }).click();
   await expect(page).toHaveURL(/\/agents$/u);
   await expect(
     page.getByRole("heading", { name: "Connections", exact: true })

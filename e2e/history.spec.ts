@@ -48,9 +48,10 @@ for (const width of [1440, 390]) {
           exact: true,
         })
     ).toHaveCount(1);
+    await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Wallet", exact: true })
+      .getByRole("link", { name: "Your money", exact: true })
+      .last()
       .click();
     await page.goto(url);
     await expect(page).toHaveURL(url);
@@ -192,7 +193,10 @@ test("another tab restores the same waiting run and its one receipt", async ({
   const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/chat");
   await leash.applied;
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
     timeout: 20_000,
   });

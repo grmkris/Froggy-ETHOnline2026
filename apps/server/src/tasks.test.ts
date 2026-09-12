@@ -290,7 +290,9 @@ describe("a paid brief, from 402 to result", () => {
     );
     expect(history?.invocations[2]?.usdMicros).toBeGreaterThan(0);
     expect(JSON.stringify(history)).not.toContain(header);
-    expect(history?.agent.scopes).toEqual([...OAUTH_SCOPES]);
+    expect(history?.agent.scopes).toEqual(
+      OAUTH_SCOPES.filter((scope) => !scope.startsWith("email:"))
+    );
     const stranger = await mintAgentToken(
       services.store,
       ALICE,

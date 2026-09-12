@@ -12,6 +12,7 @@ import { useCallback } from "react";
 
 import { isSettling } from "../lib/services-view";
 import { useSessionToken } from "../lib/session-token";
+import { useWorkspace } from "../lib/workspace-context";
 
 const Tickets = Schema.Struct({
   v: Schema.Literals([1]),
@@ -30,6 +31,7 @@ export type RunInput = ServiceRequest;
 
 export const useServiceApi = (taskId?: TaskId) => {
   const { getToken } = useSessionToken();
+  const { app } = useWorkspace();
   const queries = useQueryClient();
 
   const api = useCallback(
@@ -67,7 +69,8 @@ export const useServiceApi = (taskId?: TaskId) => {
       const response = await api("/api/services/tasks");
       return decodeTickets(await response.json());
     },
-    queryKey: ["service-tasks"],
+    queryKey: ["service-tasks", app.sessionId],
+    enabled: app.sessionId !== null,
     refetchInterval: (query) =>
       query.state.data?.tasks.some((task) => isSettling(task.status)) === true
         ? SETTLING_POLL_MS
@@ -77,7 +80,7 @@ export const useServiceApi = (taskId?: TaskId) => {
 
   const selectedTask = useQuery({
     enabled: taskId !== undefined,
-    queryKey: ["service-task", taskId],
+    queryKey: ["service-task", app.sessionId, taskId],
     queryFn: async () => {
       const response = await api(`/api/tasks/${taskId}`);
       return Schema.decodeUnknownSync(TaskDetail)(await response.json());

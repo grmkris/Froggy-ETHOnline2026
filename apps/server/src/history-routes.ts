@@ -246,7 +246,8 @@ const updateConversation = async (
   store: Store,
   userId: UserId,
   id: ConversationId,
-  request: Request
+  request: Request,
+  deleteEmails?: (id: ConversationId) => Promise<void>
 ): Promise<Response> => {
   if (request.method === "PATCH") {
     const decoded = Schema.decodeUnknownResult(HistoryUpdate)(
@@ -290,6 +291,7 @@ const updateConversation = async (
         "Stop the active run before deleting this conversation."
       );
     }
+    await deleteEmails?.(id);
     await store.history.clearTelegramCache(userId, id);
     await Promise.all(
       (["message", "execution", "artifact", "run"] as const).map(
@@ -305,7 +307,8 @@ const updateConversation = async (
 export const handleHistory = async (
   store: Store,
   request: Request,
-  userId: UserId
+  userId: UserId,
+  deleteEmails?: (id: ConversationId) => Promise<void>
 ): Promise<Response | null> => {
   const url = new URL(request.url);
   const { pathname } = url;
@@ -352,7 +355,7 @@ export const handleHistory = async (
     ) {
       return bad("Conversation unavailable.", 404);
     }
-    return await updateConversation(store, userId, id, request);
+    return await updateConversation(store, userId, id, request, deleteEmails);
   } catch (error) {
     if (error instanceof HistoryConflictError) {
       return bad(error.message, 409);

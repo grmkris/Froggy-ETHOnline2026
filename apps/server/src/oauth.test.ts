@@ -270,6 +270,8 @@ describe("metadata", () => {
       "pay",
       "services",
       "history",
+      "email:read",
+      "email:draft",
     ]);
     expect(body.authorization_response_iss_parameter_supported).toBe(true);
   });

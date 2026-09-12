@@ -16,12 +16,13 @@ import {
 } from "@froggy/domain";
 import type { WalletSummary } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
-import { FrogMark } from "@froggy/ui/components/frog-mark";
 import { useQueryClient } from "@tanstack/react-query";
 import { Result, Schema } from "effect";
 import { CheckIcon, TerminalIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { useSetup } from "../../hooks/use-setup";
+import { useWorkspace } from "../../lib/workspace-context";
 import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { Composer } from "../composer";
 import { CopyButton } from "../copy-button";
@@ -59,7 +60,8 @@ interface SetUp {
  */
 const useSetUp = (): SetUp => {
   const queries = useQueryClient();
-  const digest = decodeDigest(queries.getQueryData(["digest"]));
+  const { app } = useWorkspace();
+  const digest = decodeDigest(queries.getQueryData(["digest", app.sessionId]));
   const telegram = decodeTelegram(queries.getQueryData(["telegram"]));
   const agents = decodeAgents(queries.getQueryData(["agents"]));
   return {
@@ -138,6 +140,7 @@ export const ReadyHere = ({
   readonly wallet: WalletSummary | null;
 }): ReactElement => {
   const setUp = useSetUp();
+  const { seenAt } = useSetup();
   const granted = wallet?.agentSigner === "granted";
   return (
     <>
@@ -147,7 +150,19 @@ export const ReadyHere = ({
             ? "Ask Froggy to look into something. Research is free; paying for anything waits for funds and stays inside your rules."
             : "Ask Froggy to look into something. Research is free; paying for anything waits until you let Froggy pay."
         }
-        illustration={<FrogMark className="size-12" pose="success" />}
+        illustration={
+          <img
+            src="/froggy/setup-complete.png"
+            alt=""
+            width={96}
+            height={96}
+            className={
+              seenAt === null
+                ? "setup-celebration size-24 object-contain"
+                : "size-24 object-contain"
+            }
+          />
+        }
         title="You’re set."
       />
       <Composer

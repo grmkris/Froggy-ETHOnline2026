@@ -21,6 +21,7 @@
  */
 
 import {
+  WatchlistItemId,
   LaunchWatchId,
   AgentInvocationId,
   AgentTokenId,
@@ -770,4 +771,36 @@ export const historyEvents = pgTable(
   (t) => [
     uniqueIndex("activity_events_owner_sequence").on(t.userId, t.sequence),
   ]
+);
+
+export const emailMailboxes = pgTable("email_mailboxes", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.did),
+  handle: text("handle").notNull().unique(),
+  data: jsonb("data").notNull(),
+});
+export const emailRecords = pgTable(
+  "email_records",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => emailMailboxes.userId),
+    kind: text("kind").notNull(),
+    data: jsonb("data").notNull(),
+  },
+  (table) => [index("email_records_owner_kind").on(table.userId, table.kind)]
+);
+
+export const savedItems = pgTable(
+  "saved_items",
+  {
+    id: typeIdPrimaryKey(WatchlistItemId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [index("saved_items_owner").on(table.userId)]
 );

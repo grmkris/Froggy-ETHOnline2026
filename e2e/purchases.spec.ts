@@ -107,9 +107,10 @@ test.describe("URL purchases", () => {
 
     await page.reload();
     await expect(approvalFor(page, purpose)).toBeVisible();
+    await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Wallet", exact: true })
+      .getByRole("link", { name: "Your money", exact: true })
+      .last()
       .click();
     await expect(approvalFor(page, purpose)).toBeVisible();
     await approvalFor(page, purpose)

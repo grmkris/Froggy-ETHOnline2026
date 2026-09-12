@@ -295,7 +295,11 @@ const RecentPage = ({
     </>
   );
 };
-export const RecentConversations = (): ReactElement => {
+export const RecentConversations = ({
+  compact = false,
+}: {
+  readonly compact?: boolean;
+}): ReactElement => {
   const { newChat } = useChatSurface();
   const stale = useHistoryStale();
   const [open, setOpen] = useState(false);
@@ -305,9 +309,18 @@ export const RecentConversations = (): ReactElement => {
   return (
     <div className="flex items-center gap-1">
       <Dialog onOpenChange={setOpen} open={open}>
-        <DialogTrigger render={<Button size="sm" variant="ghost" />}>
+        <DialogTrigger
+          render={
+            <Button
+              aria-label="Recent"
+              className="min-h-11"
+              size="sm"
+              variant="ghost"
+            />
+          }
+        >
           <HistoryIcon data-icon="inline-start" />
-          Recent
+          <span className={compact ? "sr-only" : undefined}>Recent</span>
         </DialogTrigger>
         <DialogContent className="max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
@@ -344,9 +357,15 @@ export const RecentConversations = (): ReactElement => {
           ) : null}
         </DialogContent>
       </Dialog>
-      <Button onClick={newChat} size="sm" variant="ghost">
+      <Button
+        aria-label="New chat"
+        className="min-h-11"
+        onClick={newChat}
+        size="sm"
+        variant="ghost"
+      >
         <PlusIcon data-icon="inline-start" />
-        New chat
+        <span className={compact ? "sr-only" : undefined}>New chat</span>
       </Button>
     </div>
   );
@@ -365,7 +384,13 @@ export const ConversationHeader = (): ReactElement => {
   } = useChatSurface();
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
+      <div
+        className={
+          conversation === null
+            ? "hidden"
+            : "mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6"
+        }
+      >
         {conversation === null ? null : (
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="min-w-0">

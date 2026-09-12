@@ -115,7 +115,7 @@ export const Composer = ({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-slot="composer">
       {suggestions.length > 0 && !disabled ? (
         <div className="no-scrollbar scroll-fade-x flex flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible">
           {suggestions.map((suggestion) => (

@@ -272,3 +272,30 @@ export type {
   SiweMessage,
   TypedDataDocument,
 } from "./dapp-decode";
+
+export {
+  MailboxId,
+  EmailId,
+  EmailDraftId,
+  EmailFileId,
+  EmailWaitId,
+} from "./id";
+export {
+  EmailAddress,
+  EmailHandle,
+  Mailbox,
+  EmailFile,
+  EmailMessage,
+  EmailDraftInput,
+  EmailDraft,
+  EmailWait,
+  EmailRecord,
+} from "./email";
+
+export { WatchlistItemId } from "./id";
+export {
+  WatchlistInput,
+  WatchlistItem,
+  WatchlistSource,
+  watchlistSourceKey,
+} from "./watchlist";

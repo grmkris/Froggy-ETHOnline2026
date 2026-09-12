@@ -552,6 +552,14 @@ class FroggyServer extends Context.Service<
       detached("service task recovery at startup", async () => {
         await recoverOrphanedServiceTasks(services);
       });
+      const emailTick = setInterval(() => {
+        detached("email cleanup", async () => {
+          await services.email?.maintain();
+        });
+      }, 60_000);
+      detached("email cleanup at startup", async () => {
+        await services.email?.maintain();
+      });
       const walletTick = setInterval(() => {
         detached("wallet recovery", async () => {
           await walletRequests.recover();
@@ -660,6 +668,7 @@ class FroggyServer extends Context.Service<
             await reactions.close();
             clearInterval(tradeTick);
             await tradeRecovery.close();
+            clearInterval(emailTick);
             clearInterval(walletTick);
             await running.stop(true);
             await workspaces.closeAll();

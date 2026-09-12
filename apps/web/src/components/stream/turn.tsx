@@ -16,12 +16,15 @@ import {
   MessageAvatar,
   MessageContent,
 } from "@froggy/ui/components/message";
+import { Link } from "@tanstack/react-router";
+import { BookmarkIcon } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import type { ReactElement } from "react";
 
 import type { FroggyMessage } from "../../lib/stream-model";
 import { groupParts, matchReceipts, turnCost } from "../../lib/turn-model";
 import type { ClaimedReceipts, TurnBlock } from "../../lib/turn-model";
+import { readWatchlistContext } from "../../lib/watchlist-context";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { MotionItem, useArrivalDelays } from "../motion-item";
 import { BrowseCard } from "./browse-card";
@@ -149,12 +152,24 @@ export const Turn = ({
 }: TurnProps): ReactElement => {
   const delays = useArrivalDelays(receipts.map((receipt) => receipt.id));
   if (message.role === "user") {
+    const text = textOf(message);
+    const saved = readWatchlistContext(text);
     return (
       <Message align="end" className="text-[15px] leading-relaxed">
         <MessageContent>
           <Bubble align="end" className="max-w-[85%]" variant="tinted">
             <BubbleContent className="shadow-card rounded-2xl rounded-tr-md px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
-              {textOf(message)}
+              {saved === null ? null : (
+                <Link
+                  to="/watchlist/$itemId"
+                  params={{ itemId: saved.id }}
+                  className="text-brand focus-visible:ring-ring mb-2 flex w-fit items-center gap-1.5 rounded-md text-xs outline-none focus-visible:ring-2"
+                >
+                  <BookmarkIcon aria-hidden className="size-3" />
+                  From your Watchlist
+                </Link>
+              )}
+              {saved?.text ?? text}
             </BubbleContent>
           </Bubble>
         </MessageContent>

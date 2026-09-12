@@ -11,9 +11,7 @@ import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { WalletIcon } from "lucide-react";
-import { useEffect } from "react";
 import type { ReactElement } from "react";
-import { useTextMorph } from "torph/react";
 
 import { stubsOf } from "../../lib/stubs";
 import { walletAmounts } from "../../lib/wallet-view";
@@ -21,37 +19,11 @@ import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { AddFunds } from "./add-funds";
 import { WalletBreakdown } from "./wallet-breakdown";
 
-/** Start known totals at zero; Torph keeps the target accessible while digits roll. */
-const WalletTotal = ({ value }: { readonly value: number }): ReactElement => {
-  const { ref, update } = useTextMorph({
-    duration: 600,
-    ease: "cubic-bezier(0.23, 1, 0.32, 1)",
-    numbers: true,
-    respectReducedMotion: true,
-  });
-  useEffect(() => {
-    update(formatUsd(0));
-  }, [update]);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      update(formatUsd(value));
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-    };
-  }, [update, value]);
-  return (
-    <p
-      className="text-money mt-2 tabular-nums"
-      data-slot="wallet-total"
-      ref={(element) => {
-        ref.current = element;
-      }}
-    >
-      {formatUsd(0)}
-    </p>
-  );
-};
+const WalletTotal = ({ value }: { readonly value: number }): ReactElement => (
+  <p className="text-money mt-2 tabular-nums" data-slot="wallet-total">
+    {formatUsd(value)}
+  </p>
+);
 
 const WalletBalance = ({
   wallet,

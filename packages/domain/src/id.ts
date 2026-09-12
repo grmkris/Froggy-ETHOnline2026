@@ -252,3 +252,21 @@ export type WalletRequestId = typeof WalletRequestId.Type;
 /** A person's standing permission for one dapp origin to see their address. */
 export const WalletConnectionId = makeIdSchema("bwc", "WalletConnectionId");
 export type WalletConnectionId = typeof WalletConnectionId.Type;
+
+export const MailboxId = makeIdSchema("mbx", "MailboxId");
+export type MailboxId = typeof MailboxId.Type;
+
+export const EmailId = makeIdSchema("eml", "EmailId");
+export type EmailId = typeof EmailId.Type;
+
+export const EmailDraftId = makeIdSchema("emd", "EmailDraftId");
+export type EmailDraftId = typeof EmailDraftId.Type;
+
+export const EmailFileId = makeIdSchema("emf", "EmailFileId");
+export type EmailFileId = typeof EmailFileId.Type;
+
+export const EmailWaitId = makeIdSchema("emw", "EmailWaitId");
+export type EmailWaitId = typeof EmailWaitId.Type;
+
+export const WatchlistItemId = makeIdSchema("wli", "WatchlistItemId");
+export type WatchlistItemId = typeof WatchlistItemId.Type;

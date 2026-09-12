@@ -82,6 +82,7 @@ import type {
   Store,
 } from "./store";
 import { postgresTradingStore } from "./trading-store-postgres";
+import { postgresWatchlistStore } from "./watchlist-store-postgres";
 
 const millis = (value: Date | null): number | null =>
   value === null ? null : value.getTime();
@@ -266,6 +267,7 @@ export const postgresStore = (sql: Sql): Store => {
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
   const history = postgresHistoryStore(sql);
+  const watchlist = postgresWatchlistStore(sql);
   return {
     browsers: {
       load: async (userId) => {
@@ -291,6 +293,7 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     history,
+    watchlist,
     trading: postgresTradingStore(sql),
     launches: postgresLaunchStore(sql),
     purchases: {
@@ -1337,6 +1340,7 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await watchlist.forget(userId);
       await database
         .delete(browserProfiles)
         .where(eq(browserProfiles.userId, userId));

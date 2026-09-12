@@ -1,154 +1,72 @@
-/**
- * The chat before anything has been said: what the wallet holds, in one
- * line, and the three things worth doing first.
- */
-
-import { formatUsd } from "@froggy/domain";
-import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Button, buttonVariants } from "@froggy/ui/components/button";
-import { FrogMark } from "@froggy/ui/components/frog-mark";
-import { Skeleton } from "@froggy/ui/components/skeleton";
-import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import {
-  ArrowUpRightIcon,
-  ChartNoAxesCombinedIcon,
-  SearchIcon,
-  SparklesIcon,
-} from "lucide-react";
+import { CoinsIcon, PlaneIcon, ShoppingBagIcon } from "lucide-react";
 import type { ReactElement } from "react";
-
-import { walletAmounts } from "../../lib/wallet-view";
-import { AgentOnboarding } from "../agents/copy-agent-prompt";
-import { MorphText } from "../morph-text";
-
-interface EmptyStateProps {
-  readonly disabled: boolean;
-  readonly modes: ServiceModes | null;
-  readonly onSend: (text: string) => void;
-  readonly wallet: WalletSummary | null;
-}
-
-const ACTION =
-  "h-auto min-h-11 min-w-0 flex-row items-start justify-start gap-3 p-4 text-left whitespace-normal has-data-[icon=inline-start]:pl-4 sm:min-h-40 sm:flex-col sm:p-5 sm:has-data-[icon=inline-start]:pl-5";
-
-/** The balance as one line that leads to the wallet. */
-const WalletPeek = ({
-  wallet,
-}: {
-  readonly wallet: WalletSummary | null;
-}): ReactElement => {
-  const { totalUsdMicros } = walletAmounts(wallet);
-  return (
-    <Link
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 items-center gap-2 rounded-lg text-sm outline-none focus-visible:ring-2"
-      to="/wallet"
-    >
-      Wallet:{" "}
-      {wallet === null ? (
-        <output
-          aria-label="Loading wallet balance"
-          className="inline-flex items-center"
-        >
-          <Skeleton aria-hidden className="h-4 w-20" />
-          <span className="sr-only">Loading wallet balance</span>
-        </output>
-      ) : (
-        <MorphText className="text-money text-foreground text-sm tabular-nums">
-          {totalUsdMicros === null
-            ? "balance unavailable"
-            : formatUsd(totalUsdMicros)}
-        </MorphText>
-      )}
-      <ArrowUpRightIcon aria-hidden className="size-4" />
-    </Link>
-  );
-};
 
 export const EmptyState = ({
   disabled,
-  modes,
   onSend,
-  wallet,
-}: EmptyStateProps): ReactElement => (
+}: {
+  readonly disabled: boolean;
+  readonly onSend: (text: string) => void;
+}): ReactElement => (
   <section
     aria-label="Use Froggy here"
-    className="flex flex-col gap-6 px-1 py-2 sm:gap-8"
+    className="flex flex-col gap-5 py-2 sm:gap-7"
   >
-    <div>
-      <div className="mb-4 flex items-center gap-3 sm:mb-5 sm:flex-col sm:items-start sm:gap-5">
-        <span className="bg-brand-soft grid size-10 shrink-0 place-items-center rounded-xl sm:size-16 sm:rounded-2xl">
-          <FrogMark className="size-8 sm:size-12" />
-        </span>
-        <p className="text-brand text-[10px] font-medium tracking-[0.14em] uppercase sm:text-xs">
-          A little help goes a long way
+    <div className="flex items-center gap-3 sm:gap-6">
+      <img
+        src="/froggy/next-idea.png"
+        alt=""
+        width={160}
+        height={160}
+        className="size-24 shrink-0 object-contain sm:size-40"
+      />
+      <div>
+        <p className="text-brand mb-2 text-[11px] font-semibold tracking-wider uppercase">
+          Small frog. Big plans.
+        </p>
+        <h1 className="text-3xl leading-none font-extrabold tracking-tight sm:text-5xl">
+          What’s the move?
+        </h1>
+        <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
+          Find the next rabbit hole. Book the escape. Cop the shoes.
         </p>
       </div>
-      <h1 className="text-title max-w-lg text-balance">
-        What would you like to do?
-      </h1>
-      <p className="text-muted-foreground mt-3 max-w-lg text-sm leading-relaxed">
-        Research an idea, make something, or put your agent to work.
-      </p>
     </div>
-    <AgentOnboarding />
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Button
-        aria-label="What is the cheapest USDC borrow right now?"
-        className={ACTION}
-        disabled={disabled}
-        onClick={() => {
-          onSend("What is the cheapest USDC borrow right now?");
-        }}
-        variant="outline"
-      >
-        <SearchIcon aria-hidden data-icon="inline-start" />
-        <span className="flex flex-col gap-1">
-          <span>What is the cheapest USDC borrow right now?</span>
-          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
-            A live Graph query across the lending markets.
-          </span>
-        </span>
-      </Button>
-      <Button
-        aria-label="Buy the lending snapshot"
-        className={ACTION}
-        disabled={disabled}
-        onClick={() => {
-          onSend("Buy the lending snapshot and tell me what it says.");
-        }}
-        variant="outline"
-      >
-        <ChartNoAxesCombinedIcon aria-hidden data-icon="inline-start" />
-        <span className="flex flex-col gap-1">
-          <span>Buy the lending snapshot</span>
-          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
-            A fresh look at the lending market.
-          </span>
-        </span>
-      </Button>
+    <div className="flex flex-wrap gap-2">
       <Link
-        aria-label="Browse services"
-        className={cn(buttonVariants({ variant: "outline" }), ACTION)}
-        to="/services"
+        className={buttonVariants({ variant: "outline" })}
+        to="/watchlist"
+        search={{ discover: true }}
       >
-        <SparklesIcon aria-hidden data-icon="inline-start" />
-        <span className="flex flex-col gap-1">
-          <span>Browse services</span>
-          <span className="text-muted-foreground text-xs leading-relaxed font-normal">
-            Search, images, audio, and more.
-          </span>
-        </span>
+        <CoinsIcon aria-hidden />
+        Find tokens
       </Link>
-    </div>
-    <div className="flex flex-col gap-1 border-t pt-3">
-      <WalletPeek wallet={wallet} />
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        Paid tasks are paid from your wallet. Every payment leaves a receipt.
-        {modes?.model === "stub"
-          ? " This build uses a simulated agent and marks its receipts."
-          : ""}
-      </p>
+      <Button
+        disabled={disabled}
+        variant="outline"
+        onClick={() => {
+          onSend(
+            "Help me plan a trip. Ask where I want to go, my dates and budget first."
+          );
+        }}
+      >
+        <PlaneIcon aria-hidden />
+        Plan a trip
+      </Button>
+      <Button
+        disabled={disabled}
+        variant="outline"
+        onClick={() => {
+          onSend(
+            "Help me find something worth buying. Ask what I have in mind and my budget first."
+          );
+        }}
+      >
+        <ShoppingBagIcon aria-hidden />
+        Find something good
+      </Button>
     </div>
   </section>
 );

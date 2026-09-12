@@ -179,6 +179,24 @@ const completed = async (
 };
 
 describe("named trading chat tools", () => {
+  it("exposes email and research tools together without sending authority", async () => {
+    const { tools } = await fixture();
+    const names = Object.keys(tools);
+    for (const name of [
+      "email_address",
+      "email_search",
+      "email_draft",
+      "email_wait",
+      "research_read",
+      "graph_schema",
+      "watchlist_save",
+    ]) {
+      expect(names).toContain(name);
+    }
+    expect(names).not.toContain("email_send");
+    expect(names).not.toContain("email_approve");
+  });
+
   it("advertises object schemas that accept all four model inputs without a wire version", async () => {
     const { tools } = await fixture();
     await Promise.all(
@@ -232,6 +250,8 @@ describe("named trading chat tools", () => {
               },
               callOptions
             );
+      expect(output).not.toHaveProperty("email_wait");
+      expect(output).not.toHaveProperty("email_address");
       const ticket = Schema.decodeUnknownSync(ServiceTicket)(output);
       const result = await completed(context, ticket.id);
       expect(result.status).toBe("done");

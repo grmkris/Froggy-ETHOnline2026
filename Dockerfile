@@ -21,10 +21,12 @@ WORKDIR /app
 # resolution fails.
 COPY package.json bun.lock bunfig.toml turbo.json tsconfig.base.json tsconfig.json ./
 COPY apps/server/package.json ./apps/server/
+COPY apps/email-worker/package.json ./apps/email-worker/
 COPY apps/web/package.json ./apps/web/
 COPY packages/browser/package.json ./packages/browser/
 COPY packages/database/package.json ./packages/database/
 COPY packages/domain/package.json ./packages/domain/
+COPY packages/email/package.json ./packages/email/
 COPY packages/graph/package.json ./packages/graph/
 COPY packages/payments/package.json ./packages/payments/
 COPY packages/protocol/package.json ./packages/protocol/

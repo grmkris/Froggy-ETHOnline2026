@@ -28,6 +28,22 @@ interface ScopeCopy {
 
 const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   [
+    "email:read",
+    {
+      title: "Read your whole email mailbox",
+      detail:
+        "Read and search all Froggy email messages and supported attachments.",
+    },
+  ],
+  [
+    "email:draft",
+    {
+      title: "Prepare email drafts",
+      detail:
+        "Create documents and drafts. Only you can approve sending in Froggy.",
+    },
+  ],
+  [
     "history",
     {
       title: "Read this connection’s activity",
@@ -112,7 +128,7 @@ const requestFromSearch = (search: string): AuthorizeRequest | null => {
 /** The scopes the client asked for, in the page's order; all of them when it named none. */
 const requestedScopes = (scope: string | undefined): readonly OAuthScope[] => {
   if (scope === undefined || scope.trim() === "") {
-    return OAUTH_SCOPES;
+    return OAUTH_SCOPES.filter((candidate) => !candidate.startsWith("email:"));
   }
   const names = new Set(scope.split(" "));
   return OAUTH_SCOPES.filter((known) => names.has(known));

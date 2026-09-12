@@ -7,6 +7,7 @@
  * is all there when they come back.
  */
 
+import type { WatchlistItem } from "@froggy/domain";
 import { createContext, useContext } from "react";
 
 import type { SplitWidth } from "../components/browser/browser-split-pane";
@@ -18,6 +19,10 @@ import type { Notice } from "./app-state";
 import type { BrowserPainter } from "./browser-painter";
 
 export interface ChatSurface extends ReturnType<typeof usePersistentChat> {
+  readonly watchlistOpen: boolean;
+  readonly setWatchlistOpen: (open: boolean) => void;
+  readonly attachedItem: WatchlistItem | null;
+  readonly attachItem: (item: WatchlistItem | null) => void;
   readonly browser: BrowserStream;
   readonly browserRequested: boolean;
   readonly showBrowser: () => void;

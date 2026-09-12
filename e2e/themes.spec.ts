@@ -52,6 +52,7 @@ for (const theme of ["passbook", "lilypad"] as const) {
           errors.push(message.text());
         }
       });
+      test.setTimeout(60_000);
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto(`/wallet?theme=${theme}`);

@@ -79,7 +79,10 @@ test("while an approval is open the log is busy and the paying tool says it is w
   await page.goto("/chat");
   await leash.applied;
 
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
 

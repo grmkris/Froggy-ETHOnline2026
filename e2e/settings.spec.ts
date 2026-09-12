@@ -8,7 +8,10 @@ test("deleting my data wipes the receipts and starts over", async ({
   page,
 }) => {
   await page.goto("/chat");
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.goto("/wallet");
   const activity = page.getByRole("region", { name: "Activity" });
   await expect(activity.getByText("Nothing spent or refused yet.")).toHaveCount(
@@ -169,11 +172,12 @@ test("Send a test now asks first, then runs a digest and says where it went", as
     .getByRole("alertdialog")
     .getByRole("button", { name: "Send a test now" })
     .click();
-  await expect(page.getByRole("status")).toContainText(
-    /Sent\.|Not sent|Stopped early/u,
-    {
-      timeout: 60_000,
-    }
-  );
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: /Sent\.|Not sent|Stopped early/u })
+  ).toContainText(/Sent\.|Not sent|Stopped early/u, {
+    timeout: 60_000,
+  });
   expect(posted).toBe(1);
 });

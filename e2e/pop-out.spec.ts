@@ -33,6 +33,26 @@ test("the page can go to a split pane and back", async ({ page }, testInfo) => {
       name: "The shared browser, beside the conversation",
     })
   ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Show the page beside the conversation" })
+    .click();
+  const watchlistToggle = page.getByRole("button", {
+    name: "Toggle watchlist pane",
+  });
+  await expect(watchlistToggle).toHaveAttribute("aria-pressed", "false");
+  await watchlistToggle.click();
+  await expect(
+    page.getByRole("complementary", { name: "Watchlist pane" })
+  ).toBeVisible();
+  await expect(watchlistToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("complementary", {
+      name: "The shared browser, beside the conversation",
+    })
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Show the page beside the conversation" })
+  ).toBeVisible();
 });
 
 test("the page can go to its own window, and the tab knows", async ({

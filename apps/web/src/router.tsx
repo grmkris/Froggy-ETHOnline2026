@@ -9,28 +9,9 @@ import {
 import { Schema } from "effect";
 
 import { AppShell } from "./components/app-shell";
-import { keyboardInteraction } from "./lib/motion";
-import { NAV_ITEMS } from "./lib/nav";
 import { WorkspaceLayout } from "./routes/workspace-layout";
 
 const rootRoute = createRootRoute({ component: AppShell });
-
-/**
- * Where a path sits in the nav order, for the direction of a page transition.
- *
- * A conversation is something Home has, so /chat travels from Home's slot.
- * Without that, every move out of a conversation fell outside the order and
- * silently lost its transition.
- */
-const slot = (path: string | undefined): number => {
-  if (path === undefined) {
-    return -1;
-  }
-  if (path === "/" || path.startsWith("/chat")) {
-    return 0;
-  }
-  return NAV_ITEMS.findIndex((item) => item.to === path);
-};
 
 /**
  * The workspace holds the sockets and the conversation; its pages are the
@@ -95,6 +76,24 @@ const activityRoute = createRoute({
     return { dropped: "1" as const };
   },
 });
+interface WatchlistSearch {
+  readonly discover?: boolean;
+}
+const watchlistRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/watchlist-page"),
+    "WatchlistPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/watchlist",
+  validateSearch: (raw: { readonly discover?: unknown }): WatchlistSearch =>
+    raw.discover === true || raw.discover === "true" ? { discover: true } : {},
+});
+const watchlistDetailRoute = page(
+  "/watchlist/$itemId",
+  async () => await import("./routes/watchlist-page"),
+  "WatchlistPage"
+);
 const exploreRoute = page(
   "/explore",
   async () => await import("./routes/explore-page"),
@@ -191,6 +190,8 @@ const routeTree = rootRoute.addChildren([
     welcomeRoute,
     chatRoute,
     conversationRoute,
+    watchlistRoute,
+    watchlistDetailRoute,
     exploreRoute,
     activityRoute,
     walletRoute,
@@ -206,19 +207,6 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
-  defaultViewTransition: {
-    types: ({ fromLocation, toLocation, pathChanged }) => {
-      if (!pathChanged || keyboardInteraction()) {
-        return false;
-      }
-      const from = slot(fromLocation?.pathname);
-      const to = slot(toLocation.pathname);
-      if (from === -1 || to === -1) {
-        return false;
-      }
-      return [to > from ? "workspace-forward" : "workspace-back"];
-    },
-  },
 });
 
 declare module "@tanstack/react-router" {

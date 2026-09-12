@@ -34,7 +34,10 @@ test("a service payment under the ask line runs without asking", async ({
 }) => {
   await waitForRules(page);
   await page.goto("/chat");
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel(/^Approve .* to /u)).toHaveCount(0);
   const receipt = page.getByLabel(/^Receipt:/u).first();
   await expect(receipt).toBeVisible({ timeout: 20_000 });
@@ -50,7 +53,10 @@ test("lowering the per-spend cap refuses a spend that used to fit, without reloa
   // full navigation still hits the workspace that `applyAllowance` already
   // updated — hydrate is once per process.
   await page.goto("/chat");
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   const refused = page.getByLabel(/^Refused:/u).first();
   await expect(refused).toBeVisible({ timeout: 20_000 });
   await expect(refused).toContainText("per_tx_cap_exceeded");

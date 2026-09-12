@@ -53,6 +53,7 @@ import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import { handleDiscovery } from "./discovery-route";
 import { doorSkillText } from "./door-skill";
+import { handleEmail, handleEmailWebhook } from "./email-routes";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import { handleHistory } from "./history-routes";
@@ -99,6 +100,7 @@ import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
+import { handleWatchlist } from "./watchlist-routes";
 import type { Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
 
@@ -396,7 +398,10 @@ const handleScheduling = async (
       summary: report.summary,
     });
   }
-  return await handleSchedules(deps.services.store, request, userId, pathname);
+  return (
+    (await handleWatchlist(deps.services.store, request, userId, pathname)) ??
+    (await handleSchedules(deps.services.store, request, userId, pathname))
+  );
 };
 
 const oauthDeps = (deps: RouterDeps) => ({
@@ -814,6 +819,29 @@ const handleGranted = async (
   );
 };
 
+const handleEmailOrHistory = async (
+  deps: RouterDeps,
+  request: Request,
+  caller: TaskCaller
+) => {
+  const email = await handleEmail(deps.services, caller, request);
+  if (email !== null) {
+    return email;
+  }
+  return await handleHistory(
+    deps.services.store,
+    request,
+    caller.userId,
+    async (id) => {
+      await deps.services.email?.removeConversation(caller.userId, id);
+    }
+  );
+};
+
+const removeAccountEmails = async (services: Services, userId: UserId) => {
+  await services.email?.removeConversation(userId);
+};
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -880,7 +908,7 @@ const handleApi = async (
     return oauth;
   }
 
-  const history = await handleHistory(deps.services.store, request, userId);
+  const history = await handleEmailOrHistory(deps, request, caller);
   if (history !== null) {
     return history;
   }
@@ -915,6 +943,7 @@ const handleApi = async (
     await deps.services.launches.cancelAll(userId);
     await deps.services.purchases.cancelAll(userId, workspace.browser);
     await deps.workspaces.forget(userId);
+    await removeAccountEmails(deps.services, userId);
     await deps.services.store.forget(userId);
     return json({ deleted: true });
   }
@@ -1016,6 +1045,15 @@ export const handleRequest = async (
   // it works once, and it expires. See unlock.ts.
   if (pathname.startsWith("/unlocked/") && request.method === "GET") {
     return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
+  }
+
+  const emailWebhook = await handleEmailWebhook(
+    deps.services,
+    deps.notices,
+    request
+  );
+  if (emailWebhook !== null) {
+    return emailWebhook;
   }
 
   const installation = await handleInstallation(
