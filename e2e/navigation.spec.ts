@@ -4,6 +4,14 @@ import { captureScreen } from "./capture";
 import { lowerApprovalThreshold } from "./mandate";
 
 /**
+ * A second click while a workspace view-transition is still running aborts
+ * it. The browser reports that as "Transition was skipped"; it is the
+ * interruption working, not a page error.
+ */
+const skippedViewTransition = (text: string): boolean =>
+  text.includes("Transition was skipped");
+
+/**
  * Three destinations, one primary landmark, at every width.
  *
  * The rail replaces the pill above 768px rather than hiding it, so assistive
@@ -18,9 +26,16 @@ for (const theme of ["passbook", "lilypad"] as const) {
       page,
     }, testInfo) => {
       const errors: string[] = [];
-      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("pageerror", (error) => {
+        if (!skippedViewTransition(error.message)) {
+          errors.push(error.message);
+        }
+      });
       page.on("console", (message) => {
-        if (message.type() === "error") {
+        if (
+          message.type() === "error" &&
+          !skippedViewTransition(message.text())
+        ) {
           errors.push(message.text());
         }
       });
