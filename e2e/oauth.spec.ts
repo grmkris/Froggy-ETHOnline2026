@@ -75,6 +75,9 @@ test("an MCP client signs in through the consent page and is held to its scopes"
   ).toBeChecked();
   // Only what was asked for is offered.
   await expect(page.getByRole("switch")).toHaveCount(2);
+  await expect(
+    page.getByText("Disconnect any time on Connections.")
+  ).toBeVisible();
   const captureConsent = async (width: number) => {
     await page.setViewportSize({ width, height: 900 });
     expect(
