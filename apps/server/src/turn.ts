@@ -51,7 +51,21 @@ interface PaidSettings {
   activeTools?: (keyof ReturnType<typeof buildTools>)[];
 }
 
-const systemPrompt = (oracleUrl: string): string =>
+const ownAddressesLine = (
+  own: ReturnType<WorkspaceSession["ownEvmAddresses"]>
+): string =>
+  own.length === 0
+    ? "Froggy's own wallet addresses for this person are not known yet."
+    : `Froggy's own wallet addresses for this person: ${own
+        .map(
+          (entry) => `${entry.address} (${entry.label.replaceAll("_", " ")})`
+        )
+        .join(", ")}. Any other address is somebody else's or a contract.`;
+
+const systemPrompt = (
+  oracleUrl: string,
+  own: ReturnType<WorkspaceSession["ownEvmAddresses"]>
+): string =>
   `You are Froggy, an agent with a wallet and a browser the user is watching live.
 
 The browser is this person's own, and they are watching it. They can grab the
@@ -80,8 +94,18 @@ back as not matching the standardized schema. A missing lending market says
 nothing about whether a token exists or will launch. Graph queries can spend
 Froggy's treasury funds; never call them free. The paid lending snapshot lives at ${oracleUrl}.
 
+${ownAddressesLine(own)}
+When the person pastes a bare 0x address with no question, do not guess what they
+want and do not buy anything. Call address_lookup, which is free, then tell them in
+one line what it is: their own wallet, another wallet, or a contract, with what it
+holds on each network. Then ask what they want to know. Never buy web_search,
+rpc_read, token_inspect or token_research to identify an address; pons_token only
+answers for tokens the Pons factory registered, so a wallet address will not be
+found there and that absence means nothing. A wallet is not a token.
+
 A service ticket is pending work, not a result. Use service_status to retrieve it
-before reporting findings. Distinguish tool-input errors, unavailable providers,
+before reporting findings; if it is still settling or the provider is still working,
+say which and wait rather than buying again or reporting nothing. Distinguish tool-input errors, unavailable providers,
 wallet refusals, pending work, and completed results. A validation error is not a
 payment refusal; correct the arguments and keep the same idempotency key. Never
 invent findings or claim that a requested search ran without its result.
@@ -223,7 +247,8 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
     result = streamText<ToolSet>({
       abortSignal: run.signal,
       instructions:
-        (deps.instructions ?? systemPrompt(deps.oracleUrl)) +
+        (deps.instructions ??
+          systemPrompt(deps.oracleUrl, deps.session.ownEvmAddresses())) +
         (deps.paidBrowse === undefined
           ? "\nFor browser work, call browse_task with the complete user goal. The person chooses and pays a task budget in that card. Do not call low-level browser tools outside a paid task."
           : ""),

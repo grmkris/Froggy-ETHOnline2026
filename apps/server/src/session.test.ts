@@ -1539,3 +1539,36 @@ describe("the person's allowance in the judgement", () => {
     expect(result.decision._tag).toBe("allow");
   });
 });
+
+describe("ownEvmAddresses", () => {
+  test("labels the agent signer and smart account, and falls back to the granted wallet", () => {
+    const session = sessionWith(memoryLedger());
+    expect(session.ownEvmAddresses()).toEqual([]);
+
+    session.setWallet({
+      address: "0x1111111111111111111111111111111111111111",
+      id: "wallet-1",
+    });
+    expect(session.ownEvmAddresses()).toEqual([
+      {
+        label: "agent_signer",
+        address: "0x1111111111111111111111111111111111111111",
+      },
+    ]);
+
+    session.setAddresses({
+      signer: "0x2222222222222222222222222222222222222222",
+      smart: "0x3333333333333333333333333333333333333333",
+    });
+    expect(session.ownEvmAddresses()).toEqual([
+      {
+        label: "agent_signer",
+        address: "0x2222222222222222222222222222222222222222",
+      },
+      {
+        label: "agent_smart_account",
+        address: "0x3333333333333333333333333333333333333333",
+      },
+    ]);
+  });
+});

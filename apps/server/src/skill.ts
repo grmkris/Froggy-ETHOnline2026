@@ -92,6 +92,7 @@ It has every scope and does not expire until the person disconnects it. Keep it 
 ## Service marketplace and MCP
 
 - \`froggy_services\` takes no arguments and returns availability, prices and input limits without a purchase.
+- \`froggy_address_lookup\` takes \`address\` and an optional \`network\`; it is free. It reports whether an EVM address is a wallet or a contract, its native and USDC balances, ERC-20 metadata for contracts and whether it is one of the person's own wallets, per configured network at one pinned block. Call it first for any bare 0x address; never buy \`froggy_rpc_read\`, \`froggy_token_research\` or web search to find out what an address is. A wallet is not a token.
 - \`froggy_service_run\` takes \`v: 1\`, \`service\`, \`prompt\` and a stable \`idempotencyKey\`; it buys and starts the requested service.
 - \`froggy_market_search\`, \`froggy_token_inspect\`, \`froggy_rpc_read\`, \`froggy_quote_action\` and \`froggy_token_research\` each take \`input\` and a stable \`idempotencyKey\`. Their object schemas define the structured inputs; these named tools do not take \`v\` or \`service\`. Read supported networks and prices from the catalog first.
 - \`froggy_token_research\` returns per-source status (observed / not_indexed / unavailable / not_applicable) for launcher, template, cohort, holders and GoPlus. Absence of evidence is not a clean screen and does not create trading authority.

@@ -694,7 +694,7 @@ export const handleMcp = async (
       capabilities: { tools: {} },
       serverInfo: { name: "froggy", version: "1.0.0" },
       instructions:
-        "Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool; never repurchase pending, failed, or uncertain work automatically.",
+        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool; never repurchase pending, failed, or uncertain work automatically.",
     });
   }
   if (message.method === "ping") {
