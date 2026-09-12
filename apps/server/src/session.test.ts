@@ -550,6 +550,19 @@ describe("a spend over the approval threshold", () => {
       "allow_session",
       "allow_once",
     ]);
+    expect(asked[0]?.request.breakdown).toEqual([
+      {
+        amountLabel: "$1.50",
+        amountUsdMicros: usdMicros(1_500_000),
+        label: "Product",
+        note: "Buying a service is what the agent is for, under your cap.",
+      },
+      {
+        amountLabel: "$0.00",
+        amountUsdMicros: usdMicros(0),
+        label: "Agent spend so far today",
+      },
+    ]);
     expect(sent.count).toBe(1);
     expect(result.decision._tag).toBe("allow");
     expect(result.receipt.approval).toMatchObject({ resolution: "allow_once" });
@@ -557,6 +570,40 @@ describe("a spend over the approval threshold", () => {
     // Allowed once means once: the same spend again is asked again.
     await session.spend(payingRequest("again", sent));
     expect(asked.length).toBe(2);
+  });
+
+  test("the card lists today's spend so far from the ledger", async () => {
+    const { ask, asked } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "deny",
+    }));
+    const ledger = memoryLedger();
+    const prior = await ledger.reserve({
+      at: Date.now(),
+      id: SpendId.generate(),
+      idempotencyKey: "already-spent",
+      usdMicros: usdMicros(120_000),
+      userId: ALICE,
+    });
+    await ledger.settle(prior.row.id, "settled");
+    const session = sessionWith(ledger, memoryStore(), ask, LIMITED);
+    const sent = { count: 0 };
+    await session.spend(payingRequest("with-history", sent));
+    expect(asked[0]?.request.breakdown).toEqual([
+      {
+        amountLabel: "$1.50",
+        amountUsdMicros: usdMicros(1_500_000),
+        label: "Product",
+        note: "Buying a service is what the agent is for, under your cap.",
+      },
+      {
+        amountLabel: "$0.12",
+        amountUsdMicros: usdMicros(120_000),
+        label: "Agent spend so far today",
+      },
+    ]);
+    expect(sent.count).toBe(0);
   });
 
   test("writes an exemption when allowed for the session, and stops asking", async () => {
@@ -1460,6 +1507,10 @@ describe("the person's allowance in the judgement", () => {
     expect(asked[0]?.request.detail).toContain(
       "Paying a person is your decision, whatever the amount."
     );
+    expect(asked[0]?.request.breakdown?.[0]).toMatchObject({
+      label: "Product",
+      note: "Paying a person is your decision, whatever the amount.",
+    });
     expect(result.decision).toMatchObject({
       _tag: "deny",
       code: "approval_denied",

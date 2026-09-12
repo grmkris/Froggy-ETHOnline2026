@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { answerLabel } from "../../lib/approval-labels";
 import { secondsLeft } from "../../lib/format";
+import { ApprovalLedger } from "./approval-ledger";
 
 interface ApprovalTicketProps {
   readonly disabled: boolean;
@@ -84,6 +85,9 @@ export const ApprovalTicket = ({
               </span>
             </div>
             <p className="mt-1.5 text-sm">{request.detail}</p>
+            {request.breakdown === undefined ? null : (
+              <ApprovalLedger lines={request.breakdown} />
+            )}
           </div>
           <span
             aria-label={`${left} seconds left`}

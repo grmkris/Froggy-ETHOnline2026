@@ -19,6 +19,7 @@ import {
   RunId,
   ScheduleId,
   SessionId,
+  UsdMicros,
 } from "@froggy/domain";
 import { Schema } from "effect";
 
@@ -91,17 +92,62 @@ export type Notice = typeof Notice.Type;
  * "no, and stop the run" and "no, try something else" are different
  * instructions and collapsing them loses the ability to say the first one.
  */
-export const ApprovalOption = Schema.Struct({
+const ApprovalOption = Schema.Struct({
   id: Schema.String,
   kind: ApprovalKind,
   label: Schema.String,
 });
-export type ApprovalOption = typeof ApprovalOption.Type;
+
+const BreakdownLabel = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(80)
+);
+const BreakdownAmountLabel = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(40)
+);
+const BreakdownNote = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(240)
+);
+
+/**
+ * One line of the approval ledger: product, delivery or network fee, fees,
+ * or agent spend so far today.
+ *
+ * `amountUsdMicros` or `amountLabel` (or both). A line with neither is
+ * refused rather than shown as a blank. Callers omit unknown lines; they
+ * do not invent amounts.
+ */
+export const ApprovalBreakdownLine = Schema.Struct({
+  label: BreakdownLabel,
+  amountUsdMicros: Schema.optionalKey(UsdMicros),
+  amountLabel: Schema.optionalKey(BreakdownAmountLabel),
+  note: Schema.optionalKey(BreakdownNote),
+}).check(
+  Schema.makeFilter(
+    (line) =>
+      line.amountUsdMicros !== undefined || line.amountLabel !== undefined,
+    { message: "A breakdown line needs an amount." }
+  )
+);
+export type ApprovalBreakdownLine = typeof ApprovalBreakdownLine.Type;
 
 export const ApprovalRequest = Schema.Struct({
   runId: Schema.optional(RunId),
   /** "$0.50", "0.05 tHBAR" — what the card prints large. */
   amountLabel: Schema.String,
+  /**
+   * The four-line money ledger. Optional so a card written before this
+   * field still decodes and still renders as amount-plus-detail. Cap at
+   * six so a sender cannot dump a statement onto the ticket.
+   */
+  breakdown: Schema.optionalKey(
+    Schema.Array(ApprovalBreakdownLine).check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(6)
+    )
+  ),
   detail: Schema.String,
   /** Server clock past which the card resolves itself as a deny. */
   expiresAt: Schema.Int,
