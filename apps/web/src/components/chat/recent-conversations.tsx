@@ -79,6 +79,13 @@ const useConversationChange = () => {
   return { patch, remove };
 };
 
+const archiveLabel = (archived: boolean, pending: boolean): string => {
+  if (archived) {
+    return pending ? "Reopening…" : "Unarchive";
+  }
+  return pending ? "Archiving…" : "Archive";
+};
+
 const ConversationActions = ({
   conversation,
 }: {
@@ -98,9 +105,7 @@ const ConversationActions = ({
           type="button"
           variant="ghost"
         >
-          {patch.isPending && patch.variables?.archived === false
-            ? "Reopening…"
-            : "Unarchive"}
+          {archiveLabel(true, patch.isPending)}
         </Button>
       ) : (
         <Button
@@ -112,9 +117,7 @@ const ConversationActions = ({
           type="button"
           variant="ghost"
         >
-          {patch.isPending && patch.variables?.archived === true
-            ? "Archiving…"
-            : "Archive"}
+          {archiveLabel(false, patch.isPending)}
         </Button>
       )}
       <AlertDialog>
