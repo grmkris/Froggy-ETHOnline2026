@@ -1105,6 +1105,46 @@ describe("converting USDC when the pocket is short", () => {
     expect(result.decision).toMatchObject({ code: "run_budget_exceeded" });
     expect(performed).toEqual([]);
   });
+
+  test("a parent under the person's cap is never refused or paused by its conversion", async () => {
+    // Parent $1 at par, pocket $0.50: conversion is $1.50, which is the parent
+    // plus the floor/multiple the code already computes, under the $2 cap and
+    // over the $1 ask line. Without the parent's approval, that conversion would
+    // ask (and then fail as unavailable). It must not.
+    const { performed, session } = converting(memoryStore(), 500_000);
+    await session.hydrate();
+    session.applyAllowance({
+      allowance: defaultAllowance(Date.now()),
+      policyId: "pol_person_1",
+    });
+    const sent = { count: 0 };
+    const result = await session.spend(paying("under-cap", "100000000", sent));
+    expect(performed).toEqual([1_500_000]);
+    expect(sent.count).toBe(1);
+    expect(result.decision._tag).toBe("allow");
+    expect(
+      session.history.some((receipt) => receipt.decision._tag === "ask")
+    ).toBe(false);
+  });
+
+  test("a parent over the person's cap is refused before any conversion starts", async () => {
+    const { performed, session } = converting(memoryStore(), 0, {
+      held: 10_000_000n,
+    });
+    await session.hydrate();
+    session.applyAllowance({
+      allowance: defaultAllowance(Date.now()),
+      policyId: "pol_person_1",
+    });
+    const sent = { count: 0 };
+    const result = await session.spend(paying("over-cap", "300000000", sent));
+    expect(performed).toEqual([]);
+    expect(sent.count).toBe(0);
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "per_tx_cap_exceeded",
+    });
+  });
 });
 
 describe("the receipt names the tool call that spent", () => {
@@ -1347,5 +1387,81 @@ describe("a person's own limits are not the deployment's", () => {
       ],
     };
     expect(capsIn(session.updateMandate(imposed))).toBe(0);
+  });
+});
+
+describe("the person's allowance in the judgement", () => {
+  test("a service payment over askOver asks even when the mandate has no threshold", async () => {
+    const session = sessionWith(memoryLedger());
+    session.setAgentPolicy(allowanceOf());
+    const result = await session.spend(
+      request({ key: "over-ask", units: "150000000" })
+    );
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "approval_unavailable",
+    });
+  });
+
+  test("the same spend is allowed when there is no allowance", async () => {
+    const session = sessionWith(memoryLedger());
+    const result = await session.spend(
+      request({ key: "no-allowance", units: "150000000" })
+    );
+    expect(result.decision._tag).toBe("allow");
+  });
+
+  test("a small transfer asks and the ticket carries the table's because", async () => {
+    const { ask, asked } = asker(() => ({
+      accessToken: null,
+      kind: "answered",
+      optionId: "deny",
+    }));
+    const session = sessionWith(memoryLedger(), memoryStore(), ask);
+    session.setAgentPolicy(allowanceOf());
+    const result = await session.spend({
+      amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units: "500000" },
+      kind: "transfer",
+      idempotencyKey: "send-small",
+      payeeId: "0x0000000000000000000000000000000000000001",
+      payeeLabel: "a person",
+      provenance: "user",
+      purpose: "send to a friend",
+      runId: RunId.generate(),
+      signal: new AbortController().signal,
+      settle: () => {
+        throw new Error("must not settle");
+      },
+    });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.request.detail).toContain(
+      "Paying a person is your decision, whatever the amount."
+    );
+    expect(result.decision).toMatchObject({
+      _tag: "deny",
+      code: "approval_denied",
+    });
+  });
+
+  test("without an allowance a small transfer still follows the threshold only", async () => {
+    const session = sessionWith(memoryLedger(), undefined, undefined, LIMITED);
+    const result = await session.spend({
+      amount: { asset: KNOWN_ASSETS["eip155:84532:usdc"], units: "500000" },
+      kind: "transfer",
+      idempotencyKey: "send-threshold",
+      payeeId: "0x0000000000000000000000000000000000000001",
+      payeeLabel: "a person",
+      provenance: "user",
+      purpose: "send to a friend",
+      runId: RunId.generate(),
+      settle: async () =>
+        await Promise.resolve({
+          network: "eip155:84532",
+          ok: true,
+          stubbed: true,
+          transactionId: "0xsent",
+        }),
+    });
+    expect(result.decision._tag).toBe("allow");
   });
 });

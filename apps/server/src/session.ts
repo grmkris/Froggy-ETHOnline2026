@@ -29,6 +29,7 @@ import {
   defaultRules,
   LIMIT_RULES,
   withoutLimits,
+  authorityFor,
   formatUsd,
   priceInUsdMicros,
   KNOWN_ASSETS,
@@ -107,6 +108,12 @@ export interface SpendRequest {
   evidence?: Evidence;
   readonly host?: string;
   readonly idempotencyKey: string;
+  /**
+   * A person has already answered yes to this exact spend — or, for a nested
+   * conversion, the parent payment was already allowed. Authorize still applies
+   * every cap; this only satisfies the ask half.
+   */
+  readonly approved?: boolean;
   /**
    * Whether a person can be asked. A chat turn can; a scheduled job cannot,
    * and says so, so an `ask` there is refused as unavailable rather than
@@ -449,7 +456,7 @@ type Refusal = Exclude<ApprovalResolution, "allow_once" | "allow_session">;
 /** A decision for every one of them. */
 const refusalFor = (
   resolution: Refusal,
-  ruleId: RuleId,
+  ruleId: RuleId | undefined,
   reason: string | null
 ): PolicyDecision => {
   switch (resolution) {
@@ -713,6 +720,9 @@ export class WorkspaceSession {
           this.persistMandate();
         }
       }
+      if (policy !== null) {
+        this.applyAllowance(policy);
+      }
       const known = new Set(this.receipts.map((receipt) => receipt.id));
       for (const receipt of recent.toReversed()) {
         if (!known.has(receipt.id)) {
@@ -902,6 +912,7 @@ export class WorkspaceSession {
     }).filter((rule) => LIMIT_RULES.has(rule._tag));
     this.mandate = { ...this.mandate, rules: [...kept, ...limits] };
     this.persistMandate();
+    this.deps.onMandate?.(this.mandate);
     return this.mandate;
   }
 
@@ -1270,6 +1281,9 @@ export class WorkspaceSession {
     const spend: Draft<SpendRequest, "interactive" | "signal" | "toolCallId"> =
       {
         amount: { asset: convert.asset, units: String(amount) },
+        // The parent already cleared the ask half; a nested conversion must
+        // not raise a second ticket. Caps still bind.
+        approved: true,
         idempotencyKey: `${CONVERSION_KEY_PREFIX}${request.idempotencyKey}`,
         kind: "conversion",
         payeeId: convert.payeeId,
@@ -1386,6 +1400,7 @@ export class WorkspaceSession {
       }
     }
     const judgement: Draft<AuthorizeInput, "pocket"> = {
+      allowance: this.agentPolicy?.allowance ?? null,
       purchase,
       approved,
       intent,
@@ -1422,7 +1437,7 @@ export class WorkspaceSession {
     settling: Promise<Settled>
   ): Promise<SpendResult> {
     const [judged, outcome] = await Promise.all([
-      this.judge(request),
+      this.judge(request, request.approved === true),
       settling,
     ]);
     return this.finish({
@@ -1545,11 +1560,17 @@ export class WorkspaceSession {
       return { approval: { id, resolution: "unavailable" }, reason: null };
     }
     const { intent } = judged;
+    const authority =
+      intent.kind === undefined ? null : authorityFor(intent.kind);
+    const because =
+      authority !== null && authority.side === "ask"
+        ? authority.because
+        : "Over the automatic limit, so it is your call.";
     const outcome = await ask({
       request: {
         runId: request.runId,
         amountLabel: formatUsd(intent.usdMicros),
-        detail: `${intent.purpose}. Over the automatic limit, so it is your call.`,
+        detail: `${intent.purpose}. ${because}`,
         expiresAt: judged.at + APPROVAL_TTL_MS,
         id,
         options: approvalOptions(),
@@ -1634,7 +1655,7 @@ export class WorkspaceSession {
     request: SpendRequest,
     publish: (outcome: Settled) => void
   ): Promise<SpendResult> {
-    let approved = false;
+    let approved = request.approved === true;
     let attempt = await this.judgeAndReserve(request, approved);
     const purchase =
       request.purchase === undefined

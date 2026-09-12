@@ -23,11 +23,13 @@
 
 import type { UserId } from "@froggy/domain";
 import { Allowance } from "@froggy/domain";
+import type { WalletSummary } from "@froggy/protocol";
 import type { PersonPolicyRecord, PolicyPins } from "@froggy/wallet";
 import { personPolicyRules } from "@froggy/wallet";
 import { Result, Schema } from "effect";
 
 import type { PersonPolicies } from "./person-policies";
+import type { WorkspaceSession } from "./session";
 
 const PRIVY_API = "https://api.privy.io";
 
@@ -72,9 +74,47 @@ const decodeCommit = Schema.decodeUnknownResult(
 export interface PolicyRouteDeps {
   readonly appId: string;
   readonly appSecret: string;
+  /** Injected so tests cover prepare and commit without the network. */
+  readonly fetch?: typeof globalThis.fetch;
   readonly pins: PolicyPins | null;
   readonly policies: Pick<PersonPolicies, "adjust" | "current"> | null;
+  /** Republish after a commit so the wallet pane shows the new numbers now. */
+  readonly publishWallet?: (userId: UserId, wallet: WalletSummary) => void;
+  readonly workspaces?: {
+    readonly existing: (userId: UserId) =>
+      | {
+          readonly session: Pick<
+            WorkspaceSession,
+            "applyAllowance" | "walletSummary"
+          >;
+        }
+      | undefined;
+  } | null;
 }
+
+/**
+ * What a stubbed Privy answers: no owner, every PATCH accepted. Wired when
+ * `modes.privy` is stub so a local identity can edit the tiles Froggy enforces.
+ */
+const stubPrivyPolicyAnswer = async (
+  _input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
+  await Promise.resolve();
+  if (init?.method === "PATCH") {
+    return new Response("{}", {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  }
+  return Response.json({ owner_id: null });
+};
+
+/** Stubbed Privy: no owner, every PATCH accepted. Wired when `modes.privy` is stub. */
+export const stubPrivyPolicyFetch: typeof fetch = Object.assign(
+  stubPrivyPolicyAnswer,
+  { preconnect: (): void => undefined }
+);
 
 /**
  * The request Privy will receive, built once so both halves agree on it.
@@ -136,7 +176,8 @@ const needsPersonSignature = async (
   deps: PolicyRouteDeps,
   policyId: string
 ): Promise<boolean> => {
-  const response = await fetch(`${PRIVY_API}/v1/policies/${policyId}`, {
+  const outbound = deps.fetch ?? globalThis.fetch;
+  const response = await outbound(`${PRIVY_API}/v1/policies/${policyId}`, {
     headers: {
       authorization: `Basic ${Buffer.from(`${deps.appId}:${deps.appSecret}`).toString("base64")}`,
       "privy-app-id": deps.appId,
@@ -217,7 +258,8 @@ export const handlePolicyRoutes = async (
     if (signature !== null) {
       headers.set("privy-authorization-signature", signature);
     }
-    const response = await fetch(outgoing.url, {
+    const outbound = deps.fetch ?? globalThis.fetch;
+    const response = await outbound(outgoing.url, {
       body: JSON.stringify(outgoing.body),
       headers,
       method: "PATCH",
@@ -237,6 +279,14 @@ export const handlePolicyRoutes = async (
     // Only once Privy has taken it: the mandate must never be looser than the
     // policy, and it would be if this were written before the edit landed.
     const record = await deps.policies?.adjust(userId, allowance);
+    if (record !== null && record !== undefined) {
+      const live = deps.workspaces?.existing(userId);
+      if (live !== undefined) {
+        live.session.applyAllowance(record);
+        const wallet = await live.session.walletSummary();
+        deps.publishWallet?.(userId, wallet);
+      }
+    }
     return json({ allowance: record?.allowance ?? allowance, ok: true }, 200);
   }
 

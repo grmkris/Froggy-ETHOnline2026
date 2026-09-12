@@ -154,6 +154,11 @@ export class Workspaces {
     return this.seated.size;
   }
 
+  /** The workspace if this process already has one, without creating it. */
+  existing(userId: UserId): Workspace | undefined {
+    return this.workspaces.get(userId);
+  }
+
   /** The user's workspace, created on first use. */
   for(userId: UserId): Workspace {
     const existing = this.workspaces.get(userId);

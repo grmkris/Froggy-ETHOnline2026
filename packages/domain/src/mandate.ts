@@ -195,7 +195,13 @@ export const Deny = Schema.TaggedStruct("deny", {
  */
 export const Ask = Schema.TaggedStruct("ask", {
   question: Schema.String,
-  ruleId: RuleId,
+  /**
+   * The `approval_threshold` that produced the question, when the mandate
+   * has one. Absent when an allowance decides the ask on its own — production
+   * writes no threshold unless `SPENDING_LIMITS` is on, and the table still
+   * has to ask. Deny.ruleId is already optional; this matches it.
+   */
+  ruleId: Schema.optional(RuleId),
 });
 
 export const PolicyDecision = Schema.Union([Allow, Ask, Deny]);

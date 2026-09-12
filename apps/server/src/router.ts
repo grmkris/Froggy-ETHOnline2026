@@ -25,7 +25,7 @@ import type {
   UserId,
 } from "@froggy/domain";
 import type { ProbeSummary } from "@froggy/payments";
-import type { AgentDetail } from "@froggy/protocol";
+import type { AgentDetail, AppServerMessage } from "@froggy/protocol";
 import { HistoryConflictError } from "@froggy/wallet";
 import { validateUIMessages } from "ai";
 import { Schema } from "effect";
@@ -76,7 +76,7 @@ import {
   SALES_PATH,
 } from "./oracle-route";
 import type { PersonPolicies } from "./person-policies";
-import { handlePolicyRoutes } from "./policy-routes";
+import { handlePolicyRoutes, stubPrivyPolicyFetch } from "./policy-routes";
 import { handlePurchases } from "./purchase-routes";
 import type { ChatRunRegistry } from "./runs";
 import { handleDigest, handleSchedules } from "./schedule-routes";
@@ -194,6 +194,8 @@ export interface RouterDeps {
   readonly pager: TelegramPager;
   /** Each person's own Privy policy, when this deployment mints them. */
   readonly policies?: Pick<PersonPolicies, "adjust" | "current">;
+  /** Wallet and mandate updates after a policy commit. */
+  readonly publishApp?: (userId: UserId, message: AppServerMessage) => void;
   readonly runs: ChatRunRegistry;
   readonly services: Services;
   readonly workspaces: Workspaces;
@@ -770,8 +772,16 @@ const handleGranted = async (
     {
       appId: deps.services.environment.privyAppId,
       appSecret: deps.services.environment.privyAppSecret,
+      fetch:
+        deps.services.environment.modes.privy === "stub"
+          ? stubPrivyPolicyFetch
+          : globalThis.fetch,
       pins: deps.services.environment.personPolicyPins,
       policies: deps.policies ?? null,
+      publishWallet: (who, wallet) => {
+        deps.publishApp?.(who, { type: "wallet.state", v: 1, wallet });
+      },
+      workspaces: deps.workspaces,
     },
     request,
     userId,

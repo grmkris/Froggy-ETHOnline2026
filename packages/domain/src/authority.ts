@@ -20,9 +20,10 @@
  *     the identical ceiling synchronously and a Privy outage can never widen
  *     what the agent may spend.
  *   - `authorize`, which looks a kind up here instead of inferring it.
- *     As of 11 September 2026 the server does not yet pass it the allowance,
- *     so at HEAD this table binds through the Privy rules only; decision 0019
- *     records the gap and the change that closes it.
+ *     Closed 12 September 2026: the server passes the person's allowance into
+ *     the judgement, so this table binds in-process as well as at Privy. A
+ *     nested conversion carries the parent's approval so its ask half cannot
+ *     fire; the ceiling half may still bind. Decision 0019 records both.
  *
  * This module is deliberately inert: data and two total functions over it, no
  * clock, no I/O and nothing importable from a tool. `packages/domain` is a leaf

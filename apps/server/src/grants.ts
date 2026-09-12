@@ -44,6 +44,7 @@ export interface GrantWorkspaces {
   readonly for: (userId: UserId) => {
     readonly session: Pick<
       WorkspaceSession,
+      | "applyAllowance"
       | "setAddresses"
       | "setAgentPolicy"
       | "setAgentSigner"
@@ -213,6 +214,7 @@ export class AgentGrants {
     // The session is told before the standing is computed and published, so the
     // wallet the browser receives already names the policy it is talking about.
     session.setAgentPolicy(ownPolicy);
+    session.applyAllowance(ownPolicy);
     const standing = signerStanding({
       attached: grant.attached,
       ownPolicyId: ownPolicy?.policyId ?? null,

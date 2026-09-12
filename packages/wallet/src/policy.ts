@@ -14,6 +14,7 @@
  */
 
 import {
+  authorityFor,
   ceilingFor,
   formatUsd,
   isPayable,
@@ -144,17 +145,26 @@ const exempted = (
  * would otherwise have been allowed.
  */
 /**
- * The rule a kind-driven question is attributed to.
+ * The rule a kind-driven question is attributed to, when the mandate has one.
  *
- * An ask must always name the rule that produced it — "denied by policy" is not
- * something a person can act on, and neither is a question from nowhere. A
- * kind-driven ask *is* the person's approval line doing its job, so it carries
- * that rule's id. An allowance always writes one (`defaultRules`), so null here
- * means a mandate that predates the allowance, and the caller falls back to the
- * numeric threshold rather than inventing an id.
+ * An ask should name the rule that produced it, and a kind-driven ask *is*
+ * the person's approval line doing its job. Production writes no
+ * `approval_threshold` unless `SPENDING_LIMITS` is on, so null here is the
+ * usual case once an allowance is present: the allowance's `askOverUsdMicros`
+ * decides, and the Ask carries no invented id.
  */
 const askRuleId = (mandate: Mandate): RuleId | null =>
   rulesOfKind(mandate, "approval_threshold")[0]?.id ?? null;
+
+/** The sentence on the ticket and the receipt: the table's `because` when the kind itself is why we asked. */
+const questionFor = (intent: SpendIntent): string => {
+  const authority =
+    intent.kind === undefined ? null : authorityFor(intent.kind);
+  if (authority !== null && authority.side === "ask") {
+    return `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? ${authority.because}`;
+  }
+  return `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`;
+};
 
 /**
  * Under an allowance: does the *kind* of this spend need a person, whatever the
@@ -198,7 +208,7 @@ const threshold = (
       }
       return {
         _tag: "ask",
-        question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
+        question: questionFor(intent),
         ruleId: rule.id,
       };
     }
@@ -379,19 +389,16 @@ const humanLine = (
 ): PolicyDecision | null => {
   const { allowance, intent, mandate } = input;
   const approved = input.approved === true || boundPurchase;
-  const askRule = askRuleId(mandate);
   if (
     allowance !== undefined &&
     allowance !== null &&
-    askRule !== null &&
     !approved &&
     kindNeedsPerson(input, allowance)
   ) {
-    return {
-      _tag: "ask",
-      question: `Approve ${formatUsd(intent.usdMicros)} to ${intent.payee.label}? (${intent.purpose})`,
-      ruleId: askRule,
-    };
+    const askRule = askRuleId(mandate);
+    return askRule === null
+      ? { _tag: "ask", question: questionFor(intent) }
+      : { _tag: "ask", question: questionFor(intent), ruleId: askRule };
   }
   return threshold({ ...input, approved }, satisfied);
 };
