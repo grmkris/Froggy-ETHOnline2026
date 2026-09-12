@@ -114,28 +114,23 @@ export const ServicesPage = (): ReactElement => {
       <DiscardedSearchNotice
         discarded={search.dropped === "1"}
         onDismiss={() => {
-          if (search.service !== undefined && search.task !== undefined) {
-            void navigate({
-              search: { service: search.service, task: search.task },
-              to: "/services",
-            });
-            return;
-          }
-          if (search.service !== undefined) {
-            void navigate({
-              search: { service: search.service },
-              to: "/services",
-            });
-            return;
-          }
-          if (search.task !== undefined) {
-            void navigate({
-              search: { task: search.task },
-              to: "/services",
-            });
-            return;
-          }
-          void navigate({ search: {}, to: "/services" });
+          const { service, task } = search;
+          void navigate({
+            replace: true,
+            search: () => {
+              if (service !== undefined && task !== undefined) {
+                return { service, task };
+              }
+              if (service !== undefined) {
+                return { service };
+              }
+              if (task !== undefined) {
+                return { task };
+              }
+              return {};
+            },
+            to: "/services",
+          });
         }}
         what="The named service"
       />

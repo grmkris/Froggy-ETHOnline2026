@@ -10,18 +10,22 @@ import {
   AlertTitle,
 } from "@froggy/ui/components/alert";
 import { Button } from "@froggy/ui/components/button";
+import { useState } from "react";
 import type { ReactElement } from "react";
+
+interface DiscardedSearchNoticeProps {
+  readonly discarded: boolean;
+  readonly onDismiss: () => void;
+  readonly what: string;
+}
 
 export const DiscardedSearchNotice = ({
   discarded,
   onDismiss,
   what,
-}: {
-  readonly discarded: boolean;
-  readonly onDismiss: () => void;
-  readonly what: string;
-}): ReactElement | null => {
-  if (!discarded) {
+}: DiscardedSearchNoticeProps): ReactElement | null => {
+  const [hidden, setHidden] = useState(false);
+  if (!discarded || hidden) {
     return null;
   }
   return (
@@ -33,8 +37,12 @@ export const DiscardedSearchNotice = ({
       <AlertAction>
         <Button
           aria-label="Dismiss unrecognised link"
-          onClick={onDismiss}
+          onClick={() => {
+            setHidden(true);
+            onDismiss();
+          }}
           size="xs"
+          type="button"
           variant="ghost"
         >
           Dismiss

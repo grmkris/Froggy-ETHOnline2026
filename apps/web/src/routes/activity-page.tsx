@@ -534,7 +534,8 @@ export const ActivityPage = (): ReactElement => {
         discarded={dropped === "1"}
         onDismiss={() => {
           void navigate({
-            search: record === undefined ? {} : { record },
+            replace: true,
+            search: () => (record === undefined ? {} : { record }),
             to: "/activity",
           });
         }}
