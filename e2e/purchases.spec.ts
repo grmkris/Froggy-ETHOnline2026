@@ -72,6 +72,11 @@ test.describe("URL purchases", () => {
     expect(purchase.payment.state).toBe("none");
     const ticket = approvalFor(page, purpose);
     await expect(ticket).toBeVisible();
+    await expect(ticket.getByRole("button")).toHaveText([
+      "Stop the agent",
+      "Not this time",
+      /^Approve /u,
+    ]);
     await expect(
       page.getByRole("region", { name: "Purchase approvals" })
     ).toContainText("/demo/x402/report");
@@ -108,7 +113,7 @@ test.describe("URL purchases", () => {
       .click();
     await expect(approvalFor(page, purpose)).toBeVisible();
     await approvalFor(page, purpose)
-      .getByRole("button", { name: "Pay once", exact: true })
+      .getByRole("button", { name: /^Approve /u })
       .click();
     await expect(approvalFor(page, purpose)).toHaveCount(0);
     await page.goto("/services");
@@ -153,7 +158,7 @@ test.describe("URL purchases", () => {
     const purpose = `Declined report ${crypto.randomUUID()}`;
     const { purchase, headers } = await requestDemo(page, purpose);
     await approvalFor(page, purpose)
-      .getByRole("button", { name: "Deny", exact: true })
+      .getByRole("button", { name: "Not this time", exact: true })
       .click();
     await expect(approvalFor(page, purpose)).toHaveCount(0);
     const result = page
@@ -248,7 +253,7 @@ test.describe("URL purchases", () => {
     await page.screenshot({
       path: testInfo.outputPath("chat-url-approval.png"),
     });
-    await ticket.getByRole("button", { name: "Pay once", exact: true }).click();
+    await ticket.getByRole("button", { name: /^Approve /u }).click();
     await expect(ticket).toHaveCount(0);
     await expect(log).toHaveAttribute("aria-busy", "false", {
       timeout: 20_000,

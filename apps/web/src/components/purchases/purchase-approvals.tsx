@@ -35,12 +35,15 @@ const approvalFor = (purchase: PurchaseTicket): ApprovalRequest => ({
       ? "Send input and get price"
       : "Approve URL purchase",
   options: [
-    { id: "deny_stop", kind: "deny_stop", label: "Deny & stop" },
-    { id: "deny", kind: "deny", label: "Deny" },
+    { id: "deny_stop", kind: "deny_stop", label: "Stop the agent" },
+    { id: "deny", kind: "deny", label: "Not this time" },
     {
       id: "allow_once",
       kind: "allow_once",
-      label: purchase.quote === null ? "Send input & get price" : "Pay once",
+      label:
+        purchase.quote === null
+          ? "Allow once"
+          : `Approve ${dollars.format(purchase.quote.usdMicros / 1_000_000)}`,
     },
   ],
 });

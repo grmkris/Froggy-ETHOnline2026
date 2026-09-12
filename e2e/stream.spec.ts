@@ -90,7 +90,7 @@ test("while an approval is open the log is busy and the paying tool says it is w
   });
   await expect(paying).toContainText("waiting for you");
 
-  await ticket.getByRole("button", { name: "Allow once" }).click();
+  await ticket.getByRole("button", { name: /^Approve /u }).click();
   await expect(paying).toContainText("done", { timeout: 20_000 });
   await expect(log).toHaveAttribute("aria-busy", "false", { timeout: 20_000 });
 });

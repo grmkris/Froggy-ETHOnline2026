@@ -28,10 +28,10 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
     "Stop the agent",
     "Not this time",
     "Allow for this session",
-    "Allow once",
+    /^Approve /u,
   ]);
   await captureResponsive(page, testInfo, "chat-approval");
-  await ticket.getByRole("button", { name: "Allow once" }).click();
+  await ticket.getByRole("button", { name: /^Approve /u }).click();
 
   await expect(ticket).toHaveCount(0);
   const receipt = page.getByLabel(/^Receipt: Nothing was paid/u).first();
