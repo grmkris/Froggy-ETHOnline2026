@@ -348,17 +348,7 @@ const PERMIT2_APPROVE_ABI = [
  * Privy decodes calldata against an ABI or not at all, and there is no ABI for
  * a function we do not know. That is the residual the card's warning names.
  */
-const PINNABLE_CALLS: ReadonlyMap<
-  string,
-  {
-    readonly abi: typeof ERC20_TRANSFER_ABI;
-    readonly name: string;
-    readonly args: readonly {
-      readonly name: string;
-      readonly kind: "address" | "uint";
-    }[];
-  }
-> = new Map([
+const PINNABLE_CALLS = new Map([
   [
     "a9059cbb",
     {
