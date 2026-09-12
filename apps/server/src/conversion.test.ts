@@ -131,6 +131,30 @@ const wallet = {
   address: "0x2222222222222222222222222222222222222222",
 };
 describe("durable conversion recovery", () => {
+  test("settles through the treasury's relay when one exists, never a transfer the person must gas", async () => {
+    const f = fixture();
+    let relayed = 0;
+    const services: Services = {
+      ...f.services,
+      evmRelayFor: () => ({
+        send: async ({ beforeBroadcast }) => {
+          relayed += 1;
+          await beforeBroadcast?.("0xrelayed");
+          return { hash: "0xrelayed", status: "success" };
+        },
+      }),
+    };
+    const adapter = createConversion(services);
+    if (adapter === undefined) {
+      throw new Error("Missing conversion adapter");
+    }
+    const paid = await adapter.perform(f.owner, wallet, 2_000_000, "relay");
+    expect(paid.credited).toBe(true);
+    expect(paid.transfer.transactionId).toBe("0xrelayed");
+    expect(relayed).toBe(1);
+    expect(f.state.usdcCalls).toBe(0);
+    expect(f.state.fundCalls).toBe(1);
+  });
   test("a pre-submission USDC refusal can be retried with the same key", async () => {
     const f = fixture();
     f.state.usdcBeforeSendFails = true;

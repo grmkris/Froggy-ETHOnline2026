@@ -158,9 +158,18 @@ const servicePaymentRule = (
 });
 
 /**
- * The rule for the just-in-time conversion: a USDC transfer to the treasury,
- * decoded from calldata so the recipient and the amount are both judged rather
- * than taken on trust.
+ * The rule for the just-in-time conversion: an EIP-3009 authorization of USDC
+ * to the treasury, the same shape as a service payment with the recipient
+ * pinned to the treasury instead of the payee.
+ *
+ * Typed data rather than a signed `transfer`, because the person's wallet
+ * holds USDC and no ETH: a transaction of their own has no gas behind it,
+ * while an authorization is settled by the treasury (`authorized-transfer.ts`)
+ * and the token itself refuses any recipient or amount other than the ones
+ * signed here. The old `eth_signTransaction` rule is not written any more; a
+ * policy minted before this change keeps it until the person saves their
+ * rules again, and until then the conversion is refused by Privy in its own
+ * words.
  */
 const conversionRule = (
   allowance: Allowance,
@@ -170,34 +179,34 @@ const conversionRule = (
   action: "ALLOW",
   conditions: [
     {
-      field: "chain_id",
-      field_source: "ethereum_transaction",
+      field: "chainId",
+      field_source: "ethereum_typed_data_domain",
       operator: "eq",
       value: pins.chainId,
     },
     {
-      field: "to",
-      field_source: "ethereum_transaction",
+      field: "verifyingContract",
+      field_source: "ethereum_typed_data_domain",
       operator: "eq",
       value: pins.usdc,
     },
     {
-      abi: TRANSFER_ABI,
-      field: "transfer.to",
-      field_source: "ethereum_calldata",
-      operator: "eq",
-      value: pins.treasury,
+      field: "to",
+      field_source: "ethereum_typed_data_message",
+      operator: "in",
+      typed_data: TRANSFER_WITH_AUTHORIZATION,
+      value: [pins.treasury],
     },
     {
-      abi: TRANSFER_ABI,
-      field: "transfer.amount",
-      field_source: "ethereum_calldata",
+      field: "value",
+      field_source: "ethereum_typed_data_message",
       operator: "lte",
+      typed_data: TRANSFER_WITH_AUTHORIZATION,
       value: String(cap),
     },
     notAfter(allowance),
   ],
-  method: "eth_signTransaction",
+  method: "eth_signTypedData_v4",
   name: "conversion-usdc-to-treasury",
 });
 
