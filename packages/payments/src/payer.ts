@@ -28,7 +28,7 @@ import {
 import type { ClientHederaSigner } from "@x402/hedera";
 import { Schema } from "effect";
 
-import { HEDERA_TESTNET, X402_VERSION } from "./types";
+import { HBAR_ASSET, HEDERA_TESTNET, X402_VERSION } from "./types";
 import type {
   HederaNetwork,
   PaymentAttempt,
@@ -177,7 +177,7 @@ export const signerHederaPayer = (options: SignerPayerOptions): Payer => {
       }
       const payTo = AccountId.fromString(requirements.payTo);
       const transaction = new TransferTransaction();
-      if (requirements.asset === "0.0.0") {
+      if (requirements.asset === HBAR_ASSET) {
         transaction.addHbarTransfer(
           account,
           Hbar.fromTinybars((-amount).toString())
