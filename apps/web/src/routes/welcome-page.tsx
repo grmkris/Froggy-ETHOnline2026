@@ -1,5 +1,5 @@
 /**
- * The welcome: three steps, then Home.
+ * The welcome: four steps, then Home.
  *
  * Shown once per account, right after sign-up, and again whenever Home is
  * asked to show it. Only one thing here is genuinely necessary — the grant
@@ -17,6 +17,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
+import { EmailStep } from "../components/welcome/email-step";
 import type { StepIndex } from "../components/welcome/frame";
 import { WelcomeFrame } from "../components/welcome/frame";
 import { NotificationsStep } from "../components/welcome/notifications-step";
@@ -81,7 +82,17 @@ export const WelcomePage = (): ReactElement => {
           }}
         />
       ) : null}
-      {step === 3 && door === "here" ? (
+      {step === 3 ? (
+        <EmailStep
+          onBack={() => {
+            setStep(2);
+          }}
+          onContinue={() => {
+            setStep(4);
+          }}
+        />
+      ) : null}
+      {step === 4 && door === "here" ? (
         <ReadyHere
           busy={busy}
           connected={app.connected}
@@ -93,7 +104,7 @@ export const WelcomePage = (): ReactElement => {
           wallet={app.wallet}
         />
       ) : null}
-      {step === 3 && door === "assistant" ? (
+      {step === 4 && door === "assistant" ? (
         <ReadyAssistant onFinish={finish} origin={origin} />
       ) : null}
     </WelcomeFrame>

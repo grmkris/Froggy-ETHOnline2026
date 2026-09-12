@@ -27,6 +27,7 @@ export const EmailStatus = Schema.Struct({
   v: Schema.Literal(1),
   mailbox: Schema.NullOr(Mailbox),
   address: Schema.NullOr(Schema.String),
+  domain: Schema.String,
   storageLimit: Schema.Int,
   dailyLimit: Schema.Int,
   unread: Schema.Int,

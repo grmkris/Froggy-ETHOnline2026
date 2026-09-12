@@ -107,6 +107,7 @@ export class Email {
       return {
         v: 1 as const,
         mailbox: tx.mailbox,
+        domain: this.domain,
         address: tx.mailbox ? `${tx.mailbox.handle}@${this.domain}` : null,
         storageLimit: EMAIL_STORAGE_LIMIT,
         dailyLimit: EMAIL_DAILY_LIMIT,

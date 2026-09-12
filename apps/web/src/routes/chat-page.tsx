@@ -229,11 +229,11 @@ export const ChatPage = (): ReactElement => {
                 data-slot="chat-welcome-scroll"
               >
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-8">
-                  <EmailHomeLink />
                   <EmptyState
                     disabled={disabledReason !== null}
                     onSend={send}
                   />
+                  <EmailHomeLink />
                 </div>
               </div>
             ) : (
