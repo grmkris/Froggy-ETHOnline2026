@@ -15,6 +15,12 @@ export { evmRpc, EvmRpcError } from "./evm-rpc";
 export type { EvmRpc, EvmTransactionReceipt } from "./evm-rpc";
 export { sendErc20Transfer } from "./transfer";
 export type { Erc20TransferInput, Erc20TransferOutcome } from "./transfer";
+export {
+  readTokenDomain,
+  sendAuthorizedTransfer,
+  TRANSFER_WITH_AUTHORIZATION_ABI,
+} from "./authorized-transfer";
+export type { TokenDomain } from "./authorized-transfer";
 export { memoryLedger, SpendBudgetExceededError } from "./ledger";
 export { postgresLedger } from "./ledger-postgres";
 export type { SpendLedger, SpendRow } from "./ledger";

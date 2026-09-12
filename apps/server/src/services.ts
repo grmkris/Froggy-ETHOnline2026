@@ -49,6 +49,7 @@ import type {
   PrivyServer,
   SpendLedger,
   Store,
+  TokenDomain,
 } from "@froggy/wallet";
 import {
   aesGcmKeystore,
@@ -60,6 +61,8 @@ import {
   memoryStore,
   postgresLedger,
   postgresStore,
+  readTokenDomain,
+  sendAuthorizedTransfer,
   sendErc20Transfer,
   stubPrivyServer,
 } from "@froggy/wallet";
@@ -139,6 +142,16 @@ export interface Services {
    * policy and broadcast by this process; a refusal is Privy's, verbatim.
    */
   readonly evmTransfersFor: (
+    wallet: { readonly address: string; readonly id: string } | null
+  ) => EvmTransfers | null;
+  /**
+   * Transfers from one user's wallet that the treasury pays the gas for: the
+   * person signs an EIP-3009 authorization under their policy and the
+   * treasury wallet settles it under its own. Null when the agent has no
+   * signer on the wallet, or this deployment has no treasury wallet to
+   * relay through — and then the plain transfer above is all there is.
+   */
+  readonly evmRelayFor: (
     wallet: { readonly address: string; readonly id: string } | null
   ) => EvmTransfers | null;
   /** The chain the RPC answers for, so boot can refuse a URL on the wrong Base. */
@@ -483,6 +496,23 @@ export const createServices = (options: ServiceOptions): Services => {
       }),
   };
 
+  // The token's EIP-712 domain does not change; asked once, and only a
+  // successful answer is kept, so an RPC hiccup is retried rather than
+  // remembered for the life of the process.
+  let usdcDomainRead: Promise<TokenDomain> | null = null;
+  const usdcDomain = async (): Promise<TokenDomain> => {
+    const read = usdcDomainRead ?? readTokenDomain(rpc, usdc.id);
+    usdcDomainRead = read;
+    try {
+      return await read;
+    } catch (error) {
+      if (usdcDomainRead === read) {
+        usdcDomainRead = null;
+      }
+      throw error;
+    }
+  };
+
   const treasuryPayer = (): Payer | null => {
     const wallet = environment.treasuryWallet;
     if (wallet === null) {
@@ -563,6 +593,31 @@ export const createServices = (options: ServiceOptions): Services => {
             chainId: environment.evmChainId,
             rpc,
             signer,
+            to,
+            token: usdc.id,
+          }),
+      };
+    },
+    evmRelayFor: (wallet) => {
+      const treasury = environment.treasuryWallet;
+      if (wallet === null || treasury === null) {
+        return null;
+      }
+      const from = privy.signerFor(wallet);
+      const relayer = privy.signerFor(treasury);
+      if (from === null || relayer === null) {
+        return null;
+      }
+      return {
+        send: async ({ to, units, beforeBroadcast }) =>
+          await sendAuthorizedTransfer({
+            amount: units,
+            beforeBroadcast,
+            chainId: environment.evmChainId,
+            domain: await usdcDomain(),
+            from,
+            relayer,
+            rpc,
             to,
             token: usdc.id,
           }),
