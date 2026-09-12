@@ -170,6 +170,7 @@ it("fails closed on a research policy when facts are absent", () => {
       deployer: null,
       feeRecipient: null,
       curveOrPool: null,
+      poolId: null,
       phase: null,
       registrationBlock: null,
       note: null,

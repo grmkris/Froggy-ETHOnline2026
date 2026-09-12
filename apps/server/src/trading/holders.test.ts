@@ -15,8 +15,7 @@ const curve = `0x${"44".repeat(20)}` as TradingAddress;
 const zero = "0x0000000000000000000000000000000000000000";
 
 const topic = (address: string) =>
-  // SAFETY: padded address topic is a valid 32-byte log topic hex string.
-  `0x${address.slice(2).toLowerCase().padStart(64, "0")}` as `0x${string}`;
+  `0x${address.slice(2).toLowerCase().padStart(64, "0")}`;
 
 const transferLog = (
   from: string,
@@ -58,10 +57,11 @@ describe("reconstructHolders", () => {
     ];
     const client = stubEvmClient({
       // SAFETY: synthetic Transfer fixtures match the getLogs surface reconstructHolders reads.
-      getLogs: (() => Promise.resolve(logs)) as TradeEvmClient["getLogs"],
+      getLogs: (async () =>
+        await Promise.resolve(logs)) as TradeEvmClient["getLogs"],
       // SAFETY: totalSupply fixture is a bigint matching the ERC-20 view return.
-      readContract: (() =>
-        Promise.resolve(1700n)) as TradeEvmClient["readContract"],
+      readContract: (async () =>
+        await Promise.resolve(1700n)) as TradeEvmClient["readContract"],
     });
     const fact = await reconstructHolders({
       client,
@@ -86,15 +86,15 @@ describe("reconstructHolders", () => {
   it("marks partial coverage when the page budget stops the scan", async () => {
     const client = stubEvmClient({
       // SAFETY: synthetic Transfer fixtures match the getLogs surface reconstructHolders reads.
-      getLogs: (() =>
-        Promise.resolve(
+      getLogs: (async () =>
+        await Promise.resolve(
           Array.from({ length: 1001 }, (_, index) =>
             transferLog(zero, alice, 1n, BigInt(index + 1))
           )
         )) as TradeEvmClient["getLogs"],
       // SAFETY: totalSupply fixture is a bigint matching the ERC-20 view return.
-      readContract: (() =>
-        Promise.resolve(1001n)) as TradeEvmClient["readContract"],
+      readContract: (async () =>
+        await Promise.resolve(1001n)) as TradeEvmClient["readContract"],
     });
     const fact = await reconstructHolders({
       client,
@@ -114,13 +114,13 @@ describe("reconstructHolders", () => {
   it("reports an unreconciled supply mismatch without inventing a number", async () => {
     const client = stubEvmClient({
       // SAFETY: synthetic Transfer fixtures match the getLogs surface reconstructHolders reads.
-      getLogs: (() =>
-        Promise.resolve([
+      getLogs: (async () =>
+        await Promise.resolve([
           transferLog(zero, alice, 100n, 1n),
         ])) as TradeEvmClient["getLogs"],
       // SAFETY: totalSupply fixture is a bigint matching the ERC-20 view return.
-      readContract: (() =>
-        Promise.resolve(999n)) as TradeEvmClient["readContract"],
+      readContract: (async () =>
+        await Promise.resolve(999n)) as TradeEvmClient["readContract"],
     });
     const fact = await reconstructHolders({
       client,

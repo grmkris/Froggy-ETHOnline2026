@@ -5,7 +5,6 @@
  * factory creation logs when the coin address is not an indexed topic.
  */
 
-import type { TradingAddress } from "@froggy/domain";
 import { getAddress, keccak256, parseAbi, parseAbiItem } from "viem";
 import type { Address } from "viem";
 
@@ -175,14 +174,18 @@ export const zoraLaunchVenue = (
       concentration: true,
     },
     stubbed,
-    verifyDeployments: (blockNumber) =>
-      verifyPinnedDeployments(client, ZORA_DEPLOYMENTS, blockNumber, stubbed),
+    verifyDeployments: async (blockNumber) =>
+      await verifyPinnedDeployments(
+        client,
+        ZORA_DEPLOYMENTS,
+        blockNumber,
+        stubbed
+      ),
     registration: async (token, blockNumber) => {
       if (stubbed) {
         return emptyRegistration("Stub Zora venue: no registration read.");
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const address = getAddress(token) as Address;
+      const address = getAddress(token);
       let payoutRecipient: Address;
       let hooks: Address;
       try {
@@ -219,19 +222,11 @@ export const zoraLaunchVenue = (
       const created = await findCreation(client, address, blockNumber);
       const registration: LaunchVenueRegistration = {
         registered: true,
-        // SAFETY: ZORA_DEPLOYMENTS factory address is a pinned TradingAddress.
-        factory: ZORA_DEPLOYMENTS.factory.address as TradingAddress,
-        // SAFETY: caller from factory creation log is a checksummed address when present.
+        factory: ZORA_DEPLOYMENTS.factory.address,
         deployer:
-          created !== null && created.caller !== null
-            ? (created.caller as TradingAddress)
-            : null,
-        // SAFETY: payoutRecipient from the coin view is a checksummed 20-byte address.
-        feeRecipient: getAddress(payoutRecipient) as TradingAddress,
-        // SAFETY: hooks from the coin view is a checksummed 20-byte address.
-        curveOrPool: getAddress(
-          created?.hooksOrPool ?? hooks
-        ) as TradingAddress,
+          created !== null && created.caller !== null ? created.caller : null,
+        feeRecipient: getAddress(payoutRecipient),
+        curveOrPool: getAddress(created?.hooksOrPool ?? hooks),
         poolId: created?.poolId ?? null,
         phase: "standard",
         registrationBlock:
@@ -281,12 +276,7 @@ export const zoraLaunchVenue = (
           note: "Stub Zora venue: no launch log.",
         };
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const hit = await findCreation(
-        client,
-        getAddress(token) as Address,
-        headBlock
-      );
+      const hit = await findCreation(client, getAddress(token), headBlock);
       if (hit === null) {
         return {
           block: null,
@@ -304,8 +294,7 @@ export const zoraLaunchVenue = (
       if (stubbed || fromBlock > toBlock) {
         return [];
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const address = getAddress(token) as Address;
+      const address = getAddress(token);
       const [buys, sells] = await Promise.all([
         client.getLogs({
           address,
@@ -328,10 +317,8 @@ export const zoraLaunchVenue = (
           continue;
         }
         trades.push({
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          buyerOrSeller: getAddress(log.args.buyer) as TradingAddress,
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          recipient: getAddress(log.args.recipient) as TradingAddress,
+          buyerOrSeller: getAddress(log.args.buyer),
+          recipient: getAddress(log.args.recipient),
           block: log.blockNumber.toString(),
           transactionId: log.transactionHash,
           side: "buy",
@@ -342,10 +329,8 @@ export const zoraLaunchVenue = (
           continue;
         }
         trades.push({
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          buyerOrSeller: getAddress(log.args.seller) as TradingAddress,
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          recipient: getAddress(log.args.recipient) as TradingAddress,
+          buyerOrSeller: getAddress(log.args.seller),
+          recipient: getAddress(log.args.recipient),
           block: log.blockNumber.toString(),
           transactionId: log.transactionHash,
           side: "sell",
@@ -356,8 +341,7 @@ export const zoraLaunchVenue = (
     exclusions: (registration) =>
       uniqueAddresses([
         ZERO,
-        // SAFETY: pinned Zora factory address is a TradingAddress.
-        ZORA_DEPLOYMENTS.factory.address as TradingAddress,
+        ZORA_DEPLOYMENTS.factory.address,
         ...(registration.curveOrPool === null
           ? []
           : [registration.curveOrPool]),
@@ -369,8 +353,7 @@ export const zoraLaunchVenue = (
     launcherFact: (registration, deploymentsChanged) =>
       launcherFactFor(
         "zora",
-        // SAFETY: pinned factory address is a TradingAddress.
-        ZORA_DEPLOYMENTS.factory.address as TradingAddress,
+        ZORA_DEPLOYMENTS.factory.address,
         registration,
         deploymentsChanged,
         "Zora"

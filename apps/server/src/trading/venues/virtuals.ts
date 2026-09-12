@@ -5,7 +5,6 @@
  * Bonding has no clear buy/sell events, so tradeEvents stays empty.
  */
 
-import type { TradingAddress } from "@froggy/domain";
 import { getAddress, parseAbi, parseAbiItem } from "viem";
 import type { Address } from "viem";
 
@@ -28,7 +27,7 @@ import type { LaunchVenue, LaunchVenueRegistration } from "./types";
 // Primary: https://whitepaper.virtuals.io/info-hub/important-links-and-resources/virtuals-protocol-contract-addresses
 // Runtime hash observed via public Base RPC; see docs/evidence/VIRTUALS_DEPLOYMENTS.md.
 // Address is a proxy; the pin is the proxy runtime at the observed block.
-export const VIRTUALS_DEPLOYMENTS = {
+const VIRTUALS_DEPLOYMENTS = {
   bondingCurve: {
     address: getAddress("0x1A540088125d00dD3990f9dA45CA0859af4d3B01"),
     hash: "0xcb419134161f24654d0518e596f790269a2d4e010e8340765793c44dbc738d47",
@@ -85,8 +84,8 @@ export const virtualsLaunchVenue = (
       concentration: true,
     },
     stubbed,
-    verifyDeployments: (blockNumber) =>
-      verifyPinnedDeployments(
+    verifyDeployments: async (blockNumber) =>
+      await verifyPinnedDeployments(
         client,
         VIRTUALS_DEPLOYMENTS,
         blockNumber,
@@ -96,8 +95,7 @@ export const virtualsLaunchVenue = (
       if (stubbed) {
         return emptyRegistration("Stub Virtuals venue: no registration read.");
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const address = getAddress(token) as Address;
+      const address = getAddress(token);
       let creator: Address;
       let registeredTokenAddress: Address;
       let pair: Address;
@@ -137,13 +135,10 @@ export const virtualsLaunchVenue = (
       const launched = await findLaunched(client, address, blockNumber);
       const registration: LaunchVenueRegistration = {
         registered: true,
-        // SAFETY: VIRTUALS_DEPLOYMENTS bonding curve address is a pinned TradingAddress.
-        factory: VIRTUALS_DEPLOYMENTS.bondingCurve.address as TradingAddress,
-        // SAFETY: creator from tokenInfo is a checksummed 20-byte address.
-        deployer: getAddress(creator) as TradingAddress,
+        factory: VIRTUALS_DEPLOYMENTS.bondingCurve.address,
+        deployer: getAddress(creator),
         feeRecipient: null,
-        // SAFETY: pair from tokenInfo is a checksummed 20-byte address.
-        curveOrPool: getAddress(pair) as TradingAddress,
+        curveOrPool: getAddress(pair),
         poolId: null,
         phase: (() => {
           if (tradingOnUniswap) {
@@ -176,12 +171,7 @@ export const virtualsLaunchVenue = (
           note: "Stub Virtuals venue: no launch log.",
         };
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const hit = await findLaunched(
-        client,
-        getAddress(token) as Address,
-        headBlock
-      );
+      const hit = await findLaunched(client, getAddress(token), headBlock);
       if (hit === null) {
         return {
           block: null,
@@ -195,12 +185,11 @@ export const virtualsLaunchVenue = (
         note: null,
       };
     },
-    tradeEvents: () => Promise.resolve([]),
+    tradeEvents: async () => await Promise.resolve([]),
     exclusions: (registration) =>
       uniqueAddresses([
         ZERO,
-        // SAFETY: pinned bonding curve address is a TradingAddress.
-        VIRTUALS_DEPLOYMENTS.bondingCurve.address as TradingAddress,
+        VIRTUALS_DEPLOYMENTS.bondingCurve.address,
         ...(registration.curveOrPool === null
           ? []
           : [registration.curveOrPool]),
@@ -212,8 +201,7 @@ export const virtualsLaunchVenue = (
     launcherFact: (registration, deploymentsChanged) =>
       launcherFactFor(
         "virtuals",
-        // SAFETY: pinned bonding curve address is a TradingAddress.
-        VIRTUALS_DEPLOYMENTS.bondingCurve.address as TradingAddress,
+        VIRTUALS_DEPLOYMENTS.bondingCurve.address,
         registration,
         deploymentsChanged,
         "Virtuals"

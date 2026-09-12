@@ -164,8 +164,7 @@ export const reconstructHolders = async (
     input.exclusions.map((entry) => entry.toLowerCase())
   );
   excluded.add(ZERO);
-  // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-  const token = getAddress(input.token) as Address;
+  const token = getAddress(input.token);
   let transfersRead = 0;
   let pagesUsed = 0;
   let cursor = input.fromBlock;
@@ -280,8 +279,7 @@ export const firstMintCohort = async (input: {
   readonly cohort: LaunchCohortFact;
   readonly launchBlock: bigint | null;
 }> => {
-  // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-  const token = getAddress(input.token) as Address;
+  const token = getAddress(input.token);
   let cursor =
     input.headBlock > PAGE_BLOCKS * BigInt(input.pageBudget)
       ? input.headBlock - PAGE_BLOCKS * BigInt(input.pageBudget) + 1n

@@ -4,7 +4,6 @@
  * calldata. Registration uses Flaunch.tokenId; launch uses PoolCreated logs.
  */
 
-import type { TradingAddress } from "@froggy/domain";
 import { getAddress, parseAbi, parseAbiItem } from "viem";
 import type { Address } from "viem";
 
@@ -26,7 +25,7 @@ import type { LaunchVenue, LaunchVenueRegistration } from "./types";
 
 // Primary: https://github.com/flayerlabs/flaunchgg-contracts (v1.1.5-base release table).
 // Runtime hashes observed via public Base RPC; see docs/evidence/FLAUNCH_DEPLOYMENTS.md.
-export const FLAUNCH_DEPLOYMENTS = {
+const FLAUNCH_DEPLOYMENTS = {
   flaunch: {
     address: getAddress("0x516af52d0c629b5e378da4dc64ecb0744ce10109"),
     hash: "0x8be29288e3373d71c49957887e6a27029fb2cb1021a03dc4f8d2eba81fc333fe",
@@ -100,8 +99,8 @@ export const flaunchLaunchVenue = (
       concentration: true,
     },
     stubbed,
-    verifyDeployments: (blockNumber) =>
-      verifyPinnedDeployments(
+    verifyDeployments: async (blockNumber) =>
+      await verifyPinnedDeployments(
         client,
         FLAUNCH_DEPLOYMENTS,
         blockNumber,
@@ -111,8 +110,7 @@ export const flaunchLaunchVenue = (
       if (stubbed) {
         return emptyRegistration("Stub Flaunch venue: no registration read.");
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const address = getAddress(token) as Address;
+      const address = getAddress(token);
       let tokenId: bigint;
       try {
         tokenId = await client.readContract({
@@ -174,20 +172,13 @@ export const flaunchLaunchVenue = (
       const creator = created?.args._params?.creator;
       const registration: LaunchVenueRegistration = {
         registered: true,
-        // SAFETY: FLAUNCH_DEPLOYMENTS flaunch address is a pinned TradingAddress.
-        factory: FLAUNCH_DEPLOYMENTS.flaunch.address as TradingAddress,
-        // SAFETY: creator from PoolCreated params is a checksummed address when present.
-        deployer:
-          creator === undefined
-            ? null
-            : (getAddress(creator) as TradingAddress),
-        // SAFETY: treasury from Flaunch view is a checksummed 20-byte address.
-        feeRecipient: getAddress(treasury) as TradingAddress,
-        // SAFETY: hooks from poolKey (or position manager) is a checksummed address when present.
+        factory: FLAUNCH_DEPLOYMENTS.flaunch.address,
+        deployer: creator === undefined ? null : getAddress(creator),
+        feeRecipient: getAddress(treasury),
         curveOrPool:
           hooks === null
-            ? (FLAUNCH_DEPLOYMENTS.positionManager.address as TradingAddress)
-            : (getAddress(hooks) as TradingAddress),
+            ? FLAUNCH_DEPLOYMENTS.positionManager.address
+            : getAddress(hooks),
         poolId: created?.args._poolId ?? null,
         phase: "standard",
         registrationBlock:
@@ -212,12 +203,7 @@ export const flaunchLaunchVenue = (
           note: "Stub Flaunch venue: no launch log.",
         };
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const hit = await findPoolCreated(
-        client,
-        getAddress(token) as Address,
-        headBlock
-      );
+      const hit = await findPoolCreated(client, getAddress(token), headBlock);
       if (hit === null) {
         return {
           block: null,
@@ -231,14 +217,12 @@ export const flaunchLaunchVenue = (
         note: null,
       };
     },
-    tradeEvents: () => Promise.resolve([]),
+    tradeEvents: async () => await Promise.resolve([]),
     exclusions: (registration) =>
       uniqueAddresses([
         ZERO,
-        // SAFETY: pinned Flaunch address is a TradingAddress.
-        FLAUNCH_DEPLOYMENTS.flaunch.address as TradingAddress,
-        // SAFETY: pinned PositionManager address is a TradingAddress.
-        FLAUNCH_DEPLOYMENTS.positionManager.address as TradingAddress,
+        FLAUNCH_DEPLOYMENTS.flaunch.address,
+        FLAUNCH_DEPLOYMENTS.positionManager.address,
         ...(registration.curveOrPool === null
           ? []
           : [registration.curveOrPool]),
@@ -250,8 +234,7 @@ export const flaunchLaunchVenue = (
     launcherFact: (registration, deploymentsChanged) =>
       launcherFactFor(
         "flaunch",
-        // SAFETY: pinned flaunch address is a TradingAddress.
-        FLAUNCH_DEPLOYMENTS.flaunch.address as TradingAddress,
+        FLAUNCH_DEPLOYMENTS.flaunch.address,
         registration,
         deploymentsChanged,
         "Flaunch"

@@ -25,12 +25,6 @@ import {
 } from "./common";
 import type { LaunchVenue, LaunchVenueRegistration } from "./types";
 
-export type {
-  LaunchCohortFact,
-  LauncherFact,
-  TokenTemplateFact,
-} from "@froggy/domain";
-
 /**
  * Pinned pools.trade / Uniswap liquidity-launchpad deployments on Robinhood.
  * Runtime hashes observed at block 60979304; see
@@ -126,13 +120,10 @@ const registrationFromLog = (
   }
   return {
     registered: true,
-    // SAFETY: log.address is the InstantLaunchStrategy that emitted TokenLaunched.
-    factory: getAddress(log.address) as TradingAddress,
+    factory: getAddress(log.address),
     deployer: null,
-    // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-    feeRecipient: getAddress(feeRecipient) as TradingAddress,
-    // SAFETY: PoolManager is the shared v4 singleton; pool identity is bytes32 poolId.
-    curveOrPool: POOLS_TRADE_DEPLOYMENTS.poolManager.address as TradingAddress,
+    feeRecipient: getAddress(feeRecipient),
+    curveOrPool: POOLS_TRADE_DEPLOYMENTS.poolManager.address,
     poolId: log.args?.poolId ?? null,
     phase: "standard",
     registrationBlock: log.blockNumber.toString(),
@@ -154,8 +145,8 @@ export const poolsTradeLaunchVenue = (
       concentration: true,
     },
     stubbed,
-    verifyDeployments: (blockNumber) =>
-      verifyPinnedDeployments(
+    verifyDeployments: async (blockNumber) =>
+      await verifyPinnedDeployments(
         client,
         POOLS_TRADE_DEPLOYMENTS,
         blockNumber,
@@ -167,10 +158,9 @@ export const poolsTradeLaunchVenue = (
           "Stub pools.trade venue: no registration read."
         );
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
       const hit = await findTokenLaunched(
         client,
-        getAddress(token) as Address,
+        getAddress(token),
         blockNumber
       );
       if (hit === null) {
@@ -193,12 +183,7 @@ export const poolsTradeLaunchVenue = (
           note: "Stub pools.trade venue: no launch log.",
         };
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const hit = await findTokenLaunched(
-        client,
-        getAddress(token) as Address,
-        headBlock
-      );
+      const hit = await findTokenLaunched(client, getAddress(token), headBlock);
       if (hit === null) {
         return {
           block: null,
@@ -213,7 +198,7 @@ export const poolsTradeLaunchVenue = (
       };
     },
     // v4 Swap filtering by poolId is not wired yet; no curve buy/sell events.
-    tradeEvents: () => Promise.resolve([]),
+    tradeEvents: async () => await Promise.resolve([]),
     exclusions: (registration) => {
       // SAFETY: pinned deployment addresses are checksummed TradingAddress literals.
       const poolManager = POOLS_TRADE_DEPLOYMENTS.poolManager
@@ -246,8 +231,7 @@ export const poolsTradeLaunchVenue = (
     launcherFact: (registration, deploymentsChanged) =>
       launcherFactFor(
         "pools_trade",
-        // SAFETY: token factory is the pinned UERC20Factory address.
-        POOLS_TRADE_DEPLOYMENTS.tokenFactory.address as TradingAddress,
+        POOLS_TRADE_DEPLOYMENTS.tokenFactory.address,
         registration,
         deploymentsChanged,
         "pools.trade"

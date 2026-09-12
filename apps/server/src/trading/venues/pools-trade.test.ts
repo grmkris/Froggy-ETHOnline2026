@@ -20,19 +20,17 @@ import {
 import { detectLauncher } from "./types";
 
 // SAFETY: fixed 20-byte hex literal used as an Address fixture.
-const token = getAddress(`0x${"11".repeat(20)}`) as Address;
+const token = getAddress(`0x${"11".repeat(20)}`);
 // SAFETY: checksummed fixture address used as TradingAddress in venue calls.
 const tokenAddress = token as TradingAddress;
 const feeSplitter = getAddress(`0x${"22".repeat(20)}`);
-// SAFETY: fixed 32-byte hex literal used as a poolId fixture.
-const poolId = `0x${"ab".repeat(32)}` as Hex;
+const poolId: Hex = `0x${"ab".repeat(32)}`;
 
 const TOKEN_LAUNCHED_TOPIC =
   "0x3b3d2bafdcae274a232217e1f80ee4305d3af6aa25c8b14b1681bd68d18042a4";
 
 const topicAddress = (address: string): Hex =>
-  // SAFETY: padded address topic is a valid 32-byte log topic hex string.
-  `0x${address.slice(2).toLowerCase().padStart(64, "0")}` as Hex;
+  `0x${address.slice(2).toLowerCase().padStart(64, "0")}`;
 
 const ZERO_ADDRESS =
   // SAFETY: zero address is a valid Address literal for PoolKey fixtures.
@@ -52,8 +50,7 @@ const tokenLaunchedLog = (block: bigint) => ({
       hooks: ZERO_ADDRESS,
     },
   },
-  // SAFETY: fixed 32-byte hex literal used as a blockHash fixture.
-  blockHash: `0x${"cd".repeat(32)}` as Hex,
+  blockHash: `0x${"cd".repeat(32)}`,
   blockNumber: block,
   data: encodeAbiParameters(
     parseAbiParameters(
@@ -79,8 +76,7 @@ const tokenLaunchedLog = (block: bigint) => ({
     topicAddress(token),
     topicAddress(feeSplitter),
   ] as [Hex, ...Hex[]],
-  // SAFETY: fixed 32-byte hex literal used as a transactionHash fixture.
-  transactionHash: `0x${"ef".repeat(32)}` as Hex,
+  transactionHash: `0x${"ef".repeat(32)}`,
   transactionIndex: 0,
 });
 
@@ -91,9 +87,9 @@ const stubClient = (partial: {
   const client = {
     getCode:
       partial.getCode ??
-      (() => Promise.resolve(toHex(new Uint8Array([1, 2, 3])))),
-    getLogs: partial.getLogs ?? (() => Promise.resolve([])),
-    readContract: () => Promise.reject(new Error("unused")),
+      (async () => await Promise.resolve(toHex(new Uint8Array([1, 2, 3])))),
+    getLogs: partial.getLogs ?? (async () => await Promise.resolve([])),
+    readContract: async () => await Promise.reject(new Error("unused")),
   };
   // SAFETY: venue adapters only call getCode/getLogs/readContract on this stub.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PublicClient is too wide to stub without unknown.
@@ -121,7 +117,7 @@ describe("poolsTradeLaunchVenue", () => {
     expect(keccak256(code)).not.toBe(POOLS_TRADE_DEPLOYMENTS.poolManager.hash);
     const venue = poolsTradeLaunchVenue(
       stubClient({
-        getCode: () => Promise.resolve(code),
+        getCode: async () => await Promise.resolve(code),
       })
     );
     const changed = await venue.verifyDeployments(1n);
@@ -133,7 +129,8 @@ describe("poolsTradeLaunchVenue", () => {
     const venue = poolsTradeLaunchVenue(
       stubClient({
         // SAFETY: decoded TokenLaunched fixture matches the venue's getLogs surface.
-        getLogs: (() => Promise.resolve([log])) as TradeEvmClient["getLogs"],
+        getLogs: (async () =>
+          await Promise.resolve([log])) as TradeEvmClient["getLogs"],
       })
     );
     const registration = await venue.registration(tokenAddress, 100n);
@@ -178,8 +175,10 @@ describe("poolsTradeLaunchVenue", () => {
     const base = poolsTradeLaunchVenue(
       stubClient({
         // SAFETY: decoded TokenLaunched fixture matches the venue's getLogs surface.
-        getLogs: (() =>
-          Promise.resolve([tokenLaunchedLog(5n)])) as TradeEvmClient["getLogs"],
+        getLogs: (async () =>
+          await Promise.resolve([
+            tokenLaunchedLog(5n),
+          ])) as TradeEvmClient["getLogs"],
       })
     );
     const venue = {
@@ -201,10 +200,12 @@ describe("poolsTradeLaunchVenue", () => {
   it("detectLauncher skips when deployments changed or stub never registers", async () => {
     const broken = poolsTradeLaunchVenue(
       stubClient({
-        getCode: () => Promise.resolve(toHex(new Uint8Array([1]))),
+        getCode: async () => await Promise.resolve(toHex(new Uint8Array([1]))),
         // SAFETY: decoded TokenLaunched fixture matches the venue's getLogs surface.
-        getLogs: (() =>
-          Promise.resolve([tokenLaunchedLog(5n)])) as TradeEvmClient["getLogs"],
+        getLogs: (async () =>
+          await Promise.resolve([
+            tokenLaunchedLog(5n),
+          ])) as TradeEvmClient["getLogs"],
       })
     );
     expect(

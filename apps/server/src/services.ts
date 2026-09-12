@@ -75,6 +75,7 @@ import { TradeCoordinator } from "./trading/coordinator";
 import { tradeEvmClient } from "./trading/evm-chain";
 import { executionProviders } from "./trading/execution-providers";
 import { liveGoPlus, stubGoPlus } from "./trading/goplus";
+import type { GoPlusScreen } from "./trading/goplus";
 import type { ChainLaunchReader } from "./trading/launch-chain";
 import { ponsLaunchReader, stubPonsLaunchReader } from "./trading/launch-chain";
 import { LaunchCoordinator } from "./trading/launches";
@@ -225,17 +226,18 @@ export const createServices = (options: ServiceOptions): Services => {
     }
     return stubPonsReports(Date.now);
   };
-  const goplus = liveOr(
-    environment.modes.goplus === "live" &&
-      environment.trading.goplusApiUrl !== null,
-    "goplus",
-    () =>
-      liveGoPlus({
-        // SAFETY: liveOr only calls this branch when goplusApiUrl is non-null.
-        baseUrl: environment.trading.goplusApiUrl as string,
-      }),
-    stubGoPlus
-  );
+  const goplusFor = (baseUrl: string | null): GoPlusScreen => {
+    if (environment.modes.goplus === "live" && baseUrl !== null) {
+      return liveGoPlus({ baseUrl });
+    }
+    if (!environment.allowStubs) {
+      throw new Error(
+        "goplus is not live; refusing a stub adapter off loopback."
+      );
+    }
+    return stubGoPlus();
+  };
+  const goplus = goplusFor(environment.trading.goplusApiUrl);
   const trading: TradingProviders = {
     market: liveOr(
       environment.modes.birdeye === "live",

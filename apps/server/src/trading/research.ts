@@ -9,7 +9,6 @@ import { emptyTokenResearchFacts, TokenResearchFacts } from "@froggy/domain";
 import type { TradingAddress, TradingNetwork } from "@froggy/domain";
 import { Schema } from "effect";
 import { getAddress } from "viem";
-import type { Address } from "viem";
 
 import { assertTradeNetwork } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
@@ -19,7 +18,7 @@ import { PONS_ABI } from "./pons";
 import { detectLauncher } from "./venues";
 import type { LaunchVenue } from "./venues";
 
-export interface TokenResearchInput {
+interface TokenResearchInput {
   readonly network: TradingNetwork;
   readonly address: string;
   readonly cohortWindowBlocks: number;
@@ -92,9 +91,8 @@ const researchVenuePath = async (input: {
     };
   }
 
-  // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
   const code = await client.getCode({
-    address: address as Address,
+    address: getAddress(address),
     blockNumber,
   });
   const template = venue.template(code);
@@ -140,8 +138,7 @@ const researchVenuePath = async (input: {
   if (registration.phase === "curve" && registration.curveOrPool !== null) {
     try {
       sellable = await client.readContract({
-        // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-        address: getAddress(registration.curveOrPool) as Address,
+        address: getAddress(registration.curveOrPool),
         abi: PONS_ABI,
         functionName: "sellableTokens",
         blockNumber,
@@ -314,8 +311,7 @@ export const stubTokenResearch = (now: () => number): TokenResearch => ({
     await Promise.resolve();
     return emptyTokenResearchFacts({
       network: input.network,
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      address: getAddress(input.address) as TradingAddress,
+      address: getAddress(input.address),
       observedAt: now(),
       stubbed: true,
       note: "Token research is stubbed; no chain or provider was queried.",

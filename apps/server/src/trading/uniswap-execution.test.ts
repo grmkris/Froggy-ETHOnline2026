@@ -16,8 +16,7 @@ const zero = "0x0000000000000000000000000000000000000000";
 const now = 5_000_000;
 
 const topic = (address: string) =>
-  // SAFETY: padded address topic is a valid 32-byte log topic hex string.
-  `0x${address.slice(2).toLowerCase().padStart(64, "0")}` as `0x${string}`;
+  `0x${address.slice(2).toLowerCase().padStart(64, "0")}`;
 
 const transferLog = (
   from: string,
@@ -48,15 +47,18 @@ const logs = [
 
 const stubClient = (headBlock = 10n): TradeEvmClient => {
   const partial = {
-    getChainId: () => Promise.resolve(1),
-    getBlock: () =>
-      Promise.resolve({ number: headBlock, hash: `0x${"ef".repeat(32)}` }),
-    getLogs: (filter: {
+    getChainId: async () => await Promise.resolve(1),
+    getBlock: async () =>
+      await Promise.resolve({
+        number: headBlock,
+        hash: `0x${"ef".repeat(32)}`,
+      }),
+    getLogs: async (filter: {
       readonly fromBlock: bigint;
       readonly toBlock: bigint;
       readonly args?: { readonly from?: string };
     }) =>
-      Promise.resolve(
+      await Promise.resolve(
         logs.filter(
           (log) =>
             log.blockNumber >= filter.fromBlock &&
@@ -64,7 +66,7 @@ const stubClient = (headBlock = 10n): TradeEvmClient => {
             (filter.args?.from === undefined || log.topics[1] === topic(zero))
         )
       ),
-    readContract: () => Promise.resolve(1500n),
+    readContract: async () => await Promise.resolve(1500n),
   };
   // SAFETY: the research path only reads chain id, head block, Transfer logs and totalSupply.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PublicClient is too wide to stub without unknown.

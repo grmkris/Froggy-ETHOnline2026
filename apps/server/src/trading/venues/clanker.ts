@@ -4,7 +4,6 @@
  * calldata. Registration uses tokenDeploymentInfo; launch uses TokenCreated.
  */
 
-import type { TradingAddress } from "@froggy/domain";
 import { getAddress, parseAbi, parseAbiItem } from "viem";
 import type { Address } from "viem";
 
@@ -63,9 +62,7 @@ export const CLANKER_TOKEN_TEMPLATE = {
 } as const satisfies MaskedTemplate;
 
 /** Vault from the same README — exclusion only, not hash-pinned in verifyDeployments. */
-export const CLANKER_VAULT = getAddress(
-  "0x8E845EAd15737bF71904A30BdDD3aEE76d6ADF6C"
-);
+const CLANKER_VAULT = getAddress("0x8E845EAd15737bF71904A30BdDD3aEE76d6ADF6C");
 
 const CLANKER_ABI = parseAbi([
   "function tokenDeploymentInfo(address token) view returns ((address token, address hook, address locker, address[] extensions))",
@@ -117,8 +114,8 @@ export const clankerLaunchVenue = (
       concentration: true,
     },
     stubbed,
-    verifyDeployments: (blockNumber) =>
-      verifyPinnedDeployments(
+    verifyDeployments: async (blockNumber) =>
+      await verifyPinnedDeployments(
         client,
         CLANKER_DEPLOYMENTS,
         blockNumber,
@@ -128,8 +125,7 @@ export const clankerLaunchVenue = (
       if (stubbed) {
         return emptyRegistration("Stub Clanker venue: no registration read.");
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const address = getAddress(token) as Address;
+      const address = getAddress(token);
       let info: {
         token: Address;
         hook: Address;
@@ -158,16 +154,13 @@ export const clankerLaunchVenue = (
       const created = await findTokenCreated(client, address, blockNumber);
       const registration: LaunchVenueRegistration = {
         registered: true,
-        // SAFETY: CLANKER_DEPLOYMENTS factory address is a pinned TradingAddress.
-        factory: CLANKER_DEPLOYMENTS.factory.address as TradingAddress,
-        // SAFETY: tokenAdmin from TokenCreated is a checksummed 20-byte address when present.
+        factory: CLANKER_DEPLOYMENTS.factory.address,
         deployer:
           created?.args.tokenAdmin === undefined
             ? null
-            : (getAddress(created.args.tokenAdmin) as TradingAddress),
+            : getAddress(created.args.tokenAdmin),
         feeRecipient: null,
-        // SAFETY: getAddress returns a checksummed 20-byte address from factory record.
-        curveOrPool: getAddress(info.hook) as TradingAddress,
+        curveOrPool: getAddress(info.hook),
         poolId: created?.args.poolId ?? null,
         phase: "standard",
         registrationBlock:
@@ -196,12 +189,7 @@ export const clankerLaunchVenue = (
           note: "Stub Clanker venue: no launch log.",
         };
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const hit = await findTokenCreated(
-        client,
-        getAddress(token) as Address,
-        headBlock
-      );
+      const hit = await findTokenCreated(client, getAddress(token), headBlock);
       if (hit === null) {
         return {
           block: null,
@@ -215,18 +203,14 @@ export const clankerLaunchVenue = (
         note: null,
       };
     },
-    tradeEvents: () => Promise.resolve([]),
+    tradeEvents: async () => await Promise.resolve([]),
     exclusions: (registration) =>
       uniqueAddresses([
         ZERO,
-        // SAFETY: pinned Clanker factory address is a TradingAddress.
-        CLANKER_DEPLOYMENTS.factory.address as TradingAddress,
-        // SAFETY: pinned Clanker FeeLocker address is a TradingAddress.
-        CLANKER_DEPLOYMENTS.feeLocker.address as TradingAddress,
-        // SAFETY: pinned Clanker LpLocker address is a TradingAddress.
-        CLANKER_DEPLOYMENTS.lpLocker.address as TradingAddress,
-        // SAFETY: Clanker Vault from the same README is a TradingAddress.
-        CLANKER_VAULT as TradingAddress,
+        CLANKER_DEPLOYMENTS.factory.address,
+        CLANKER_DEPLOYMENTS.feeLocker.address,
+        CLANKER_DEPLOYMENTS.lpLocker.address,
+        CLANKER_VAULT,
         ...(registration.curveOrPool === null
           ? []
           : [registration.curveOrPool]),
@@ -238,8 +222,7 @@ export const clankerLaunchVenue = (
     launcherFact: (registration, deploymentsChanged) =>
       launcherFactFor(
         "clanker",
-        // SAFETY: pinned factory address is a TradingAddress.
-        CLANKER_DEPLOYMENTS.factory.address as TradingAddress,
+        CLANKER_DEPLOYMENTS.factory.address,
         registration,
         deploymentsChanged,
         "Clanker"

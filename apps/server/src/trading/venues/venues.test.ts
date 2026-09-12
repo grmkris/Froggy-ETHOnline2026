@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import type { TradingAddress } from "@froggy/domain";
 import { getAddress, keccak256, toHex } from "viem";
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 
 import type { TradeEvmClient } from "../evm-chain";
 import {
@@ -23,7 +23,7 @@ import {
 } from "./zora";
 
 // SAFETY: fixed 20-byte hex literal used as an Address fixture.
-const TOKEN = getAddress(`0x${"aa".repeat(20)}`) as Address;
+const TOKEN = getAddress(`0x${"aa".repeat(20)}`);
 // SAFETY: checksummed fixture address used as TradingAddress in venue calls.
 const tokenAddress = TOKEN as TradingAddress;
 const BLOCK = 51_206_991n;
@@ -35,11 +35,11 @@ const stubClient = (partial: {
   const client = {
     getCode:
       partial.getCode ??
-      (() => Promise.resolve(toHex(new Uint8Array([1, 2, 3])))),
-    getLogs: () => Promise.resolve([]),
+      (async () => await Promise.resolve(toHex(new Uint8Array([1, 2, 3])))),
+    getLogs: async () => await Promise.resolve([]),
     readContract:
       partial.readContract ??
-      (() => Promise.reject(new Error("unexpected readContract"))),
+      (async () => await Promise.reject(new Error("unexpected readContract"))),
   };
   // SAFETY: venue adapters only call getCode/getLogs/readContract on this stub.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PublicClient is too wide to stub without unknown.
@@ -105,8 +105,8 @@ test("verifyDeployments fails when runtime hash does not match the pin", async (
     {
       venue: clankerLaunchVenue(
         stubClient({
-          getCode: ({ address }) =>
-            Promise.resolve(
+          getCode: async ({ address }) =>
+            await Promise.resolve(
               Object.values(CLANKER_DEPLOYMENTS).some(
                 (deployment) =>
                   deployment.address.toLowerCase() === address.toLowerCase()
@@ -120,19 +120,19 @@ test("verifyDeployments fails when runtime hash does not match the pin", async (
     },
     {
       venue: zoraLaunchVenue(
-        stubClient({ getCode: () => Promise.resolve(wrong) })
+        stubClient({ getCode: async () => await Promise.resolve(wrong) })
       ),
       expected: ["coinImplementation", "factory"],
     },
     {
       venue: flaunchLaunchVenue(
-        stubClient({ getCode: () => Promise.resolve(wrong) })
+        stubClient({ getCode: async () => await Promise.resolve(wrong) })
       ),
       expected: ["flaunch", "positionManager"],
     },
     {
       venue: virtualsLaunchVenue(
-        stubClient({ getCode: () => Promise.resolve(wrong) })
+        stubClient({ getCode: async () => await Promise.resolve(wrong) })
       ),
       expected: ["bondingCurve"],
     },
@@ -151,7 +151,7 @@ test("verifyPinnedDeployments passes for matching synthetic code", async () => {
   const factory = getAddress("0x1111111111111111111111111111111111111111");
   const ok = await verifyPinnedDeployments(
     stubClient({
-      getCode: () => Promise.resolve(knownCode),
+      getCode: async () => await Promise.resolve(knownCode),
     }),
     { factory: { address: factory, hash: knownHash } },
     BLOCK,
@@ -172,8 +172,8 @@ test("registration returns false when the venue view says the token is unknown",
   const clanker = clankerLaunchVenue(
     stubClient({
       // SAFETY: zeroed DeploymentInfo fixture matches tokenDeploymentInfo return.
-      readContract: (() =>
-        Promise.resolve(zeroInfo)) as TradeEvmClient["readContract"],
+      readContract: (async () =>
+        await Promise.resolve(zeroInfo)) as TradeEvmClient["readContract"],
     })
   );
   const clankerRegistration = await clanker.registration(tokenAddress, BLOCK);
@@ -182,8 +182,8 @@ test("registration returns false when the venue view says the token is unknown",
   const flaunch = flaunchLaunchVenue(
     stubClient({
       // SAFETY: tokenId 0n is the Flaunch "unknown memecoin" sentinel.
-      readContract: (() =>
-        Promise.resolve(0n)) as TradeEvmClient["readContract"],
+      readContract: (async () =>
+        await Promise.resolve(0n)) as TradeEvmClient["readContract"],
     })
   );
   const flaunchRegistration = await flaunch.registration(tokenAddress, BLOCK);
@@ -192,8 +192,8 @@ test("registration returns false when the venue view says the token is unknown",
   const virtuals = virtualsLaunchVenue(
     stubClient({
       // SAFETY: zeroed tokenInfo tuple matches the Virtuals public mapping getter.
-      readContract: (() =>
-        Promise.resolve([
+      readContract: (async () =>
+        await Promise.resolve([
           zero,
           zero,
           zero,
@@ -229,11 +229,7 @@ test("registration returns false when the venue view says the token is unknown",
 
   const zora = zoraLaunchVenue(
     stubClient({
-      // SAFETY: rejected coin views mean the address is not a Zora coin.
-      readContract: (() =>
-        Promise.reject(
-          new Error("not a coin")
-        )) as TradeEvmClient["readContract"],
+      readContract: async () => await Promise.reject(new Error("not a coin")),
     })
   );
   const zoraRegistration = await zora.registration(tokenAddress, BLOCK);

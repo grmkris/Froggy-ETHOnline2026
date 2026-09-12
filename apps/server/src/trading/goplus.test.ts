@@ -7,8 +7,8 @@ const ADDRESS = "0x1111111111111111111111111111111111111111";
 describe("GoPlus screen", () => {
   it("reports not_indexed when the result omits the address", async () => {
     const fetchImpl: typeof fetch = Object.assign(
-      () =>
-        Promise.resolve(
+      async () =>
+        await Promise.resolve(
           Response.json({
             code: 1,
             result: {},
@@ -26,8 +26,8 @@ describe("GoPlus screen", () => {
 
   it("reports observed flags for a full screen", async () => {
     const fetchImpl: typeof fetch = Object.assign(
-      () =>
-        Promise.resolve(
+      async () =>
+        await Promise.resolve(
           Response.json({
             code: 1,
             result: {
@@ -56,7 +56,7 @@ describe("GoPlus screen", () => {
 
   it("reports unavailable on transport failure and on the stub", async () => {
     const fetchImpl: typeof fetch = Object.assign(
-      () => Promise.reject(new Error("offline")),
+      async () => await Promise.reject(new Error("offline")),
       { preconnect: (): void => undefined }
     );
     const failed = await liveGoPlus({

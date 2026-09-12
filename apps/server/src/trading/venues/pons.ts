@@ -7,7 +7,6 @@
 
 import type { TradingAddress } from "@froggy/domain";
 import { getAddress, keccak256, parseAbiItem } from "viem";
-import type { Address, Hex } from "viem";
 
 import type { TradeEvmClient } from "../evm-chain";
 import { PONS_NETWORK } from "../networks";
@@ -18,12 +17,6 @@ import type {
   LaunchVenueRegistration,
   LaunchVenueTrade,
 } from "./types";
-
-export type {
-  LaunchCohortFact,
-  LauncherFact,
-  TokenTemplateFact,
-} from "@froggy/domain";
 
 const TOKEN_LAUNCHED = parseAbiItem(
   "event TokenLaunched(address indexed token,address indexed curve,address indexed deployer,address pairToken,uint256 launchConfigId,uint256 graduationThreshold)"
@@ -144,8 +137,7 @@ export const ponsLaunchVenue = (
         const logs = await client.getLogs({
           address: PONS_DEPLOYMENTS.factory.address,
           event: TOKEN_LAUNCHED,
-          // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-          args: { token: getAddress(token) as Address },
+          args: { token: getAddress(token) },
           fromBlock: from,
           toBlock: to,
           strict: true,
@@ -173,8 +165,7 @@ export const ponsLaunchVenue = (
       if (stubbed || fromBlock > toBlock) {
         return [];
       }
-      // SAFETY: getAddress returns a checksummed 20-byte address for a TradingAddress.
-      const curve = getAddress(curveOrPool) as Address;
+      const curve = getAddress(curveOrPool);
       const [buys, sells] = await Promise.all([
         client.getLogs({
           address: curve,
@@ -197,10 +188,8 @@ export const ponsLaunchVenue = (
           continue;
         }
         trades.push({
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          buyerOrSeller: getAddress(log.args.buyer) as TradingAddress,
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          recipient: getAddress(log.args.recipient) as TradingAddress,
+          buyerOrSeller: getAddress(log.args.buyer),
+          recipient: getAddress(log.args.recipient),
           block: log.blockNumber.toString(),
           transactionId: log.transactionHash,
           side: "buy",
@@ -211,10 +200,8 @@ export const ponsLaunchVenue = (
           continue;
         }
         trades.push({
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          buyerOrSeller: getAddress(log.args.seller) as TradingAddress,
-          // SAFETY: getAddress returns a checksummed 20-byte address from log args.
-          recipient: getAddress(log.args.recipient) as TradingAddress,
+          buyerOrSeller: getAddress(log.args.seller),
+          recipient: getAddress(log.args.recipient),
           block: log.blockNumber.toString(),
           transactionId: log.transactionHash,
           side: "sell",
@@ -228,12 +215,9 @@ export const ponsLaunchVenue = (
         list.push(registration.curveOrPool);
       }
       list.push(
-        // SAFETY: PONS_DEPLOYMENTS hook address is a pinned TradingAddress.
-        PONS_DEPLOYMENTS.hook.address as TradingAddress,
-        // SAFETY: PONS_DEPLOYMENTS manager address is a pinned TradingAddress.
-        PONS_DEPLOYMENTS.manager.address as TradingAddress,
-        // SAFETY: PONS_DEPLOYMENTS factory address is a pinned TradingAddress.
-        PONS_DEPLOYMENTS.factory.address as TradingAddress
+        PONS_DEPLOYMENTS.hook.address,
+        PONS_DEPLOYMENTS.manager.address,
+        PONS_DEPLOYMENTS.factory.address
       );
       if (registration.feeRecipient !== null) {
         list.push(registration.feeRecipient);
@@ -248,8 +232,7 @@ export const ponsLaunchVenue = (
         return {
           status: "unavailable",
           launcher: "pons",
-          // SAFETY: PONS_DEPLOYMENTS factory address is a pinned TradingAddress.
-          factory: PONS_DEPLOYMENTS.factory.address as TradingAddress,
+          factory: PONS_DEPLOYMENTS.factory.address,
           deployer: null,
           feeRecipient: null,
           curveOrPool: null,
@@ -361,19 +344,3 @@ export const ponsLaunchVenue = (
     },
   };
 };
-
-const stubPonsClient = (): TradeEvmClient => {
-  const client = {
-    getCode: (): Promise<Hex | undefined> =>
-      // SAFETY: an empty resolve is the stub's "no code at address" response.
-      Promise.resolve() as Promise<Hex | undefined>,
-    getLogs: (): Promise<never[]> => Promise.resolve([]),
-    readContract: (): Promise<never> => Promise.reject(new Error("stub")),
-  };
-  // SAFETY: ponsLaunchVenue only calls getCode/getLogs/readContract on this stub.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PublicClient is too wide to stub without unknown.
-  return client as unknown as TradeEvmClient;
-};
-
-export const stubPonsLaunchVenue = (): LaunchVenue =>
-  ponsLaunchVenue(stubPonsClient(), { stubbed: true });

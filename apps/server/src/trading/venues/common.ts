@@ -10,7 +10,8 @@ import type {
   TokenTemplateFact,
   TradingAddress,
 } from "@froggy/domain";
-import { getAddress, keccak256 } from "viem";
+import { Schema } from "effect";
+import { createPublicClient, custom, getAddress, keccak256 } from "viem";
 import type { Address, Hex } from "viem";
 
 import type { TradeEvmClient } from "../evm-chain";
@@ -207,18 +208,32 @@ export const cohortFactFor = (input: {
 export const LOG_PAGE = 10_000n;
 export const LOG_MAX_PAGES = 10;
 
-export const stubVenueClient = (): TradeEvmClient => {
-  const client = {
-    getCode: (): Promise<Hex | undefined> =>
-      // SAFETY: an empty resolve is the stub's "no code at address" response.
-      Promise.resolve() as Promise<Hex | undefined>,
-    getLogs: (): Promise<never[]> => Promise.resolve([]),
-    readContract: (): Promise<never> => Promise.reject(new Error("stub")),
-  };
-  // SAFETY: venue adapters only call getCode/getLogs/readContract on this stub.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PublicClient is too wide to stub without unknown.
-  return client as unknown as TradeEvmClient;
-};
+const StubRequest = Schema.Struct({ method: Schema.String });
+
+/**
+ * A real viem client over a transport that answers the two reads a stubbed
+ * venue may reach ("no code", "no logs") and refuses everything else, so a
+ * stub can never look like a live venue.
+ */
+export const stubVenueClient = (): TradeEvmClient =>
+  createPublicClient({
+    transport: custom(
+      {
+        request: async (request) => {
+          const { method } = Schema.decodeUnknownSync(StubRequest)(request);
+          await Promise.resolve();
+          if (method === "eth_getCode") {
+            return "0x";
+          }
+          if (method === "eth_getLogs") {
+            return [];
+          }
+          throw new Error("stub");
+        },
+      },
+      { retryCount: 0 }
+    ),
+  });
 
 export const notApplicableTemplate = (venue: LauncherId, note: string) => ({
   status: "not_applicable" as const,

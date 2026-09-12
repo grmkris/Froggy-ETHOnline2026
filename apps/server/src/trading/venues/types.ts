@@ -14,7 +14,7 @@ import type {
   TradingNetwork,
 } from "@froggy/domain";
 
-export interface LaunchVenueCapabilities {
+interface LaunchVenueCapabilities {
   readonly template: boolean;
   readonly insiders: boolean;
   readonly concentration: boolean;
