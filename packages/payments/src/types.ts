@@ -61,7 +61,7 @@ export interface SettleOutcome {
  * (You.com) validates the payload strictly, so a payer that drops it is not
  * the client the seller tested against.
  */
-export const ChallengeResource = Schema.Struct({
+const ChallengeResource = Schema.Struct({
   url: Schema.String.check(Schema.isMaxLength(2048)),
   description: Schema.optionalKey(
     Schema.String.check(Schema.isMaxLength(2000))

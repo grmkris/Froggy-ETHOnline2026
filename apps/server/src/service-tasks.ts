@@ -22,8 +22,8 @@ import { assetFor } from "./tools-assets";
 import { preflightTrading, serviceRequestText } from "./trading/services";
 
 /** After this long without a progress write, an in-flight task is reported as uncertain rather than pending. */
-export const SERVICE_STALE_MS = 15 * 60 * 1000;
-export const SERVICE_STALE_ERROR =
+const SERVICE_STALE_MS = 15 * 60 * 1000;
+const SERVICE_STALE_ERROR =
   "No progress was recorded for 15 minutes. Check the payment before retrying; this request will not be purchased again automatically.";
 
 export const serviceTicket = (task: Task): ServiceTicket => {

@@ -33,6 +33,7 @@ const Call = Schema.Struct({
   method: Schema.String,
   params: Schema.Array(Schema.Json),
 });
+const AddressParam = Schema.Tuple([Schema.String, Schema.String]);
 const EthCall = Schema.Tuple([
   Schema.Struct({ to: Schema.String, data: Schema.String }),
   Schema.String,
@@ -63,12 +64,12 @@ const respond = (chain: Chain, call: typeof Call.Type): Answer => {
       return ok("0x10");
     }
     case "eth_getCode": {
-      const [address] = call.params;
-      return ok(chain.code[String(address).toLowerCase()] ?? "0x");
+      const [address] = Schema.decodeUnknownSync(AddressParam)(call.params);
+      return ok(chain.code[address.toLowerCase()] ?? "0x");
     }
     case "eth_getBalance": {
-      const [address] = call.params;
-      return ok(chain.balance[String(address).toLowerCase()] ?? "0x0");
+      const [address] = Schema.decodeUnknownSync(AddressParam)(call.params);
+      return ok(chain.balance[address.toLowerCase()] ?? "0x0");
     }
     case "eth_call": {
       const [{ to, data }] = Schema.decodeUnknownSync(EthCall)(call.params);
@@ -114,7 +115,7 @@ const fixture = (chains: Readonly<Record<string, Chain>>) => {
   }[] = [];
   const fetchImpl: typeof fetch = Object.assign(
     async (input: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
-      const endpoint = String(input);
+      const endpoint = input instanceof Request ? input.url : input.toString();
       const call = Schema.decodeUnknownSync(Call)(
         JSON.parse(Schema.decodeUnknownSync(Schema.String)(init?.body))
       );

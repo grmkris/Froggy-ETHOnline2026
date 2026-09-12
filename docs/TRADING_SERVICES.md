@@ -138,7 +138,9 @@ The Services page offers structured forms for the same operations and displays t
 
 ## Retrieve results and handle retries
 
-HTTP returns `202` with a task ticket. Read `GET /api/services/tasks/<id>` until the task reaches `done`, `failed` or `uncertain`; `GET /api/services/tasks` lists recent tasks. MCP uses `froggy_service_status` with `{"id":"<returned task ID>"}`. Chat uses `service_status` with `{"taskId":"<returned task ID>"}`. Answer any human approval in Froggy. Polling is included in the original purchase.
+HTTP returns `202` with a task ticket. Read `GET /api/services/tasks/<id>` until the task reaches `done`, `failed` or `uncertain`; `GET /api/services/tasks` lists recent tasks. MCP uses `froggy_service_status` with `{"id":"<returned task ID>"}`. Chat uses `service_status` with `{"taskId":"<returned task ID>"}`. Both accept an optional `waitMs` (0–25000): the server holds the read until the task settles or the wait runs out, so one call replaces a polling loop. Chat purchases already wait up to 20 seconds before answering. Answer any human approval in Froggy. Polling is included in the original purchase.
+
+A ticket's status names its phase. `quoted` and `running` mean the customer payment is still settling on Hedera and the provider has not been called; `paid` means the provider is working. A provider failure records the HTTP status, whether it happened before payment or on the paid retry (with or without a settlement header), and a capped, header-free excerpt of the response body. In-flight tasks with no progress for 15 minutes read as `uncertain`, and a server restart writes that verdict into the store for tasks it orphaned. Nothing is retried or refunded automatically.
 
 The ticket's `data` contains the typed result, with its operation, provider, observation time and limitations. `text` is a short readable summary. The task's `runId` and `saleId` connect the work to its payment history. Results are scoped to their owner. `stubbed: true` on the task, sale or receipt marks simulated participation; `data.stubbed` specifically identifies provider fixtures. A simulated payment with a live provider therefore has a simulated task/receipt and live provider data.
 
@@ -162,6 +164,12 @@ Two consequences are worth knowing before reading a result:
 
 - **Birdeye reports no security facts here.** Its `token_security` endpoint answers 401 for Robinhood on this plan, so `token_inspect` returns `security.status = "unavailable"` with no facts. That is an absence of evidence, not a clean screen.
 - **`quote_action` cannot quote a Pons token.** Quotes exclude hook-bearing V4 pools, and every graduated Pons pool carries the Pons hook, so the router answers `NoRouteFoundError` for those pairs. It quotes ordinary Robinhood pools such as USDG/WETH normally. Pons pricing comes from the Pons quoter inside trade preparation instead.
+
+### Read what an address is, for free
+
+`address_lookup` (`froggy_address_lookup` in MCP) is the first call for any bare `0x` address, and it costs nothing. It takes `address` and an optional `network`, fans out over every configured EVM network (at most six) and, at one pinned block per network, reports whether the address holds code, its native and USDC balances, the ERC-20 `symbol`, `decimals` and `totalSupply` when it is a contract, and whether it is one of the person's own wallets (`agent_signer`, `agent_smart_account`, `owner_ethereum`). A network whose RPC is not configured or fails is a row with `status: "unavailable"` and a note, never a silent gap.
+
+It exists because a pasted wallet address used to send the agent through `pons_token` (which only knows Pons launches) and then a paid web search. A wallet is not a token; `address_lookup` says which one it is before anything is bought, and the agent then asks what the person wants to know. It rides on the same allowlisted RPC as `rpc_read`, so when that RPC is a stub the result says `stubbed: true` and `DEMO`. It is chain state only: no screen, no quote, no trading authority.
 
 ### Read Pons launch state
 

@@ -298,7 +298,7 @@ export const lookupAddress = async (
  * pay from. A Privy outage must not turn a free read into an error, so a
  * failed wallet fetch only means `mine` cannot name the owner wallet.
  */
-export const ownEvmAddresses = async (
+const ownEvmAddresses = async (
   services: Services,
   session: WorkspaceSession
 ): Promise<readonly OwnAddress[]> => {

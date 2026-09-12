@@ -120,6 +120,18 @@ const URL_CLOSING = [
   "**The scripted URL request has finished.** Its tool result shows the approval outcome, delivered content and any receipt. This demo does not interpret the report. Configure a model key for a conversational summary.",
 ];
 
+const BARE_ADDRESS = /^\s*(?<address>0x[a-fA-F0-9]{40})\s*$/u;
+/**
+ * A bare address paste is the case the free lookup exists for, so the
+ * scripted model does what the instructions ask a real one to do: one free
+ * read, no purchase, then ask what the person wants to know.
+ */
+const bareAddressFrom = (prompt: LanguageModelV3Prompt): string | null =>
+  BARE_ADDRESS.exec(userText(prompt))?.groups?.["address"] ?? null;
+const ADDRESS_CLOSING = [
+  "**The scripted model looked the address up and bought nothing.** The card above says whether it is a wallet or a contract and what it holds on each configured network. What would you like to know about it?",
+];
+
 const scriptedModel = (oracleUrl: string): LanguageModel =>
   new MockLanguageModelV3({
     doStream: async ({ prompt }) => {
@@ -143,8 +155,11 @@ const scriptedModel = (oracleUrl: string): LanguageModel =>
       ).length;
       const demoUrl = demoUrlFrom(recent, oracleUrl);
       const send = sendFrom(recent);
+      const address = bareAddressFrom(recent);
       let steps: readonly { readonly args: string; readonly tool: string }[];
-      if (send !== null) {
+      if (address !== null) {
+        steps = [{ args: JSON.stringify({ address }), tool: "address_lookup" }];
+      } else if (send !== null) {
         steps = [
           {
             args: JSON.stringify({
@@ -172,7 +187,10 @@ const scriptedModel = (oracleUrl: string): LanguageModel =>
         ];
       }
       const step = steps[Math.floor(completed / 2)];
-      const closing = demoUrl === null ? CLOSING : URL_CLOSING;
+      let closing = demoUrl === null ? CLOSING : URL_CLOSING;
+      if (address !== null) {
+        closing = ADDRESS_CLOSING;
+      }
 
       const parts: LanguageModelV3StreamPart[] =
         step === undefined

@@ -12,10 +12,15 @@
 
 import { formatUsd, Purchase } from "@froggy/domain";
 import type { TaskStatus } from "@froggy/domain";
-import { ServiceCatalog, ServiceTicket } from "@froggy/protocol";
-import type { GraphQueryOutput } from "@froggy/protocol";
+import {
+  AddressLookupResult,
+  ServiceCatalog,
+  ServiceTicket,
+} from "@froggy/protocol";
+import type { AddressLookupNetwork, GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { networkWords } from "./mandate-words";
 import { statusWords } from "./services-view";
 import type { ToolCall } from "./tool-call";
 import { walletStatusOf } from "./wallet-status";
@@ -319,6 +324,80 @@ const serviceSummary = (text: string): ToolSummary | null => {
   }
 };
 
+/** Integer units as a decimal string, at most four fractional digits, no trailing zeros. */
+const formatUnits = (units: string, decimals: number): string => {
+  const whole = units.padStart(decimals + 1, "0");
+  const integer = whole.slice(0, whole.length - decimals) || "0";
+  const fraction = whole
+    .slice(whole.length - decimals, whole.length - decimals + 4)
+    .replace(/0+$/u, "");
+  return fraction === "" ? integer : `${integer}.${fraction}`;
+};
+
+const OWN_WORDS: ReadonlyMap<string, string> = new Map([
+  ["agent_signer", "Froggy's signer"],
+  ["agent_smart_account", "Froggy's smart account"],
+  ["owner_ethereum", "your owner wallet"],
+]);
+
+/** One network as a phrase: "Base: wallet, 0.01 ETH, 12.5 USDC". */
+const networkLine = (row: AddressLookupNetwork): string => {
+  const name = networkWords(row.network);
+  if (row.status === "unavailable") {
+    return `${name}: unavailable`;
+  }
+  const parts: string[] = [];
+  if (row.kind === "contract") {
+    parts.push(
+      row.token?.symbol === null || row.token === null
+        ? "contract"
+        : `${row.token.symbol} token contract`
+    );
+  } else {
+    parts.push("wallet");
+  }
+  if (row.nativeBalance !== null && row.nativeBalance !== "0") {
+    parts.push(`${formatUnits(row.nativeBalance, 18)} native`);
+  }
+  if (row.usdc !== null && row.usdc.units !== "0") {
+    parts.push(`${formatUnits(row.usdc.units, row.usdc.decimals)} USDC`);
+  }
+  return `${name}: ${parts.join(", ")}`;
+};
+
+/** The free lookup as one line: what the address is, and whose it is. */
+const addressLookupSummary = (text: string): ToolSummary | null => {
+  try {
+    const result = Schema.decodeUnknownResult(AddressLookupResult)(
+      JSON.parse(text)
+    );
+    if (result._tag !== "Success") {
+      return null;
+    }
+    const lookup = result.success;
+    const observed = lookup.networks.filter((row) => row.status === "observed");
+    const kinds = new Set(observed.map((row) => row.kind));
+    let what = "Address not readable on any network";
+    if (kinds.has("contract")) {
+      what = kinds.has("eoa")
+        ? "Contract on some networks, wallet on others"
+        : "Contract";
+    } else if (kinds.has("eoa")) {
+      what = "Wallet, not a token";
+    }
+    const own = lookup.mine.map((label) => OWN_WORDS.get(label) ?? label);
+    const headline = own.length === 0 ? what : `${what} · ${own.join(", ")}`;
+    return summary(
+      headline,
+      observed.length === 0 ? "refused" : "info",
+      lookup.networks.map(networkLine).join(" · "),
+      lookup.stubbed
+    );
+  } catch {
+    return null;
+  }
+};
+
 /** Null when the call has no output yet, or said something no parser reads. */
 export const summarize = (call: ToolCall): ToolSummary | null => {
   const text = call.output;
@@ -326,6 +405,9 @@ export const summarize = (call: ToolCall): ToolSummary | null => {
     return null;
   }
   switch (call.name) {
+    case "address_lookup": {
+      return addressLookupSummary(text);
+    }
     case "services_list":
     case "service_run":
     case "service_status": {

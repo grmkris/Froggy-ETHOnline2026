@@ -39,6 +39,13 @@ const amount = (input: ToolInput): string =>
   input.amountUsd === undefined ? "some USDC" : `${input.amountUsd} USDC`;
 
 const STORIES = {
+  address_lookup: {
+    icon: SearchIcon,
+    doing: (input) => `Looking up ${shortAddress(input.address ?? null)}`,
+    sentence: (input) =>
+      `Looked up ${shortAddress(input.address ?? null)} for free`,
+    tone: "plain",
+  },
   trade_execute: {
     icon: WalletIcon,
     doing: () => "Checking your trading rule and submitting the trade",

@@ -632,3 +632,43 @@ test("a Uniswap rule can require a holder-concentration cap without launcher pre
   await expect(rules).not.toContainText("template");
   expect(errors).toEqual([]);
 });
+
+test("a bare address paste is looked up for free and nothing is bought", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  await page.goto("/chat");
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("0x8Cc232c9EB25b4b20ee448106858e3B6281708C2");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+
+  const log = page.getByRole("log");
+  // One free read, named as a sentence, with the address classified per network.
+  await expect(log.getByText("Looked up 0x8Cc2…08C2 for free")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(log.getByText("Wallet, not a token")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(log.getByText(/Base: wallet/u)).toBeVisible();
+  await expect(log.getByText(/Robinhood: wallet/u)).toBeVisible();
+
+  // The scripted model then asks, as the instructions tell a real one to.
+  await expect(
+    log.locator('[data-streamdown="strong"]', { hasText: "bought nothing" })
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole("button", { exact: true, name: "Send" })
+  ).toBeVisible({ timeout: 20_000 });
+
+  // No paid tool ran: no service ticket, no web search, no paid fetch.
+  await expect(log.getByText(/Requested /u)).toHaveCount(0);
+  await expect(log.getByText(/settling your payment/u)).toHaveCount(0);
+  // A turn that reaches no money tool files no receipt at all.
+  await expect(page.getByLabel(/^Receipt:/u)).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

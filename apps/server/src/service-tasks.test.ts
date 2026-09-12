@@ -333,7 +333,9 @@ describe("service purchases", () => {
       context.session.userId,
       ticket.id,
       0,
-      async () => await Promise.reject(new Error("must not sleep"))
+      async () => {
+        await Promise.reject(new Error("must not sleep"));
+      }
     );
     expect(immediate?.status).toBe("paid");
 
