@@ -146,15 +146,34 @@ test("digest controls and scheduled work stay synchronized", async ({
   await expect(hour).toHaveValue("off");
 });
 
-test("Send a test now runs a digest and says where it went", async ({
+test("Send a test now asks first, then runs a digest and says where it went", async ({
   page,
 }) => {
+  let posted = 0;
+  await page.route("**/api/digest/test", async (route) => {
+    posted += 1;
+    await route.continue();
+  });
   await page.goto("/settings");
   await page.getByRole("button", { name: "Send a test now" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("runs for real");
+  await expect(dialog).toContainText("may spend within your rules");
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(posted).toBe(0);
+  await page.getByRole("button", { name: "Send a test now" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Send a test now" })
+    .click();
   await expect(page.getByRole("status")).toContainText(
     /Sent\.|Not sent|Stopped early/u,
     {
       timeout: 60_000,
     }
   );
+  expect(posted).toBe(1);
 });

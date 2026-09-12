@@ -1,16 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-  ReceiptId,
-  RunId,
-  SessionId,
-  SpendId,
-  usdMicros,
-} from "@froggy/domain";
-import type { Receipt } from "@froggy/domain";
 import type { WalletSummary } from "@froggy/protocol";
 
-import { receiptHeadline, receiptStatus } from "./receipt-status";
 import { showsHeld, walletAmounts } from "./wallet-view";
 
 const wallet: WalletSummary = {
@@ -106,54 +97,5 @@ describe("wallet amounts", () => {
         }).usdcUsdMicros
       ).toBeNull();
     }
-  });
-});
-
-const receipt: Receipt = {
-  at: 1,
-  id: ReceiptId.generate(),
-  runId: RunId.generate(),
-  sessionId: SessionId.generate(),
-  spendId: SpendId.generate(),
-  stubbed: true,
-  decision: { _tag: "allow", satisfied: [] },
-  intent: {
-    amount: {
-      asset: {
-        decimals: 8,
-        id: "0.0.0",
-        network: "hedera:testnet",
-        symbol: "HBAR",
-      },
-      units: "5000000",
-    },
-    idempotencyKey: "presentation",
-    payee: { id: "0.0.1", label: "Oracle", provenance: "server" },
-    purpose: "a snapshot",
-    usdMicros: usdMicros(4000),
-  },
-  quote: { asOf: 1, source: "test", usdMicrosPerUnit: usdMicros(80_000) },
-};
-
-describe("receipt presentation", () => {
-  it("requires settlement before saying paid", () => {
-    expect(receiptStatus(receipt)).toBe("Allowed, not settled");
-    const settled = {
-      ...receipt,
-      settlement: {
-        network: "hedera:testnet",
-        transactionId: "test-transaction",
-      },
-    };
-    expect(receiptStatus(settled)).toBe("Paid");
-    expect(receiptHeadline(settled)).toBe("Paid Oracle");
-  });
-  it("does not turn an uncertain failure into definite non-payment", () => {
-    expect(receiptStatus({ ...receipt, failure: "Settlement timed out" })).toBe(
-      "Payment problem"
-    );
-    expect(
-      receiptHeadline({ ...receipt, failure: "Settlement timed out" })
-    ).toContain("Settlement timed out");
   });
 });

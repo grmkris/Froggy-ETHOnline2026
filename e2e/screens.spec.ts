@@ -35,6 +35,9 @@ for (const place of PLACES) {
         page.getByRole("navigation", { name: "Primary" }).getByRole("link")
       ).toHaveCount(size.width >= 768 ? 5 : 3);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+      if (place === "/") {
+        await expect(page.locator('[data-pose="idle"]').first()).toBeVisible();
+      }
       await expect(
         page.getByText("reconnecting…", { exact: true })
       ).toHaveCount(0);

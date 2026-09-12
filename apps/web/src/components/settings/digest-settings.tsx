@@ -6,6 +6,17 @@
  */
 
 import { DigestSchedule } from "@froggy/domain";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@froggy/ui/components/alert-dialog";
 import { Button } from "@froggy/ui/components/button";
 import {
   Field,
@@ -15,7 +26,7 @@ import {
 } from "@froggy/ui/components/field";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useSessionToken } from "../../lib/session-token";
@@ -58,6 +69,7 @@ export const DigestSettings = ({
   const { getToken } = useSessionToken();
   const queries = useQueryClient();
   const timezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [ask, setAsk] = useState(false);
 
   const headers = async (): Promise<Record<string, string>> => {
     const token = await getToken();
@@ -172,17 +184,56 @@ export const DigestSettings = ({
       )}
       {withTest ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            className="min-h-11"
-            disabled={test.isPending}
-            onClick={() => {
-              test.mutate();
+          <AlertDialog
+            open={ask}
+            onOpenChange={(next) => {
+              if (!test.isPending) {
+                setAsk(next);
+              }
             }}
-            size="sm"
-            variant="outline"
           >
-            {test.isPending ? "Sending…" : "Send a test now"}
-          </Button>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  className="min-h-11"
+                  disabled={test.isPending}
+                  size="sm"
+                  variant="outline"
+                >
+                  {test.isPending ? "Sending…" : "Send a test now"}
+                </Button>
+              }
+            />
+            <AlertDialogContent
+              initialFocus={() =>
+                document.querySelector<HTMLElement>(
+                  '[data-slot="alert-dialog-cancel"]'
+                )
+              }
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send a digest now?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This runs for real, the same as the scheduled digest. It may
+                  spend within your rules.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="min-h-11">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="min-h-11"
+                  onClick={() => {
+                    setAsk(false);
+                    test.mutate();
+                  }}
+                >
+                  Send a test now
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {test.isError ? (
             <p className="text-refused text-xs" role="alert">
               Couldn’t run the test. Try again.

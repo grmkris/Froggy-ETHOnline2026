@@ -18,6 +18,7 @@ import {
 } from "@froggy/ui/components/ticket";
 import { useEffect, useRef, useState } from "react";
 
+import { answerLabel } from "../../lib/approval-labels";
 import { secondsLeft } from "../../lib/format";
 
 interface ApprovalTicketProps {
@@ -105,7 +106,7 @@ export const ApprovalTicket = ({
             size="sm"
             variant={VARIANT[option.kind]}
           >
-            {option.label}
+            {answerLabel(option.kind, request.amountLabel, option.label)}
           </Button>
         ))}
       </TicketStub>

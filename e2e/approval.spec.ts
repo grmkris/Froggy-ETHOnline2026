@@ -28,14 +28,19 @@ test("a spend over the threshold asks, and the answer is on the receipt", async 
     "Stop the agent",
     "Not this time",
     "Allow for this session",
-    "Allow once",
+    /^Approve /u,
   ]);
   await captureResponsive(page, testInfo, "chat-approval");
-  await ticket.getByRole("button", { name: "Allow once" }).click();
+  await ticket.getByRole("button", { name: /^Approve /u }).click();
 
   await expect(ticket).toHaveCount(0);
-  const receipt = page.getByLabel(/^Receipt: Paid/u).first();
+  const receipt = page.getByLabel(/^Receipt: Nothing was paid/u).first();
   await expect(receipt).toBeVisible({ timeout: 20_000 });
+  await expect(receipt).toContainText(
+    "This receipt exists so a demo cannot be mistaken for a purchase."
+  );
+  await expect(receipt).toContainText("stubbed");
+  await expect(receipt).not.toContainText("Simulated");
   await expect(receipt).toContainText("you allowed it once");
   await captureResponsive(page, testInfo, "chat-receipt");
 });
