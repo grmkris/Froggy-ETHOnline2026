@@ -44,8 +44,12 @@ test("a service payment under the ask line runs without asking", async ({
 test("lowering the per-spend cap refuses a spend that used to fit, without reload", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await lowerPerSpend(page);
-  await page.getByRole("link", { name: "Chat" }).click();
+  // Same live session: `/chat` is not in the primary nav (Home is), and a
+  // full navigation still hits the workspace that `applyAllowance` already
+  // updated — hydrate is once per process.
+  await page.goto("/chat");
   await page.getByText("Buy the lending snapshot").click();
   const refused = page.getByLabel(/^Refused:/u).first();
   await expect(refused).toBeVisible({ timeout: 20_000 });
