@@ -110,7 +110,7 @@ export interface EvmReads {
   }) => Promise<bigint>;
   readonly request: (
     method: string,
-    params: readonly RpcJson[]
+    params: readonly unknown[]
   ) => Promise<RpcJson>;
 }
 

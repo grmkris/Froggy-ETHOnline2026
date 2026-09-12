@@ -9,8 +9,8 @@ import { handleWalletRoutes } from "./wallet-routes";
 
 const ALICE = userId("did:privy:wallet-routes");
 
-const unused = (): Promise<never> =>
-  Promise.reject(new Error("unused in this test"));
+const unused = async (): Promise<never> =>
+  await Promise.reject(new Error("unused in this test"));
 
 describe("wallet routes", () => {
   it("lists no connections, and refuses a commit that is not a request", async () => {
@@ -93,7 +93,9 @@ describe("wallet routes", () => {
           subscribe: () => () => {},
           subscribePayments: () => () => {},
           subscribeWalletCalls: () => () => {},
-          takePage: (): Promise<void> => Promise.resolve(),
+          takePage: async (): Promise<void> => {
+            await Promise.resolve();
+          },
         },
         session,
       }),

@@ -19,21 +19,6 @@ export const WALLET_INVALID_PARAMS = -32_602;
 export const WALLET_INTERNAL = -32_603;
 export const WALLET_PENDING = -32_002;
 
-const READ_METHODS = new Set<BrowserWalletCall["method"]>([
-  "eth_getBalance",
-  "eth_blockNumber",
-  "eth_call",
-  "eth_estimateGas",
-  "eth_gasPrice",
-  "eth_getTransactionByHash",
-  "eth_getTransactionReceipt",
-  "eth_getTransactionCount",
-  "eth_getCode",
-  "eth_getBlockByNumber",
-  "eth_feeHistory",
-  "eth_maxPriorityFeePerGas",
-]);
-
 const TxFields = Schema.Struct({
   data: Schema.optionalKey(Schema.String),
   from: Schema.optionalKey(Schema.String),
@@ -203,10 +188,21 @@ export const classifyWalletCall = (
   call: BrowserWalletCall
 ): ClassifiedWalletCall => {
   const { method } = call;
-  if (READ_METHODS.has(method)) {
-    return { method, params: call.params, tag: "read" };
-  }
   switch (method) {
+    case "eth_blockNumber":
+    case "eth_call":
+    case "eth_estimateGas":
+    case "eth_feeHistory":
+    case "eth_gasPrice":
+    case "eth_getBalance":
+    case "eth_getBlockByNumber":
+    case "eth_getCode":
+    case "eth_getTransactionByHash":
+    case "eth_getTransactionCount":
+    case "eth_getTransactionReceipt":
+    case "eth_maxPriorityFeePerGas": {
+      return { method, params: call.params, tag: "read" };
+    }
     case "eth_chainId": {
       return { tag: "chainId" };
     }
@@ -239,10 +235,8 @@ export const classifyWalletCall = (
     case "eth_signTypedData_v4": {
       return typedPayload(call.params);
     }
-    default: {
-      return rejected(WALLET_UNSUPPORTED, `${method} is not supported.`);
-    }
   }
+  return rejected(WALLET_UNSUPPORTED, "That method is not supported.");
 };
 
 export const chainIdHex = (chainId: number): string =>

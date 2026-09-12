@@ -285,7 +285,11 @@ export class TabRegistry {
         : [this.bridges.get(tabId)].filter(
             (bridge): bridge is WalletBridge => bridge !== undefined
           );
-    await Promise.all(bridges.map(async (bridge) => await bridge.emit(event)));
+    await Promise.all(
+      bridges.map(async (bridge) => {
+        await bridge.emit(event);
+      })
+    );
   }
 
   walletContexts(tabId: TabId): readonly BrowserWalletContext[] {

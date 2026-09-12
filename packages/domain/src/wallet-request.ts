@@ -322,4 +322,5 @@ export const canonicalWalletRequest = (input: {
       return `${head}|${payload.address.toLowerCase()}|${payload.typedData}`;
     }
   }
+  return head;
 };

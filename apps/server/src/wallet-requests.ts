@@ -67,7 +67,6 @@ import type {
 import { dappRule } from "@froggy/wallet";
 import { Result, Schema } from "effect";
 import { keccak256 } from "viem";
-import type { Hex } from "viem";
 
 import { detached } from "./detached";
 import type { ApprovalOutcome, InteractionRegistry } from "./interactions";
@@ -96,9 +95,10 @@ const decodeTypes = Schema.decodeUnknownResult(TypeFields);
 const decodeAddress = Schema.decodeUnknownResult(EvmAddress);
 const decodeNetwork = Schema.decodeUnknownSync(Network);
 
-// SAFETY: signatures and raw transactions in this file are 0x-prefixed even
-// hex produced by Privy or the stub; keccak256 needs that brand.
-const asHex = (value: string): Hex => value as Hex;
+const hashOf = (hex: string): string => {
+  const body = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return keccak256(new Uint8Array(Buffer.from(body, "hex")));
+};
 
 export class WalletRequestError extends Error {
   readonly status: number;
@@ -169,22 +169,47 @@ const jsonError = (
 
 const asRpcParams = (
   params: BrowserWalletObservation["call"]["params"]
-): readonly RpcJson[] =>
-  // SAFETY: the bridge already decoded a capped JSON array; a structured clone
-  // drops anything a node would not accept and matches `EvmReads.request`.
-  structuredClone(params) as readonly RpcJson[];
+): readonly unknown[] => [...params];
 
 const initiatorOf = (interaction: InteractionMode): WalletRequestInitiator =>
   interaction === "idle" ? "idle" : interaction;
 
 type SignTypedFields = Parameters<AgentEvmSigner["signTypedData"]>[0];
 
-// SAFETY: the EIP-712 document was decoded by Effect Schema; a structured
-// clone drops `undefined` and matches the signer's structural domain/message.
+type JsonTyped =
+  | boolean
+  | number
+  | string
+  | readonly JsonTyped[]
+  | { readonly [key: string]: JsonTyped };
+
+const JsonTypedSchema: Schema.Codec<JsonTyped> = Schema.Union([
+  Schema.Boolean,
+  Schema.Number,
+  Schema.String,
+  Schema.Array(Schema.suspend((): Schema.Codec<JsonTyped> => JsonTypedSchema)),
+  Schema.Record(
+    Schema.String,
+    Schema.suspend((): Schema.Codec<JsonTyped> => JsonTypedSchema)
+  ),
+]);
+
+const TypedObjectSchema: Schema.Codec<{ readonly [key: string]: JsonTyped }> =
+  Schema.Record(
+    Schema.String,
+    Schema.suspend((): Schema.Codec<JsonTyped> => JsonTypedSchema)
+  );
+const decodeTypedObject = Schema.decodeUnknownResult(TypedObjectSchema);
+
 const asTypedRecord = (
   source: TypedDataDocument["domain"] | TypedDataDocument["message"]
-): SignTypedFields["domain"] =>
-  structuredClone(source) as SignTypedFields["domain"];
+): SignTypedFields["domain"] => {
+  const decoded = decodeTypedObject(source);
+  if (Result.isFailure(decoded)) {
+    throw new Error("The typed data was not a document this wallet can sign.");
+  }
+  return decoded.success;
+};
 
 const accountOf = (session: WorkspaceSession): EvmAddress | null => {
   const own = session.ownEvmAddresses()[0]?.address;
@@ -264,6 +289,12 @@ const assess = (
       return assessTypedData(payload, { account, chainId });
     }
   }
+  return {
+    lines: [],
+    refusals: ["This request could not be read."],
+    title: "Unknown request",
+    warnings: [],
+  };
 };
 
 const permissionValue = (accounts: readonly string[]): RpcJson =>
@@ -1074,7 +1105,7 @@ export class WalletRequests {
     }
     const signature = `0x${"73".repeat(65)}`;
     const signed = await this.advance(userId, request, "signed", {
-      signedHash: keccak256(asHex(signature)),
+      signedHash: hashOf(signature),
     });
     const row = await this.afterSigned(userId, request, signed);
     await this.reply(userId, row, jsonResult(request.pageRequestId, signature));
@@ -1237,7 +1268,7 @@ export class WalletRequests {
     const message = Buffer.from(request.payload.message.slice(2), "hex");
     const signature = await signer.signMessage(message);
     const signed = await this.advance(userId, request, "signed", {
-      signedHash: keccak256(asHex(signature)),
+      signedHash: hashOf(signature),
     });
     const row = await this.afterSigned(userId, request, signed);
     await this.reply(userId, row, jsonResult(request.pageRequestId, signature));
@@ -1279,7 +1310,7 @@ export class WalletRequests {
       types: types.success,
     });
     const signed = await this.advance(userId, request, "signed", {
-      signedHash: keccak256(asHex(signature)),
+      signedHash: hashOf(signature),
     });
     const row = await this.afterSigned(userId, request, signed);
     await this.reply(userId, row, jsonResult(request.pageRequestId, signature));
@@ -1340,7 +1371,7 @@ export class WalletRequests {
         to,
         value: BigInt(value),
       });
-      const hash = keccak256(asHex(signedTx));
+      const hash = hashOf(signedTx);
       this.signedBytes.set(request.id, signedTx);
       const signed = await this.advance(userId, latest, "signed", {
         nonce,
@@ -1404,7 +1435,9 @@ export class WalletRequests {
     ]);
     const now = this.now();
     await Promise.allSettled(
-      rows.map(({ request, userId }) => this.recoverOne(userId, request, now))
+      rows.map(async ({ request, userId }) => {
+        await this.recoverOne(userId, request, now);
+      })
     );
   }
 

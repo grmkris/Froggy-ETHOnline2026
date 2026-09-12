@@ -31,8 +31,8 @@ const MODES: SessionDeps["modes"] = {
   telegram: "stub",
 };
 
-const unused = (): Promise<never> =>
-  Promise.reject(new Error("unused in this test"));
+const unused = async (): Promise<never> =>
+  await Promise.reject(new Error("unused in this test"));
 
 const reads: EvmReads = {
   estimateGas: async () => await Promise.resolve(21_000n),
@@ -65,9 +65,9 @@ const fakeBrowser = (bag: ReplyBag): BrowserHandle => ({
   agentType: unused,
   cancelPayment: unused,
   close: () => {},
-  emitWalletEvent: (event) => {
+  emitWalletEvent: async (event) => {
     bag.events.push(event);
-    return Promise.resolve();
+    await Promise.resolve();
   },
   handleClientMessage: unused,
   pendingPayment: async () => await Promise.resolve(null),
@@ -91,7 +91,9 @@ const fakeBrowser = (bag: ReplyBag): BrowserHandle => ({
   subscribe: () => () => {},
   subscribePayments: () => () => {},
   subscribeWalletCalls: () => () => {},
-  takePage: (): Promise<void> => Promise.resolve(),
+  takePage: async (): Promise<void> => {
+    await Promise.resolve();
+  },
 });
 
 const sessionOf = (store: ReturnType<typeof memoryStore>): WorkspaceSession => {

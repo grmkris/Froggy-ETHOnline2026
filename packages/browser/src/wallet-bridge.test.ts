@@ -299,7 +299,11 @@ describe("WalletBridge replies and events", () => {
     const targets = tab
       .evaluations()
       .map((call) => call.params["uniqueContextId"]);
-    expect(targets.toSorted()).toEqual(["ctx-child", "ctx-top"]);
+    expect(
+      targets.toSorted((left, right) =>
+        String(left).localeCompare(String(right))
+      )
+    ).toEqual(["ctx-child", "ctx-top"]);
     expect(String(tab.evaluations()[0]?.params["expression"])).toContain(
       WALLET_EVENT_GLOBAL
     );

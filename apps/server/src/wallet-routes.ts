@@ -306,7 +306,7 @@ export const handleWalletRoutes = async (
       200
     );
   }
-  const revoke = pathname.match(/^\/api\/wallet-connections\/(?<id>[^/]+)$/u);
+  const revoke = /^\/api\/wallet-connections\/(?<id>[^/]+)$/u.exec(pathname);
   if (revoke !== null && request.method === "DELETE") {
     const id = decodeConnectionId(revoke.groups?.["id"]);
     if (Result.isFailure(id)) {
@@ -318,14 +318,14 @@ export const handleWalletRoutes = async (
   if (pathname === "/api/wallet-requests" && request.method === "GET") {
     return json({ requests: await deps.walletRequests.list(userId, 50) }, 200);
   }
-  const prepared = pathname.match(
-    /^\/api\/wallet-requests\/(?<id>[^/]+)\/prepare$/u
+  const prepared = /^\/api\/wallet-requests\/(?<id>[^/]+)\/prepare$/u.exec(
+    pathname
   );
   if (prepared !== null && request.method === "POST") {
     return await prepare(deps, userId, prepared.groups?.["id"] ?? "");
   }
-  const committed = pathname.match(
-    /^\/api\/wallet-requests\/(?<id>[^/]+)\/commit$/u
+  const committed = /^\/api\/wallet-requests\/(?<id>[^/]+)\/commit$/u.exec(
+    pathname
   );
   if (committed !== null && request.method === "POST") {
     return await commit(deps, request, userId, committed.groups?.["id"] ?? "");

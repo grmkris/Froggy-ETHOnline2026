@@ -160,10 +160,9 @@ export class WalletBridge {
         : [contextId];
     const json = JSON.stringify(event);
     await Promise.all(
-      targets.map(
-        async (target) =>
-          await bestEffort(this.call(target, WALLET_EVENT_GLOBAL, json))
-      )
+      targets.map(async (target) => {
+        await bestEffort(this.call(target, WALLET_EVENT_GLOBAL, json));
+      })
     );
   }
 

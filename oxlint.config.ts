@@ -207,5 +207,20 @@ export default defineConfig({
         "eslint/no-await-in-loop": "off",
       },
     },
+    {
+      /**
+       * Injected-wallet method table.
+       *
+       * `classifyWalletCall` is a closed dispatch over the `WalletRpcMethod`
+       * union. Type-aware exhaustiveness requires every method in one switch;
+       * that table is the contract (reads, identity, connect, and the three
+       * signing shapes), not accidental complexity. Splitting it would hide
+       * the exhaustiveness the rule is there to protect.
+       */
+      files: ["apps/server/src/wallet-call.ts"],
+      rules: {
+        "eslint/complexity": "off",
+      },
+    },
   ],
 });

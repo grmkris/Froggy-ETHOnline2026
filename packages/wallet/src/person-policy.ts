@@ -600,6 +600,7 @@ export const dappRule = (input: DappRuleInput): PolicyRule | null => {
       return typedDataRule(input, payload);
     }
   }
+  return null;
 };
 
 /** The full rule set the policy is patched to: the standing rules plus the live one-shots. */
