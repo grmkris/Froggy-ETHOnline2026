@@ -16,12 +16,18 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@froggy/ui/components/toggle-group";
+import { Link } from "@tanstack/react-router";
 import { Schema } from "effect";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useChatSurface } from "../../lib/chat-context";
 import { useSessionToken } from "../../lib/session-token";
+import { useWorkspace } from "../../lib/workspace-context";
+
+const BUDGETS: readonly BrowseBudget[] = [1, 3, 5];
+const dollars = (micros: number): string =>
+  `$${(micros / 1_000_000).toFixed(2)}`;
 
 const TaskResponse = Schema.Struct({
   v: Schema.Literals([1]),
@@ -235,6 +241,15 @@ export const BrowseTaskForm = ({
 }): ReactElement => {
   const { getToken } = useSessionToken();
   const { showBrowser } = useChatSurface();
+  const { app } = useWorkspace();
+  // The leash judges this payment like any other, so a budget over the
+  // person's own per-payment cap is refused the moment they press Pay. Better
+  // to say so here, where the number is chosen, than after a signature.
+  const cap = app.wallet?.agentAllowance?.perSpendUsdMicros ?? null;
+  const payable = (candidate: BrowseBudget): boolean =>
+    cap === null || candidate * 1_000_000 <= cap;
+  const someOverCap = BUDGETS.some((candidate) => !payable(candidate));
+  const capNoteId = useId();
   const [budget, setBudget] = useState<BrowseBudget>(1);
   const [quote, setQuote] = useState<BrowseQuote | null>(null);
   const [challenge, setChallenge] = useState<BrowseChallenge | null>(null);
@@ -349,6 +364,7 @@ export const BrowseTaskForm = ({
       <Field>
         <FieldLabel>Browsing budget</FieldLabel>
         <ToggleGroup
+          aria-describedby={someOverCap ? capNoteId : undefined}
           aria-label="Browsing budget"
           disabled={busy || quote !== null}
           value={[String(budget)]}
@@ -363,10 +379,24 @@ export const BrowseTaskForm = ({
           variant="outline"
           size="sm"
         >
-          <ToggleGroupItem value="1">$1</ToggleGroupItem>
-          <ToggleGroupItem value="3">$3</ToggleGroupItem>
-          <ToggleGroupItem value="5">$5</ToggleGroupItem>
+          {BUDGETS.map((candidate) => (
+            <ToggleGroupItem
+              disabled={!payable(candidate)}
+              key={candidate}
+              value={String(candidate)}
+            >
+              ${candidate}
+            </ToggleGroupItem>
+          ))}
         </ToggleGroup>
+        {someOverCap && cap !== null ? (
+          <p className="text-muted-foreground text-xs" id={capNoteId}>
+            Budgets over your {dollars(cap)} per-payment cap are off.{" "}
+            <Link className="underline underline-offset-2" to="/settings">
+              Adjust it in Settings.
+            </Link>
+          </p>
+        ) : null}
         <FieldDescription>
           One fixed-price task. Website purchases cost extra. Unused allowance
           and failed tasks are not automatically refunded.
@@ -374,7 +404,7 @@ export const BrowseTaskForm = ({
       </Field>
       {quote === null ? (
         <Button
-          disabled={busy}
+          disabled={busy || !payable(budget)}
           onClick={() => {
             void requestQuote();
           }}
@@ -389,17 +419,33 @@ export const BrowseTaskForm = ({
             minutes · quote expires{" "}
             {new Date(quote.expiresAt).toLocaleTimeString()}
           </p>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              void purchase();
-            }}
-            size="sm"
-          >
-            {busy
-              ? "Waiting for payment confirmation…"
-              : `Pay $${quote.budgetUsd} and browse`}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={busy}
+              onClick={() => {
+                void purchase();
+              }}
+              size="sm"
+            >
+              {busy
+                ? "Waiting for payment confirmation…"
+                : `Pay $${quote.budgetUsd} and browse`}
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                // Nothing is signed until Pay, so a quote can be walked away
+                // from; the next Get quote re-prices the same card.
+                setQuote(null);
+                setChallenge(null);
+                setError(null);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Choose another budget
+            </Button>
+          </div>
         </>
       )}
       {error === null ? null : (
