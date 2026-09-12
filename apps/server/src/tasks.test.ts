@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { BrowserHandle } from "@froggy/browser";
-import { OAUTH_SCOPES, SaleId, SessionId, userId } from "@froggy/domain";
+import {
+  OAUTH_SCOPES,
+  SaleId,
+  SessionId,
+  usdMicros,
+  userId,
+} from "@froggy/domain";
 import type { Task } from "@froggy/domain";
 import { decodePaymentChallenge } from "@froggy/payments";
 import { BrowseChallenge, BrowseQuoteResponse } from "@froggy/protocol";
@@ -93,6 +99,7 @@ interface TaskRequestBody {
   readonly instruction?: string;
   readonly budgetUsd?: number;
   readonly kind: string;
+  readonly quoteTaskId?: string;
   readonly symbol?: string;
 }
 
@@ -488,9 +495,14 @@ describe("bounded browser quotes", () => {
     expect(
       Schema.decodeUnknownSync(BrowseQuoteResponse)(await replay.json())
     ).toEqual(initial);
+    // A payment that arrives after the quote lapsed is refused, never
+    // re-priced under it.
     const expired = await handleTaskPost(
       { ...deps, now: () => initial.quote.expiresAt },
-      post(body),
+      post(
+        { ...body, quoteTaskId: initial.quote.taskId },
+        { "x-payment": "late-fixture-proof" }
+      ),
       workspace(),
       caller
     );
@@ -498,6 +510,89 @@ describe("bounded browser quotes", () => {
     const task = await services.store.tasks.byId(ALICE, initial.quote.taskId);
     expect(task?.status).toBe("quoted");
     expect(task?.saleId).toBeNull();
+  });
+
+  it("re-prices an unpaid quote when the card asks for another budget", async () => {
+    const body = quoteBody("requote-another-budget");
+    const first = await handleTaskPost(deps, post(body), workspace(), caller);
+    expect(first.status).toBe(402);
+    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const second = await handleTaskPost(
+      deps,
+      post({ ...body, budgetUsd: 3 }),
+      workspace(),
+      caller
+    );
+    expect(second.status).toBe(402);
+    const repriced = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await second.json()
+    );
+    // Same card, same task: only the numbers moved.
+    expect(repriced.quote.taskId).toBe(initial.quote.taskId);
+    expect(repriced.quote.budgetUsd).toBe(3);
+    expect(repriced.quote.priceUsdMicros).toBe(3_000_000);
+    expect(repriced.quote.executionMs).toBe(20 * 60_000);
+    expect(repriced.accepts[0]?.amount).not.toBe(initial.accepts[0]?.amount);
+    const stored = await services.store.tasks.byId(ALICE, initial.quote.taskId);
+    expect(stored?.priceUsdMicros).toBe(usdMicros(3_000_000));
+    // Paying names the new budget; the old one no longer matches.
+    const stale = await handleTaskPost(
+      deps,
+      post(
+        { ...body, quoteTaskId: initial.quote.taskId },
+        { "x-payment": "stale-budget-proof" }
+      ),
+      workspace(),
+      caller
+    );
+    expect(stale.status).toBe(409);
+  });
+
+  it("re-prices an expired unpaid quote instead of leaving the card stuck", async () => {
+    const body = quoteBody("requote-after-expiry");
+    const first = await handleTaskPost(deps, post(body), workspace(), caller);
+    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await first.json()
+    );
+    const later = initial.quote.expiresAt + 1;
+    const again = await handleTaskPost(
+      { ...deps, now: () => later },
+      post(body),
+      workspace(),
+      caller
+    );
+    expect(again.status).toBe(402);
+    const fresh = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await again.json()
+    );
+    expect(fresh.quote.taskId).toBe(initial.quote.taskId);
+    expect(fresh.quote.budgetUsd).toBe(1);
+    expect(fresh.quote.expiresAt).toBeGreaterThan(later);
+  });
+
+  it("never re-prices a quote that already has a signed payment", async () => {
+    const body = quoteBody("requote-after-signing");
+    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
+    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await quoted.json()
+    );
+    // What `/api/wallet/pay` leaves behind once a header is signed, without
+    // spending the shared fixture pocket to get there.
+    await services.store.tasks.update(ALICE, quote.taskId, {
+      result: { paymentProofHash: "signed-fixture-hash" },
+      updatedAt: Date.now(),
+    });
+    const changed = await handleTaskPost(
+      deps,
+      post({ ...body, budgetUsd: 5 }),
+      workspace(),
+      caller
+    );
+    expect(changed.status).toBe(409);
+    const stored = await services.store.tasks.byId(ALICE, quote.taskId);
+    expect(stored?.priceUsdMicros).toBe(usdMicros(1_000_000));
   });
 
   it("accepts the browser card's decoded challenge and never signs the quote twice", async () => {

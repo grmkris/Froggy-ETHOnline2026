@@ -56,14 +56,32 @@ const json = (body: ResponseBody, status = 200): Response =>
 const description = (executionMs: number): string =>
   `A bounded browsing task (${executionMs / 60_000} active minutes maximum). Website purchases cost extra.`;
 
-const createQuote = async (
+/** A signed payment header is on file for this quote, so its price is spoken for. */
+const hasSignedPayment = (task: Task): boolean =>
+  Schema.decodeUnknownResult(
+    Schema.Struct({ paymentProofHash: Schema.String })
+  )(task.result)._tag === "Success";
+
+/**
+ * Everything a quote needs to be paid, or the reason it cannot be offered.
+ * Shared between minting a quote and re-pricing one, so both agree on price,
+ * minutes, expiry and the challenge the payment will be checked against.
+ */
+const priceQuote = (
   context: Context,
   body: BrowseInput,
+  id: TaskId,
   key: string
-): Promise<Task | Response> => {
-  const { deps, caller, now } = context;
+):
+  | Response
+  | {
+      readonly input: Task["input"];
+      readonly priceUsdMicros: Task["priceUsdMicros"];
+      readonly quote: BrowseQuote;
+    } => {
+  const { deps, now } = context;
   const { services } = deps;
-  const { environment, store } = services;
+  const { environment } = services;
   if (environment.browserUseApiKey === null) {
     return json(
       { error: "Browsing is not configured. Nothing was charged." },
@@ -87,7 +105,6 @@ const createQuote = async (
   if (!rate) {
     return json({ error: "No usable HBAR rate; nothing was charged." }, 503);
   }
-  const id = TaskId.generate();
   const price = usdMicros(body.budgetUsd * 1_000_000);
   const executionMs = { 1: 10, 3: 20, 5: 30 }[body.budgetUsd] * 60_000;
   const quote: BrowseQuote = {
@@ -105,13 +122,7 @@ const createQuote = async (
     units: String(Math.ceil((price * 100_000_000) / rate.usdMicrosPerHbar)),
     url: `${deps.tasksUrl}?quote=${id}`,
   });
-  const task: Task = {
-    id,
-    agentTokenId: caller.agentTokenId,
-    connectionId: caller.grantId ?? caller.agentTokenId,
-    createdAt: now,
-    updatedAt: now,
-    idempotencyKey: key,
+  return {
     input: {
       instruction: body.instruction,
       quote,
@@ -121,8 +132,33 @@ const createQuote = async (
         output: environment.browserModelOutputRate,
       },
     },
-    kind: "browse",
     priceUsdMicros: price,
+    quote,
+  };
+};
+
+const createQuote = async (
+  context: Context,
+  body: BrowseInput,
+  key: string
+): Promise<Task | Response> => {
+  const { deps, caller, now } = context;
+  const { store } = deps.services;
+  const id = TaskId.generate();
+  const priced = priceQuote(context, body, id, key);
+  if (priced instanceof Response) {
+    return priced;
+  }
+  const task: Task = {
+    id,
+    agentTokenId: caller.agentTokenId,
+    connectionId: caller.grantId ?? caller.agentTokenId,
+    createdAt: now,
+    updatedAt: now,
+    idempotencyKey: key,
+    input: priced.input,
+    kind: "browse",
+    priceUsdMicros: priced.priceUsdMicros,
     status: "quoted",
     error: null,
     result: null,
@@ -139,6 +175,56 @@ const createQuote = async (
     }
     return winner;
   }
+};
+
+/**
+ * Price an unpaid quote again, in place.
+ *
+ * The card's request key is fixed per offer, so without this the first budget
+ * chosen — or the first five minutes — would be the only one that card could
+ * ever pay. A quote nobody has paid is a draft: same task, same key, new
+ * price and expiry. A quote with a signed header on file is not a draft; its
+ * spend is keyed to this task, and it keeps its price until it expires.
+ */
+const requote = async (
+  context: Context,
+  task: Task,
+  body: BrowseInput,
+  key: string
+): Promise<Task | Response> => {
+  const { deps, caller, now } = context;
+  const { store } = deps.services;
+  if (hasSignedPayment(task)) {
+    const { quote } = storedBrowseQuote(task);
+    return json(
+      {
+        error: `A payment for the $${quote.budgetUsd} quote is already signed. Pay that quote, or wait for it to expire.`,
+      },
+      409
+    );
+  }
+  const priced = priceQuote(context, body, task.id, key);
+  if (priced instanceof Response) {
+    return priced;
+  }
+  const patch = {
+    input: priced.input,
+    priceUsdMicros: priced.priceUsdMicros,
+    updatedAt: now,
+  };
+  const claimed = await store.tasks.claim(
+    caller.userId,
+    task.id,
+    "quoted",
+    patch
+  );
+  if (!claimed) {
+    // Somebody paid it between the read and the write. Whatever it is now
+    // is what the rest of the handler should see.
+    const current = await store.tasks.byId(caller.userId, task.id);
+    return current ?? task;
+  }
+  return { ...task, ...patch };
 };
 
 const performSettlement = async (
@@ -291,20 +377,18 @@ const settleQuote = async (
   }
 };
 
-export const handleBrowseQuote = async (
-  deps: TaskDeps,
-  request: Request,
-  workspace: Context["workspace"],
-  caller: TaskCaller,
+/**
+ * The task this request key names, minted if it is new and re-priced if it is
+ * a stale draft. Anything that is not a payable quote is answered here.
+ */
+const quotedTaskFor = async (
+  context: Context,
   body: BrowseInput,
-  execute: Context["execute"],
-  view: Context["view"]
-): Promise<Response> => {
-  const now = (deps.now ?? Date.now)();
-  const context: Context = { deps, caller, workspace, execute, view, now };
+  key: string,
+  payment: string | null
+): Promise<Task | Response> => {
+  const { deps, caller, now, view } = context;
   const { store } = deps.services;
-  const key = request.headers.get("idempotency-key") ?? body.idempotencyKey;
-  const payment = paymentFrom(request.headers);
   let task = await store.tasks.byIdempotencyKey(caller.userId, key);
   if (task === null) {
     if (payment !== null || body.quoteTaskId !== undefined) {
@@ -328,6 +412,47 @@ export const handleBrowseQuote = async (
   }
   if (task.status !== "quoted") {
     return json({ task: view(task) }, task.status === "done" ? 200 : 202);
+  }
+  const saved = storedBrowseQuote(task);
+  // Asking again, with nothing signed: another budget or a fresh expiry gets a
+  // fresh quote rather than the first one this card ever saw. A payment
+  // request never re-prices; it is checked against the quote it names.
+  if (
+    payment === null &&
+    body.quoteTaskId === undefined &&
+    (saved.quote.budgetUsd !== body.budgetUsd || saved.quote.expiresAt <= now)
+  ) {
+    const repriced = await requote(context, task, body, key);
+    if (repriced instanceof Response) {
+      return repriced;
+    }
+    if (repriced.status !== "quoted") {
+      return json(
+        { task: view(repriced) },
+        repriced.status === "done" ? 200 : 202
+      );
+    }
+    return repriced;
+  }
+  return task;
+};
+
+export const handleBrowseQuote = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Context["workspace"],
+  caller: TaskCaller,
+  body: BrowseInput,
+  execute: Context["execute"],
+  view: Context["view"]
+): Promise<Response> => {
+  const now = (deps.now ?? Date.now)();
+  const context: Context = { deps, caller, workspace, execute, view, now };
+  const key = request.headers.get("idempotency-key") ?? body.idempotencyKey;
+  const payment = paymentFrom(request.headers);
+  const task = await quotedTaskFor(context, body, key, payment);
+  if (task instanceof Response) {
+    return task;
   }
   const saved = storedBrowseQuote(task);
   const decoded = decodePaymentChallenge(saved.challenge);
