@@ -6,7 +6,7 @@
  */
 
 import type { TradingAddress } from "@froggy/domain";
-import { getAddress, parseAbi, parseAbiItem } from "viem";
+import { getAddress, keccak256, parseAbi, parseAbiItem } from "viem";
 import type { Address } from "viem";
 
 import type { TradeEvmClient } from "../evm-chain";
@@ -17,7 +17,6 @@ import {
   launcherFactFor,
   LOG_MAX_PAGES,
   LOG_PAGE,
-  notApplicableTemplate,
   stubVenueClient,
   uniqueAddresses,
   verifyPinnedDeployments,
@@ -37,7 +36,20 @@ export const ZORA_DEPLOYMENTS = {
     address: getAddress("0x777777751622c0d3258f214F9DF38E35BF45baF3"),
     hash: "0xd5e3301e737ae8f1471ced5089ae8e950baa3844e353ce76bdad2edb6b44da2e",
   },
+  // Coin implementation behind every CoinCreatedV4 proxy observed at block 51209251.
+  coinImplementation: {
+    address: getAddress("0x5dbd43785954d43c1643a0caf2ecef9e0056ff13"),
+    hash: "0xfc1474fb66df4d6af5cee402ff1d99b3958ad7f4f15c591244cdaac0c72bbb1e",
+  },
 } as const;
+
+/**
+ * Every Zora content coin is the same 45-byte EIP-1167 proxy to the pinned
+ * implementation, so its runtime hash is a whole-code pin rather than a masked
+ * template. Eight CoinCreatedV4 coins at block 51209251 hashed alike.
+ */
+export const ZORA_COIN_PROXY_HASH =
+  "0xe4c5ad7d4a813d9a2f632ccb653b95c93b40680043250b3d84d4fdb1448e0bf8";
 
 const COIN_ABI = parseAbi([
   "function currency() view returns (address)",
@@ -231,11 +243,36 @@ export const zoraLaunchVenue = (
       };
       return registration;
     },
-    template: () =>
-      notApplicableTemplate(
-        "zora",
-        "Zora coin template fingerprint is not yet recorded across 2+ tokens."
-      ),
+    template: (code) => {
+      if (stubbed) {
+        return {
+          status: "unavailable",
+          matches: null,
+          hash: null,
+          venue: "zora",
+          note: "Stub Zora venue: no template read.",
+        };
+      }
+      if (code === undefined || code === "0x") {
+        return {
+          status: "not_indexed",
+          matches: null,
+          hash: null,
+          venue: "zora",
+          note: "No runtime code at this address.",
+        };
+      }
+      const matches = keccak256(code) === ZORA_COIN_PROXY_HASH;
+      return {
+        status: "observed",
+        matches,
+        hash: ZORA_COIN_PROXY_HASH,
+        venue: "zora",
+        note: matches
+          ? "EIP-1167 proxy to the pinned Zora coin implementation; not a per-token template."
+          : "Runtime is not the reviewed EIP-1167 proxy to the pinned Zora coin implementation.",
+      };
+    },
     launchBlock: async (token, headBlock) => {
       if (stubbed) {
         return {

@@ -15,7 +15,12 @@ import { CLANKER_TOKEN_RUNTIME } from "./clanker-token-fixture";
 import { verifyPinnedDeployments } from "./common";
 import { flaunchLaunchVenue, stubFlaunchLaunchVenue } from "./flaunch";
 import { stubVirtualsLaunchVenue, virtualsLaunchVenue } from "./virtuals";
-import { stubZoraLaunchVenue, zoraLaunchVenue } from "./zora";
+import {
+  ZORA_COIN_PROXY_HASH,
+  ZORA_DEPLOYMENTS,
+  stubZoraLaunchVenue,
+  zoraLaunchVenue,
+} from "./zora";
 
 // SAFETY: fixed 20-byte hex literal used as an Address fixture.
 const TOKEN = getAddress(`0x${"aa".repeat(20)}`) as Address;
@@ -53,7 +58,9 @@ test("stub Base venues never claim registration and mark stubbed", async () => {
     const registration = await venue.registration(tokenAddress, BLOCK);
     expect(registration.registered).toBe(false);
     expect(venue.template("0x").status).toBe(
-      venue.id === "clanker" ? "unavailable" : "not_applicable"
+      venue.id === "clanker" || venue.id === "zora"
+        ? "unavailable"
+        : "not_applicable"
     );
     expect(venue.template("0x").matches).toBeNull();
     expect(await venue.tradeEvents(tokenAddress, tokenAddress, 0n, 1n)).toEqual(
@@ -115,7 +122,7 @@ test("verifyDeployments fails when runtime hash does not match the pin", async (
       venue: zoraLaunchVenue(
         stubClient({ getCode: () => Promise.resolve(wrong) })
       ),
-      expected: ["factory"],
+      expected: ["coinImplementation", "factory"],
     },
     {
       venue: flaunchLaunchVenue(
@@ -231,4 +238,24 @@ test("registration returns false when the venue view says the token is unknown",
   );
   const zoraRegistration = await zora.registration(tokenAddress, BLOCK);
   expect(zoraRegistration.registered).toBe(false);
+});
+
+test("Zora template is the EIP-1167 proxy to the pinned coin implementation", () => {
+  const venue = zoraLaunchVenue(stubClient({}));
+  const implementation = ZORA_DEPLOYMENTS.coinImplementation.address
+    .slice(2)
+    .toLowerCase();
+  const proxy: Hex = `0x363d3d373d3d3d363d73${implementation}5af43d82803e903d91602b57fd5bf3`;
+  expect(keccak256(proxy)).toBe(ZORA_COIN_PROXY_HASH);
+  expect(venue.template(proxy)).toMatchObject({
+    status: "observed",
+    matches: true,
+    hash: ZORA_COIN_PROXY_HASH,
+    venue: "zora",
+  });
+  expect(venue.template(proxy).note).toContain("EIP-1167");
+  const otherImplementation: Hex = `0x363d3d373d3d3d363d73${"ab".repeat(20)}5af43d82803e903d91602b57fd5bf3`;
+  expect(venue.template(otherImplementation).matches).toBe(false);
+  expect(venue.template().status).toBe("not_indexed");
+  expect(venue.capabilities.template).toBe(false);
 });
