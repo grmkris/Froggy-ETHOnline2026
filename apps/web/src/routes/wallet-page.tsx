@@ -13,7 +13,7 @@ export const WalletPage = (): ReactElement => {
   return (
     <Page slot="wallet-home-scroll" title="Wallet" titleHidden>
       <MotionItem>
-        <WalletHome wallet={app.wallet} />
+        <WalletHome modes={app.modes} wallet={app.wallet} />
       </MotionItem>
       <MotionItem delay={0.07}>
         <WalletActivity history={receiptHistory} receipts={app.receipts} />

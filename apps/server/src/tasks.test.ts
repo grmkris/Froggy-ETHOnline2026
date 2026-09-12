@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { BrowserHandle } from "@froggy/browser";
-import { SaleId, SessionId, userId } from "@froggy/domain";
+import { OAUTH_SCOPES, SaleId, SessionId, userId } from "@froggy/domain";
 import type { Task } from "@froggy/domain";
 import { decodePaymentChallenge } from "@froggy/payments";
 import { BrowseChallenge, BrowseQuoteResponse } from "@froggy/protocol";
@@ -22,6 +22,7 @@ import type { Services } from "./services";
 import { WorkspaceSession } from "./session";
 import {
   handleTaskGet,
+  handleTaskList,
   handleTaskPost,
   resumeBrowseTask,
   handleWalletPay,
@@ -247,7 +248,7 @@ describe("a paid brief, from 402 to result", () => {
     expect(created.saleId).toMatch(/^sal_/u);
 
     await settle();
-    const fetched = await handleTaskGet(deps, workspace(), ALICE, created.id);
+    const fetched = await handleTaskGet(deps, workspace(), caller, created.id);
     const done = taskOf(await fetched.json()).task;
     expect(done.status).toBe("done");
     expect(done.result?.symbol).toBe("USDC");
@@ -281,6 +282,33 @@ describe("a paid brief, from 402 to result", () => {
     );
     expect(history?.invocations[2]?.usdMicros).toBeGreaterThan(0);
     expect(JSON.stringify(history)).not.toContain(header);
+    expect(history?.agent.scopes).toEqual([...OAUTH_SCOPES]);
+    const stranger = await mintAgentToken(
+      services.store,
+      ALICE,
+      "Other",
+      Date.now()
+    );
+    const peek = await handleTaskGet(
+      deps,
+      workspace(),
+      {
+        agentTokenId: stranger.token.id,
+        grantId: null,
+        scopes: null,
+        userId: ALICE,
+      },
+      created.id
+    );
+    expect(peek.status).toBe(404);
+    const listed = await handleTaskList(deps, workspace(), {
+      agentTokenId: stranger.token.id,
+      grantId: null,
+      scopes: null,
+      userId: ALICE,
+    });
+    const body: unknown = await listed.json();
+    expect(JSON.stringify(body)).not.toContain(created.id);
   });
 
   it("returns the earlier task for a repeated idempotency key before asking for money", async () => {
@@ -415,7 +443,7 @@ describe("a paid brief, from 402 to result", () => {
       caller
     );
     expect(bad.status).toBe(400);
-    const missing = await handleTaskGet(deps, workspace(), ALICE, "tsk_nope");
+    const missing = await handleTaskGet(deps, workspace(), caller, "tsk_nope");
     expect(missing.status).toBe(404);
   });
 });

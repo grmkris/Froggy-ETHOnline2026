@@ -9,6 +9,7 @@
 
 import { Schema } from "effect";
 
+import { AgentConnectionId } from "./agent-invocation";
 import { AgentTokenId, RunId, SaleId, TaskId } from "./id";
 import { UsdMicros } from "./money";
 
@@ -35,6 +36,12 @@ export type TaskStatus = typeof TaskStatus.Type;
 export const Task = Schema.Struct({
   /** The token that asked, or null when the workspace itself did. */
   agentTokenId: Schema.NullOr(AgentTokenId),
+  /**
+   * The connection that created this, or null when the person did from the
+   * workspace. Neighbours (purchases, trades, watches) scope reads the same
+   * way: an agent sees only its own work.
+   */
+  connectionId: Schema.NullOr(AgentConnectionId),
   createdAt: Schema.Int,
   error: Schema.NullOr(Schema.String),
   id: TaskId,

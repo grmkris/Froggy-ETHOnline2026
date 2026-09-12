@@ -29,6 +29,10 @@ for (const viewport of [
     ).toBeInViewport();
     // The stub knows no USDC balance: the total is unavailable, not zero.
     await expect(wallet.getByText("Total unavailable")).toBeVisible();
+    await expect(wallet.getByText("balance unavailable (stub)")).toBeVisible();
+    await expect(
+      wallet.getByRole("list", { name: "Stubbed integrations" })
+    ).toBeVisible();
     await wallet.getByText("Where it is").click();
     await expect(
       wallet.getByText("Unavailable", { exact: true })

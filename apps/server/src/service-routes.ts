@@ -11,6 +11,7 @@ import { serviceCatalog } from "./service-providers";
 import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
+import { visibleTask, visibleTasks } from "./tasks";
 import type { TaskCaller } from "./tasks";
 
 type ServiceResponse =
@@ -106,7 +107,10 @@ export const handleServices = async (
     );
   }
   if (path === "/api/services/tasks" && request.method === "GET") {
-    const tasks = await services.store.tasks.list(caller.userId, 50);
+    const tasks = visibleTasks(
+      await services.store.tasks.list(caller.userId, 50),
+      caller
+    );
     return json({
       v: 1,
       tasks: tasks.filter((task) => task.kind === "service").map(serviceTicket),
@@ -120,7 +124,10 @@ export const handleServices = async (
   if (request.method !== "GET" || id === undefined || !TaskId.is(id)) {
     return json({ v: 1, error: "Not found." }, 404);
   }
-  const task = await services.store.tasks.byId(caller.userId, id);
+  const task = visibleTask(
+    await services.store.tasks.byId(caller.userId, id),
+    caller
+  );
   if (!task || task.kind !== "service") {
     return json({ v: 1, error: "Not found." }, 404);
   }

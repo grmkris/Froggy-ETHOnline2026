@@ -277,6 +277,8 @@ export const tasks = pgTable(
   "tasks",
   {
     agentTokenId: typeIdColumn(AgentTokenId, "agent_token_id"),
+    /** The grant or token that created this; null when the person did. */
+    connectionId: text("connection_id").$type<AgentConnectionId>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

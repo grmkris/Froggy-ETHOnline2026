@@ -19,6 +19,7 @@ import { purchaseService, serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
 import { std } from "./std";
+import { visibleTask } from "./tasks";
 import type { TaskCaller } from "./tasks";
 import { executionCapabilities } from "./trading/execution-providers";
 import { LaunchStatusInput, launchToolResult } from "./trading/launch-tools";
@@ -271,7 +272,10 @@ const invokeServiceCall = async (
     }
     case "froggy_service_status": {
       const input = Schema.decodeUnknownSync(StatusInput)(call.arguments);
-      const task = await services.store.tasks.byId(caller.userId, input.id);
+      const task = visibleTask(
+        await services.store.tasks.byId(caller.userId, input.id),
+        caller
+      );
       if (!task || task.kind !== "service") {
         throw new Error("No such service task.");
       }

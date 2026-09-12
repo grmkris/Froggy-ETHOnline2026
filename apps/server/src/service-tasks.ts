@@ -155,6 +155,7 @@ export const purchaseService = async (
   const task: Task = {
     id: TaskId.generate(),
     agentTokenId: context.agentTokenId,
+    connectionId,
     idempotencyKey: request.idempotencyKey,
     createdAt: Date.now(),
     updatedAt: Date.now(),

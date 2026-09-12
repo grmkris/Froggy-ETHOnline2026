@@ -147,6 +147,7 @@ const sale = (paymentHash: string): Sale => ({
 
 const task = (key: string | null): Task => ({
   agentTokenId: null,
+  connectionId: null,
   createdAt: NOW,
   error: null,
   id: TaskId.generate(),
