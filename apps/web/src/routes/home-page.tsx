@@ -14,7 +14,6 @@
 import { ScheduleList as ScheduleListSchema } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { FrogMark } from "@froggy/ui/components/frog-mark";
-import type { FrogPose } from "@froggy/ui/components/frog-mark";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
@@ -26,6 +25,7 @@ import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { Composer } from "../components/composer";
 import { useSetup } from "../hooks/use-setup";
 import { useChatSurface } from "../lib/chat-context";
+import { copyForHome, poseForHome } from "../lib/frog-pose";
 import { useHistoryPage } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { cadenceWords, nextRunWords } from "../lib/schedule-words";
@@ -33,23 +33,6 @@ import { useSessionToken } from "../lib/session-token";
 import { useWorkspace } from "../lib/workspace-context";
 
 const decodeSchedules = Schema.decodeUnknownSync(ScheduleListSchema);
-
-/** The mascot carries the mood; the sentence beside it carries the fact. */
-const poseFor = (needsUser: number, busy: boolean): FrogPose => {
-  if (needsUser > 0) {
-    return "needs-user";
-  }
-  return busy ? "working" : "idle";
-};
-
-const greeting = (needsUser: number, busy: boolean): string => {
-  if (needsUser > 0) {
-    return needsUser === 1
-      ? "One thing needs you."
-      : `${needsUser} things need you.`;
-  }
-  return busy ? "Working on it." : "Nothing needs you.";
-};
 
 const Card = ({
   children,
@@ -76,7 +59,7 @@ const Home = (): ReactElement => {
   const { getToken } = useSessionToken();
 
   const needsUser = app.approvals.length + pendingPurchases;
-  const pose = poseFor(needsUser, busy);
+  const pose = poseForHome(needsUser, busy);
 
   const conversations = useHistoryPage("/api/conversations?limit=4&q=");
   const recent = useMemo(
@@ -129,7 +112,7 @@ const Home = (): ReactElement => {
           <FrogMark className="size-12 shrink-0" pose={pose} />
           <div>
             <h1 className="text-[20px] font-semibold tracking-[-0.02em]">
-              {greeting(needsUser, busy)}
+              {copyForHome(needsUser, busy)}
             </h1>
             <p className="text-muted-foreground text-sm">
               Ask Froggy to look into something, or pick up where you left off.

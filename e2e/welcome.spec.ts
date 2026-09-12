@@ -40,6 +40,7 @@ test("Home keeps a local identity, and offers the welcome from its foot", async 
   await expect(
     page.getByRole("heading", { name: "Nothing needs you." })
   ).toBeVisible();
+  await expect(page.locator('[data-pose="idle"]').first()).toBeVisible();
   await page.getByRole("link", { name: "Show the welcome again" }).click();
   await expect(page).toHaveURL(/\/welcome$/u);
   await expect(
