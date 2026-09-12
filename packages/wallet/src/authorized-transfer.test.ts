@@ -180,11 +180,13 @@ describe("encodeTransferWithAuthorization", () => {
 
 const Condition = Schema.Struct({
   abi: Schema.optional(Schema.Unknown),
+  operator: Schema.String,
   field: Schema.String,
   field_source: Schema.String,
   value: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
 });
 const Rule = Schema.Struct({
+  action: Schema.String,
   conditions: Schema.Array(Condition),
   method: Schema.String,
   name: Schema.String,
@@ -202,32 +204,70 @@ const committed = async <T>(
   return Schema.decodeUnknownSync(schema)(json);
 };
 
-describe("the committed treasury relay rule", () => {
-  test("decodes the calldata this module encodes, and pins the recipient the shared policy pins", async () => {
-    const [rule] = await committed("privy-treasury-relay-rule.json", Rules);
-    const shared = await committed("privy-agent-policy.json", Policy);
-    expect(rule?.method).toBe("eth_signTransaction");
-    const calldata = rule?.conditions.find(
-      (condition) => condition.field_source === "ethereum_calldata"
-    );
-    expect(calldata?.field).toBe("transferWithAuthorization.to");
-    expect(calldata?.abi).toEqual(TRANSFER_WITH_AUTHORIZATION_ABI);
-    const treasury = shared.rules
-      .find((candidate) => candidate.name === "pocket-topup-usdc-base-mainnet")
-      ?.conditions.find((condition) => condition.field === "transfer.to");
-    expect(calldata?.value).toBeString();
-    expect(treasury?.value).toBeString();
-    expect(String(calldata?.value).toLowerCase()).toBe(
-      String(treasury?.value).toLowerCase()
-    );
-    expect(
-      rule?.conditions.find(
-        (condition) =>
-          condition.field_source === "ethereum_transaction" &&
-          condition.field === "value"
-      )?.value
-    ).toBe("0");
-  });
+describe("the committed treasury relay rules", () => {
+  test.each([
+    {
+      name: "settle-conversion-authorization-usdc-base-mainnet",
+      abi: [TRANSFER_WITH_AUTHORIZATION_ABI[0]],
+    },
+    {
+      name: "settle-conversion-erc1271-usdc-base",
+      abi: [TRANSFER_WITH_AUTHORIZATION_ABI[1]],
+    },
+  ])(
+    "$name decodes its overload and preserves the treasury restrictions",
+    async ({ name, abi }) => {
+      const rules = await committed("privy-treasury-relay-rule.json", Rules);
+      const shared = await committed("privy-agent-policy.json", Policy);
+      const matching = rules.filter((candidate) => candidate.name === name);
+      expect(matching).toHaveLength(1);
+      const [rule] = matching;
+      expect(rule?.method).toBe("eth_signTransaction");
+      expect(rule?.action).toBe("ALLOW");
+      expect(rule?.conditions).toEqual([
+        {
+          field_source: "ethereum_transaction",
+          field: "chain_id",
+          operator: "eq",
+          value: "8453",
+        },
+        {
+          field_source: "ethereum_transaction",
+          field: "to",
+          operator: "eq",
+          value: USDC,
+        },
+        {
+          field_source: "ethereum_transaction",
+          field: "value",
+          operator: "eq",
+          value: "0",
+        },
+        {
+          field_source: "ethereum_calldata",
+          field: "transferWithAuthorization.to",
+          operator: "eq",
+          value: TREASURY,
+          abi,
+        },
+        {
+          field_source: "system",
+          field: "current_unix_timestamp",
+          operator: "lt",
+          value: "1790726400",
+        },
+      ]);
+      const treasury = shared.rules
+        .find(
+          (candidate) => candidate.name === "pocket-topup-usdc-base-mainnet"
+        )
+        ?.conditions.find((condition) => condition.field === "transfer.to");
+      expect(treasury?.value).toBeString();
+      expect(String(treasury?.value).toLowerCase()).toBe(
+        TREASURY.toLowerCase()
+      );
+    }
+  );
 });
 
 describe("readTokenDomain", () => {

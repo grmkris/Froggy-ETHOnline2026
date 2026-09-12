@@ -18,6 +18,15 @@
     "test": {
       "dependsOn": ["^typecheck"],
       "outputs": []
+    },
+    "@froggy/wallet#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/privy-agent-policy.json",
+        "$TURBO_ROOT$/docs/privy-treasury-relay-rule.json"
+      ],
+      "outputs": []
     }
   }
 }
