@@ -252,6 +252,11 @@ test("Zora template is the EIP-1167 proxy to the pinned coin implementation", ()
   expect(venue.template(proxy).note).toContain("EIP-1167");
   const otherImplementation: Hex = `0x363d3d373d3d3d363d73${"ab".repeat(20)}5af43d82803e903d91602b57fd5bf3`;
   expect(venue.template(otherImplementation).matches).toBe(false);
+  const notAProxy: Hex = `0x${"60".repeat(45)}`;
+  expect(venue.template(notAProxy)).toMatchObject({
+    status: "observed",
+    matches: false,
+  });
   expect(venue.template().status).toBe("not_indexed");
   expect(venue.capabilities.template).toBe(false);
 });
