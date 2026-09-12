@@ -4,6 +4,7 @@ import type { BrowserHandle } from "@froggy/browser";
 import {
   OAUTH_SCOPES,
   SaleId,
+  defaultAllowance,
   SessionId,
   usdMicros,
   userId,
@@ -818,5 +819,156 @@ describe("bounded browser quotes", () => {
     expect(stopped?.error).toContain("allowance is exhausted");
     expect(stopped?.saleId).toBe(task.saleId);
     expect(session.pocket).toBe(before);
+  });
+});
+
+describe("paying a quote under the ask line", () => {
+  const BOB = userId("did:privy:tasks-test-ask-line");
+  /**
+   * A second person with their own pocket and their own numbers, so what this
+   * asserts does not depend on what the tests above left in Alice's.
+   */
+  const sessionFor = async (): Promise<WorkspaceSession> => {
+    const fresh = new WorkspaceSession(
+      SessionId.generate(),
+      BOB,
+      {
+        ledger: services.ledger,
+        modes: services.environment.modes,
+        onPolicyDecision: noop,
+        balances: {
+          hbar: async () => await Promise.resolve(null),
+          usdc: async () => await Promise.resolve(null),
+        },
+        networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
+        onReceipt: noop,
+        pocket: {
+          networks: ["hedera:testnet"],
+          startingUsdMicrosFor: () => 5_000_000,
+        },
+        quote: createQuotes(services.rates).quote,
+        store: services.store,
+      },
+      { hosts: ["localhost:3000"], payeeIds: [services.oracle.payTo] }
+    );
+    await fresh.hydrate();
+    // The person's own numbers: a $1 quote is well over this ask line, so the
+    // policy says `ask` whatever the HBAR rounding does to the last micro.
+    fresh.applyAllowance({
+      allowance: {
+        ...defaultAllowance(Date.now()),
+        askOverUsdMicros: usdMicros(500_000),
+      },
+      policyId: "policy-fixture-bob",
+    });
+    return fresh;
+  };
+  const payFor = async (
+    who: WorkspaceSession,
+    caller: Parameters<typeof handleWalletPay>[3],
+    key: string
+  ): Promise<Response> => {
+    const place = {
+      // SAFETY: nothing here browses; the handle only satisfies the shape.
+      browser: {} as BrowserHandle,
+      session: who,
+      userId: BOB,
+    };
+    const quoted = await handleTaskPost(
+      deps,
+      post(quoteBody(key)),
+      place,
+      caller
+    );
+    expect(quoted.status).toBe(402);
+    const raw: unknown = await quoted.json();
+    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
+    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
+    return await handleWalletPay(
+      deps,
+      new Request("http://localhost:3000/api/wallet/pay", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
+      }),
+      place,
+      caller
+    );
+  };
+
+  it("takes the person's own tap on Pay as the answer, and still refuses over the cap", async () => {
+    const who = await sessionFor();
+    const person = {
+      agentTokenId: null,
+      grantId: null,
+      scopes: null,
+      userId: BOB,
+    };
+    const signed = await payFor(who, person, "ask-line-person");
+    expect(signed.status).toBe(200);
+    const { receipt } = Schema.decodeUnknownSync(
+      Schema.Struct({
+        header: Schema.String,
+        receipt: Schema.Struct({
+          decision: Schema.Struct({ _tag: Schema.String }),
+        }),
+      })
+    )(await signed.json());
+    expect(receipt.decision._tag).toBe("allow");
+    // The tap answers the question; it does not move the ceiling.
+    const place = {
+      // SAFETY: as above.
+      browser: {} as BrowserHandle,
+      session: who,
+      userId: BOB,
+    };
+    const big = await handleTaskPost(
+      deps,
+      post({ ...quoteBody("ask-line-over-cap"), budgetUsd: 3 }),
+      place,
+      person
+    );
+    const raw: unknown = await big.json();
+    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
+    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
+    const refused = await handleWalletPay(
+      deps,
+      new Request("http://localhost:3000/api/wallet/pay", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
+      }),
+      place,
+      person
+    );
+    expect(refused.status).toBe(403);
+    expect(
+      Schema.decodeUnknownSync(Schema.Struct({ error: Schema.String }))(
+        await refused.json()
+      ).error
+    ).toContain("per-transaction cap");
+  });
+
+  it("does not take an agent's request as anybody's answer", async () => {
+    const who = await sessionFor();
+    const { token } = await mintAgentToken(
+      services.store,
+      BOB,
+      "Ask-line agent",
+      Date.now()
+    );
+    const agent = {
+      agentTokenId: token.id,
+      grantId: null,
+      scopes: null,
+      userId: BOB,
+    };
+    const refused = await payFor(who, agent, "ask-line-agent");
+    expect(refused.status).toBe(403);
+    expect(
+      Schema.decodeUnknownSync(Schema.Struct({ error: Schema.String }))(
+        await refused.json()
+      ).error
+    ).toContain("no one to ask");
   });
 });
