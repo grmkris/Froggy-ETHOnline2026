@@ -9,14 +9,29 @@ import {
 } from "viem";
 import type { Hex } from "viem";
 
-// Primary deployment tables, retrieved 2026-09-08 from Uniswap/docs:
-// content/protocols/v3/deployments/v3-{base,ethereum}-deployments.mdx.
-const DEPLOYMENTS = new Map([
+import { PONS_NETWORK } from "./networks";
+
+type RouterVersion = "2.0" | "2.1.1";
+
+interface UniswapDeployment {
+  readonly router: string;
+  readonly factory: string;
+  /** Encoding of V3_SWAP_EXACT_IN; must match the pinned router bytecode. */
+  readonly routerVersion: RouterVersion;
+}
+
+// Primary deployment tables:
+// - Ethereum / Base / Sepolia: Uniswap/docs v3-{ethereum,base}-deployments (2026-09-08).
+// - Robinhood: https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments
+//   and https://developers.uniswap.org/docs/trading/swapping-api/supported-chains (UR 2.1.1 only).
+//   Bytecode confirmed live on rpc.mainnet.chain.robinhood.com on 2026-09-12.
+const DEPLOYMENTS = new Map<string, UniswapDeployment>([
   [
     "eip155:1",
     {
       router: "0x66a9893cc07d91d95644aedd05d03f95e1dba8af",
       factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      routerVersion: "2.0",
     },
   ],
   [
@@ -24,6 +39,7 @@ const DEPLOYMENTS = new Map([
     {
       router: "0x6fF5693b99212Da76ad316178A184AB56D299b43",
       factory: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+      routerVersion: "2.0",
     },
   ],
   [
@@ -31,6 +47,7 @@ const DEPLOYMENTS = new Map([
     {
       router: "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b",
       factory: "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+      routerVersion: "2.0",
     },
   ],
   [
@@ -38,6 +55,15 @@ const DEPLOYMENTS = new Map([
     {
       router: "0x492E6456D9528771018DeB9E87ef7750EF184104",
       factory: "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+      routerVersion: "2.0",
+    },
+  ],
+  [
+    PONS_NETWORK,
+    {
+      router: getAddress("0x8876789976decbfcbbbe364623c63652db8c0904"),
+      factory: getAddress("0x1f7d7550b1b028f7571e69a784071f0205fd2efa"),
+      routerVersion: "2.1.1",
     },
   ],
 ]);
@@ -45,9 +71,9 @@ export const UNISWAP_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 export const uniswapDeployment = (network: string) =>
   DEPLOYMENTS.get(network) ?? null;
 
-// Rollup data/operator fees are outside an EIP-1559 execution fee cap.
+/** True when a reviewed Uniswap deployment is pinned for this network. */
 export const uniswapExecutionNetwork = (network: string): boolean =>
-  network === "eip155:1" || network === "eip155:11155111";
+  uniswapDeployment(network) !== null;
 
 const TOKEN = parseAbi([
   "function approve(address spender,uint256 amount) returns (bool)",
@@ -58,8 +84,13 @@ const PERMIT = parseAbi([
 const ROUTER = parseAbi([
   "function execute(bytes commands,bytes[] inputs,uint256 deadline) payable",
 ]);
-const SWAP = parseAbiParameters(
+const SWAP_V20 = parseAbiParameters(
   "address recipient,uint256 amountIn,uint256 amountOutMin,bytes path,bool payerIsUser"
+);
+// UR 2.1.1 appends minHopPriceX36; empty disables per-hop checks.
+// https://github.com/Uniswap/universal-router/releases/tag/2.1.1
+const SWAP_V211 = parseAbiParameters(
+  "address recipient,uint256 amountIn,uint256 amountOutMin,bytes path,bool payerIsUser,uint256[] minHopPriceX36"
 );
 
 export interface UniswapTransactionContext {
@@ -120,6 +151,32 @@ const pathFor = (input: TradeInput, quote: SwapQuoteResult) => {
   }
   const bytes: Hex = `0x${path}`;
   return { bytes, pools: route };
+};
+
+const encodeExactIn = (
+  version: RouterVersion,
+  recipient: string,
+  amountIn: bigint,
+  amountOutMin: bigint,
+  path: Hex
+): Hex => {
+  if (version === "2.1.1") {
+    return encodeAbiParameters(SWAP_V211, [
+      getAddress(recipient),
+      amountIn,
+      amountOutMin,
+      path,
+      true,
+      [],
+    ]);
+  }
+  return encodeAbiParameters(SWAP_V20, [
+    getAddress(recipient),
+    amountIn,
+    amountOutMin,
+    path,
+    true,
+  ]);
 };
 
 /** Constructs one known router command; upstream transaction calldata is never signed. */
@@ -229,13 +286,13 @@ export const buildUniswapTransactions = (
     100_000n,
     "Give the reviewed router an exact, five-minute Permit2 allowance."
   );
-  const encoded = encodeAbiParameters(SWAP, [
-    getAddress(input.wallet),
+  const encoded = encodeExactIn(
+    deployment.routerVersion,
+    input.wallet,
     BigInt(input.amount),
     minimum,
-    path.bytes,
-    true,
-  ]);
+    path.bytes
+  );
   append(
     "swap",
     deployment.router,

@@ -4,7 +4,10 @@ import type { TradeInput } from "@froggy/domain";
 import { Cause, ConfigProvider, Effect, Exit, Redacted } from "effect";
 
 import { loadTradingEnvironment } from "./environment";
-import { executionProviders } from "./trading/execution-providers";
+import {
+  executionCapabilities,
+  executionProviders,
+} from "./trading/execution-providers";
 
 const BASE = "eip155:8453";
 const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
@@ -213,8 +216,8 @@ describe("trading environment", () => {
   });
 });
 
-test("live rollup execution stays unavailable even with configured providers, while its fixture remains explicit", async () => {
-  const input: TradeInput = {
+test("live Uniswap execution is available on Base, mainnet and Robinhood when providers are configured", async () => {
+  const base: TradeInput = {
     network: BASE,
     venue: "uniswap",
     action: "swap",
@@ -226,17 +229,54 @@ test("live rollup execution stays unavailable even with configured providers, wh
     slippageBps: 100,
     position: null,
   };
+  const mainnet = { ...base, network: "eip155:1" as const };
+  const robinhood = { ...base, network: "eip155:4663" as const };
   const environment = await load({
     ...configured,
+    TRADING_RPC_ENDPOINTS: JSON.stringify({
+      [BASE]: RPC_URL,
+      "eip155:1": RPC_URL,
+      "eip155:4663": RPC_URL,
+      [SOLANA]: "https://solana.invalid/rpc",
+    }),
+    UNISWAP_CHAINS: JSON.stringify([
+      { network: BASE, routerVersion: "2.1.1" },
+      { network: "eip155:1", routerVersion: "2.0" },
+      { network: "eip155:4663", routerVersion: "2.1.1" },
+    ]),
     TENDERLY_ACCESS_KEY: "test-key",
     TENDERLY_ACCOUNT: "account",
     TENDERLY_PROJECT: "project",
   });
   expect(environment.uniswapMode).toBe("live");
-  expect(executionProviders(environment, true)(input)).toBeNull();
+  expect(executionProviders(environment, true)(base)?.stubbed).toBe(false);
+  expect(executionProviders(environment, true)(mainnet)?.stubbed).toBe(false);
+  expect(executionProviders(environment, true)(robinhood)?.stubbed).toBe(false);
+  expect(executionProviders(environment, false)(base)).toBeNull();
+  const capabilities = executionCapabilities(
+    environment,
+    {
+      ethereum: { address: base.wallet, id: "wallet_test" },
+      solana: null,
+    },
+    true
+  );
+  const modes = Object.fromEntries(
+    capabilities.routes
+      .filter((route) => route.venue === "uniswap")
+      .map((route) => [route.network, route.mode])
+  );
+  expect(modes[BASE]).toBe("live");
+  expect(modes["eip155:1"]).toBe("live");
+  expect(modes["eip155:4663"]).toBe("live");
+  expect(
+    capabilities.routes
+      .find((route) => route.network === BASE)
+      ?.limitations.join(" ")
+  ).not.toContain("rollup data fees");
   const stub = await load();
-  expect(executionProviders(stub, false)(input)?.stubbed).toBe(true);
-  expect(executionProviders(stub, false, false)(input)).toBeNull();
+  expect(executionProviders(stub, false)(base)?.stubbed).toBe(true);
+  expect(executionProviders(stub, false, false)(base)).toBeNull();
 });
 
 test("Enso execution requires complete credentials and remains an explicit fixture otherwise", async () => {

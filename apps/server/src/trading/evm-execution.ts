@@ -19,10 +19,10 @@ import {
 } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
 import { verifySignedTradeTransaction } from "./evm-signed";
-import { chainIdOf, PONS_NETWORK } from "./networks";
+import { chainIdOf } from "./networks";
+import { assertNativeFeeBudget } from "./rollup-fees";
 import { tenderlySimulation } from "./tenderly";
 import type { TenderlyOptions } from "./tenderly";
-import { uniswapExecutionNetwork } from "./uniswap-transactions";
 
 export interface EvmExecutionOptions {
   readonly client: TradeEvmClient;
@@ -173,14 +173,25 @@ export const evmTradeSubmission =
           "trade.signer: the approved wallet signer is unavailable."
         );
       }
-      if (
-        !uniswapExecutionNetwork(trade.input.network) &&
-        !(trade.input.venue === "pons" && trade.input.network === PONS_NETWORK)
-      ) {
-        throw new Error(
-          "trade.fee_bound: this network has fees outside the signed transaction cap; execution is unavailable."
-        );
-      }
+      const spent = trade.steps.reduce(
+        (sum, entry) =>
+          sum +
+          (entry.actualNativeFee === null ? 0n : BigInt(entry.actualNativeFee)),
+        0n
+      );
+      const remaining = trade.steps.flatMap((entry) =>
+        entry.actualNativeFee === null && entry.payload.kind === "evm"
+          ? [entry.payload]
+          : []
+      );
+      await assertNativeFeeBudget({
+        client: options.client,
+        network: trade.input.network,
+        wallet: trade.input.wallet,
+        payloads: remaining,
+        maxNativeFee: trade.input.maxNativeFee,
+        spent,
+      });
       await checkTradeBeforeSigning(options.client, trade, step);
       const { payload } = step;
       const chainId = chainIdOf(trade.input.network);

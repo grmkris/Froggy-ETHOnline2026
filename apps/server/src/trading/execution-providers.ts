@@ -16,10 +16,7 @@ import { SolanaTradeRpc } from "./solana-chain";
 import { stubTradeBackend } from "./stub-execution";
 import { liveUniswap } from "./uniswap";
 import { uniswapExecution } from "./uniswap-execution";
-import {
-  uniswapDeployment,
-  uniswapExecutionNetwork,
-} from "./uniswap-transactions";
+import { uniswapDeployment } from "./uniswap-transactions";
 
 const SOLANA = SOLANA_MAINNET;
 type Mode = "live" | "stub" | "unavailable";
@@ -40,11 +37,7 @@ const routeMode = (
   if (mode !== "live") {
     return mode;
   }
-  if (
-    !privyLive ||
-    environment.rpcEndpoints[network] === undefined ||
-    (venue === "uniswap" && !uniswapExecutionNetwork(network))
-  ) {
+  if (!privyLive || environment.rpcEndpoints[network] === undefined) {
     return "unavailable";
   }
   return "live";
@@ -76,11 +69,6 @@ export const executionCapabilities = (
               : (wallets.ethereum?.address ?? null),
           limitations: [
             "Exact-input legacy ERC-20 swaps through one V3 path. Each allowance and swap needs its own approval.",
-            ...(!uniswapExecutionNetwork(chain.network) && mode !== "stub"
-              ? [
-                  "Live execution is unavailable until rollup data fees have a separate approved budget model.",
-                ]
-              : []),
           ],
         };
       });

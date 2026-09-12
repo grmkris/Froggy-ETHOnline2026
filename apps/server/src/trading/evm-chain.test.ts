@@ -137,8 +137,13 @@ const receipt = () => ({
   contractAddress: null,
   l1Fee: "0x64",
 });
+type ReceiptFixture = ReturnType<typeof receipt> & {
+  gasUsedForL1?: string;
+  operatorFeeScalar?: string;
+  operatorFeeConstant?: string;
+};
 const responder =
-  (overrides: Partial<ReturnType<typeof receipt>> = {}, blockHash = BLOCK) =>
+  (overrides: Partial<ReceiptFixture> = {}, blockHash = BLOCK) =>
   (method: string): Schema.Json => {
     switch (method) {
       case "eth_chainId": {
@@ -177,6 +182,24 @@ test("canonical confirmed receipts include Base data fees", async () => {
   ).toEqual({
     state: "confirmed",
     nativeFee: "42100",
+    output: "0",
+    at: 123,
+  });
+});
+
+test("Isthmus operator fee scalars on the receipt are added to the native fee", async () => {
+  // gasUsed 21000 × price 2 + l1Fee 100 + (21000 × 1e6 / 1e6) + 10
+  const setup = fixture(
+    responder({
+      operatorFeeScalar: "0xf4240",
+      operatorFeeConstant: "0xa",
+    })
+  );
+  expect(
+    await confirmedTradeReceipt(setup.client, trade, step, 2, 123)
+  ).toEqual({
+    state: "confirmed",
+    nativeFee: "63110",
     output: "0",
     at: 123,
   });

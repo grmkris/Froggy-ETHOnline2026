@@ -12,6 +12,7 @@ import {
   evmTradeSubmission,
   simulateEvmTrade,
 } from "./evm-execution";
+import { assertNativeFeeBudget } from "./rollup-fees";
 import type { UniswapQuotes } from "./uniswap";
 import {
   buildUniswapTransactions,
@@ -84,7 +85,7 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
   prepare: async (input: TradeInput) => {
     if (!uniswapExecutionNetwork(input.network)) {
       throw new Error(
-        "trade.fee_bound: this network has fees outside the signed transaction cap; execution is unavailable."
+        "trade.network: no reviewed Uniswap deployment for this action."
       );
     }
     await assertTradeNetwork(options.client, input.network);
@@ -123,6 +124,13 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
       priorityFeePerGas: fees.maxPriorityFeePerGas,
       tokenAllowance,
       now,
+    });
+    await assertNativeFeeBudget({
+      client: options.client,
+      network: input.network,
+      wallet: input.wallet,
+      payloads: built.transactions.map((transaction) => transaction.payload),
+      maxNativeFee: input.maxNativeFee,
     });
     await checkPools(options.client, input, built, blockNumber);
     const steps = built.transactions.map((transaction) =>

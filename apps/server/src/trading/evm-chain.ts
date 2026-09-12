@@ -14,6 +14,7 @@ import {
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
 import { chainIdOf, PONS_NETWORK } from "./networks";
+import { isRollupNetwork } from "./rollup-fees";
 
 const Request = Schema.Struct({
   method: Schema.String,
@@ -163,20 +164,20 @@ const receiptNativeFee = (
   network: string,
   receipt: TransactionReceipt
 ): bigint => {
+  const HexQuantity = Schema.String.check(
+    Schema.isPattern(/^0x[0-9a-fA-F]+$/u)
+  );
   const extra = Schema.decodeUnknownSync(
     Schema.Struct({
-      gasUsedForL1: Schema.optionalKey(
-        Schema.String.check(Schema.isPattern(/^0x[0-9a-fA-F]+$/u))
-      ),
-      l1Fee: Schema.optionalKey(
-        Schema.String.check(Schema.isPattern(/^0x[0-9a-fA-F]+$/u))
-      ),
+      gasUsedForL1: Schema.optionalKey(HexQuantity),
+      l1Fee: Schema.optionalKey(HexQuantity),
+      // Present after Isthmus iff at least one is non-zero:
+      // https://specs.optimism.io/protocol/isthmus/exec-engine.html
+      operatorFeeScalar: Schema.optionalKey(HexQuantity),
+      operatorFeeConstant: Schema.optionalKey(HexQuantity),
     })
   )(receipt);
-  if (
-    ["eip155:8453", "eip155:84532"].includes(network) &&
-    extra.l1Fee === undefined
-  ) {
+  if (isRollupNetwork(network) && extra.l1Fee === undefined) {
     throw new Error(
       "trade.receipt: Base data fee is missing; keep the reservation until accounting is available."
     );
@@ -193,8 +194,16 @@ const receiptNativeFee = (
     }
     return receipt.gasUsed * receipt.effectiveGasPrice;
   }
+  const operatorFee =
+    extra.operatorFeeScalar === undefined ||
+    extra.operatorFeeConstant === undefined
+      ? 0n
+      : (receipt.gasUsed * BigInt(extra.operatorFeeScalar)) / 1_000_000n +
+        BigInt(extra.operatorFeeConstant);
   return (
-    receipt.gasUsed * receipt.effectiveGasPrice + BigInt(extra.l1Fee ?? "0")
+    receipt.gasUsed * receipt.effectiveGasPrice +
+    BigInt(extra.l1Fee ?? "0") +
+    operatorFee
   );
 };
 
