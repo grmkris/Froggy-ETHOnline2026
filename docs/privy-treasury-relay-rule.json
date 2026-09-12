@@ -71,7 +71,46 @@
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
-          },
+          }
+        ]
+      },
+      {
+        "field_source": "system",
+        "field": "current_unix_timestamp",
+        "operator": "lt",
+        "value": "1790726400"
+      }
+    ]
+  },
+  {
+    "name": "settle-conversion-erc1271-usdc-base",
+    "method": "eth_signTransaction",
+    "action": "ALLOW",
+    "conditions": [
+      {
+        "field_source": "ethereum_transaction",
+        "field": "chain_id",
+        "operator": "eq",
+        "value": "8453"
+      },
+      {
+        "field_source": "ethereum_transaction",
+        "field": "to",
+        "operator": "eq",
+        "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      },
+      {
+        "field_source": "ethereum_transaction",
+        "field": "value",
+        "operator": "eq",
+        "value": "0"
+      },
+      {
+        "field_source": "ethereum_calldata",
+        "field": "transferWithAuthorization.to",
+        "operator": "eq",
+        "value": "0x8Cc232c9EB25b4b20ee448106858e3B6281708C2",
+        "abi": [
           {
             "inputs": [
               {

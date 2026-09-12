@@ -2,6 +2,19 @@
 
 12 September 2026. Implementation decision: [ADR 0027](../decisions/0027-privy-managed-execution.md).
 
+## Current browser-test handoff
+
+The owner explicitly disabled separate Smart Wallets in Privy and authorized Base sponsorship for a manual browser test. Production read-back confirmed:
+
+- `smart_wallet_config.enabled: false`; embedded wallet mode remains `user-controlled-server-wallets-only`.
+- `PRIVY_SPONSORED_NETWORKS=["eip155:8453"]`; the parsed Base capability is `mode: live`, `execution: privy_batch`, `feePayer: app`.
+- Cleanup code `c974c54` passed all 163 CI browser tests and deployed successfully. The public app and `/health` returned HTTP 200; a fresh browser reported no uncaught page errors.
+- A read-only Uniswap probe using the public router as the quote address returned native ETH output on Base. The same 1-USDC pair on Base Sepolia returned HTTP 404/no route. This probe did not create an order or validate a user's approval.
+- The live Base and Base Sepolia USDC proxies point to verified `FiatTokenV2_2` implementations with both authorization overloads and SignatureChecker source. This verifies deployed contract support, not an actual post-delegation signature round trip.
+- The owner approved the treasury compatibility addition. Policy `wdct7xe9re788wr3htum96pw` now contains `settle-conversion-erc1271-usdc-base`; read-back confirmed all six original rules unchanged and seven rules total. The committed relay artifact retains the legacy rule and adds the separately named bytes-signature rule. No transaction was signed as part of that policy update.
+
+The owner-approved Base browser test supersedes the original testnet-first gate below because that Sepolia quote route was unavailable. Start with a fresh small USDC-to-native-ETH proposal, inspect amount and minimum output, and require the owner's exact approval. A successful sponsored swap and subsequent x402/conversion remain live qualification work. No wallet operation was signed or submitted by the investigation.
+
 ## Local verification
 
 - Managed request recovery tests cover persistence before submission, concurrent approval, stable retries after response loss, expiration, frozen trading and refusal of rule authority.
@@ -26,7 +39,7 @@
 
 Repeat configuration and contract checks for chain 8453. Require the owner to approve the exact small swap in the browser. Record the same evidence and repeat post-delegation USDC/x402 checks. Do not infer mainnet compatibility solely from Sepolia.
 
-Keep sponsorship disabled on Base until these prerequisites are satisfied. Leave browser-dapp sends and transfer migration for the subsequent stage of the approved plan, after live managed execution is proven.
+These are the original qualification criteria. The owner subsequently authorized Base browser testing as recorded above. Browser-dapp sends and transfer migration remain a subsequent stage, after live managed execution is proven.
 
 ## Separate Smart Wallet retirement
 
@@ -39,7 +52,7 @@ The owner explicitly authorized both the account audit and token-balance queries
 
 The runtime now has one EOA address role: the obsolete `smart` alias and duplicate smart-account ownership result are removed. Historical protocol labels remain decodable. No account was unlinked, no funds moved, and no history deleted. Preserve the legacy linked record for test-fund recovery.
 
-The separate Smart Wallet dashboard configuration was still enabled for Kernel on Ethereum and Base at audit time. The installed SDK exposes its read API but no app-settings mutation, and this session has no authenticated dashboard control. The operator can disable the **separate Smart Wallets** toggle in Privy's dashboard while keeping embedded wallets and native gas sponsorship configured. Read the setting back afterward; the code cleanup alone does not establish that the dashboard toggle changed.
+The separate Smart Wallet configuration was enabled for Kernel on Ethereum and Base at audit time. The owner then disabled the dashboard toggle; the Privy settings API confirmed it is off and embedded wallets remain enabled. The legacy linked record was preserved for recovery.
 
 Cleanup validation: the full repository gate and all 17 trading browser tests passed. The preceding managed-execution release also passed all 163 browser tests in CI and deployed successfully.
 
@@ -47,4 +60,4 @@ Cleanup validation: the full repository gate and all 17 trading browser tests pa
 
 To stop new sponsored proposals, remove the affected network from `PRIVY_SPONSORED_NETWORKS`. Keep the current application version and Privy credentials available so existing managed operations can reconcile. Do not erase held reservations, change operation keys or downgrade to a binary that cannot decode `evm_calls`. An expired request with no provider id requires operator reconciliation from wallet/provider activity.
 
-No live owner signature, gas-credit expenditure, Smart Wallet setting change, treasury policy update or successful live swap is established by the local verification above.
+No live owner signature, gas-credit expenditure or successful live swap is established by the checks above. Dashboard changes are distinguished from code deployment and from actual execution.
