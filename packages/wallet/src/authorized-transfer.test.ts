@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import { keccak_256 } from "@noble/hashes/sha3";
 import { bytesToHex } from "@noble/hashes/utils";
+import { APIError, PrivyClient } from "@privy-io/node";
 import { Schema } from "effect";
 
 import {
@@ -19,7 +20,7 @@ import type {
   AgentTypedDataSigner,
   UnsignedEvmTransaction,
 } from "./evm-signer";
-import { PrivySignerRefusedError } from "./evm-signer";
+import { privyAgentSigner, PrivySignerRefusedError } from "./evm-signer";
 
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const TREASURY = "0x8Cc232c9EB25b4b20ee448106858e3B6281708C2";
@@ -375,6 +376,55 @@ describe("sendAuthorizedTransfer", () => {
     expect(refused?.text).toMatch(
       /^PrivySignerRefusedError: .*no rule matched.*save them again in Settings/u
     );
+  });
+
+  test("an invalid signing request cannot reach the relayer or recommend changing rules", async () => {
+    const client = new PrivyClient({
+      appId: "test-app",
+      appSecret: "test-secret",
+    });
+    const signing = spyOn(client.wallets(), "rpc").mockRejectedValue(
+      new APIError(
+        400,
+        {
+          code: "invalid_data",
+          error: "caip2 is required when signature_options is provided",
+        },
+        undefined,
+        new Headers()
+      )
+    );
+    const relayer = relayerSigner();
+    const rpc = rpcWith();
+    const broadcast = spyOn(rpc, "sendRawTransaction");
+    try {
+      const result = await failure(
+        sendAuthorizedTransfer({
+          amount: 4_000_000n,
+          chainId: 8453,
+          from: privyAgentSigner(client, {
+            agent: {
+              privateKey: "test-key",
+              policyId: "test-policy",
+              quorumId: "test-quorum",
+            },
+            wallet: { id: "test-wallet", address: PERSON },
+          }),
+          relayer: relayer.signer,
+          rpc,
+          to: TREASURY,
+          token: USDC,
+        })
+      );
+      expect(result?.text).toContain("Privy rejected the signing request");
+      expect(result?.text).not.toContain("Settings");
+      expect(result?.text).not.toContain("under policy");
+      expect(relayer.signed).toHaveLength(0);
+      expect(broadcast).not.toHaveBeenCalled();
+    } finally {
+      signing.mockRestore();
+      broadcast.mockRestore();
+    }
   });
 
   test("a refusal of the relayer's signature says which signer said no", async () => {

@@ -148,6 +148,49 @@ const typesOf = (source: {
 
 const hex = (value: bigint): string => `0x${value.toString(16)}`;
 
+const signingChainId = Schema.Union([
+  Schema.Int,
+  Schema.BigInt,
+  Schema.String.check(Schema.isPattern(/^(?:[0-9]+|0x[0-9a-fA-F]+)$/u)),
+]);
+
+const signatureFields = async (
+  address: string,
+  typedData: Parameters<AgentTypedDataSigner["signTypedData"]>[0],
+  resolve: SignatureOptionsResolver | undefined
+) => {
+  const options = await resolve?.(address, typedData);
+  const chain = typedData.domain["chainId"];
+  // EIP-712 permits chainless documents. Privy requires a chain whenever
+  // signature_options is present, so keep its default for those documents.
+  if (chain === undefined) {
+    if (options !== null && options !== undefined) {
+      throw new Error("Contract signature encoding requires a signing chain.");
+    }
+    return {};
+  }
+  const chainId = BigInt(Schema.decodeUnknownSync(signingChainId)(chain));
+  if (chainId < 0n) {
+    throw new Error("The signing chain ID cannot be negative.");
+  }
+  return {
+    caip2: `eip155:${chainId}` as const,
+    signature_options: options ?? { type: "ecdsa" as const },
+  };
+};
+
+const isInvalidData = Schema.is(
+  Schema.Struct({ code: Schema.Literal("invalid_data") })
+);
+
+const typedDataFailure = (
+  error: { readonly error: unknown; readonly message: string },
+  refusal: string
+): Error =>
+  isInvalidData(error.error)
+    ? new Error(`Privy rejected the signing request: ${error.message}`)
+    : new PrivySignerRefusedError(`${refusal}: ${error.message}`);
+
 export const privyAgentSigner = (
   client: PrivyClient,
   input: {
@@ -218,10 +261,11 @@ export const privyAgentSigner = (
           .ethereum()
           .signTypedData(input.wallet.id, {
             authorization_context,
-            signature_options: (await input.signatureOptionsFor?.(
+            ...(await signatureFields(
               input.wallet.address,
-              typedData
-            )) ?? { type: "ecdsa" },
+              typedData,
+              input.signatureOptionsFor
+            )),
             params: {
               typed_data: {
                 domain: domainOf(typedData.domain),
@@ -234,8 +278,9 @@ export const privyAgentSigner = (
         return signed.signature;
       } catch (error) {
         if (error instanceof APIError) {
-          throw new PrivySignerRefusedError(
-            `Privy refused to sign under policy ${input.agent.policyId}: ${error.message}`
+          throw typedDataFailure(
+            error,
+            `Privy refused to sign under policy ${input.agent.policyId}`
           );
         }
         throw error;
@@ -271,10 +316,11 @@ export const privyOwnerSigner = (
           .ethereum()
           .signTypedData(wallet.id, {
             authorization_context: { user_jwts: [accessToken] },
-            signature_options: (await input.signatureOptionsFor?.(
+            ...(await signatureFields(
               input.wallet.address,
-              typedData
-            )) ?? { type: "ecdsa" },
+              typedData,
+              input.signatureOptionsFor
+            )),
             params: {
               typed_data: {
                 domain: domainOf(typedData.domain),
@@ -287,9 +333,7 @@ export const privyOwnerSigner = (
         return signed.signature;
       } catch (error) {
         if (error instanceof APIError) {
-          throw new PrivySignerRefusedError(
-            `Privy refused the owner's payment: ${error.message}`
-          );
+          throw typedDataFailure(error, "Privy refused the owner's payment");
         }
         throw error;
       }

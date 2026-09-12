@@ -108,6 +108,8 @@ test("USDC signature encoding is resolved for each request without changing its 
     expect(signing.mock.calls[1]?.[1].signature_options).toEqual({
       type: "erc1271",
     });
+    expect(signing.mock.calls[0]?.[1].caip2).toBe("eip155:8453");
+    expect(signing.mock.calls[1]?.[1].caip2).toBe("eip155:8453");
     expect(signing.mock.calls[1]?.[1].params).toEqual(
       signing.mock.calls[0]?.[1].params
     );
