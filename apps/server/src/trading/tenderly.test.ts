@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { Redacted } from "effect";
+import { encodeFunctionData, parseAbi } from "viem";
 
 import { tenderlySimulation } from "./tenderly";
 import type { EvmSimulationRequest, TenderlyOptions } from "./tenderly";
@@ -116,4 +117,49 @@ test("rejects mismatched blocks, call targets and incomplete state probes", asyn
       String
     )
   ).toContain("incomplete bundle");
+});
+
+test("sponsored native probes preserve real zero-ETH balances without charging user gas", async () => {
+  const fixture = structuredClone(response);
+  const probe = fixture.simulations[1]?.trace[0];
+  if (probe === undefined) {
+    throw new Error("Missing balance probe");
+  }
+  probe.to = "0xcA11bde05977b3631167028862bE2a173976CA11";
+  probe.input = encodeFunctionData({
+    abi: parseAbi([
+      "function getEthBalance(address addr) view returns (uint256)",
+    ]),
+    functionName: "getEthBalance",
+    args: [`0x${"1".repeat(40)}`],
+  });
+  const config = options(fixture);
+  const outboundFetch = config.outbound?.fetch;
+  if (outboundFetch === undefined) {
+    throw new Error("Missing fixture transport");
+  }
+  const results = await tenderlySimulation(
+    {
+      ...config,
+      outbound: {
+        ...config.outbound,
+        fetch: Object.assign(
+          async (url: URL | Request | string, init?: RequestInit) => {
+            expect(init?.body).toContain('"gas_price":"0"');
+            expect(init?.body).not.toContain('"gas_price":"2"');
+            return await outboundFetch(url, init);
+          },
+          { preconnect: fetch.preconnect }
+        ),
+      },
+    },
+    {
+      ...request,
+      sponsored: true,
+      assets: [{ address: "native", balance: "0" }],
+    }
+  );
+  expect(results[0]?.assetChanges).toEqual([
+    { asset: "native", before: "0", after: "500" },
+  ]);
 });

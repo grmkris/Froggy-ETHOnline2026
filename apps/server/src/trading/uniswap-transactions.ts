@@ -10,6 +10,7 @@ import {
 import type { Hex } from "viem";
 
 import { PONS_NETWORK } from "./networks";
+import { uniswapQuoteAsset } from "./uniswap";
 
 type RouterVersion = "2.0" | "2.1.1";
 
@@ -127,7 +128,7 @@ const pathFor = (input: TradeInput, quote: SwapQuoteResult) => {
       "trade.route: execution requires one live, fee-free V3 path with at most four pools."
     );
   }
-  let token = input.tokenIn.toLowerCase();
+  let token = uniswapQuoteAsset(input.network, input.tokenIn).toLowerCase();
   let path = token.slice(2);
   for (const pool of route) {
     if (
@@ -144,7 +145,9 @@ const pathFor = (input: TradeInput, quote: SwapQuoteResult) => {
     token = getAddress(pool.tokenOut).toLowerCase();
     path += BigInt(pool.feeTier).toString(16).padStart(6, "0") + token.slice(2);
   }
-  if (token !== input.tokenOut.toLowerCase()) {
+  if (
+    token !== uniswapQuoteAsset(input.network, input.tokenOut).toLowerCase()
+  ) {
     throw new Error(
       "trade.route: the path does not reach the requested output token."
     );
@@ -158,7 +161,8 @@ const encodeExactIn = (
   recipient: string,
   amountIn: bigint,
   amountOutMin: bigint,
-  path: Hex
+  path: Hex,
+  payerIsUser: boolean
 ): Hex => {
   if (version === "2.1.1") {
     return encodeAbiParameters(SWAP_V211, [
@@ -166,7 +170,7 @@ const encodeExactIn = (
       amountIn,
       amountOutMin,
       path,
-      true,
+      payerIsUser,
       [],
     ]);
   }
@@ -175,7 +179,7 @@ const encodeExactIn = (
     amountIn,
     amountOutMin,
     path,
-    true,
+    payerIsUser,
   ]);
 };
 
@@ -226,7 +230,8 @@ export const buildUniswapTransactions = (
     to: string,
     data: Hex,
     gas: bigint,
-    description: string
+    description: string,
+    value = "0"
   ): void => {
     transactions.push({
       kind,
@@ -235,7 +240,7 @@ export const buildUniswapTransactions = (
         kind: "evm",
         to,
         data,
-        value: "0",
+        value,
         gasLimit: gas.toString(),
         maxFeePerGas: context.maxFeePerGas.toString(),
         maxPriorityFeePerGas: context.priorityFeePerGas.toString(),
@@ -243,66 +248,88 @@ export const buildUniswapTransactions = (
       },
     });
   };
-  const token = getAddress(input.tokenIn);
-  if (context.tokenAllowance < BigInt(input.amount)) {
-    if (context.tokenAllowance !== 0n) {
+  const token = getAddress(uniswapQuoteAsset(input.network, input.tokenIn));
+  if (input.tokenIn !== "native") {
+    if (context.tokenAllowance < BigInt(input.amount)) {
+      if (context.tokenAllowance !== 0n) {
+        append(
+          "approve",
+          token,
+          encodeFunctionData({
+            abi: TOKEN,
+            functionName: "approve",
+            args: [UNISWAP_PERMIT2, 0n],
+          }),
+          100_000n,
+          "Reset the existing token allowance before setting an exact amount."
+        );
+      }
       append(
         "approve",
         token,
         encodeFunctionData({
           abi: TOKEN,
           functionName: "approve",
-          args: [UNISWAP_PERMIT2, 0n],
+          args: [UNISWAP_PERMIT2, BigInt(input.amount)],
         }),
         100_000n,
-        "Reset the existing token allowance before setting an exact amount."
+        "Approve exactly the requested input amount to the reviewed Permit2 contract."
       );
     }
     append(
       "approve",
-      token,
+      UNISWAP_PERMIT2,
       encodeFunctionData({
-        abi: TOKEN,
+        abi: PERMIT,
         functionName: "approve",
-        args: [UNISWAP_PERMIT2, BigInt(input.amount)],
+        args: [
+          token,
+          getAddress(deployment.router),
+          BigInt(input.amount),
+          Number(deadline),
+        ],
       }),
       100_000n,
-      "Approve exactly the requested input amount to the reviewed Permit2 contract."
+      "Give the reviewed router an exact, five-minute Permit2 allowance."
     );
   }
-  append(
-    "approve",
-    UNISWAP_PERMIT2,
-    encodeFunctionData({
-      abi: PERMIT,
-      functionName: "approve",
-      args: [
-        token,
-        getAddress(deployment.router),
-        BigInt(input.amount),
-        Number(deadline),
-      ],
-    }),
-    100_000n,
-    "Give the reviewed router an exact, five-minute Permit2 allowance."
-  );
   const encoded = encodeExactIn(
     deployment.routerVersion,
-    input.wallet,
+    input.tokenOut === "native" ? deployment.router : input.wallet,
     BigInt(input.amount),
     minimum,
-    path.bytes
+    path.bytes,
+    input.tokenIn !== "native"
   );
+  const inputs: Hex[] = [encoded];
+  let commands: Hex = "0x00";
+  const payment = parseAbiParameters("address recipient,uint256 amount");
+  if (input.tokenIn === "native") {
+    commands = "0x0b00";
+    inputs.unshift(
+      encodeAbiParameters(payment, [
+        getAddress(deployment.router),
+        BigInt(input.amount),
+      ])
+    );
+  }
+  if (input.tokenOut === "native") {
+    commands = "0x000c";
+    inputs.push(
+      encodeAbiParameters(payment, [getAddress(input.wallet), minimum])
+    );
+  }
   append(
     "swap",
     deployment.router,
     encodeFunctionData({
       abi: ROUTER,
       functionName: "execute",
-      args: ["0x00", [encoded], deadline],
+      args: [commands, inputs, deadline],
     }),
     1_000_000n,
-    "Swap the exact input through a verified V3 path into this wallet."
+    "Swap the exact input through a verified V3 path into this wallet.",
+    input.tokenIn === "native" ? input.amount : "0"
   );
   return {
     transactions,

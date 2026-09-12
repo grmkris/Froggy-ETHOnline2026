@@ -1,6 +1,7 @@
 import type { TradeId } from "@froggy/domain";
 import {
   TradeCapabilities,
+  TradeAuthorization,
   TradePositions,
   TradeList,
   TradeStopRequest,
@@ -11,12 +12,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { useCallback } from "react";
 
+import { useIdentity } from "../lib/privy";
 import { useSessionToken } from "../lib/session-token";
 
 const decodeError = Schema.decodeUnknownResult(
   Schema.Struct({ error: Schema.String })
 );
 export const useTrades = (sessionId: string | null) => {
+  const identity = useIdentity();
   const { canConnect, getToken } = useSessionToken();
   const queries = useQueryClient();
   const enabled = canConnect && sessionId !== null;
@@ -104,9 +107,32 @@ export const useTrades = (sessionId: string | null) => {
       readonly id: TradeId;
       readonly answer: TradeAnswer;
     }) => {
+      let { answer: decision } = input;
+      if (decision.decision === "allow_once") {
+        const response = await api(`/api/trades/${input.id}/authorization`, {
+          method: "POST",
+          body: JSON.stringify(decision),
+        });
+        const prepared = Schema.decodeUnknownSync(TradeAuthorization)(
+          await response.json()
+        );
+        if (prepared.request !== null) {
+          const signature = await identity.signPrivyRequest?.(prepared.request);
+          if (
+            signature === undefined ||
+            signature === null ||
+            signature === ""
+          ) {
+            throw new Error(
+              "Wallet authorization was not completed. Your swap has not been submitted."
+            );
+          }
+          decision = { ...decision, authorizationSignature: signature };
+        }
+      }
       const response = await api(`/api/trades/${input.id}/answer`, {
         method: "POST",
-        body: JSON.stringify(input.answer),
+        body: JSON.stringify(decision),
       });
       return Schema.decodeUnknownSync(TradeTicket)(await response.json());
     },

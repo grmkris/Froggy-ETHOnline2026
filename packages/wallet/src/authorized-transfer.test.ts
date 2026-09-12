@@ -377,3 +377,58 @@ describe("sendAuthorizedTransfer", () => {
     expect(refused?.text).toContain("gas required exceeds allowance");
   });
 });
+
+test("ERC-1271 conversion preserves the full signature in the bytes overload", () => {
+  const signature = `0x${"ab".repeat(130)}`;
+  const data = encodeTransferWithAuthorization(
+    {
+      from: PERSON,
+      to: TREASURY,
+      value: 100n,
+      validAfter: 0n,
+      validBefore: 1000n,
+      nonce: NONCE,
+    },
+    signature
+  );
+  const expectedSelector = bytesToHex(
+    keccak_256(
+      new TextEncoder().encode(
+        "transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,bytes)"
+      )
+    )
+  ).slice(0, 8);
+  expect(data.slice(2, 10)).toBe(expectedSelector);
+  const words = data.slice(10).match(/.{64}/gu) ?? [];
+  expect(BigInt(`0x${words[6] ?? ""}`)).toBe(224n);
+  expect(BigInt(`0x${words[7] ?? ""}`)).toBe(130n);
+  expect(data.slice(10 + 8 * 64, 10 + 8 * 64 + 260)).toBe(signature.slice(2));
+  expect(words[1]).toBe(TREASURY.slice(2).toLowerCase().padStart(64, "0"));
+});
+
+test("invalid delegated USDC signatures fail simulation before the treasury signs or broadcasts", async () => {
+  const relayer = relayerSigner();
+  const result = await failure(
+    sendAuthorizedTransfer({
+      amount: 100n,
+      chainId: 8453,
+      domain: { name: "USD Coin", version: "2" },
+      from: {
+        address: PERSON,
+        signTypedData: async () =>
+          await Promise.resolve(`0x${"ab".repeat(130)}`),
+      },
+      relayer: relayer.signer,
+      token: USDC,
+      to: TREASURY,
+      rpc: rpcWith({
+        call: async () => {
+          await Promise.resolve();
+          throw new EvmRpcError("invalid signature", true);
+        },
+      }),
+    })
+  );
+  expect(result?.text).toContain("invalid signature");
+  expect(relayer.signed).toHaveLength(0);
+});

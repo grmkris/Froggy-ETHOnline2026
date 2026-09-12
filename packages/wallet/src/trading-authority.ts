@@ -109,6 +109,9 @@ const checkAuthority = (
       ? null
       : "trade.approval: approval does not match this immutable step.";
   }
+  if (step.payload.kind === "evm_calls") {
+    return "trade.human_only: sponsored batches require exact owner approval; agent batch authority is not enabled.";
+  }
   const rule = book.rules.get(authority.ruleId);
   if (rule === undefined) {
     return "trade.rule_missing: no human-issued rule authorizes this trade.";
@@ -154,20 +157,54 @@ const checkAuthority = (
   });
 };
 
-const reservationsFor = (trade: Trade): readonly TradeAssetAmount[] =>
-  trade.input.tokenIn === "native"
-    ? [
-        {
-          asset: "native",
-          units: (
-            BigInt(trade.input.amount) + BigInt(trade.input.maxNativeFee)
-          ).toString(),
-        },
-      ]
-    : [
-        { asset: trade.input.tokenIn, units: trade.input.amount },
-        { asset: "native", units: trade.input.maxNativeFee },
-      ];
+const reservationsFor = (trade: Trade): readonly TradeAssetAmount[] => {
+  if (
+    trade.steps.length === 1 &&
+    trade.steps[0]?.payload.kind === "evm_calls"
+  ) {
+    return [{ asset: trade.input.tokenIn, units: trade.input.amount }];
+  }
+  if (trade.input.tokenIn === "native") {
+    return [
+      {
+        asset: "native",
+        units: (
+          BigInt(trade.input.amount) + BigInt(trade.input.maxNativeFee)
+        ).toString(),
+      },
+    ];
+  }
+  return [
+    { asset: trade.input.tokenIn, units: trade.input.amount },
+    { asset: "native", units: trade.input.maxNativeFee },
+  ];
+};
+
+const sponsorshipRefusal = (
+  book: TradeBook,
+  trade: Trade,
+  now: number
+): string | null => {
+  if (!trade.steps.some((step) => step.payload.kind === "evm_calls")) {
+    return null;
+  }
+  if (trade.steps.length !== 1) {
+    return "trade.batch: a sponsored trade must be one atomic batch.";
+  }
+  const attempts = [...book.trades.values()].filter(
+    (other) =>
+      other.id !== trade.id &&
+      other.steps.some(
+        (step) =>
+          step.payload.kind === "evm_calls" &&
+          step.authorizedAt !== null &&
+          step.authorizedAt > now - 86_400_000
+      )
+  ).length;
+  return attempts >= 10
+    ? "trade.sponsorship_limit: the limit of ten sponsored trades per person per rolling day has been reached."
+    : null;
+};
 
 const proceedsRefusal = (book: TradeBook, trade: Trade): string | null => {
   if (trade.sourceTradeId === undefined) {
@@ -250,7 +287,15 @@ const capitalRefusal = (
   return null;
 };
 
-const transactionRefusal = (book: TradeBook, trade: Trade): string | null => {
+const transactionRefusal = (
+  book: TradeBook,
+  trade: Trade,
+  now: number
+): string | null => {
+  const sponsored = sponsorshipRefusal(book, trade, now);
+  if (sponsored !== null) {
+    return sponsored;
+  }
   const pending = [...book.trades.values()].some(
     (other) =>
       other.id !== trade.id &&
@@ -331,7 +376,7 @@ export const claimTradeStep = (
     );
   }
   const denied =
-    transactionRefusal(book, trade) ??
+    transactionRefusal(book, trade, request.now) ??
     checkAuthority(book, trade, step, request);
   if (denied !== null) {
     return refusal(denied);

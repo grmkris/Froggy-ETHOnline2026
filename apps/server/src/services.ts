@@ -86,6 +86,7 @@ import { LaunchCoordinator } from "./trading/launches";
 import { PONS_NETWORK } from "./trading/networks";
 import type { PonsReports } from "./trading/pons-report";
 import { livePonsReports, stubPonsReports } from "./trading/pons-report";
+import { usdcSignatureOptions } from "./trading/privy-execution";
 import { liveTokenResearch, stubTokenResearch } from "./trading/research";
 import { liveTradingRpc, stubTradingRpc } from "./trading/rpc";
 import type { TradingProviders } from "./trading/services";
@@ -385,6 +386,7 @@ export const createServices = (options: ServiceOptions): Services => {
         appSecret: environment.privyAppSecret,
         hederaPolicyId: environment.privyHederaPolicyId,
         personOwnedPolicies: environment.privyPersonOwnedPolicies,
+        signatureOptionsFor: usdcSignatureOptions(environment),
       }),
     stubPrivyServer
   );
@@ -535,7 +537,8 @@ export const createServices = (options: ServiceOptions): Services => {
     backend: executionProviders(
       environment.trading,
       environment.modes.privy === "live",
-      environment.allowStubs
+      environment.allowStubs,
+      privy.execution
     ),
     now: Date.now,
   });

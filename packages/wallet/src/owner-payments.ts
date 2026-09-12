@@ -10,7 +10,11 @@ import {
   privyOwnerTransactionSigner,
   PrivySignerRefusedError,
 } from "./evm-signer";
-import type { AgentEvmSigner, AgentTypedDataSigner } from "./evm-signer";
+import type {
+  AgentEvmSigner,
+  AgentTypedDataSigner,
+  SignatureOptionsResolver,
+} from "./evm-signer";
 
 export interface PaymentWallets {
   readonly ethereum: UserWallet | null;
@@ -65,7 +69,8 @@ const ownerWallets = async (
 
 export const privyOwnerEvmSigner = async (
   client: PrivyClient,
-  request: OwnerPaymentRequest
+  request: OwnerPaymentRequest,
+  signatureOptionsFor?: SignatureOptionsResolver
 ): Promise<AgentTypedDataSigner | null> => {
   const { ethereum } = await ownerWallets(client, request);
   return ethereum === null
@@ -73,6 +78,7 @@ export const privyOwnerEvmSigner = async (
     : privyOwnerSigner(client, {
         accessToken: request.accessToken,
         wallet: ethereum,
+        signatureOptionsFor,
       });
 };
 

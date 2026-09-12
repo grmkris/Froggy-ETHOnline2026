@@ -57,8 +57,10 @@ const quote = async () => {
         {
           protocol: "v3" as const,
           pool: Schema.decodeUnknownSync(EvmAddress)(`0x${"4".repeat(40)}`),
-          tokenIn: fixture.input.tokenIn,
-          tokenOut: fixture.input.tokenOut,
+          tokenIn: Schema.decodeUnknownSync(EvmAddress)(fixture.input.tokenIn),
+          tokenOut: Schema.decodeUnknownSync(EvmAddress)(
+            fixture.input.tokenOut
+          ),
           hook: null,
           feeTier: "3000",
           tickSpacing: null,
@@ -206,8 +208,12 @@ test("Robinhood Universal Router 2.1.1 encodes an empty minHopPriceX36 array", a
           {
             protocol: "v3" as const,
             pool: Schema.decodeUnknownSync(EvmAddress)(`0x${"4".repeat(40)}`),
-            tokenIn: fixture.input.tokenIn,
-            tokenOut: fixture.input.tokenOut,
+            tokenIn: Schema.decodeUnknownSync(EvmAddress)(
+              fixture.input.tokenIn
+            ),
+            tokenOut: Schema.decodeUnknownSync(EvmAddress)(
+              fixture.input.tokenOut
+            ),
             hook: null,
             feeTier: "3000",
             tickSpacing: null,
@@ -246,4 +252,90 @@ test("Robinhood Universal Router 2.1.1 encodes an empty minHopPriceX36 array", a
   expect(swapArgs[2]).toBe(995n);
   expect(swapArgs[4]).toBe(true);
   expect(swapArgs[5]).toEqual([]);
+});
+
+test("native ETH output stays in the router until an explicit minimum-bounded unwrap to the owner", async () => {
+  const weth = Schema.decodeUnknownSync(EvmAddress)(
+    "0x4200000000000000000000000000000000000006"
+  );
+  const source = await quote();
+  const nativeInput = { ...input, network: "eip155:8453", tokenOut: "native" };
+  const nativeQuote = {
+    ...source,
+    network: nativeInput.network,
+    input: {
+      ...source.input,
+      network: nativeInput.network,
+      tokenOut: "native" as const,
+    },
+    output: { ...source.output, token: "native" as const },
+    route: source.route.map((path) =>
+      path.map((pool) => ({ ...pool, tokenOut: weth }))
+    ),
+  };
+  const built = buildUniswapTransactions(nativeInput, nativeQuote, context);
+  const swap = built.transactions.at(-1);
+  expect(swap?.kind).toBe("swap");
+  if (swap === undefined) {
+    throw new Error("Missing swap");
+  }
+  if (!isHex(swap.payload.data)) {
+    throw new Error("Invalid fixture calldata");
+  }
+  const decoded = decodeFunctionData({
+    abi: parseAbi([
+      "function execute(bytes commands,bytes[] inputs,uint256 deadline) payable",
+    ]),
+    data: swap.payload.data,
+  });
+  expect(decoded.args[0]).toBe("0x000c");
+  const [, encodedInputs] = decoded.args;
+  const [, unwrapInput] = encodedInputs;
+  if (unwrapInput === undefined) {
+    throw new Error("Missing unwrap");
+  }
+  const unwrap = decodeAbiParameters(
+    parseAbiParameters("address recipient,uint256 amount"),
+    unwrapInput
+  );
+  expect(unwrap[0].toLowerCase()).toBe(input.wallet.toLowerCase());
+  expect(unwrap[1].toString()).toBe(built.minimumOutput);
+  expect(swap.payload.value).toBe("0");
+});
+
+test("native ETH input is wrapped in the router and never requests an ERC20 approval", async () => {
+  const weth = Schema.decodeUnknownSync(EvmAddress)(
+    "0x4200000000000000000000000000000000000006"
+  );
+  const source = await quote();
+  const nativeInput = { ...input, network: "eip155:8453", tokenIn: "native" };
+  const nativeQuote = {
+    ...source,
+    network: nativeInput.network,
+    input: {
+      ...source.input,
+      network: nativeInput.network,
+      tokenIn: "native" as const,
+    },
+    route: source.route.map((path) =>
+      path.map((pool) => ({ ...pool, tokenIn: weth }))
+    ),
+  };
+  const built = buildUniswapTransactions(nativeInput, nativeQuote, context);
+  expect(built.transactions).toHaveLength(1);
+  const [swap] = built.transactions;
+  if (swap === undefined) {
+    throw new Error("Missing swap");
+  }
+  if (!isHex(swap.payload.data)) {
+    throw new Error("Invalid fixture calldata");
+  }
+  const decoded = decodeFunctionData({
+    abi: parseAbi([
+      "function execute(bytes commands,bytes[] inputs,uint256 deadline) payable",
+    ]),
+    data: swap.payload.data,
+  });
+  expect(decoded.args[0]).toBe("0x0b00");
+  expect(swap.payload.value).toBe(input.amount);
 });

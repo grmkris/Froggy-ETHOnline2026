@@ -70,10 +70,10 @@ describe("trading environment", () => {
     expect(Redacted.value(result.birdeyeApiKey)).toBe("REPLACE_ME_BIRDEYE_KEY");
     expect(Redacted.value(result.uniswapApiKey)).toBe("REPLACE_ME_UNISWAP_KEY");
     expect(result.uniswapChains).toEqual([
-      { network: BASE, routerVersion: "2.1.1" },
-      { network: "eip155:84532", routerVersion: "2.1.1" },
-      { network: "eip155:1", routerVersion: "2.1.1" },
-      { network: "eip155:11155111", routerVersion: "2.1.1" },
+      { network: BASE, routerVersion: "2.0" },
+      { network: "eip155:84532", routerVersion: "2.0" },
+      { network: "eip155:1", routerVersion: "2.0" },
+      { network: "eip155:11155111", routerVersion: "2.0" },
       { network: "eip155:4663", routerVersion: "2.1.1" },
     ]);
   });

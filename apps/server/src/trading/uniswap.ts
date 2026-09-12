@@ -83,6 +83,26 @@ export class UniswapQuoteError extends Error {
   }
 }
 
+// Uniswap's Base deployment table pins WETH on both Base networks.
+// https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments
+export const uniswapQuoteAsset = (
+  network: string,
+  asset: string
+): typeof EvmAddress.Type => {
+  if (asset !== "native") {
+    return Schema.decodeUnknownSync(EvmAddress)(asset);
+  }
+  if (network === "eip155:8453" || network === "eip155:84532") {
+    return Schema.decodeUnknownSync(EvmAddress)(
+      "0x4200000000000000000000000000000000000006"
+    );
+  }
+  throw new UniswapQuoteError(
+    "unsupported_network",
+    "Native ETH swaps are currently supported on Base and Base Sepolia."
+  );
+};
+
 const ShortText = Schema.String.check(Schema.isMaxLength(128));
 const Decimal = TradingUnits;
 const IntegerText = Schema.String.check(Schema.isPattern(/^-?\d{1,12}$/u));
@@ -241,6 +261,17 @@ export const preflightSwapQuote = (request: SwapQuoteInput): SwapQuoteInput => {
     throw new UniswapQuoteError(
       "invalid_input",
       "The amount exceeds the exact Permit2 allowance range."
+    );
+  }
+  if (
+    same(
+      uniswapQuoteAsset(input.network, input.tokenIn),
+      uniswapQuoteAsset(input.network, input.tokenOut)
+    )
+  ) {
+    throw new UniswapQuoteError(
+      "invalid_input",
+      "Wrapping alone is not a swap; choose different assets."
     );
   }
   return input;
@@ -619,7 +650,7 @@ const LIMITATIONS = [
   "Unsigned research only. This result cannot be executed or used as signing authorization.",
   "Refresh after 30 seconds is a local freshness policy, not a provider expiry or execution guarantee.",
   "Approval and permit targets are provider supplied; future signing requires independent deployment and policy checks.",
-  "ERC-20 swaps only: no native wrapping, hook-dependent pools, order routes or launch curves. New tokens may take minutes to become routable.",
+  "Native ETH is quoted through WETH on Base. No hook-dependent pools, order routes or launch curves. New tokens may take minutes to become routable.",
   "Token taxes and transfer restrictions are not assessed by this quote.",
   "Provider simulation is not independent verification. Gas estimates exclude approvals and balances may change.",
 ] as const;
@@ -723,7 +754,19 @@ export const liveUniswap = (options: UniswapOptions): UniswapQuotes => ({
       );
     }
     try {
-      return await quoteLive(options, chain, input);
+      const normalized = {
+        ...input,
+        tokenIn: uniswapQuoteAsset(input.network, input.tokenIn),
+        tokenOut: uniswapQuoteAsset(input.network, input.tokenOut),
+      };
+      const result = await quoteLive(options, chain, normalized);
+      return {
+        ...result,
+        input,
+        output: { ...result.output, token: input.tokenOut },
+        approval: input.tokenIn === "native" ? noApproval() : result.approval,
+        permit: input.tokenIn === "native" ? null : result.permit,
+      };
     } catch (error) {
       if (error instanceof UniswapQuoteError) {
         throw error;

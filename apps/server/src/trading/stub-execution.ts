@@ -1,5 +1,6 @@
 import { ApprovalId, TradeStepId } from "@froggy/domain";
 import type { TradeInput, TradeSimulation, TradeStep } from "@froggy/domain";
+import type { RawTradeSubmission } from "@froggy/wallet";
 
 import type { TradeBackend } from "./coordinator";
 import { PONS_DEPLOYMENTS } from "./pons";
@@ -27,7 +28,9 @@ const factoryFor = (venue: TradeInput["venue"]): string | null => {
 };
 
 /** Deliberately synthetic: no RPC, wallet client or live signer is reachable here. */
-export const stubTradeBackend = (now: () => number): TradeBackend => ({
+export const stubTradeBackend = (
+  now: () => number
+): TradeBackend<RawTradeSubmission> => ({
   stubbed: true,
   observe: async (input) => {
     await Promise.resolve();

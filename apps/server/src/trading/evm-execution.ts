@@ -6,7 +6,7 @@ import type {
   TradeSimulation,
   TradeStep,
 } from "@froggy/domain";
-import type { TradeSubmission } from "@froggy/wallet";
+import type { RawTradeSubmission } from "@froggy/wallet";
 import type { TransactionReceipt } from "viem";
 import { getAddress, isHex } from "viem";
 
@@ -28,6 +28,7 @@ export interface EvmExecutionOptions {
   readonly client: TradeEvmClient;
   readonly tenderly: TenderlyOptions;
   readonly confirmations: number;
+  readonly sponsored?: boolean;
   readonly now: () => number;
   readonly settlementValues?: (
     trade: Trade,
@@ -111,21 +112,43 @@ export const simulateEvmTrade = async (
       return { address, balance: balance.toString() };
     })
   );
-  const transactions = steps.map((step) => {
+  const flatSteps = steps.flatMap((step) =>
+    step.payload.kind === "evm_calls"
+      ? step.payload.calls.map((payload) => ({ ...step, payload }))
+      : [step]
+  );
+  const transactions = flatSteps.map((step) => {
     if (step.payload.kind !== "evm") {
       throw new Error("trade.payload: expected EVM transaction.");
     }
     return step.payload;
   });
   const results = await tenderlySimulation(options.tenderly, {
+    sponsored: options.sponsored === true,
     network: input.network,
     wallet: input.wallet,
     blockNumber: Number(blockNumber),
     transactions,
     assets,
   });
-  validateSimulation(input, minimum, steps, results, phase);
-  return results;
+  validateSimulation(input, minimum, flatSteps, results, phase);
+  let offset = 0;
+  return steps.map((step) => {
+    const count =
+      step.payload.kind === "evm_calls" ? step.payload.calls.length : 1;
+    const group = results.slice(offset, offset + count);
+    offset += count;
+    const last = group.at(-1);
+    if (last === undefined) {
+      throw new Error("trade.simulation: incomplete batch.");
+    }
+    return {
+      ...last,
+      gasUnits: group
+        .reduce((sum, result) => sum + BigInt(result.gasUnits), 0n)
+        .toString(),
+    };
+  });
 };
 
 export const evmTradeBalances =
@@ -161,7 +184,7 @@ export const evmTradeBalances =
 
 export const evmTradeSubmission =
   (options: EvmExecutionOptions) =>
-  (signer: TradeSigner): TradeSubmission => ({
+  (signer: TradeSigner): RawTradeSubmission => ({
     sign: async (trade, step) => {
       if (
         signer?.kind !== "evm" ||

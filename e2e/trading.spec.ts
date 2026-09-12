@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { Schema } from "effect";
 
+import { TradeList } from "../packages/protocol/src/trade-execution";
+
 test("token search uses structured inputs and keeps its result after reload", async ({
   page,
 }) => {
@@ -670,5 +672,84 @@ test("a bare address paste is looked up for free and nothing is bought", async (
   await expect(log.getByText(/settling your payment/u)).toHaveCount(0);
   // A turn that reaches no money tool files no receipt at all.
   await expect(page.getByLabel(/^Receipt:/u)).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("sponsored approval explains gas and delegation, and missing owner authorization never submits", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  let submissions = 0;
+  await page.route("**/api/trades/*/answer", async (route) => {
+    submissions += 1;
+    await route.continue();
+  });
+  await page.route("**/api/trades/*/authorization", async (route) => {
+    await route.fulfill({
+      json: {
+        v: 1,
+        request: {
+          version: 1,
+          method: "POST",
+          url: "https://api.privy.io/v1/wallets/fixture/rpc",
+          headers: { "privy-app-id": "fixture" },
+          body: { sponsor: true },
+        },
+      },
+    });
+  });
+  await page.route("**/api/trades", async (route) => {
+    const response = await route.fetch();
+    const body: unknown = await response.json();
+    const decoded = Schema.decodeUnknownResult(TradeList)(body);
+    if (decoded._tag === "Success") {
+      await route.fulfill({
+        response,
+        json: {
+          ...decoded.success,
+          trades: decoded.success.trades.map((entry) => {
+            const trade = entry;
+            return {
+              ...trade,
+              steps: trade.steps.map((step) =>
+                step.payload.kind === "evm"
+                  ? {
+                      ...step,
+                      payload: {
+                        kind: "evm_calls",
+                        feePayer: "app",
+                        calls: [step.payload],
+                      },
+                    }
+                  : step
+              ),
+            };
+          }),
+        },
+      });
+      return;
+    }
+    await route.fulfill({ response });
+  });
+  await page.goto("/services");
+  const desk = page.getByRole("region", { name: "Trading desk", exact: true });
+  await desk.getByLabel("Token to spend").fill(`0x${"2".repeat(40)}`);
+  await desk.getByLabel("Token to receive").fill(`0x${"3".repeat(40)}`);
+  await desk.getByLabel("Input amount · smallest units").fill("1000000");
+  await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
+  await desk
+    .getByRole("button", { name: "Prepare trade", exact: true })
+    .click();
+  const history = desk.getByLabel("Trade history");
+  await expect(history).toContainText("Gas paid by Froggy");
+  await expect(history).toContainText("EIP-7702");
+  await history
+    .getByRole("button", { name: "Approve this step", exact: true })
+    .click();
+  await expect(history).toContainText("Wallet authorization was not completed");
+  expect(submissions).toBe(0);
   expect(errors).toEqual([]);
 });

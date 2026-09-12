@@ -77,6 +77,35 @@ const TradeSettlement = ({
   </>
 );
 
+const TradeGas = ({ trade }: { readonly trade: TradeTicket }): ReactElement => {
+  if (trade.steps.some((step) => step.payload.kind === "evm_calls")) {
+    return (
+      <div className="min-w-0">
+        <dt className="text-muted-foreground text-xs">Gas paid by Froggy</dt>
+        <dd className="mt-1 text-sm">
+          No ETH or USDC gas charge to your wallet.
+        </dd>
+        <dd className="text-muted-foreground mt-1 text-xs">
+          This approval covers all listed calls together. Privy enables EIP-7702
+          execution on your existing wallet address if needed. It persists on
+          this network until changed or revoked.
+        </dd>
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0">
+      <dt className="text-muted-foreground text-xs">
+        Native fee budget ·{" "}
+        {trade.input.network.startsWith("solana:") ? "lamports" : "wei"}
+      </dt>
+      <dd className="text-money mt-1 text-sm break-all">
+        {trade.input.maxNativeFee}
+      </dd>
+    </div>
+  );
+};
+
 export const TradeReview = ({
   trade,
   api,
@@ -179,15 +208,7 @@ export const TradeReview = ({
               {trade.input.tokenOut}
             </dd>
           </div>
-          <div className="min-w-0">
-            <dt className="text-muted-foreground text-xs">
-              Native fee budget ·{" "}
-              {trade.input.network.startsWith("solana:") ? "lamports" : "wei"}
-            </dt>
-            <dd className="text-money mt-1 text-sm break-all">
-              {trade.input.maxNativeFee}
-            </dd>
-          </div>
+          <TradeGas trade={trade} />
           <div className="min-w-0">
             <dt className="text-muted-foreground text-xs">Wallet</dt>
             <dd className="mt-1 font-mono text-xs break-all">

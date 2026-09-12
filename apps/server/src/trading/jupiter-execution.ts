@@ -5,6 +5,7 @@ import type {
   TradeInput,
   TradePayload,
 } from "@froggy/domain";
+import type { RawTradeSubmission } from "@froggy/wallet";
 import { Schema } from "effect";
 
 import type { TradeBackend, TradeSigner } from "./coordinator";
@@ -161,7 +162,7 @@ export const jupiterExecution = (options: {
   readonly rpc: SolanaTradeRpc;
   readonly jupiter: JupiterOptions;
   readonly now: () => number;
-}): TradeBackend => {
+}): TradeBackend<RawTradeSubmission> => {
   const orders = jupiterOrders(options.jupiter);
   const assess = async (trade: Trade, step: TradeStep) => {
     const payload = payloadOf(step);

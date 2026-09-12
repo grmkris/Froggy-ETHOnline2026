@@ -1,6 +1,6 @@
 import type { TradeInput } from "@froggy/domain";
 import type { TradeCapabilities } from "@froggy/protocol";
-import type { PrivyServer } from "@froggy/wallet";
+import type { PrivyExecution, PrivyServer } from "@froggy/wallet";
 
 import type { TradingEnvironment } from "../environment";
 import type { TradeBackend } from "./coordinator";
@@ -61,6 +61,14 @@ export const executionCapabilities = (
         return {
           venue: "uniswap",
           action: "swap",
+          feePayer:
+            environment.privySponsoredNetworks?.includes(chain.network) === true
+              ? "app"
+              : "wallet_native",
+          execution:
+            environment.privySponsoredNetworks?.includes(chain.network) === true
+              ? "privy_batch"
+              : "raw",
           network: chain.network,
           mode,
           wallet:
@@ -68,7 +76,9 @@ export const executionCapabilities = (
               ? "0x1111111111111111111111111111111111111111"
               : (wallets.ethereum?.address ?? null),
           limitations: [
-            "Exact-input legacy ERC-20 swaps through one V3 path. Each allowance and swap needs its own approval.",
+            environment.privySponsoredNetworks?.includes(chain.network) === true
+              ? "Atomic exact-input swaps through one V3 path, including native ETH. Froggy pays gas through Privy; exact owner approval is required. Dashboard sponsorship must be enabled with app credits."
+              : "ERC-20 swaps through one V3 path, with owner-paid native gas and separate approvals. Privy sponsorship is not enabled for this route.",
           ],
         };
       });
@@ -174,7 +184,8 @@ const supportsExecution = (
 export const executionProviders = (
   environment: TradingEnvironment,
   privyLive: boolean,
-  allowStubs = true
+  allowStubs = true,
+  privy?: PrivyExecution
 ): ((input: TradeInput) => TradeBackend | null) => {
   const backends = new Map<string, TradeBackend>();
   const stub = stubTradeBackend(Date.now);
@@ -236,9 +247,17 @@ export const executionProviders = (
       stubbed: false,
       ...uniswapExecution({
         client: tradeEvmClient({ endpoint }),
+        sponsored:
+          environment.privySponsoredNetworks?.includes(input.network) === true,
+        privy,
         quotes: liveUniswap({
           apiKey: environment.uniswapApiKey,
-          chains: environment.uniswapChains,
+          chains: environment.uniswapChains.map((chain) => ({
+            ...chain,
+            routerVersion:
+              uniswapDeployment(chain.network)?.routerVersion ??
+              chain.routerVersion,
+          })),
           protocols: ["V3"],
         }),
         tenderly,

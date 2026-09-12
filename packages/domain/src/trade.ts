@@ -71,19 +71,30 @@ export const TradeAssetAmount = Schema.Struct({
 });
 export type TradeAssetAmount = typeof TradeAssetAmount.Type;
 
+const EvmTradePayload = Schema.Struct({
+  kind: Schema.Literal("evm"),
+  to: TradingAddress,
+  data: Schema.String.check(
+    Schema.isPattern(/^0x(?:[a-fA-F0-9]{2})*$/u),
+    Schema.isMaxLength(64_002)
+  ),
+  value: TradingUnits,
+  gasLimit: PositiveUnits,
+  maxFeePerGas: PositiveUnits,
+  maxPriorityFeePerGas: TradingUnits,
+  nonce: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+});
+
 export const TradePayload = Schema.Union([
+  EvmTradePayload,
   Schema.Struct({
-    kind: Schema.Literal("evm"),
-    to: TradingAddress,
-    data: Schema.String.check(
-      Schema.isPattern(/^0x(?:[a-fA-F0-9]{2})*$/u),
-      Schema.isMaxLength(64_002)
+    kind: Schema.Literal("evm_calls"),
+    feePayer: Schema.Literal("app"),
+    calls: Schema.Array(EvmTradePayload).check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(8),
+      Schema.makeFilter((calls) => JSON.stringify(calls).length <= 64_000)
     ),
-    value: TradingUnits,
-    gasLimit: PositiveUnits,
-    maxFeePerGas: PositiveUnits,
-    maxPriorityFeePerGas: TradingUnits,
-    nonce: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   }),
   Schema.Struct({
     kind: Schema.Literal("solana"),
@@ -156,9 +167,28 @@ export const TradeStep = Schema.Struct({
   transactionId: Schema.NullOr(Schema.String.check(Schema.isMaxLength(128))),
   /** Server-only recovery material. Never returned in a task or tool result. */
   signedPayload: Schema.NullOr(Schema.String.check(Schema.isMaxLength(70_000))),
+  managed: Schema.optionalKey(
+    Schema.Struct({
+      walletId: Schema.String.check(Schema.isMaxLength(128)),
+      request: Schema.Json.check(
+        Schema.makeFilter((value) => JSON.stringify(value).length <= 70_000)
+      ),
+      authorizationSignature: Schema.String.check(Schema.isMaxLength(4096)),
+      idempotencyKey: Schema.String.check(Schema.isMaxLength(128)),
+      expiresAt: Time,
+      providerTransactionId: Schema.NullOr(
+        Schema.String.check(Schema.isMaxLength(128))
+      ),
+      userOperationHash: Schema.NullOr(
+        Schema.String.check(Schema.isMaxLength(128))
+      ),
+    })
+  ),
   submittedAt: Schema.NullOr(Time),
   confirmedAt: Schema.NullOr(Time),
   actualNativeFee: Schema.NullOr(TradingUnits),
+  /** EntryPoint gas cost covered by the app, excluding provider billing adjustments. */
+  sponsoredNativeFee: Schema.optionalKey(TradingUnits),
   error: Schema.NullOr(Text),
 });
 export type TradeStep = typeof TradeStep.Type;

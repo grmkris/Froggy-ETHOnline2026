@@ -6,6 +6,7 @@ import {
 } from "@froggy/domain";
 import type { TradePayload } from "@froggy/domain";
 import { Redacted, Schema } from "effect";
+import { encodeFunctionData, getAddress, parseAbi } from "viem";
 
 import { boundedBytes, safeFetch } from "../outbound";
 import type { OutboundOptions } from "../outbound";
@@ -50,6 +51,7 @@ export interface EvmSimulationRequest {
   readonly wallet: string;
   readonly blockNumber: number;
   readonly transactions: readonly EvmPayload[];
+  readonly sponsored?: boolean;
   /** Balances independently read at blockNumber, never supplied by the model. */
   readonly assets: readonly {
     readonly address: string;
@@ -84,20 +86,41 @@ const callsFor = (input: EvmSimulationRequest): readonly Call[] => {
     from: input.wallet,
     to: transaction.to,
     gas: Schema.decodeUnknownSync(Integer)(Number(transaction.gasLimit)),
-    gas_price: transaction.maxFeePerGas,
+    gas_price: input.sponsored === true ? "0" : transaction.maxFeePerGas,
     value: transaction.value,
     data: transaction.data,
   }));
   for (const asset of input.assets) {
-    Schema.decodeUnknownSync(EvmAddress)(asset.address);
+    const native = asset.address === "native";
+    if (
+      native &&
+      input.network !== "eip155:8453" &&
+      input.network !== "eip155:84532"
+    ) {
+      throw new Error(
+        "trade.simulation_unavailable: no reviewed native balance probe on this network."
+      );
+    }
+    if (!native) {
+      Schema.decodeUnknownSync(EvmAddress)(asset.address);
+    }
     Schema.decodeUnknownSync(TradingUnits)(asset.balance);
     calls.push({
       from: input.wallet,
-      to: asset.address,
+      // https://github.com/mds1/multicall/blob/main/deployments.json
+      to: native ? "0xcA11bde05977b3631167028862bE2a173976CA11" : asset.address,
       gas: 100_000,
       gas_price: "0",
       value: "0",
-      data: `0x70a08231${input.wallet.slice(2).toLowerCase().padStart(64, "0")}`,
+      data: native
+        ? encodeFunctionData({
+            abi: parseAbi([
+              "function getEthBalance(address addr) view returns (uint256)",
+            ]),
+            functionName: "getEthBalance",
+            args: [getAddress(input.wallet)],
+          })
+        : `0x70a08231${input.wallet.slice(2).toLowerCase().padStart(64, "0")}`,
     });
   }
   return calls;

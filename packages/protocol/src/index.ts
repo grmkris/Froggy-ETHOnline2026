@@ -141,6 +141,7 @@ export {
 
 export {
   TradeAnswer,
+  TradeAuthorization,
   TradeExecute,
   TradeCapabilities,
   TradeList,

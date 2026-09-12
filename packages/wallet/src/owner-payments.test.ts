@@ -160,6 +160,7 @@ describe("owner payment wallets", () => {
     expect(await signer?.signTypedData(typedData)).toBe("0x1234");
     expect(sign).toHaveBeenCalledWith("ethereum-id", {
       authorization_context: { user_jwts: [request.accessToken] },
+      signature_options: { type: "ecdsa" },
       params: {
         typed_data: {
           domain: { chainId: 8453 },

@@ -5,6 +5,7 @@ import type {
   TradeInput,
   TradePayload,
 } from "@froggy/domain";
+import type { RawTradeSubmission } from "@froggy/wallet";
 import { Schema } from "effect";
 
 import type { OutboundOptions } from "../outbound";
@@ -49,7 +50,7 @@ export const pumpExecution = (options: {
   readonly rpc: SolanaTradeRpc;
   readonly outbound?: OutboundOptions;
   readonly now: () => number;
-}): TradeBackend => {
+}): TradeBackend<RawTradeSubmission> => {
   const assess = async (trade: Trade, step: TradeStep) => {
     const payload = payloadOf(step);
     return await assessPumpTransaction({

@@ -83,6 +83,7 @@ export default defineConfig({
         MAX_BROWSERS: "0",
         EXTRA_ORIGINS: "",
         STATIC_DIR: "",
+        PRIVY_SPONSORED_NETWORKS: "[]",
         PRIVY_APP_ID: "REPLACE_ME_PRIVY_APP_ID",
         PRIVY_APP_SECRET: "REPLACE_ME_PRIVY_APP_SECRET",
       },

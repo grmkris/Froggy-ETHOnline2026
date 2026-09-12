@@ -105,13 +105,15 @@ export const tradeTokenBalance = async (
   wallet: string,
   blockNumber: bigint
 ): Promise<bigint> =>
-  await client.readContract({
-    address: getAddress(token),
-    abi: TOKEN,
-    functionName: "balanceOf",
-    args: [getAddress(wallet)],
-    blockNumber,
-  });
+  token === "native"
+    ? await client.getBalance({ address: getAddress(wallet), blockNumber })
+    : await client.readContract({
+        address: getAddress(token),
+        abi: TOKEN,
+        functionName: "balanceOf",
+        args: [getAddress(wallet)],
+        blockNumber,
+      });
 
 export const tradeAllowance = async (
   client: TradeEvmClient,

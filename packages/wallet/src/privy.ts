@@ -1,3 +1,5 @@
+import type { LinkedAccount } from "@privy-io/node";
+import { PrivyClient } from "@privy-io/node";
 /**
  * Privy, server side.
  *
@@ -16,17 +18,18 @@
  * identity token, not a DID — and following it avoids reaching into the
  * generated resource client for a by-id lookup that is not part of the API.
  */
-
-import type { LinkedAccount } from "@privy-io/node";
-import { PrivyClient } from "@privy-io/node";
 import { createSolanaKitSigner } from "@privy-io/node/solana-kit";
 import { address as solanaAddress } from "@solana/kit";
 import type { TransactionPartialSigner } from "@solana/kit";
 
 import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
 import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
+import type {
+  SignatureOptionsResolver,
+  AgentEvmSigner,
+  AgentTypedDataSigner,
+} from "./evm-signer";
 import { privyAgentSigner } from "./evm-signer";
-import type { AgentEvmSigner, AgentTypedDataSigner } from "./evm-signer";
 import {
   privyCreateSolanaWallet,
   privyOwnerEvmSigner,
@@ -40,19 +43,12 @@ import type {
   PersonPolicyOutcome,
   PersonPolicyRequest,
 } from "./person-policy-mint";
+import { privyExecution } from "./privy-execution";
+import type { PrivyExecution } from "./privy-execution";
 import { privyHederaKeys } from "./privy-hedera-keys";
 import type { HederaKeys } from "./privy-hedera-keys";
 
-/**
- * The two addresses, kept distinct on purpose.
- *
- * `smart` is where money is. `signer` is the embedded EOA — what a
- * `personal_sign` recovers to. They are not interchangeable: a smart account's
- * `isValidSignature` wraps the digest in its own domain, so verifying a
- * signature against the smart address fails even when the signature is genuine.
- * Conflating them is a bug that only appears once a smart wallet exists, which
- * is well after the code that conflated them looked fine.
- */
+/** Both legacy address roles resolve to the embedded EOA; delegation keeps that address. */
 export interface WalletAddresses {
   readonly signer: string | null;
   readonly smart: string | null;
@@ -65,6 +61,7 @@ export interface AgentGrantRequest {
 }
 
 export interface PrivyServer {
+  readonly execution?: PrivyExecution;
   /** Addresses carried by an identity token, or nulls when it is unusable. */
   readonly addresses: (identityToken: string) => Promise<WalletAddresses>;
   /**
@@ -131,23 +128,19 @@ const pickAddresses = (accounts: readonly LinkedAccount[]): WalletAddresses => {
     accounts
       .filter(
         (account) =>
-          account.type === "wallet" && account.chain_type === "ethereum"
+          account.type === "wallet" &&
+          account.chain_type === "ethereum" &&
+          account.wallet_client_type === "privy"
       )
       .map(addressOf)
       .find((address) => address !== null) ?? null;
-  const smart =
-    accounts
-      .filter((account) => account.type === "smart_wallet")
-      .map(addressOf)
-      .find((address) => address !== null) ?? null;
-  // Money falls back to the signer when there is no smart account, because a
-  // user with only an embedded EOA still has one address that holds funds.
-  return { signer, smart: smart ?? signer };
+  return { signer, smart: signer };
 };
 
 const NO_ADDRESSES: WalletAddresses = { signer: null, smart: null };
 
 export interface LivePrivyOptions {
+  readonly signatureOptionsFor?: SignatureOptionsResolver;
   /**
    * The agent's authorization key and policy, or null.
    *
@@ -230,11 +223,12 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
           }),
 
     mode: "live",
+    execution: privyExecution(client, options.appId),
     createSolanaWallet: async (request) =>
       await privyCreateSolanaWallet(client, request),
     paymentWallets: async (did) => await privyPaymentWallets(client, did),
     ownerEvmSigner: async (request) =>
-      await privyOwnerEvmSigner(client, request),
+      await privyOwnerEvmSigner(client, request, options.signatureOptionsFor),
     ownerTradeSigner: async (request) =>
       await privyOwnerTradeSigner(client, request),
     ownerSolanaSigner: async (request) =>
@@ -260,7 +254,11 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
     signerFor: (wallet) =>
       options.agent === null
         ? null
-        : privyAgentSigner(client, { agent: options.agent, wallet }),
+        : privyAgentSigner(client, {
+            agent: options.agent,
+            wallet,
+            signatureOptionsFor: options.signatureOptionsFor,
+          }),
 
     verify: async (accessToken) => {
       try {

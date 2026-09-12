@@ -11,7 +11,7 @@ import { Schema } from "effect";
 
 /** Signed bytes are recovery material and must never leave the server. */
 const PublicTradeStep = TradeStep.mapFields(
-  ({ signedPayload: _signedPayload, ...fields }) => fields
+  ({ signedPayload: _signedPayload, managed: _managed, ...fields }) => fields
 );
 export const TradeTicket = Trade.mapFields(({ steps: _steps, ...fields }) => ({
   ...fields,
@@ -31,6 +31,9 @@ export const TradeAnswer = Schema.Struct({
   stepId: TradeStepId,
   approvalId: ApprovalId,
   fingerprint: TradeStep.fields.fingerprint,
+  authorizationSignature: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096))
+  ),
   decision: Schema.Literals(["allow_once", "deny", "deny_stop"]),
 }).annotate({ parseOptions: { onExcessProperty: "error" } });
 export type TradeAnswer = typeof TradeAnswer.Type;
@@ -50,7 +53,9 @@ export const TradeStopRequest = Schema.Struct({
 
 export const publicTrade = (trade: Trade): TradeTicket => ({
   ...trade,
-  steps: trade.steps.map(({ signedPayload: _signedPayload, ...step }) => step),
+  steps: trade.steps.map(
+    ({ signedPayload: _signedPayload, managed: _managed, ...step }) => step
+  ),
 });
 
 export const TradeCapabilities = Schema.Struct({
@@ -62,6 +67,8 @@ export const TradeCapabilities = Schema.Struct({
       network: TradeInput.fields.network,
       mode: Schema.Literals(["live", "stub", "unavailable"]),
       wallet: Schema.NullOr(Schema.String),
+      feePayer: Schema.optionalKey(Schema.Literals(["app", "wallet_native"])),
+      execution: Schema.optionalKey(Schema.Literals(["privy_batch", "raw"])),
       launchFactory: Schema.optionalKey(TradeRule.fields.launchFactory),
       quoteAsset: Schema.optionalKey(TradeRule.fields.inputAsset),
       limitations: Schema.Array(
@@ -80,4 +87,17 @@ export type TradeExecute = typeof TradeExecute.Type;
 export const TradeRuleList = Schema.Struct({
   v: Schema.Literal(1),
   rules: Schema.Array(TradeRule).check(Schema.isMaxLength(100)),
+});
+
+export const TradeAuthorization = Schema.Struct({
+  v: Schema.Literal(1),
+  request: Schema.NullOr(
+    Schema.Struct({
+      version: Schema.Literal(1),
+      method: Schema.Literal("POST"),
+      url: Schema.String.check(Schema.isMaxLength(300)),
+      headers: Schema.Record(Schema.String, Schema.String),
+      body: Schema.Json,
+    })
+  ),
 });

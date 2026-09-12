@@ -40,16 +40,22 @@ import type { TransactionPartialSigner } from "@solana/kit";
 import { Schema } from "effect";
 
 import type { WorkspaceSession } from "../session";
+import { UniswapQuoteError } from "./uniswap";
 
 export type TradeSigner =
   | {
       readonly kind: "evm";
       readonly signer: Pick<AgentEvmSigner, "address" | "signTransaction">;
     }
+  | {
+      readonly kind: "privy";
+      readonly walletId: string;
+      readonly authorizationSignature: string;
+    }
   | { readonly kind: "solana"; readonly signer: TransactionPartialSigner }
   | null;
 
-export interface TradeBackend {
+export interface TradeBackend<S extends TradeSubmission = TradeSubmission> {
   readonly stubbed: boolean;
   readonly prepare: (input: TradeInput) => Promise<{
     readonly steps: readonly TradeStep[];
@@ -70,7 +76,7 @@ export interface TradeBackend {
     readonly balances: readonly TradeAssetAmount[];
     readonly observedAt: number;
   }>;
-  readonly submission: (signer: TradeSigner) => TradeSubmission;
+  readonly submission: (signer: TradeSigner, trade?: Trade) => S;
 }
 export interface TradeContext {
   readonly session: WorkspaceSession;
@@ -85,10 +91,14 @@ export interface TradeCoordinatorOptions {
 }
 const fingerprint = (input: TradeInput): string =>
   new Bun.CryptoHasher("sha256").update(JSON.stringify(input)).digest("hex");
-const publicError = (error: Error): string =>
-  /^trade\.[a-z_]+:/u.test(error.message)
+const publicError = (error: Error): string => {
+  if (error instanceof UniswapQuoteError) {
+    return `trade.quote_${error.code}: ${error.message}`.slice(0, 500);
+  }
+  return /^trade\.[a-z_]+:/u.test(error.message)
     ? error.message.slice(0, 500)
     : "trade.unavailable: preparation or provider verification failed.";
+};
 /**
  * Which research predicates a venue's backend can satisfy from its own RPC.
  * Pons supplies a reviewed token template and venue trade events; Uniswap
@@ -376,7 +386,7 @@ export class TradeCoordinator {
             this.options.store,
             owner,
             id,
-            backend.submission(null),
+            backend.submission(null, trade),
             this.options.now()
           )
         );
@@ -555,9 +565,17 @@ export class TradeCoordinator {
     // Refresh the same bytes, then let the atomic claim check their fingerprint and freshness.
     await this.simulate(owner, id, null);
     const balances = await backend.balances(trade.input);
-    const signer = backend.stubbed
-      ? null
-      : await this.ownerSigner(owner, trade.input, accessToken);
+    let signer: TradeSigner = null;
+    if (!backend.stubbed) {
+      signer =
+        step.payload.kind === "evm_calls"
+          ? await this.managedSigner(
+              owner,
+              trade,
+              answer.authorizationSignature
+            )
+          : await this.ownerSigner(owner, trade.input, accessToken);
+    }
     const result = await context.session.spendTrade(
       {
         id,
@@ -572,7 +590,7 @@ export class TradeCoordinator {
         balances: balances.balances,
         balanceObservedAt: balances.observedAt,
       },
-      backend.submission(signer)
+      backend.submission(signer, trade)
     );
     return publicTrade(result);
   }
@@ -640,7 +658,7 @@ export class TradeCoordinator {
           balances: balances.balances,
           balanceObservedAt: balances.observedAt,
         },
-        backend.submission(signer)
+        backend.submission(signer, trade)
       );
       return publicTrade(result);
     } catch (error) {
@@ -719,6 +737,71 @@ export class TradeCoordinator {
       );
     }
     return { kind: "evm", signer };
+  }
+
+  async authorization(context: TradeContext, id: TradeId, answer: TradeAnswer) {
+    if (context.connectionId !== null) {
+      throw new Error(
+        "trade.human_only: agents cannot prepare owner authorization."
+      );
+    }
+    const trade = await this.load(context.session.userId, id, null);
+    const step = trade.steps.find((entry) => entry.id === answer.stepId);
+    if (
+      step === undefined ||
+      step.approvalId !== answer.approvalId ||
+      step.fingerprint !== answer.fingerprint ||
+      step.expiresAt <= this.options.now() ||
+      step.status !== "awaiting_approval"
+    ) {
+      throw new Error(
+        "trade.approval: this exact proposal is no longer available for approval."
+      );
+    }
+    if (step.payload.kind !== "evm_calls") {
+      return { v: 1 as const, request: null };
+    }
+    const signer = await this.managedSigner(
+      context.session.userId,
+      trade,
+      "prepare"
+    );
+    const { execution } = this.options.privy;
+    if (execution === undefined) {
+      throw new Error(
+        "trade.sponsorship: Privy managed execution is unavailable."
+      );
+    }
+    return {
+      v: 1 as const,
+      request: execution.authorization(signer.walletId, trade, step),
+    };
+  }
+
+  private async managedSigner(
+    owner: UserId,
+    trade: Trade,
+    signature: string | undefined
+  ) {
+    if (signature === undefined) {
+      throw new Error(
+        "trade.authorization: authorize this transaction with your embedded wallet before submitting."
+      );
+    }
+    const { ethereum: wallet } = await this.options.privy.paymentWallets(owner);
+    if (
+      wallet === null ||
+      wallet.address.toLowerCase() !== trade.input.wallet.toLowerCase()
+    ) {
+      throw new Error(
+        "trade.wallet: the trade must use your Privy embedded EOA."
+      );
+    }
+    return {
+      kind: "privy" as const,
+      walletId: wallet.id,
+      authorizationSignature: signature,
+    };
   }
 
   private async ownerSigner(

@@ -132,6 +132,7 @@ export default defineRailway((ctx) => {
       PRIVY_HEDERA_POLICY_ID: preserve(),
       PRIVY_APP_ID: preserve(),
       PRIVY_APP_SECRET: preserve(),
+      PRIVY_SPONSORED_NETWORKS: preserve(),
       PRIVY_AUTHORIZATION_KEY_ID: preserve(),
       PRIVY_AUTHORIZATION_PRIVATE_KEY: preserve(),
       RESERVED_BROWSERS: preserve(),

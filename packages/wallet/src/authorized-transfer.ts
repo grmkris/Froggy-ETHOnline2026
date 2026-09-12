@@ -69,6 +69,21 @@ export const TRANSFER_WITH_AUTHORIZATION_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "validAfter", type: "uint256" },
+      { name: "validBefore", type: "uint256" },
+      { name: "nonce", type: "bytes32" },
+      { name: "signature", type: "bytes" },
+    ],
+    name: "transferWithAuthorization",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 /** The first four bytes of keccak256 of the signature above. */
@@ -78,6 +93,14 @@ const NAME_SELECTOR = "0x06fdde03";
 const VERSION_SELECTOR = "0x54fd4d50";
 
 const SETTLE_GAS_LIMIT = 120_000n;
+const CONTRACT_SETTLE_GAS_LIMIT = 250_000n;
+const BYTES_SELECTOR = `0x${bytesToHex(
+  keccak_256(
+    new TextEncoder().encode(
+      "transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,bytes)"
+    )
+  )
+).slice(0, 8)}`;
 /** A floor for the tip, in wei; some public nodes answer zero. */
 const MIN_PRIORITY_FEE = 1_000_000n;
 /** How long the signed authorization stays valid. Long enough to be mined, short enough to die if it is not. */
@@ -156,16 +179,15 @@ export const encodeTransferWithAuthorization = (
     throw new Error(`Not an EVM address: ${isEvmAddress(from) ? to : from}`);
   }
   const raw = signature.startsWith("0x") ? signature.slice(2) : signature;
-  if (raw.length !== 130 || !HEX.test(raw)) {
-    throw new Error("The authorization signature is not 65 bytes of hex.");
-  }
-  const r = raw.slice(0, 64);
-  const s = raw.slice(64, 128);
-  let v = Number.parseInt(raw.slice(128), 16);
-  // Some signers answer with the recovery id (0/1) rather than 27/28; the
-  // token takes only the latter.
-  if (v < 27) {
-    v += 27;
+  if (
+    raw.length < 130 ||
+    raw.length > 16_384 ||
+    raw.length % 2 !== 0 ||
+    !HEX.test(raw)
+  ) {
+    throw new Error(
+      "The authorization signature must be 65 bytes of hex or a bounded ERC-1271 signature."
+    );
   }
   const nonce = authorization.nonce.startsWith("0x")
     ? authorization.nonce.slice(2)
@@ -173,14 +195,32 @@ export const encodeTransferWithAuthorization = (
   if (nonce.length !== 64 || !HEX.test(nonce)) {
     throw new Error("The authorization nonce is not 32 bytes of hex.");
   }
-  return [
-    TRANSFER_WITH_AUTHORIZATION_SELECTOR,
+  const common = [
     word(from.slice(2).toLowerCase()),
     word(to.slice(2).toLowerCase()),
     word(authorization.value.toString(16)),
     word(authorization.validAfter.toString(16)),
     word(authorization.validBefore.toString(16)),
     nonce.toLowerCase(),
+  ];
+  if (raw.length !== 130) {
+    return [
+      BYTES_SELECTOR,
+      ...common,
+      word((7 * 32).toString(16)),
+      word((raw.length / 2).toString(16)),
+      raw.toLowerCase().padEnd(Math.ceil(raw.length / 64) * 64, "0"),
+    ].join("");
+  }
+  const r = raw.slice(0, 64);
+  const s = raw.slice(64, 128);
+  let v = Number.parseInt(raw.slice(128), 16);
+  if (v < 27) {
+    v += 27;
+  }
+  return [
+    TRANSFER_WITH_AUTHORIZATION_SELECTOR,
+    ...common,
     word(v.toString(16)),
     r.toLowerCase(),
     s.toLowerCase(),
@@ -261,6 +301,13 @@ export const sendAuthorizedTransfer = async (
     throw error;
   }
   const data = encodeTransferWithAuthorization(authorization, signature);
+  const contractSignature = !data.startsWith(
+    TRANSFER_WITH_AUTHORIZATION_SELECTOR
+  );
+  if (contractSignature) {
+    // Validate the exact bytes overload against the current token and delegated wallet before reserving relayer gas.
+    await rpc.call(input.token, data);
+  }
   const [nonce, gasPrice, tip] = await Promise.all([
     rpc.transactionCount(relayer.address),
     rpc.gasPrice(),
@@ -272,7 +319,9 @@ export const sendAuthorizedTransfer = async (
     signed = await relayer.signTransaction({
       chainId: input.chainId,
       data,
-      gasLimit: SETTLE_GAS_LIMIT,
+      gasLimit: contractSignature
+        ? CONTRACT_SETTLE_GAS_LIMIT
+        : SETTLE_GAS_LIMIT,
       maxFeePerGas: gasPrice * 2n + maxPriorityFeePerGas,
       maxPriorityFeePerGas,
       nonce,

@@ -132,7 +132,7 @@ export interface Identity {
   readonly addFunds:
     | ((input: { readonly address: string }) => Promise<FundOutcome>)
     | null;
-  /** The money address: the smart account when there is one, else the signer. */
+  /** The Privy embedded EOA used by the server, including after EIP-7702 delegation. */
   readonly address: string | null;
   readonly authenticated: boolean;
   /**
@@ -298,8 +298,13 @@ interface PrivyModule {
     ready: boolean;
     user: {
       id?: string;
-      smartWallet?: { address: string };
-      wallet?: { address: string };
+      linkedAccounts: readonly {
+        readonly type: string;
+        readonly address?: string;
+        readonly chainType?: string;
+        readonly walletClientType?: string;
+        readonly id?: string | null;
+      }[];
     } | null;
   };
   // SPIKE 0a (docs/plan/PLAN_USER_OWNED_POLICIES.md). Delete with the spike.
@@ -495,10 +500,16 @@ const PrivyBridge = ({
     []
   );
 
-  // Smart account first: that is where money is. Falling back to the embedded
-  // EOA covers a user who has one but no smart wallet.
-  const address = user?.smartWallet?.address ?? user?.wallet?.address ?? null;
-  const signer = user?.wallet?.address ?? null;
+  const address =
+    user?.linkedAccounts.find(
+      (account) =>
+        account.type === "wallet" &&
+        account.chainType === "ethereum" &&
+        account.walletClientType === "privy" &&
+        account.id !== undefined &&
+        account.id !== null
+    )?.address ?? null;
+  const signer = address;
 
   useEffect(() => {
     onChange({

@@ -114,6 +114,13 @@ When a paid request comes back with an unlocked-page link, open that link in the
 shared browser with browser_navigate so the person watches the page unlock, then
 tell them what it says.
 
+For swaps, read trade_capabilities and report the configured execution and fee payer.
+The embedded EOA can use Privy EIP-7702 sponsorship at the same address; a zero ETH
+balance or no delegated code does not by itself prove that sponsorship is unavailable.
+Wallet spending rules do not report dashboard gas settings. Explain the returned
+failure stage; do not diagnose every preparation failure as insufficient gas.
+An uncertain trade must be reconciled before creating a new order or idempotency key.
+
 When a page asks the injected wallet to connect or sign, a card appears in Froggy.
 Do not retry the click. Tell the person to answer it, and wait.
 

@@ -17,6 +17,69 @@ const suite = (
   create: () => readonly [TradingStore, TradingStore]
 ): void => {
   describe(name, () => {
+    test("managed authorization survives another store instance and cannot be replaced", async () => {
+      const [first, second] = create();
+      const owner = userId(
+        `did:privy:managed-persistence-${crypto.randomUUID()}`
+      );
+      const original = tradeFixture("managed-persistence");
+      const [step] = original.steps;
+      if (step?.payload.kind !== "evm") {
+        throw new Error("Missing EVM fixture");
+      }
+      const call = step.payload;
+      const managed = {
+        walletId: "embedded-wallet",
+        request: { method: "wallet_sendCalls", sponsor: true },
+        authorizationSignature: "owner-authorized-request",
+        idempotencyKey: step.id,
+        expiresAt: step.expiresAt,
+        providerTransactionId: "provider-operation",
+        userOperationHash: `0x${"ab".repeat(32)}`,
+      };
+      await first.transact(owner, (book) => {
+        book.trades.set(original.id, {
+          ...original,
+          steps: [
+            {
+              ...step,
+              payload: {
+                kind: "evm_calls",
+                feePayer: "app",
+                calls: [call],
+              },
+              managed,
+            },
+          ],
+        });
+      });
+      const saved = await second.transact(owner, (book) =>
+        book.trades.get(original.id)
+      );
+      expect(saved?.steps[0]?.managed).toEqual(managed);
+      expect(saved?.steps[0]?.signedPayload).toBeNull();
+      expect(
+        await refusal(
+          second.transact(owner, (book) => {
+            if (saved === undefined) {
+              throw new Error("Missing persisted trade");
+            }
+            book.trades.set(original.id, {
+              ...saved,
+              revision: saved.revision + 1,
+              steps: saved.steps.map((entry) => ({
+                ...entry,
+                managed: {
+                  ...managed,
+                  authorizationSignature: "different-authority",
+                },
+              })),
+            });
+          })
+        )
+      ).toContain("trade.immutable");
+    });
+
     test("concurrent reservations observe each other and remain owner scoped", async () => {
       const [first, second] = create();
       const owner = userId(`did:privy:trades-${crypto.randomUUID()}`);

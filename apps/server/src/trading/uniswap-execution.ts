@@ -1,9 +1,11 @@
 import { ApprovalId, TradeStep, TradeStepId } from "@froggy/domain";
 import type { TokenResearchFacts, Trade, TradeInput } from "@froggy/domain";
 import { SwapQuoteInput } from "@froggy/protocol";
+import type { PrivyExecution } from "@froggy/wallet";
 import { Schema } from "effect";
 import { getAddress, parseAbi } from "viem";
 
+import type { TradeSigner } from "./coordinator";
 import { assertTradeNetwork, tradeAllowance } from "./evm-chain";
 import type { TradeEvmClient } from "./evm-chain";
 import type { EvmExecutionOptions } from "./evm-execution";
@@ -13,6 +15,7 @@ import {
   simulateEvmTrade,
 } from "./evm-execution";
 import { stubGoPlus } from "./goplus";
+import { managedTradeSubmission } from "./privy-execution";
 import { liveTokenResearch } from "./research";
 import { assertNativeFeeBudget } from "./rollup-fees";
 import type { UniswapQuotes } from "./uniswap";
@@ -33,6 +36,7 @@ const hash = (value: string) =>
 
 interface UniswapExecutionOptions extends EvmExecutionOptions {
   readonly quotes: UniswapQuotes;
+  readonly privy?: PrivyExecution | undefined;
 }
 
 const checkPools = async (
@@ -121,6 +125,14 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
         "trade.network: no reviewed Uniswap deployment for this action."
       );
     }
+    if (
+      (input.tokenIn === "native" || input.tokenOut === "native") &&
+      options.sponsored !== true
+    ) {
+      throw new Error(
+        "trade.sponsorship: native ETH swaps require the enabled Privy app-paid Base execution path."
+      );
+    }
     await assertTradeNetwork(options.client, input.network);
     if (input.tokenIn.toLowerCase() === input.tokenOut.toLowerCase()) {
       throw new Error("trade.assets: input and output must differ.");
@@ -142,13 +154,15 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
         blockTag: "pending",
       }),
       options.client.estimateFeesPerGas(),
-      tradeAllowance(
-        options.client,
-        input.tokenIn,
-        input.wallet,
-        UNISWAP_PERMIT2,
-        blockNumber
-      ),
+      input.tokenIn === "native"
+        ? Promise.resolve(0n)
+        : tradeAllowance(
+            options.client,
+            input.tokenIn,
+            input.wallet,
+            UNISWAP_PERMIT2,
+            blockNumber
+          ),
     ]);
     const now = options.now();
     const built = buildUniswapTransactions(input, quote, {
@@ -158,15 +172,32 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
       tokenAllowance,
       now,
     });
-    await assertNativeFeeBudget({
-      client: options.client,
-      network: input.network,
-      wallet: input.wallet,
-      payloads: built.transactions.map((transaction) => transaction.payload),
-      maxNativeFee: input.maxNativeFee,
-    });
+    if (options.sponsored !== true) {
+      await assertNativeFeeBudget({
+        client: options.client,
+        network: input.network,
+        wallet: input.wallet,
+        payloads: built.transactions.map((transaction) => transaction.payload),
+        maxNativeFee: input.maxNativeFee,
+      });
+    }
     await checkPools(options.client, input, built, blockNumber);
-    const steps = built.transactions.map((transaction) =>
+    const transactions =
+      options.sponsored === true
+        ? [
+            {
+              kind: "swap" as const,
+              description:
+                "Approve the required token allowances and swap atomically. Froggy pays gas. Native output is delivered as ETH.",
+              payload: {
+                kind: "evm_calls" as const,
+                feePayer: "app" as const,
+                calls: built.transactions.map((entry) => entry.payload),
+              },
+            },
+          ]
+        : built.transactions;
+    const steps = transactions.map((transaction) =>
       Schema.decodeUnknownSync(TradeStep)({
         ...transaction,
         id: TradeStepId.generate(),
@@ -222,5 +253,15 @@ export const uniswapExecution = (options: UniswapExecutionOptions) => ({
       trade.minimumOutput ?? "0"
     ),
   balances: evmTradeBalances(options),
-  submission: evmTradeSubmission(options),
+  submission: (signer: TradeSigner, trade?: Trade) => {
+    if (
+      trade?.steps.some((step) => step.payload.kind === "evm_calls") === true
+    ) {
+      if (options.privy === undefined) {
+        throw new Error("trade.sponsorship: managed execution is unavailable.");
+      }
+      return managedTradeSubmission(options, options.privy, signer);
+    }
+    return evmTradeSubmission(options)(signer);
+  },
 });

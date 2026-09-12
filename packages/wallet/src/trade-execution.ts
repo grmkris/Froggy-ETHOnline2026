@@ -11,13 +11,15 @@ export type TradeSettlement =
   | {
       readonly state: "confirmed" | "reverted";
       readonly nativeFee: string;
+      readonly sponsoredNativeFee?: string;
       readonly output: string | null;
       readonly actualInput?: string;
       readonly at: number;
     };
 
 /** The adapter verifies the signed payload matches the claimed transaction before returning it. */
-export interface TradeSubmission {
+export interface RawTradeSubmission {
+  readonly kind?: "raw";
   readonly sign: (
     trade: Trade,
     step: TradeStep
@@ -28,6 +30,24 @@ export interface TradeSubmission {
     step: TradeStep
   ) => Promise<TradeSettlement>;
 }
+
+export interface ManagedTradeSubmission {
+  readonly kind: "privy";
+  readonly prepare: (
+    trade: Trade,
+    step: TradeStep
+  ) => Promise<NonNullable<TradeStep["managed"]>>;
+  readonly submit: (trade: Trade, step: TradeStep) => Promise<string>;
+  readonly inspect: (
+    trade: Trade,
+    step: TradeStep
+  ) => Promise<{
+    readonly transactionHash: string | null;
+    readonly userOperationHash: string | null;
+    readonly settlement: TradeSettlement;
+  }>;
+}
+export type TradeSubmission = RawTradeSubmission | ManagedTradeSubmission;
 
 const mutate = async (
   store: TradingStore,
@@ -167,12 +187,17 @@ const applySettlement = async (
     }
     const succeeded = settlement.state === "confirmed";
     const error = settlementRefusal(current, latest, settlement);
-    const steps = updateStep(current, step.id, {
+    const evidence: Partial<TradeStep> = {
       status: succeeded ? "confirmed" : "failed",
       confirmedAt: settlement.at,
       actualNativeFee: settlement.nativeFee,
       error,
-    }).map((entry): TradeStep =>
+    };
+    const patch =
+      settlement.sponsoredNativeFee === undefined
+        ? evidence
+        : { ...evidence, sponsoredNativeFee: settlement.sponsoredNativeFee };
+    const steps = updateStep(current, step.id, patch).map((entry): TradeStep =>
       error !== null && ["prepared", "awaiting_approval"].includes(entry.status)
         ? { ...entry, status: "cancelled", error }
         : entry
@@ -204,7 +229,7 @@ export const reconcileTradeStep = async (
   owner: UserId,
   trade: Trade,
   step: TradeStep,
-  submission: Pick<TradeSubmission, "reconcile">
+  submission: Pick<RawTradeSubmission, "reconcile">
 ): Promise<Trade> => {
   const settlement = await submission.reconcile(trade, step);
   return settlement.state === "pending"
@@ -217,7 +242,7 @@ const broadcastSaved = async (
   owner: UserId,
   trade: Trade,
   step: TradeStep,
-  submission: TradeSubmission,
+  submission: RawTradeSubmission,
   now: number
 ): Promise<Trade> => {
   let shouldBroadcast = false;
@@ -252,6 +277,86 @@ const broadcastSaved = async (
       "trade.submission_unknown: reconcile this transaction before another order. No replacement was signed.",
       now
     );
+  }
+};
+
+/** Retries reuse the persisted owner request within its deadline, never a new operation key. */
+const resumeManaged = async (
+  store: TradingStore,
+  owner: UserId,
+  trade: Trade,
+  step: TradeStep,
+  submission: ManagedTradeSubmission,
+  now: number
+): Promise<Trade> => {
+  const { managed } = step;
+  if (managed === undefined) {
+    return await uncertain(
+      store,
+      owner,
+      trade,
+      step,
+      "trade.submission_unknown: no persisted managed request; inspect wallet activity before resolving.",
+      now
+    );
+  }
+  let current = trade;
+  let currentStep = step;
+  try {
+    if (managed.providerTransactionId === null) {
+      if (now >= managed.expiresAt) {
+        return await uncertain(
+          store,
+          owner,
+          trade,
+          step,
+          "trade.submission_unknown: request expired without a provider identity; inspect wallet activity. No replacement was submitted.",
+          now
+        );
+      }
+      const providerTransactionId = await submission.submit(trade, step);
+      current = await mutate(store, owner, trade.id, (latest) => ({
+        ...latest,
+        updatedAt: now,
+        steps: updateStep(latest, step.id, {
+          managed: { ...managed, providerTransactionId },
+        }),
+      }));
+      currentStep = current.steps.find((entry) => entry.id === step.id) ?? step;
+    }
+    const result = await submission.inspect(current, currentStep);
+    const state = currentStep.managed;
+    if (state === undefined) {
+      throw new Error("trade.recovery: managed state missing.");
+    }
+    if (
+      currentStep.transactionId !== result.transactionHash ||
+      state.userOperationHash !== result.userOperationHash
+    ) {
+      current = await mutate(store, owner, trade.id, (latest) => ({
+        ...latest,
+        updatedAt: now,
+        steps: updateStep(latest, step.id, {
+          transactionId: result.transactionHash,
+          managed: { ...state, userOperationHash: result.userOperationHash },
+        }),
+      }));
+    }
+    return result.settlement.state === "pending"
+      ? current
+      : await applySettlement(
+          store,
+          owner,
+          current,
+          currentStep,
+          result.settlement
+        );
+  } catch (error) {
+    const reason =
+      error instanceof Error && /^trade\.[a-z_]+:/u.test(error.message)
+        ? error.message.slice(0, 500)
+        : "trade.submission_unknown: managed execution could not be reconciled. No replacement was submitted.";
+    return await uncertain(store, owner, current, currentStep, reason, now);
   }
 };
 
@@ -292,7 +397,42 @@ export const executeTradeStep = async (
     throw new Error(claim.reason);
   }
   const { trade, step } = claim;
-  let signed: Awaited<ReturnType<TradeSubmission["sign"]>>;
+  if (submission.kind === "privy") {
+    try {
+      const managed = await submission.prepare(trade, step);
+      const saved = await mutate(store, owner, trade.id, (current) => ({
+        ...current,
+        updatedAt: request.now,
+        steps: updateStep(current, step.id, {
+          status: "submitted",
+          managed,
+          submittedAt: request.now,
+        }),
+      }));
+      const savedStep = saved.steps.find((entry) => entry.id === step.id);
+      if (savedStep === undefined) {
+        throw new Error("trade.recovery: missing managed step.");
+      }
+      return await resumeManaged(
+        store,
+        owner,
+        saved,
+        savedStep,
+        submission,
+        request.now
+      );
+    } catch {
+      return await uncertain(
+        store,
+        owner,
+        trade,
+        step,
+        "trade.authorization_unknown: managed request could not be persisted; inspect this reservation before retrying.",
+        request.now
+      );
+    }
+  }
+  let signed: Awaited<ReturnType<RawTradeSubmission["sign"]>>;
   try {
     signed = await submission.sign(trade, step);
   } catch {
@@ -345,6 +485,27 @@ export const recoverTrade = async (
   );
   if (step === undefined) {
     return trade;
+  }
+  if (step.payload.kind === "evm_calls") {
+    if (submission.kind !== "privy") {
+      return await uncertain(
+        store,
+        owner,
+        trade,
+        step,
+        "trade.recovery: managed execution provider is unavailable.",
+        now
+      );
+    }
+    if (step.status === "signing" && now - trade.updatedAt < 120_000) {
+      return trade;
+    }
+    return await resumeManaged(store, owner, trade, step, submission, now);
+  }
+  if (submission.kind === "privy") {
+    throw new Error(
+      "trade.recovery: legacy transaction requires raw recovery."
+    );
   }
   if (step.transactionId === null || step.signedPayload === null) {
     if (step.status === "signing" && now - trade.updatedAt < 120_000) {

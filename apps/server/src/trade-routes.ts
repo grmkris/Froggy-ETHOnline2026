@@ -105,7 +105,7 @@ const handleTrade = async (
   path: string
 ): Promise<Response> => {
   const match =
-    /^\/api\/trades\/(?<id>[^/]+)(?:\/(?<action>simulate|answer|cancel|execute))?$/u.exec(
+    /^\/api\/trades\/(?<id>[^/]+)(?:\/(?<action>simulate|answer|authorization|cancel|execute))?$/u.exec(
       path
     )?.groups;
   if (match === undefined) {
@@ -131,6 +131,10 @@ const handleTrade = async (
       { error: "An agent cannot answer or cancel a human approval." },
       403
     );
+  }
+  if (action === "authorization" && request.method === "POST") {
+    const answer = Schema.decodeUnknownSync(TradeAnswer)(await body(request));
+    return json(await services.trades.authorization(context, id, answer));
   }
   if (action === "answer" && request.method === "POST") {
     const accessToken = bearerFromRequest(request);

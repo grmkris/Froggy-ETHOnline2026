@@ -30,7 +30,47 @@ const same = (
   right: Trade | TradeRule | TradeInput | TradePayload | TradeStep
 ): boolean => Bun.deepEquals(left, right, true);
 
+const validateManagedStep = (old: TradeStep, next: TradeStep): void => {
+  const previous = old.managed;
+  if (previous === undefined) {
+    return;
+  }
+  const current = next.managed;
+  if (current === undefined) {
+    throw new Error(
+      "trade.immutable: managed recovery material cannot be removed."
+    );
+  }
+  for (const field of [
+    "walletId",
+    "request",
+    "authorizationSignature",
+    "idempotencyKey",
+    "expiresAt",
+    "providerTransactionId",
+    "userOperationHash",
+  ] as const) {
+    if (
+      previous[field] !== null &&
+      !Bun.deepEquals(previous[field], current[field], true)
+    ) {
+      throw new Error(
+        "trade.immutable: managed authorization and provider identities cannot be replaced."
+      );
+    }
+  }
+};
+
 const validateSignedStep = (old: TradeStep, next: TradeStep): void => {
+  validateManagedStep(old, next);
+  if (
+    old.sponsoredNativeFee !== undefined &&
+    old.sponsoredNativeFee !== next.sponsoredNativeFee
+  ) {
+    throw new Error(
+      "trade.immutable: sponsored settlement evidence cannot be replaced."
+    );
+  }
   if (old.authorizedAt !== null && old.ruleId !== next.ruleId) {
     throw new Error("trade.immutable: claimed authority cannot be replaced.");
   }

@@ -51,6 +51,12 @@ export interface AgentTypedDataSigner {
   }) => Promise<string>;
 }
 
+/** Chosen by the verifier integration using a fresh read on the signature's chain. */
+export type SignatureOptionsResolver = (
+  address: string,
+  typedData: Parameters<AgentTypedDataSigner["signTypedData"]>[0]
+) => Promise<{ readonly type: "erc1271" } | null | undefined>;
+
 /** A type-2 transaction, before Privy has signed it. Quantities as bigints. */
 export interface UnsignedEvmTransaction {
   readonly chainId: number;
@@ -144,7 +150,11 @@ const hex = (value: bigint): string => `0x${value.toString(16)}`;
 
 export const privyAgentSigner = (
   client: PrivyClient,
-  input: { readonly agent: AgentKey; readonly wallet: UserWallet }
+  input: {
+    readonly agent: AgentKey;
+    readonly wallet: UserWallet;
+    readonly signatureOptionsFor?: SignatureOptionsResolver | undefined;
+  }
 ): AgentEvmSigner => {
   // The agent key, and only the agent key: the user's token is not here, so
   // nothing this signs can exceed what the policy allows.
@@ -208,6 +218,10 @@ export const privyAgentSigner = (
           .ethereum()
           .signTypedData(input.wallet.id, {
             authorization_context,
+            signature_options: (await input.signatureOptionsFor?.(
+              input.wallet.address,
+              typedData
+            )) ?? { type: "ecdsa" },
             params: {
               typed_data: {
                 domain: domainOf(typedData.domain),
@@ -233,7 +247,11 @@ export const privyAgentSigner = (
 /** One human-approved payment; the coordinator binds the request before this is created. */
 export const privyOwnerSigner = (
   client: PrivyClient,
-  input: { readonly accessToken: string; readonly wallet: UserWallet }
+  input: {
+    readonly accessToken: string;
+    readonly wallet: UserWallet;
+    readonly signatureOptionsFor?: SignatureOptionsResolver | undefined;
+  }
 ): AgentTypedDataSigner => {
   const { wallet } = input;
   let ownerToken: string | null = input.accessToken;
@@ -253,6 +271,10 @@ export const privyOwnerSigner = (
           .ethereum()
           .signTypedData(wallet.id, {
             authorization_context: { user_jwts: [accessToken] },
+            signature_options: (await input.signatureOptionsFor?.(
+              input.wallet.address,
+              typedData
+            )) ?? { type: "ecdsa" },
             params: {
               typed_data: {
                 domain: domainOf(typedData.domain),

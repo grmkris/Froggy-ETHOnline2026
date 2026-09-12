@@ -2,6 +2,7 @@ export { PrivySignerRefusedError } from "./evm-signer";
 export type {
   AgentEvmSigner,
   AgentTypedDataSigner,
+  SignatureOptionsResolver,
   UnsignedEvmTransaction,
 } from "./evm-signer";
 export {
@@ -81,7 +82,12 @@ export {
   reconcileTradeStep,
   recoverTrade,
 } from "./trade-execution";
-export type { TradeSettlement, TradeSubmission } from "./trade-execution";
+export type {
+  TradeSettlement,
+  TradeSubmission,
+  RawTradeSubmission,
+  ManagedTradeSubmission,
+} from "./trade-execution";
 export type { TradeAuthority, TradeClaimRequest } from "./trading-authority";
 export type { TradeBook, TradingStore } from "./trading-store";
 
@@ -98,3 +104,5 @@ export type {
 } from "./history-store";
 
 export type { TelegramCacheMessage } from "./history-store";
+
+export type { PrivyExecution } from "./privy-execution";

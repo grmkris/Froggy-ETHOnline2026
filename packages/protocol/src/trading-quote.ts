@@ -3,6 +3,8 @@ import { Schema } from "effect";
 
 import { EvmTradingNetwork, TradingUnits } from "./trading";
 
+const QuoteAsset = Schema.Union([Schema.Literal("native"), EvmAddress]);
+
 const ShortText = Schema.String.check(Schema.isMaxLength(128));
 const Timestamp = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const PoolId = Schema.String.check(Schema.isPattern(/^0x[\da-fA-F]{64}$/u));
@@ -10,8 +12,8 @@ const PoolId = Schema.String.check(Schema.isPattern(/^0x[\da-fA-F]{64}$/u));
 export const SwapQuoteInput = Schema.Struct({
   network: EvmTradingNetwork,
   wallet: EvmAddress,
-  tokenIn: EvmAddress,
-  tokenOut: EvmAddress,
+  tokenIn: QuoteAsset,
+  tokenOut: QuoteAsset,
   amount: TradingUnits.check(
     Schema.makeFilter((value) => BigInt(value) > 0n, {
       message: "The quoted amount must be positive.",
@@ -84,7 +86,7 @@ export const SwapQuoteResult = Schema.Struct({
   input: SwapQuoteInput,
   routing: Schema.Literals(["CLASSIC"]),
   output: Schema.Struct({
-    token: EvmAddress,
+    token: QuoteAsset,
     expectedAmount: TradingUnits,
     minimumAmount: Schema.NullOr(TradingUnits),
   }),

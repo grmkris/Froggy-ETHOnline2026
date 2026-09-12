@@ -231,6 +231,7 @@ const UniswapChain = Schema.Struct({
 });
 
 export interface TradingEnvironment {
+  readonly privySponsoredNetworks?: readonly string[];
   readonly uniswapMode: "live" | "stub" | "unavailable";
   readonly tenderly: {
     readonly accessKey: Redacted.Redacted;
@@ -541,13 +542,21 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
             project: tenderlyProject,
           }
         : null;
+    const privySponsoredRaw = yield* Config.string(
+      "PRIVY_SPONSORED_NETWORKS"
+    ).pipe(Config.withDefault("[]"));
+    const privySponsoredNetworks = Schema.decodeUnknownSync(
+      Schema.Array(Schema.Literals(["eip155:8453", "eip155:84532"])).check(
+        Schema.isMaxLength(2)
+      )
+    )(JSON.parse(privySponsoredRaw));
     const tradingRpcRaw = yield* secret("TRADING_RPC_ENDPOINTS", "{}");
     const tradingPricesRaw = yield* Config.string(
       "TRADING_PRICES_USD_MICROS"
     ).pipe(Config.withDefault("{}"));
     const uniswapChainsRaw = yield* Config.string("UNISWAP_CHAINS").pipe(
       Config.withDefault(
-        `[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"},{"network":"${PONS_NETWORK}","routerVersion":"2.1.1"}]`
+        `[{"network":"eip155:8453","routerVersion":"2.0"},{"network":"eip155:84532","routerVersion":"2.0"},{"network":"eip155:1","routerVersion":"2.0"},{"network":"eip155:11155111","routerVersion":"2.0"},{"network":"${PONS_NETWORK}","routerVersion":"2.1.1"}]`
       )
     );
     const rpcEndpoints: Record<string, Redacted.Redacted> = {};
@@ -635,6 +644,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
               rpcEndpoints[PONS_NETWORK] !== undefined
             ),
       uniswapMode,
+      privySponsoredNetworks,
       tenderly,
       confirmations,
       birdeyeApiKey,
