@@ -23,7 +23,7 @@ for (const width of [1440, 390]) {
     await page.goto("/chat");
     await page
       .getByRole("textbox", { name: "Message" })
-      .fill("Remember this history fixture about USDC.");
+      .fill("Remember this history fixture about USDC; token=native.");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page).toHaveURL(/\/chat\/cnvrs_/u);
     await expect(page.getByRole("log")).toHaveAttribute("aria-busy", "false", {
@@ -44,7 +44,9 @@ for (const width of [1440, 390]) {
     await expect(
       page
         .getByRole("log")
-        .getByText("Remember this history fixture about USDC.", { exact: true })
+        .getByText("Remember this history fixture about USDC; token=native.", {
+          exact: true,
+        })
     ).toHaveCount(1);
     await page
       .getByRole("navigation", { name: "Primary" })

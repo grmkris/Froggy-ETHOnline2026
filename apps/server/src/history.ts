@@ -23,72 +23,20 @@ import { Schema } from "effect";
 const LEASE_MS = 30_000;
 const PREVIEW_CAP = 4096;
 const ARTIFACT_CAP = 65_536;
-const secretKey =
-  /(?:authorization|cookie|password|secret|token|api[-_]?key|private[-_]?key|signature|credential)/iu;
-const redactText = (text: string): string =>
-  text
-    .replaceAll(/\bBearer\s+[\w.\-~+/=]+/giu, "Bearer [redacted]")
-    .replaceAll(
-      /\b(?:sk|rk|pk_live|ghp|github_pat)[-_][\w-]{12,}/gu,
-      "[redacted]"
-    )
-    .replaceAll(
-      /(?<label>(?:password|secret|token|api[-_]?key|private[-_]?key)\s*[=:]\s*)[^\s&,;]+/giu,
-      "$<label>[redacted]"
-    )
-    .replaceAll(/https?:\/\/[^\s<>"']+/gu, (raw) => {
-      try {
-        const url = new URL(raw);
-        url.username = "";
-        url.password = "";
-        for (const key of url.searchParams.keys()) {
-          if (secretKey.test(key)) {
-            url.searchParams.set(key, "[redacted]");
-          }
-        }
-        if (url.pathname.startsWith("/unlocked/")) {
-          url.pathname = "/unlocked/[redacted]";
-        }
-        return url.toString();
-      } catch {
-        return "[invalid URL]";
-      }
-    });
 export const decodeHistoryJson = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Json)
 );
-const redactJson = (value: Schema.Json): Schema.Json => {
-  if (Schema.is(Schema.String)(value)) {
-    return redactText(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(redactJson);
-  }
-  if (Schema.is(Schema.JsonObject)(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        secretKey.test(key) ? "[redacted]" : redactJson(item),
-      ])
-    );
-  }
-  return value;
-};
 export const historyPreview = (value: Schema.Json, limit = PREVIEW_CAP) => {
-  const raw: string = Schema.is(Schema.String)(value)
+  const text: string = Schema.is(Schema.String)(value)
     ? value
     : JSON.stringify(value);
-  const redacted = redactJson(value);
-  const safe: string = Schema.is(Schema.String)(redacted)
-    ? redacted
-    : JSON.stringify(redacted);
-  const bytes = new TextEncoder().encode(safe);
+  const bytes = new TextEncoder().encode(text);
   return {
     text: new TextDecoder().decode(bytes.subarray(0, limit), {
       stream: bytes.length > limit,
     }),
     truncated: bytes.length > limit,
-    redacted: safe !== raw,
+    redacted: false,
   };
 };
 interface SavedParts {

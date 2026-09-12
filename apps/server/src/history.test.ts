@@ -110,6 +110,40 @@ const contracts = (label: string, first: Store, second: Store): void => {
         },
       ]);
     });
+    test("resumed history preserves token identifiers in completed tool calls", async () => {
+      const user = owner();
+      const accepted = await acceptHistory(first.history, user, {
+        messages: [incoming("swap-1")],
+      });
+      const parts = [
+        {
+          type: "tool-trade_prepare" as const,
+          toolCallId: "swap-call",
+          state: "output-available" as const,
+          input: {
+            tokenIn: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            tokenOut: "native",
+          },
+          output: { status: "prepared" },
+        },
+      ];
+      await checkpointHistory(
+        first.history,
+        user,
+        accepted.run,
+        {
+          id: accepted.run.assistantMessageId,
+          role: "assistant",
+          parts,
+        },
+        "completed"
+      );
+      const resumed = await acceptHistory(second.history, user, {
+        conversationId: accepted.run.conversationId,
+        messages: [incoming("swap-2", "Try again")],
+      });
+      expect(resumed.messages[1]?.parts).toEqual(parts);
+    });
     test("duplicate input accepts one run, and a second thread cannot supersede it", async () => {
       const user = owner();
       const id = ConversationId.generate();
@@ -550,17 +584,18 @@ describe("history execution boundaries", () => {
       "uncertain"
     );
   });
-  test("redaction preserves structured JSON and caps evidence", () => {
+  test("history preserves field values and caps evidence", () => {
     const value = {
       authorization: "Bearer private-value",
       text: "api_key=super-secret https://example.com/result?token=secret&ok=yes",
       nested: { password: "private" },
+      tokenIn: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      tokenOut: "native",
     };
     const preview = historyPreview(value);
-    expect(preview.redacted).toBe(true);
+    expect(preview.redacted).toBe(false);
     const decoded = decodeHistoryJson(preview.text);
-    expect(JSON.stringify(decoded)).not.toContain("super-secret");
-    expect(JSON.stringify(decoded)).not.toContain("private");
+    expect(decoded).toEqual(value);
     expect(historyPreview("x".repeat(5000)).text).toHaveLength(4096);
     expect(historyPreview("x".repeat(5000)).truncated).toBe(true);
   });
