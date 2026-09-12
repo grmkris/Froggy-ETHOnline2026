@@ -141,8 +141,7 @@ test("a wallet card Allows through prepare and commit", async ({ page }) => {
   await page.goto("/chat");
   const ticket = page.getByLabel("Connect this site");
   await expect(ticket).toBeVisible({ timeout: 20_000 });
-  await expect(ticket.getByText("app.uniswap.org")).toBeVisible();
-  await expect(ticket.getByText("Base", { exact: false })).toBeVisible();
+  await expect(ticket.getByText("Site app.uniswap.org on Base")).toBeVisible();
   await ticket.getByRole("button", { name: "Allow once" }).click();
   await expect.poll(() => calls.join(",")).toBe("prepare,commit");
 });
