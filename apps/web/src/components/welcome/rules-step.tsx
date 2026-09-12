@@ -143,7 +143,7 @@ const Notes = ({
     <li className="text-muted-foreground">{rulesWords(allowance)}</li>
     <li className="text-muted-foreground">
       Froggy’s engine and Privy both enforce these numbers. The tiles are the
-      leash, not a suggestion.
+      rules, not a suggestion.
     </li>
     <li className="text-muted-foreground">
       Only services you have added can be paid. A link you paste is checked
