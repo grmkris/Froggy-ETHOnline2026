@@ -1,6 +1,7 @@
 import {
   UpdateId,
   EvmAddress,
+  shortAddress,
   supportedPresence,
   MonitorConfig,
   MonitorId,
@@ -246,8 +247,15 @@ const invokeWalletWorkspaceTool = async (
         "No Froggy embedded wallet is attached. Supply the external wallet address to watch."
       );
     }
+    // The model's own titles read "Base contract 0x… activity" at the top
+    // of every alert; unnamed, a watch is called by its address.
+    const title =
+      input.title ??
+      (input.address === "my_froggy_wallet"
+        ? "Your Froggy wallet"
+        : `Wallet ${shortAddress(address)}`);
     const saved = await saveWatchlistItem(store, owner, {
-      title: input.title,
+      title,
       notes: "",
       source: {
         _tag: "wallet",

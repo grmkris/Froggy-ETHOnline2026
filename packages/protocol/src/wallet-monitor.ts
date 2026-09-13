@@ -13,7 +13,15 @@ import { Schema } from "effect";
 export const TrackWalletInput = Schema.Struct({
   network: Schema.optional(OnchainNetwork),
   address: Schema.Union([EvmAddress, Schema.Literal("my_froggy_wallet")]),
-  title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120)),
+  title: Schema.optional(
+    Schema.String.check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(120)
+    ).annotate({
+      description:
+        "The person's own name for this wallet, such as \"Bob's wallet\", only when they gave one. Leave it out otherwise: Froggy names the watch by its address, and this name opens every alert.",
+    })
+  ),
   telegram: Schema.Boolean,
   swaps: Schema.Boolean,
   transfers: Schema.Boolean,
