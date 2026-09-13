@@ -626,8 +626,6 @@ describe("paid trading services", () => {
     const context = await fixture();
     const spies = [
       spyOn(context.services.privy, "signerFor"),
-      spyOn(context.services.privy, "ownerEvmSigner"),
-      spyOn(context.services.privy, "ownerSolanaSigner"),
       spyOn(context.services.privy, "grantAgent"),
     ];
     try {

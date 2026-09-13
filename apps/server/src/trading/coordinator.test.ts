@@ -109,8 +109,7 @@ test("human approval executes through the session and public results never conta
   const completed = await setup.coordinator.answer(
     setup.context,
     trade.id,
-    answer,
-    "fixture-owner-token"
+    answer
   );
   expect(completed.status).toBe("completed");
   expect(completed.stubbed).toBe(true);
@@ -130,7 +129,7 @@ test("human approval executes through the session and public results never conta
   expect(privateTrade?.steps[0]?.signedPayload).toStartWith("stub:");
   expect(
     await setup.coordinator
-      .answer(setup.context, trade.id, answer, "fixture-owner-token")
+      .answer(setup.context, trade.id, answer)
       .then(() => null, String)
   ).toContain("state");
 });
@@ -150,18 +149,13 @@ test("agent requests cannot approve and are invisible to other agent connections
   }
   expect(
     await setup.coordinator
-      .answer(
-        context,
-        trade.id,
-        {
-          v: 1,
-          stepId: step.id,
-          approvalId: step.approvalId,
-          fingerprint: step.fingerprint,
-          decision: "allow_once",
-        },
-        "token"
-      )
+      .answer(context, trade.id, {
+        v: 1,
+        stepId: step.id,
+        approvalId: step.approvalId,
+        fingerprint: step.fingerprint,
+        decision: "allow_once",
+      })
       .then(() => null, String)
   ).toContain("human_only");
   expect(
@@ -190,18 +184,13 @@ test("stop wins before signing and the refusal remains an audit receipt", async 
   await setup.coordinator.stop(setup.session.userId, true);
   expect(
     await setup.coordinator
-      .answer(
-        setup.context,
-        trade.id,
-        {
-          v: 1,
-          stepId: step.id,
-          approvalId: step.approvalId,
-          fingerprint: step.fingerprint,
-          decision: "allow_once",
-        },
-        "token"
-      )
+      .answer(setup.context, trade.id, {
+        v: 1,
+        stepId: step.id,
+        approvalId: step.approvalId,
+        fingerprint: step.fingerprint,
+        decision: "allow_once",
+      })
       .then(() => null, String)
   ).toContain("frozen");
   const saved = await setup.coordinator.get(
@@ -282,18 +271,13 @@ test("a simulation failure before signing records a bounded refusal without rese
   }
   expect(
     await setup.coordinator
-      .answer(
-        setup.context,
-        trade.id,
-        {
-          v: 1,
-          stepId: step.id,
-          approvalId: step.approvalId,
-          fingerprint: step.fingerprint,
-          decision: "allow_once",
-        },
-        "token"
-      )
+      .answer(setup.context, trade.id, {
+        v: 1,
+        stepId: step.id,
+        approvalId: step.approvalId,
+        fingerprint: step.fingerprint,
+        decision: "allow_once",
+      })
       .then(() => null, String)
   ).toContain("trade.unavailable");
   const saved = await setup.coordinator.get(
@@ -350,8 +334,7 @@ test("withdrawal proceeds require confirmation and remain scoped to the originat
       approvalId: step.approvalId,
       fingerprint: step.fingerprint,
       decision: "allow_once",
-    },
-    "fixture-owner-token"
+    }
   );
   expect(completed.status).toBe("completed");
   const proposed = await setup.coordinator.prepare(context, request);

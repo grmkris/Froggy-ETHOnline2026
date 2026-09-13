@@ -90,16 +90,7 @@ const handleIndividual = async (
     const input = Schema.decodeUnknownSync(PurchaseAnswer)(
       JSON.parse(await body(request))
     );
-    const accessToken = bearerFromRequest(request);
-    if (accessToken === null) {
-      return json({ error: "Sign in to answer this approval." }, 401);
-    }
-    const answered = await services.purchases.answer(
-      context,
-      id,
-      input,
-      accessToken
-    );
+    const answered = await services.purchases.answer(context, id, input);
     if (input.decision === "deny_stop") {
       const purchase = await services.store.purchases.byId(userId, id);
       if (purchase?.runId === hostedBrowseFor(userId)?.id) {

@@ -93,6 +93,19 @@ export interface TradeCoordinatorOptions {
 }
 const fingerprint = (input: TradeInput): string =>
   new Bun.CryptoHasher("sha256").update(JSON.stringify(input)).digest("hex");
+/**
+ * No credential on this server may sign for the person, and Privy refuses the
+ * user-JWT exchange on this app. Batched EVM steps are signed in the browser
+ * through the managed-execution authorization; everything else waits for the
+ * same treatment, and says so instead of failing somewhere vaguer.
+ */
+const ownerSigningUnavailable = (network: string): never => {
+  const leg = network.startsWith("solana:") ? "Solana" : "single-transaction";
+  throw new Error(
+    `trade.signer: this ${leg} trade needs your wallet's signature, which Froggy can ask for in the browser only on sponsored batch trades today. This approval is paused until browser signing lands here.`
+  );
+};
+
 const publicError = (error: Error): string => {
   if (error instanceof UniswapQuoteError) {
     return `trade.quote_${error.code}: ${error.message}`.slice(0, 500);
@@ -512,8 +525,7 @@ export class TradeCoordinator {
   async answer(
     context: TradeContext,
     id: TradeId,
-    answer: TradeAnswer,
-    accessToken: string
+    answer: TradeAnswer
   ): Promise<TradeTicket> {
     if (context.connectionId !== null) {
       throw new Error("trade.human_only: agents cannot answer approvals.");
@@ -542,7 +554,7 @@ export class TradeCoordinator {
       );
     }
     try {
-      return await this.approve(context, trade, step, answer, accessToken);
+      return await this.approve(context, trade, step, answer);
     } catch (error) {
       const reason = publicError(
         error instanceof Error ? error : new Error("Approval failed")
@@ -597,8 +609,7 @@ export class TradeCoordinator {
     context: TradeContext,
     trade: Trade,
     step: TradeStep,
-    answer: TradeAnswer,
-    accessToken: string
+    answer: TradeAnswer
   ): Promise<TradeTicket> {
     const owner = context.session.userId;
     const { id } = trade;
@@ -620,7 +631,7 @@ export class TradeCoordinator {
               trade,
               answer.authorizationSignature
             )
-          : await this.ownerSigner(owner, trade.input, accessToken);
+          : ownerSigningUnavailable(trade.input.network);
     }
     const result = await context.session.spendTrade(
       {
@@ -849,28 +860,6 @@ export class TradeCoordinator {
       walletId: wallet.id,
       authorizationSignature: signature,
     };
-  }
-
-  private async ownerSigner(
-    owner: UserId,
-    input: TradeInput,
-    accessToken: string
-  ): Promise<TradeSigner> {
-    const request = { did: owner, accessToken };
-    if (input.network.startsWith("solana:")) {
-      const signer = await this.options.privy.ownerSolanaSigner(request);
-      if (signer === null) {
-        throw new Error(
-          "trade.signer: the owner's Solana signer is unavailable."
-        );
-      }
-      return { kind: "solana", signer };
-    }
-    const signer = await this.options.privy.ownerTradeSigner(request);
-    if (signer === null) {
-      throw new Error("trade.signer: the owner's EVM signer is unavailable.");
-    }
-    return { kind: "evm", signer };
   }
 
   async stop(owner: UserId, stopped: boolean): Promise<void> {

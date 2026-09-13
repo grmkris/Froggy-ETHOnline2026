@@ -26,10 +26,9 @@ import {
   challengeFrom,
   decodeSettlementHeader,
   describePayment,
-  evmPayer,
+  isEvmNetwork,
   isSolanaNetwork,
   paymentHeaders,
-  solanaPayer,
   solanaBalance,
   settlementHeaderFrom,
 } from "@froggy/payments";
@@ -50,6 +49,9 @@ import type { ChatRun } from "./runs";
 import type { Services } from "./services";
 import type { Settled, WorkspaceSession } from "./session";
 import { assetFor } from "./tools-assets";
+
+const BROWSER_SIGNING_PENDING =
+  "Paying from your USDC or Solana wallet needs a signature from your browser, which this purchase flow cannot ask for yet. Pay with HBAR, or wait for browser signing here.";
 
 export class PurchaseError extends Error {
   readonly status: number;
@@ -656,8 +658,7 @@ export class Purchases {
   async answer(
     context: PurchaseContext,
     id: PurchaseId,
-    answer: PurchaseAnswer,
-    accessToken: string
+    answer: PurchaseAnswer
   ): Promise<PurchaseTicket> {
     const { userId } = context.session;
     const purchase = await this.require(userId, id);
@@ -730,7 +731,7 @@ export class Purchases {
       try {
         await (claimed.quote === null
           ? this.probe(userId, claimed, undefined, controller.signal)
-          : this.execute(context, claimed, accessToken, controller.signal));
+          : this.execute(context, claimed, controller.signal));
       } catch (error) {
         const latest = await this.require(userId, id);
         await this.patch(userId, latest, {
@@ -813,8 +814,7 @@ export class Purchases {
 
   private async payer(
     context: PurchaseContext,
-    purchase: Purchase,
-    accessToken: string
+    purchase: Purchase
   ): Promise<Payer> {
     const network = purchase.quote?.amount.asset.network;
     if (network === this.services.payer.network) {
@@ -823,28 +823,14 @@ export class Purchases {
         openingUsdMicros: context.session.pocket ?? 0,
       });
     }
-    const owner = { accessToken, did: context.session.userId };
-    if (network !== undefined && isSolanaNetwork(network)) {
-      const signer = await this.services.privy.ownerSolanaSigner(owner);
-      if (signer === null) {
-        throw new PurchaseError(
-          "Create your Solana wallet in Services, then fund it with USDC on the selected network."
-        );
-      }
-      const rpcUrl = this.services.environment.solanaRpcUrl;
-      return rpcUrl === ""
-        ? solanaPayer({ network, signer })
-        : solanaPayer({ network, signer, rpcUrl });
-    }
-
-    if (network === "eip155:8453" || network === "eip155:84532") {
-      const signer = await this.services.privy.ownerEvmSigner(owner);
-      if (signer === null) {
-        throw new PurchaseError(
-          "Create and fund your Privy Ethereum wallet with USDC on the selected Base network."
-        );
-      }
-      return evmPayer({ network, signer });
+    if (
+      network !== undefined &&
+      (isSolanaNetwork(network) || isEvmNetwork(network))
+    ) {
+      // No credential on this server may sign for the person, and Privy
+      // refuses the user-JWT exchange on this app. Until this flow asks the
+      // browser to sign the way credit purchases do, the honest answer is no.
+      throw new PurchaseError(BROWSER_SIGNING_PENDING);
     }
     throw new PurchaseError("No payer is configured for this network.");
   }
@@ -925,7 +911,6 @@ export class Purchases {
   private async execute(
     context: PurchaseContext,
     purchase: Purchase,
-    accessToken: string,
     signal: AbortSignal
   ): Promise<void> {
     const { quote } = purchase;
@@ -959,7 +944,7 @@ export class Purchases {
         let stubbed = false;
         try {
           await this.ready(context, purchase, signal);
-          const payer = await this.payer(context, purchase, accessToken);
+          const payer = await this.payer(context, purchase);
           signal.throwIfAborted();
           const attempt = await payer.pay({
             x402Version: 2,

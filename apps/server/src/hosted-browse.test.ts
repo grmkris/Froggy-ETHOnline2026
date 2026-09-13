@@ -852,8 +852,7 @@ const beginCard = async (f: Awaited<ReturnType<typeof fixture>>) => {
         fingerprint: step.fingerprint,
         decision: "allow_once",
       },
-    },
-    "owner-token"
+    }
   );
   return reviewed.id;
 };

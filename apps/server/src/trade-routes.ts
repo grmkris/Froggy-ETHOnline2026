@@ -9,7 +9,6 @@ import {
 } from "@froggy/protocol";
 import { Schema } from "effect";
 
-import { bearerFromRequest } from "./auth";
 import { boundedBytes } from "./outbound";
 import type { Services } from "./services";
 import type { TaskCaller } from "./tasks";
@@ -147,12 +146,8 @@ const handleTrade = async (
     return json(await services.trades.authorization(context, id, answer));
   }
   if (action === "answer" && request.method === "POST") {
-    const accessToken = bearerFromRequest(request);
-    if (accessToken === null) {
-      return json({ error: "Sign in to answer this trade approval." }, 401);
-    }
     const answer = Schema.decodeUnknownSync(TradeAnswer)(await body(request));
-    return json(await services.trades.answer(context, id, answer, accessToken));
+    return json(await services.trades.answer(context, id, answer));
   }
   if (action === "cancel" && request.method === "POST") {
     return json(await services.trades.cancel(owner, id));

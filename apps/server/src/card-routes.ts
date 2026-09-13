@@ -13,7 +13,6 @@ import {
 } from "@froggy/protocol";
 import { Schema } from "effect";
 
-import { bearerFromRequest } from "./auth";
 import {
   controlCurrentHostedBrowse,
   purchaseHostedBrowse,
@@ -179,11 +178,7 @@ const handleCheckoutControl = async (
         )
       );
     }
-    const token = bearerFromRequest(request);
-    if (token === null) {
-      return json({ v: 1, error: "Sign in to approve this purchase." }, 401);
-    }
-    await cards.approve(context, id, input, token);
+    await cards.approve(context, id, input);
     return await view(id);
   }
   return json({ v: 1, error: "Method not allowed." }, 405);

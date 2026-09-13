@@ -192,12 +192,11 @@ const approve = async (
   f: Awaited<ReturnType<typeof fixture>>,
   row: PurchaseTicket
 ) => {
-  await f.purchases.answer(
-    f.context,
-    row.id,
-    { v: 1, approvalId: row.approvalId, decision: "allow_once" },
-    "stub-owner"
-  );
+  await f.purchases.answer(f.context, row.id, {
+    v: 1,
+    approvalId: row.approvalId,
+    decision: "allow_once",
+  });
   return await terminal(f, row.id);
 };
 
@@ -239,12 +238,11 @@ describe("durable x402 purchases", () => {
     expect(f.meter.signatures).toBe(0);
     expect(
       async () =>
-        await f.purchases.answer(
-          f.context,
-          first.id,
-          { v: 1, approvalId: first.approvalId, decision: "allow_once" },
-          "stub-owner"
-        )
+        await f.purchases.answer(f.context, first.id, {
+          v: 1,
+          approvalId: first.approvalId,
+          decision: "allow_once",
+        })
     ).toThrow("approval changed");
     const paid = await approve(f, priced);
     expect(paid.status).toBe("completed");
@@ -271,12 +269,11 @@ describe("durable x402 purchases", () => {
   it("declines without a signature and does not accept a changed idempotent body", async () => {
     const f = await fixture();
     const row = await f.purchases.request(f.context, f.input);
-    const denied = await f.purchases.answer(
-      f.context,
-      row.id,
-      { v: 1, approvalId: row.approvalId, decision: "deny" },
-      "stub-owner"
-    );
+    const denied = await f.purchases.answer(f.context, row.id, {
+      v: 1,
+      approvalId: row.approvalId,
+      decision: "deny",
+    });
     expect(denied.status).toBe("declined");
     expect(denied.receiptId).not.toBeNull();
     expect(denied.grant).toBeNull();
@@ -305,16 +302,11 @@ describe("durable x402 purchases", () => {
     const f = await fixture();
     const row = await f.purchases.request(f.context, f.input);
     const deny = async () =>
-      await f.purchases.answer(
-        f.context,
-        row.id,
-        {
-          v: 1,
-          approvalId: row.approvalId,
-          decision: "deny",
-        },
-        "stub-owner"
-      );
+      await f.purchases.answer(f.context, row.id, {
+        v: 1,
+        approvalId: row.approvalId,
+        decision: "deny",
+      });
     await Promise.all([deny(), deny()]);
     const declined = await f.purchases.get(f.session.userId, row.id);
     expect(declined.receiptId).not.toBeNull();
@@ -326,16 +318,11 @@ describe("durable x402 purchases", () => {
       body: "{}",
     });
     const before = f.meter.probes;
-    const contact = await f.purchases.answer(
-      f.context,
-      post.id,
-      {
-        v: 1,
-        approvalId: post.approvalId,
-        decision: "deny_stop",
-      },
-      "stub-owner"
-    );
+    const contact = await f.purchases.answer(f.context, post.id, {
+      v: 1,
+      approvalId: post.approvalId,
+      decision: "deny_stop",
+    });
     expect(contact.status).toBe("declined");
     expect(contact.quote).toBeNull();
     expect(contact.receiptId).toBeNull();
@@ -387,16 +374,11 @@ describe("durable x402 purchases", () => {
     const f = await fixture();
     f.meter.holdPaid = true;
     const row = await f.purchases.request(f.context, f.input);
-    await f.purchases.answer(
-      f.context,
-      row.id,
-      {
-        v: 1,
-        approvalId: row.approvalId,
-        decision: "allow_once",
-      },
-      "stub-owner"
-    );
+    await f.purchases.answer(f.context, row.id, {
+      v: 1,
+      approvalId: row.approvalId,
+      decision: "allow_once",
+    });
     await f.paidStarted.promise;
     try {
       await f.purchases.cancel(userId("did:privy:other-owner"), row.id);
@@ -421,16 +403,11 @@ describe("durable x402 purchases", () => {
     const f = await fixture();
     f.meter.holdPaid = true;
     const row = await f.purchases.request(f.context, f.input);
-    await f.purchases.answer(
-      f.context,
-      row.id,
-      {
-        v: 1,
-        approvalId: row.approvalId,
-        decision: "allow_once",
-      },
-      "stub-owner"
-    );
+    await f.purchases.answer(f.context, row.id, {
+      v: 1,
+      approvalId: row.approvalId,
+      decision: "allow_once",
+    });
     await f.paidStarted.promise;
     try {
       await Promise.all(
@@ -616,8 +593,6 @@ const liveFixture = async () => {
     ],
   };
   const calls = {
-    ethereumSigner: 0,
-    solanaSigner: 0,
     ethereumBalance: 0,
     solanaBalance: 0,
   };
@@ -703,14 +678,6 @@ const liveFixture = async () => {
           },
           solana: { id: "solana-test", address: SOLANA_BUYER },
         }),
-      ownerEvmSigner: async () => {
-        calls.ethereumSigner += 1;
-        return await Promise.resolve(null);
-      },
-      ownerSolanaSigner: async () => {
-        calls.solanaSigner += 1;
-        return await Promise.resolve(null);
-      },
     },
   };
   const purchases = new Purchases(adapters);
@@ -730,13 +697,10 @@ describe("funding-aware purchase offers", () => {
     const row = await f.purchases.request(f.context, f.input);
     expect(row.status).toBe("awaiting_approval");
     expect(row.quote?.amount.asset.network).toBe(SOLANA_USDC.network);
-    expect(f.calls.ethereumSigner + f.calls.solanaSigner).toBe(0);
     f.funding.ethereum = 100_000n;
     const done = await approve(f, row);
     expect(done.status).toBe("failed");
-    expect(done.error).toContain("Create your Solana wallet");
-    expect(f.calls.solanaSigner).toBe(1);
-    expect(f.calls.ethereumSigner).toBe(0);
+    expect(done.error).toContain("needs a signature from your browser");
     expect(f.calls.solanaBalance).toBe(2);
     expect(f.calls.ethereumBalance).toBe(1);
   });
@@ -759,7 +723,6 @@ describe("funding-aware purchase offers", () => {
     });
     expect(unknown.status).toBe("failed");
     expect(unknown.error).toContain("Could not read your USDC balance");
-    expect(f.calls.ethereumSigner + f.calls.solanaSigner).toBe(0);
   });
 
   it.each([BASE_USDC.network, SOLANA_USDC.network])(
@@ -776,7 +739,6 @@ describe("funding-aware purchase offers", () => {
       expect(done.error).toContain("Fund your");
       expect(done.error).toContain(network);
       expect(done.payment.sentAt).toBeNull();
-      expect(f.calls.ethereumSigner + f.calls.solanaSigner).toBe(0);
     }
   );
 
@@ -792,6 +754,5 @@ describe("funding-aware purchase offers", () => {
     const done = await approve(f, row);
     expect(done.status).toBe("failed");
     expect(done.error).toContain("changed its payment terms");
-    expect(f.calls.ethereumSigner + f.calls.solanaSigner).toBe(0);
   });
 });

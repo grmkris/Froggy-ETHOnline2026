@@ -240,18 +240,8 @@ test("existing balance needs no trade, duplicate approval is idempotent, dispatc
   const { checkout } = await prepare(f);
   expect(checkout.tradeId).toBeNull();
   expect(checkout.funding?.baseDebit).toBe("0");
-  await f.cards.approve(
-    f.context,
-    checkout.id,
-    answer(checkout.fingerprint),
-    "owner-token"
-  );
-  await f.cards.approve(
-    f.context,
-    checkout.id,
-    answer(checkout.fingerprint),
-    "owner-token"
-  );
+  await f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint));
+  await f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint));
   expect(
     f.cards.dispatchCredentials(owner, checkout.id, {
       merchant: "evil.example",
@@ -294,12 +284,7 @@ test("card replacement and revocation invalidate pending approvals", async () =>
     method.id
   );
   expect(
-    f.cards.approve(
-      f.context,
-      checkout.id,
-      answer(checkout.fingerprint),
-      "owner-token"
-    )
+    f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint))
   ).rejects.toThrow("method");
   await f.cards.revoke(owner, method.id);
   expect(
@@ -314,12 +299,7 @@ test("malformed inspection and stale approvals cannot debit or release credentia
   const { checkout } = await prepare(f);
   f.advance();
   expect(
-    f.cards.approve(
-      f.context,
-      checkout.id,
-      answer(checkout.fingerprint),
-      "owner-token"
-    )
+    f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint))
   ).rejects.toThrow("approval");
   await f.cards.stop(owner, checkout.id);
   const next = await f.cards.prepare(
@@ -349,21 +329,16 @@ test("a shortfall uses the existing trade ledger and an exact owner answer", asy
   if (step === undefined) {
     throw new Error("Missing bridge step");
   }
-  const approved = await f.cards.approve(
-    f.context,
-    checkout.id,
-    {
-      ...answer(checkout.fingerprint),
-      tradeAnswer: {
-        v: 1,
-        decision: "allow_once",
-        approvalId: step.approvalId,
-        fingerprint: step.fingerprint,
-        stepId: step.id,
-      },
+  const approved = await f.cards.approve(f.context, checkout.id, {
+    ...answer(checkout.fingerprint),
+    tradeAnswer: {
+      v: 1,
+      decision: "allow_once",
+      approvalId: step.approvalId,
+      fingerprint: step.fingerprint,
+      stepId: step.id,
     },
-    "owner-token"
-  );
+  });
   expect(approved.bridge?.sourceConfirmed).toBe(true);
   expect(approved.bridge?.destinationConfirmed).toBe(true);
   expect(approved.stage).toBe("paying");
@@ -390,12 +365,7 @@ test("different owners cannot read checkout documents with a guessed id", () => 
 test("dispatched attempts reserve their card until explicit issuer reconciliation", async () => {
   const f = fixture();
   const { checkout, method } = await prepare(f);
-  await f.cards.approve(
-    f.context,
-    checkout.id,
-    answer(checkout.fingerprint),
-    "owner-token"
-  );
+  await f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint));
   await f.cards.dispatchCredentials(owner, checkout.id, {
     merchant: "shop.example",
     hosts: ["pay.example"],
@@ -434,12 +404,7 @@ test("bridge fee requoting covers the shortfall and stops after three deficient 
 test("unverified cross-origin entry refuses real credentials before decryption or dispatch", async () => {
   const f = fixture("100000000", "none", false);
   const { checkout } = await prepare(f);
-  await f.cards.approve(
-    f.context,
-    checkout.id,
-    answer(checkout.fingerprint),
-    "owner-token"
-  );
+  await f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint));
   const decrypt = spyOn(f.cards.options.vault, "open");
   try {
     const refusal = await f.cards

@@ -598,8 +598,7 @@ export class CardCheckouts {
   async approve(
     context: TradeContext,
     id: CardCheckoutId,
-    input: typeof CardCheckoutApprove.Type,
-    token: string
+    input: typeof CardCheckoutApprove.Type
   ): Promise<CardCheckout> {
     if (context.connectionId !== null) {
       throw new Error(
@@ -683,8 +682,7 @@ export class CardCheckouts {
         await this.options.trades.answer(
           context,
           claimed.tradeId,
-          input.tradeAnswer,
-          token
+          input.tradeAnswer
         );
       } catch {
         return await this.pause(
