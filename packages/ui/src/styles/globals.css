@@ -3,6 +3,7 @@
 @import "@fontsource-variable/manrope";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/700.css";
 /* ejected from shadcn@4.21.0 */
 @theme inline {
   @keyframes accordion-down {
@@ -710,12 +711,12 @@
   /* Streamdown frames code blocks and tables in shadcn's sidebar colour. Our
      rail uses the deeper paper too, so the two agree on the same step back. */
   --color-sidebar: var(--paper-deep);
-  --radius-sm: 0.625rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
   --radius-2xl: var(--radius);
-  --radius-3xl: 1.25rem;
+  --radius-3xl: 14px;
   --radius-cta: var(--r-cta);
   --color-knob: var(--knob);
   --color-chart-1: var(--r0);
@@ -746,30 +747,30 @@
   --accent-foreground: var(--primary);
   --input: var(--border);
   --ring: var(--primary);
-  --shadow-card: 0 1px 2px var(--sh1), 0 0 0 1px var(--surface-ring);
-  --shadow-float: 0 12px 40px -12px var(--sh2), 0 0 0 1px var(--surface-ring);
-  --shadow-inset: none;
+  --shadow-card: 0 0 0 2px var(--border), 4px 4px 0 2px var(--border);
+  --shadow-float: 0 0 0 2px var(--border), 8px 8px 0 2px var(--border);
+  --shadow-inset: inset 0 0 0 1px var(--hairline);
   --shadow-control: none;
   --shadow-primary: none;
 }
 
 :root {
   color-scheme: light;
-  --overlay: rgb(13 18 15 / 18%);
-  --background: #f5f6f2;
-  --card: #fcfdfb;
-  --muted: #f3f5f0;
-  --border: #dce2d8;
-  --paper-deep: #edf0e9;
+  --overlay: rgb(23 62 48 / 24%);
+  --background: #f9f6e9;
+  --card: #fffdf7;
+  --muted: #e8edca;
+  --border: #254230;
+  --paper-deep: #f2eeda;
   --bezel: #131916;
-  --foreground: #15201a;
-  --muted-foreground: #57645b;
-  --secondary-foreground: #2b3b31;
-  --primary: #2f7a4c;
-  --primary-hi: #348452;
-  --primary-lo: #276a41;
-  --brand-soft: #e2efe6;
-  --primary-foreground: #f6fbf7;
+  --foreground: #173e30;
+  --muted-foreground: #506658;
+  --secondary-foreground: #173e30;
+  --primary: #173e30;
+  --primary-hi: #234f3d;
+  --primary-lo: #0f2e23;
+  --brand-soft: #e8edca;
+  --primary-foreground: #fffdf7;
   --drive-agent: #9a6314;
   --drive-agent-foreground: #7a4f10;
   --drive-agent-soft: #f8f0e2;
@@ -782,21 +783,18 @@
   --r2: #8fc3a3;
   --r3: #55a072;
   --r4: #2f7a4c;
-  --hl: rgba(255, 255, 255, 0.95);
-  --surface-ring: rgba(21, 32, 26, 0.055);
-  --sh1: rgba(21, 32, 26, 0.05);
-  --sh2: rgba(21, 32, 26, 0.18);
-  --radius: 16px;
-  --radius-row: 12px;
-  --r-cta: 10px;
+  --surface-ring: rgba(23, 62, 48, 0.12);
+  --radius: 12px;
+  --radius-row: 8px;
+  --r-cta: 6px;
   --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   /*
    * The lime accent. An accent only: never text, never a surface, and never the
    * sole signal for a state. It appears where the interface asks something of a
    * person, and in the mascot's one moment of celebration.
    */
-  --lime: #b4e04a;
-  --lime-ink: #24400a;
+  --lime: #d7f975;
+  --lime-ink: #173e30;
   /*
    * The mascot's own roles. Skin is deliberately lighter and livelier than
    * --primary: the forest green is the interface's, this green is the animal's.
@@ -814,25 +812,36 @@
   --pupil: var(--frog-pupil);
   --mouth: var(--frog-mouth);
   --knob: #ffffff;
+  --card-foreground: #173e30;
+  --secondary: #e8edca;
+  --accent: #e8edca;
+  --accent-foreground: #173e30;
+  --brand: #173e30;
+  --input: #254230;
+  --ring: #46744a;
+  --playground-accent: #d7f975;
+  --playground-accent-ink: #173e30;
+  --hairline: color-mix(in srgb, var(--border) 20%, transparent);
+  --landing-accent: var(--playground-accent);
 }
 
 .dark {
   color-scheme: dark;
-  --overlay: rgb(5 7 6 / 65%);
-  --background: #0d120f;
-  --card: #171f19;
-  --muted: #1f2921;
-  --border: #2a3630;
-  --paper-deep: #121814;
+  --overlay: rgb(0 0 0 / 45%);
+  --background: #0f2419;
+  --card: #163021;
+  --muted: #1d3a2a;
+  --border: #f3f0e2;
+  --paper-deep: #0b1c13;
   --bezel: #050706;
-  --foreground: #e9f0ea;
-  --muted-foreground: #a4b2a6;
-  --secondary-foreground: #c8d5cb;
-  --primary: #4fb87a;
-  --primary-hi: #5ecb8b;
-  --primary-lo: #3ea468;
-  --brand-soft: #16301f;
-  --primary-foreground: #07130b;
+  --foreground: #f3f0e2;
+  --muted-foreground: #b3c2b5;
+  --secondary-foreground: #f3f0e2;
+  --primary: #f3f0e2;
+  --primary-hi: #ffffff;
+  --primary-lo: #e3dfc9;
+  --brand-soft: #1d3a2a;
+  --primary-foreground: #0f2419;
   --drive-agent: #e8a33d;
   --drive-agent-foreground: #e8a33d;
   --drive-agent-soft: #2a2113;
@@ -845,16 +854,13 @@
   --r2: #357a53;
   --r3: #42a06b;
   --r4: #4fb87a;
-  --hl: rgba(255, 255, 255, 0.07);
-  --surface-ring: rgba(255, 255, 255, 0.05);
-  --sh1: rgba(0, 0, 0, 0.4);
-  --sh2: rgba(0, 0, 0, 0.7);
-  --radius: 16px;
-  --radius-row: 12px;
-  --r-cta: 10px;
+  --surface-ring: rgba(243, 240, 226, 0.12);
+  --radius: 12px;
+  --radius-row: 8px;
+  --r-cta: 6px;
   --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --lime: #c7ec63;
-  --lime-ink: #16250a;
+  --lime: #d7f975;
+  --lime-ink: #173e30;
   --frog-skin: #5cb473;
   --frog-skin-lo: #47935c;
   --frog-belly: #2b4634;
@@ -866,6 +872,13 @@
   --pupil: var(--frog-pupil);
   --mouth: var(--frog-mouth);
   --knob: #eaf5ee;
+  --card-foreground: #f3f0e2;
+  --secondary: #1d3a2a;
+  --accent: #1d3a2a;
+  --accent-foreground: #f3f0e2;
+  --brand: #d7f975;
+  --input: #f3f0e2;
+  --ring: #d7f975;
 }
 
 * {
@@ -911,8 +924,8 @@ button:not(:disabled),
   font-variant-numeric: tabular-nums;
   font-size: 2rem;
   line-height: 2.25rem;
-  font-weight: 600;
-  letter-spacing: -0.9px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
 }
 @utility text-machine {
   font-family: var(--font-mono);
@@ -999,24 +1012,27 @@ button:not(:disabled),
 
 @utility text-title {
   font-family: var(--font-display);
-  font-size: 1.75rem;
-  line-height: 2.125rem;
-  font-weight: 650;
-  letter-spacing: -0.035em;
+  font-size: clamp(36px, 4.5vw, 56px);
+  line-height: 0.96;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 @utility text-section {
   font-family: var(--font-display);
-  font-size: 1.1875rem;
-  line-height: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.6px;
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 @utility text-greeting {
   font-family: var(--font-display);
-  font-size: 1.625rem;
-  line-height: 1.875rem;
-  font-weight: 600;
-  letter-spacing: -0.9px;
+  font-size: clamp(32px, 5vw, 44px);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
 }
 @utility action-primary {
   background: var(--primary);
@@ -1337,55 +1353,8 @@ button:not(:disabled),
 }
 
 /*
- * The Playground palette: the public landing and the signed-in Home's first
- * screen share these twelve variables, so the room a person walks into is the
- * one the door promised. Workspace and portal tokens stay intact outside it.
- * Lilypad gets its own values: the landing is light-only, but a signed-in
- * person on the dark theme still reaches Home.
+ * Since decision 0044, `.playground` is a scope marker; its tokens live at the root.
  */
-.playground {
-  --background: #f9f6e9;
-  --foreground: #173e30;
-  --card: #fffdf7;
-  --card-foreground: #173e30;
-  --primary: #173e30;
-  --primary-foreground: #fffdf7;
-  --secondary: #e8edca;
-  --secondary-foreground: #173e30;
-  --muted: #e8edca;
-  --muted-foreground: #506658;
-  --border: #254230;
-  --ring: #46744a;
-  --accent: #e8edca;
-  --accent-foreground: #173e30;
-  --brand: #173e30;
-  --brand-soft: #e8edca;
-  --input: #254230;
-  --playground-accent: #d7f975;
-  --playground-accent-ink: #173e30;
-  --landing-accent: var(--playground-accent);
-  --surface-ring: rgba(23, 62, 48, 0.12);
-}
-.dark .playground {
-  --background: #0f2419;
-  --foreground: #f3f0e2;
-  --card: #163021;
-  --card-foreground: #f3f0e2;
-  --primary: #f3f0e2;
-  --primary-foreground: #0f2419;
-  --secondary: #1d3a2a;
-  --secondary-foreground: #f3f0e2;
-  --muted: #1d3a2a;
-  --muted-foreground: #b3c2b5;
-  --border: #f3f0e2;
-  --ring: #d7f975;
-  --accent: #1d3a2a;
-  --accent-foreground: #f3f0e2;
-  --brand: #d7f975;
-  --brand-soft: #1d3a2a;
-  --input: #f3f0e2;
-  --surface-ring: rgba(243, 240, 226, 0.12);
-}
 .landing {
   min-height: 100svh;
   background: var(--background);
@@ -3441,5 +3410,229 @@ button.watch-chip:focus-visible {
   .watch-time-bar > span,
   .watch-event::before {
     transition: none;
+  }
+}
+
+/* Playground surfaces (decision 0044).
+ * Unlayered rules beat Tailwind utilities; zero specificity lets scoped classes win.
+ */
+/*
+ * Boxes are drawn in ink; seams are hairlines. A `border` on all sides keeps
+ * the ink the base rule gives it, as the landing's cards do. A one-sided
+ * border or a divider is the 20% hairline the money line already uses.
+ */
+:where(
+  .border-t,
+  .border-b,
+  .border-l,
+  .border-r,
+  .border-x,
+  .border-y,
+  .divide-y > *,
+  .divide-x > *
+) {
+  border-color: var(--hairline);
+}
+
+:where(:root:not(:has(.landing)) [data-slot="card"] [data-slot="card"]) {
+  background: var(--muted);
+  box-shadow: var(--shadow-inset);
+}
+
+/* Buttons. The outline variant is the Playground chip. */
+:where(:root:not(:has(.landing)) [data-slot="button"]) {
+  border-radius: 6px;
+  font-weight: 600;
+}
+:where(:root:not(:has(.landing)) [data-slot="button"][data-variant="outline"]) {
+  border: 2px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 3px 3px 0 var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition:
+    translate var(--motion-feedback) var(--ease-out),
+    box-shadow var(--motion-feedback) var(--ease-out),
+    background-color var(--motion-feedback) var(--ease-out),
+    color var(--motion-feedback) var(--ease-out);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"]:hover:not(:disabled)
+) {
+  translate: 1px 1px;
+  background: var(--card);
+  box-shadow: 2px 2px 0 var(--border);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"]:active:not(:disabled)
+) {
+  translate: 3px 3px;
+  background: var(--card);
+  box-shadow: 0 0 0 var(--border);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"][aria-expanded="true"]
+) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"][data-size="xs"],
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"][data-size="sm"]
+) {
+  padding-inline: 10px;
+  font-size: 10px;
+  box-shadow: 2px 2px 0 var(--border);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"][data-size="xs"]:hover:not(
+      :disabled
+    ),
+  :root:not(:has(.landing))
+    [data-slot="button"][data-variant="outline"][data-size="sm"]:hover:not(
+      :disabled
+    )
+) {
+  box-shadow: 1px 1px 0 var(--border);
+}
+
+/* Badges: machine words in a small box. */
+:where(:root:not(:has(.landing)) [data-slot="badge"]) {
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:where(:root:not(:has(.landing)) [data-slot="badge"][data-variant="outline"]) {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Tabs: a row of small chips; the selected one is ink. */
+:where(:root:not(:has(.landing)) [data-slot="tabs-list"]) {
+  justify-content: flex-start;
+  height: auto;
+  gap: 8px;
+  padding: 2px 4px 4px 2px;
+  border-radius: 0;
+  background: transparent;
+}
+:where(:root:not(:has(.landing)) [data-slot="tabs-trigger"]) {
+  flex: 0 0 auto;
+  min-height: 36px;
+  height: auto;
+  padding: 0 12px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 2px 2px 0 var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition:
+    translate var(--motion-feedback) var(--ease-out),
+    box-shadow var(--motion-feedback) var(--ease-out),
+    background-color var(--motion-feedback) var(--ease-out),
+    color var(--motion-feedback) var(--ease-out);
+}
+:where(
+  :root:not(:has(.landing)) [data-slot="tabs-trigger"]:hover:not([data-active])
+) {
+  translate: 1px 1px;
+  box-shadow: 1px 1px 0 var(--border);
+}
+:where(:root:not(:has(.landing)) [data-slot="tabs-trigger"][data-active]) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Fields: card ground, ink outline, the ring on focus. */
+:where(
+  :root:not(:has(.landing)) [data-slot="input"],
+  :root:not(:has(.landing)) [data-slot="textarea"],
+  :root:not(:has(.landing)) [data-slot="native-select"]
+) {
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: none;
+}
+:where(
+  :root:not(:has(.landing)) [data-slot="input"]:focus-visible,
+  :root:not(:has(.landing)) [data-slot="textarea"]:focus-visible,
+  :root:not(:has(.landing)) [data-slot="native-select"]:focus-visible
+) {
+  border-color: var(--border);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+:where(
+  :root:not(:has(.landing)) [data-slot="input"][aria-invalid="true"],
+  :root:not(:has(.landing)) [data-slot="textarea"][aria-invalid="true"]
+) {
+  border-color: var(--destructive);
+}
+/* Input groups (the composer among them) take the bar's surface. */
+:where(:root:not(:has(.landing)) [data-slot="input-group"]) {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 3px 3px 0 var(--border);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="input-group"]:has(
+      [data-slot="input-group-control"]:focus-visible
+    )
+) {
+  border-color: var(--border);
+  box-shadow:
+    3px 3px 0 var(--border),
+    0 0 0 3px var(--ring);
+}
+:where(
+  :root:not(:has(.landing))
+    [data-slot="input-group"]
+    [data-slot="input-group-control"]
+) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    :root:not(:has(.landing)) [data-slot="button"][data-variant="outline"],
+    :root:not(:has(.landing)) [data-slot="tabs-trigger"]
+  ) {
+    transition: none;
+  }
+  :where(
+    :root:not(:has(.landing))
+      [data-slot="button"][data-variant="outline"]:hover:not(:disabled),
+    :root:not(:has(.landing))
+      [data-slot="button"][data-variant="outline"]:active:not(:disabled),
+    :root:not(:has(.landing))
+      [data-slot="tabs-trigger"]:hover:not([data-active])
+  ) {
+    translate: none;
   }
 }
