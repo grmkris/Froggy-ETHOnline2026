@@ -61,8 +61,39 @@ jobs:
       - name: Build applications
         run: bun run build
 
+  # The browser suite is the whole cost of this workflow: the gates above take
+  # about two minutes, the 236 specs took sixteen on two workers. Railway waits
+  # for the check suite, so wall clock is what a deploy pays. Four shards run
+  # the same specs in parallel; each repeats install and build, which is cheap
+  # next to what it saves.
+  e2e:
+    name: Browser smoke tests ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build applications
+        run: bun run build
+
       - name: Install Chromium
         run: bunx --bun playwright install --with-deps chromium
 
+      # The suite runs against an in-memory store (`DATABASE_URL: ""` in
+      # playwright.config.ts), so this job needs no Postgres service.
       - name: Run browser smoke tests
-        run: bun run e2e
+        run: bun run e2e -- --shard=${{ matrix.shard }}/4
