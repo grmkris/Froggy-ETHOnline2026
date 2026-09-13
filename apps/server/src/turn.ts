@@ -31,6 +31,7 @@ import type { ModelBudget } from "./budget";
 import type { ToolSurface } from "./capabilities";
 import { canUseTool, connectionScopes } from "./capabilities";
 import { detached } from "./detached";
+import { emailPromptContext } from "./email-tools";
 import { acceptHistory, checkpointHistory, historyTools } from "./history";
 import type { HistoryInput } from "./history";
 import { internalHistoryTool } from "./history-retrieval";
@@ -254,6 +255,16 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       run.abort();
     }
   );
+  const activeTools = Object.keys(tools).filter(
+    (name) =>
+      canUseTool(name, surface, scopes) &&
+      (deps.activeTools === undefined || deps.activeTools.includes(name))
+  );
+  const emailContext = await emailPromptContext(
+    deps.services.email,
+    userId,
+    activeTools.includes("email_address")
+  );
   const paidSettings: PaidSettings = {};
   if (deps.paidBrowse !== undefined) {
     paidSettings.maxOutputTokens = 2048;
@@ -283,15 +294,12 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
         situation: { at: Date.now(), timezone, surface: promptSurface },
         toolSurface: surface,
         taskContext,
+        emailContext,
         instructions: deps.instructions,
         own: deps.session.ownEvmAddresses(),
         appOrigin: deps.services.environment.appOrigin,
       }),
-      activeTools: Object.keys(tools).filter(
-        (name) =>
-          canUseTool(name, surface, scopes) &&
-          (deps.activeTools === undefined || deps.activeTools.includes(name))
-      ),
+      activeTools,
       ...paidSettings,
       messages: await convertToModelMessages(accepted.messages, { tools }),
       model: createModel(deps.services.environment, {

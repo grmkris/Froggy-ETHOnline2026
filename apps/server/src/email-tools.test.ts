@@ -1,10 +1,13 @@
-import { beforeAll, expect, test } from "bun:test";
+import { beforeAll, expect, spyOn, test } from "bun:test";
 
 import { userId } from "@froggy/domain";
+import type { OAuthScope } from "@froggy/domain";
 import { Effect } from "effect";
 
+import { canUseTool } from "./capabilities";
 import {
   emailToolDefinitions,
+  emailPromptContext,
   invokeEmailTool,
   readEmailAttachment,
 } from "./email-tools";
@@ -114,4 +117,57 @@ test("image reads return bounded model-ready content without an extra model call
   );
   const content = await readEmailAttachment(services, person, { id: file.id });
   expect(content.images).toEqual([{ mimeType: "image/png", data }]);
+});
+
+test("mailbox context respects tool permissions and does not read denied mailboxes", async () => {
+  const { email } = createServices({ environment });
+  if (email === null) {
+    throw new Error("Expected local email stub");
+  }
+  const owner = userId("did:privy:email-context-owner");
+  await email.claim(owner, "context-owner");
+  const status = spyOn(email, "status");
+  const denied = await Promise.all(
+    [new Set<OAuthScope>(), new Set(["email:draft"] as const)].map(
+      async (scopes) =>
+        await emailPromptContext(
+          email,
+          owner,
+          canUseTool("email_address", "browse", scopes)
+        )
+    )
+  );
+  for (const context of denied) {
+    expect(context).not.toContain("context-owner@");
+    expect(context).toContain("not available");
+  }
+  expect(status).not.toHaveBeenCalled();
+  const allowed = await Promise.all(
+    [null, new Set(["email:read"] as const)].map(
+      async (scopes) =>
+        await emailPromptContext(
+          email,
+          owner,
+          canUseTool("email_address", "browse", scopes)
+        )
+    )
+  );
+  for (const context of allowed) {
+    expect(context).toContain("context-owner@");
+    expect(context).toContain('"stubbed":true');
+    expect(context).not.toContain("unread");
+  }
+  await email.disable(owner);
+  expect(await emailPromptContext(email, owner, true)).toContain("No active");
+  expect(
+    await emailPromptContext(email, userId("did:privy:no-mailbox"), true)
+  ).toContain("No active");
+  expect(await emailPromptContext(null, owner, true)).toContain(
+    "not configured"
+  );
+  status.mockRejectedValue(new Error("Private internal failure"));
+  const context = await emailPromptContext(email, owner, true);
+  expect(context).toContain("could not be loaded");
+  expect(context).not.toContain("Private internal failure");
+  status.mockRestore();
 });

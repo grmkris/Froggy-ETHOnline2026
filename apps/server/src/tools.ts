@@ -787,7 +787,7 @@ const buildRawTools = (deps: ToolDeps) => {
     }),
     browse_task: tool({
       description:
-        "Offer a paid shared-browser task. The person chooses a credit budget in the card. This tool does not start browsing or authorize spending. Use it for browsing requests outside a paid browse task.",
+        "Offer a paid shared-browser task with a concise goal, supplied URL and actual user constraints. Preserve purchase intent; do not invent bans on email, login or checkout. Include email/verification requirements when needed. The person chooses a credit budget in the card. This tool does not start browsing or authorize spending. Use it for browsing requests outside a paid browse task.",
       inputSchema: std(
         Schema.Struct({
           prompt: Schema.String.check(

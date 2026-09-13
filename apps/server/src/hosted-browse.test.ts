@@ -316,7 +316,18 @@ describe("hosted browser lifecycle", () => {
   test("attaches Froggy before user work, shares one allowance, and never occupies foreground chat", async () => {
     const f = await fixture();
     const chat = f.deps.runs.start(f.workspace.session.id);
+    const { email } = f.deps.services;
+    if (email === null) {
+      throw new Error("Expected local email stub");
+    }
+    await email.claim(f.owner, "hosted-shopper");
     await f.boot();
+    expect(f.provider.calls[0]?.task).not.toContain("hosted-shopper@");
+    expect(f.provider.calls[1]?.task).toContain("hosted-shopper@");
+    expect(f.provider.calls[1]?.task).toContain("no Froggy inbox tools");
+    expect(f.provider.calls[1]?.task).toContain(
+      "preserve explicit user restrictions"
+    );
     expect(f.provider.calls[0]?.task).toContain("about:blank");
     expect(f.provider.calls[1]?.sessionId).toBe(PROFILE);
     expect(f.provider.calls[1]?.maxCostUsd).toBe(0.49);

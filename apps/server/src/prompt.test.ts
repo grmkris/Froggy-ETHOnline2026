@@ -17,6 +17,7 @@ const parts = (
   const shared = {
     situation: { at: AT, timezone, surface },
     taskContext: "",
+    emailContext: "",
     own: OWN,
     appOrigin: "https://froggy.example",
   };
@@ -93,4 +94,39 @@ describe("composeInstructions", () => {
     expect(text).not.toContain("task_report");
     expect(text).not.toContain("You are Froggy, an agent with a wallet");
   });
+});
+
+test("shopping preserves purchase intent and real approval boundaries", () => {
+  for (const surface of ["web", "telegram"] as const) {
+    const text = parts(surface);
+    expect(text).toContain("You may spend");
+    expect(text).toContain("specific rule and the smallest change");
+    expect(text).toContain("HTTP 200 says nothing");
+    expect(text).toContain("explicit stop-before-payment instructions");
+    expect(text).toContain("Do not invent restrictions");
+    expect(text).toContain("raise a limit or approve a spend");
+    expect(text).toContain("valid partial observations");
+    expect(text).toContain("before offering another budget card");
+  }
+});
+
+test("mailbox context reaches a paid browse and a job with custom instructions", () => {
+  for (const toolSurface of ["browse", "schedule"] as const) {
+    const text = composeInstructions({
+      situation: { at: AT, timezone: "Europe/Berlin", surface: toolSurface },
+      toolSurface,
+      taskContext: "",
+      emailContext: "Froggy email: shopper@froggy.test",
+      own: OWN,
+      appOrigin: "https://froggy.example",
+      instructions:
+        toolSurface === "schedule" ? "Job instructions." : undefined,
+    });
+    expect(text).toContain("shopper@froggy.test");
+    if (toolSurface === "browse") {
+      expect(text).toContain("do not ask the person to copy an address");
+      expect(text).toContain("use email_wait when available");
+      expect(text).toContain("call task_report");
+    }
+  }
 });
