@@ -42,9 +42,14 @@ type ToolSchema<T> = StandardSchemaV1<unknown, T> & {
 /** Rounds of parse-and-revalidate: a string inside a parsed string is as deep as it goes. */
 const REPAIR_ROUNDS = 3;
 type Json = Schema.Json;
+interface JsonRecord {
+  readonly [key: string]: Json;
+}
 const isJson = Schema.is(Schema.Json);
 const isJsonArray = Schema.is(Schema.Array(Schema.Json));
-const isJsonRecord = Schema.is(Schema.Record(Schema.String, Schema.Json));
+/** The object case of `Json`, once strings and arrays have been ruled out. */
+const isJsonRecord = (value: Json): value is JsonRecord =>
+  Predicate.isObject(value) && !Array.isArray(value);
 const decodeJsonText = Schema.decodeUnknownResult(
   Schema.fromJsonString(Schema.Json)
 );
@@ -96,7 +101,15 @@ const parseAt = (
       return undefined;
     }
     const inner = parseAt(entry, rest);
-    return inner === undefined ? undefined : { ...value, [key]: inner };
+    if (inner === undefined) {
+      return undefined;
+    }
+    return Object.fromEntries(
+      Object.entries(value).map(([name, item]): readonly [string, Json] => [
+        name,
+        name === key ? inner : item,
+      ])
+    );
   }
   return undefined;
 };

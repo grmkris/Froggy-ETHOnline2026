@@ -565,12 +565,16 @@ describe("wallet trade attribution", () => {
     expect(alert?.text).toContain("not signed by the watched wallet");
     expect(alert?.text).toContain(`/watchlist/${item.id}`);
     const [activity] = await s.store.walletActivity.list(owner, item.id);
-    expect(activity?.transactionFrom).toBe(recipient);
+    const [flow] = activity?.flows ?? [];
+    if (!activity || !flow) {
+      throw new Error("The poisoned transfer was not saved as an activity.");
+    }
+    expect(activity.transactionFrom).toBe(recipient);
     // The wallet's own transaction carries no such caution, and an unnamed token is marked.
     const own = {
       ...activity,
       transactionFrom: wallet,
-      flows: [{ ...activity.flows[0], symbol: null }],
+      flows: [{ ...flow, symbol: null }],
     };
     const text = walletActivityText(own, "https://froggy.example", item.title);
     expect(text).not.toContain("not signed by the watched wallet");
