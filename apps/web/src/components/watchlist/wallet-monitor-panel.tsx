@@ -609,7 +609,7 @@ export const WalletMonitorBadge = ({
 type MonitorClient = ReturnType<typeof useWalletMonitor>;
 export const activeState = (state: WalletMonitorStatus["state"]): boolean =>
   ["starting", "watching", "waiting_price", "delayed"].includes(state);
-export const primaryAction = (
+const primaryAction = (
   state: WalletMonitorStatus["state"]
 ): "pause" | "resume" | "extend" | "rearm" => {
   if (activeState(state)) {

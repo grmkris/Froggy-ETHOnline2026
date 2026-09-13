@@ -10,7 +10,7 @@ import type { UpdateStore } from "./update-store";
 
 type Database = ReturnType<typeof drizzle>;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export const readUpdate = (row: typeof updates.$inferSelect): Update =>
+const readUpdate = (row: typeof updates.$inferSelect): Update =>
   Schema.decodeUnknownSync(Update)({
     ...Schema.decodeUnknownSync(Update)(row.document),
     readAt: row.readAt,

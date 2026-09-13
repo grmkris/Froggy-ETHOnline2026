@@ -49,10 +49,7 @@ const chain = (activity: WalletActivity): string =>
   activity.network === "eip155:4663" ? "Robinhood" : "Base";
 const finality = (activity: WalletActivity): string =>
   `${chain(activity)} · ${activity.finality === "finalized" ? "confirmed" : "provisional until confirmed"}`;
-export const priceUpdate = (
-  item: WatchlistItem,
-  activity: WalletActivity
-): Update => {
+const priceUpdate = (item: WatchlistItem, activity: WalletActivity): Update => {
   const { price } = activity;
   return record({
     kind: "price",
