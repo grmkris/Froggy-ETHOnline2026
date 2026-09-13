@@ -327,3 +327,12 @@ export {
   CreditLedgerEntry,
 } from "./credits";
 export { CreditChargeId, CreditPurchaseId, CreditEntryId } from "./id";
+
+export {
+  WatchlistData,
+  WatchlistObservation,
+  WatchlistFact,
+  emptyWatchlistData,
+} from "./watchlist-data";
+
+export { WatchlistPreviewId } from "./id";

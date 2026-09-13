@@ -29,7 +29,7 @@ import type { ReactElement } from "react";
 import { useServiceApi } from "../../hooks/use-service-api";
 import { networkWords } from "../../lib/mandate-words";
 import { useWatchlist } from "../../lib/watchlist-client";
-import { MonitorSetup, MonitoringBudget } from "./monitoring-panel";
+import { SavedItemActions } from "./paste-item";
 
 const ItemForm = ({
   item,
@@ -46,6 +46,15 @@ const ItemForm = ({
     catalog.data?.services
       .find((card) => card.name === "token_inspect")
       ?.networks?.filter((network) => network.startsWith("eip155:")) ?? [];
+  const addressSource = kind === "token" || kind === "wallet";
+  const sourceLabel = {
+    email: "Email",
+    token: "Token address",
+    wallet: "Wallet address",
+    link: "Website URL",
+    product: "Website URL",
+    flight: "Website URL",
+  }[kind];
   const pending = save.isPending || patch.isPending;
   return (
     <form
@@ -60,7 +69,7 @@ const ItemForm = ({
           notes: read("notes"),
           source:
             item?.source ??
-            (kind === "token"
+            (addressSource
               ? {
                   _tag: kind,
                   network: data.get("network"),
@@ -108,7 +117,13 @@ const ItemForm = ({
                 onChange={(event) => {
                   setKind(
                     Schema.decodeUnknownSync(
-                      Schema.Literals(["link", "token", "product", "flight"])
+                      Schema.Literals([
+                        "link",
+                        "token",
+                        "wallet",
+                        "product",
+                        "flight",
+                      ])
                     )(event.target.value)
                   );
                 }}
@@ -117,11 +132,12 @@ const ItemForm = ({
                   Website or link
                 </NativeSelectOption>
                 <NativeSelectOption value="token">Token</NativeSelectOption>
+                <NativeSelectOption value="wallet">Wallet</NativeSelectOption>
                 <NativeSelectOption value="product">Product</NativeSelectOption>
                 <NativeSelectOption value="flight">Flight</NativeSelectOption>
               </NativeSelect>
             </Field>
-            {kind === "token" ? (
+            {addressSource ? (
               <Field>
                 <FieldLabel htmlFor="saved-network">Chain</FieldLabel>
                 <NativeSelect id="saved-network" name="network" required>
@@ -142,17 +158,15 @@ const ItemForm = ({
               </Field>
             ) : null}
             <Field>
-              <FieldLabel htmlFor="saved-source">
-                {kind === "token" ? "Token address" : "Website URL"}
-              </FieldLabel>
+              <FieldLabel htmlFor="saved-source">{sourceLabel}</FieldLabel>
               <Input
                 autoComplete="off"
                 id="saved-source"
                 maxLength={2048}
                 name="source"
-                placeholder={kind === "token" ? "0x…" : "https://…"}
+                placeholder={addressSource ? "0x…" : "https://…"}
                 required
-                type={kind === "token" ? "text" : "url"}
+                type={addressSource ? "text" : "url"}
               />
             </Field>
           </>
@@ -179,8 +193,10 @@ const ItemForm = ({
             name="notes"
             placeholder={
               {
+                email: "Useful trip or product details…",
                 flight: "Dates, route, passengers, baggage…",
                 token: "Your thesis, what to research, why you saved it…",
+                wallet: "Whose wallet this is, what you want to follow…",
                 product: "Size, colour, what you’re looking for…",
                 link: "Why you saved it, what to check…",
               }[kind]
@@ -246,23 +262,7 @@ export const SaveItem = ({
           </DialogDescription>
         </DialogHeader>
         {saved ? (
-          <div className="flex flex-col gap-5">
-            <MonitorSetup
-              item={saved}
-              onDone={() => {
-                setOpen(false);
-              }}
-            />
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              Save without monitoring
-            </Button>
-            <MonitoringBudget />
-          </div>
+          <SavedItemActions item={saved} />
         ) : (
           <ItemForm
             item={formItem}

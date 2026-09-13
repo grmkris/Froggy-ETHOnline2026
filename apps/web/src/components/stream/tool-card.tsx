@@ -18,6 +18,7 @@ import { cn } from "@froggy/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { richResultOf } from "../../lib/tool-call";
 import type { ToolCall } from "../../lib/tool-call";
 import { toolStatus } from "../../lib/tool-status";
 import type { ToolPhase } from "../../lib/tool-status";
@@ -31,6 +32,7 @@ import { BrowseTaskForm } from "../browser/browse-task-form";
 import { MotionItem } from "../motion-item";
 import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
+import { RichToolResult } from "./rich-tool-result";
 import { WalletStatusCard } from "./wallet-status-card";
 
 const TONE: Record<Tone, string> = {
@@ -72,6 +74,9 @@ const Body = ({
         <MoneyBody call={call} receipt={receipt} />
       </MotionItem>
     );
+  }
+  if (richResultOf(call) !== null) {
+    return null;
   }
   if (call.graph !== null) {
     return <GraphSummary graph={call.graph} />;
@@ -154,6 +159,7 @@ export const ToolCard = ({
           data-slot="chevron"
         />
       </CollapsibleTrigger>
+      <RichToolResult call={call} />
       <Body call={call} receipt={receipt} summary={summary} wallet={wallet} />
       <CollapsibleContent className="space-y-2 border-t px-3 py-2">
         <pre className="text-machine max-h-40 overflow-auto whitespace-pre-wrap">

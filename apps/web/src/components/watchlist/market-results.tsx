@@ -1,24 +1,14 @@
-import type { WatchlistItem } from "@froggy/domain";
 import { WatchlistInput } from "@froggy/domain";
 import type { MarketSearchResult, TokenInspectResult } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@froggy/ui/components/dialog";
 import { Link } from "@tanstack/react-router";
 import { Schema } from "effect";
 import { BookmarkIcon, CheckIcon } from "lucide-react";
-import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { networkWords } from "../../lib/mandate-words";
 import { useWatchlist } from "../../lib/watchlist-client";
-import { MonitorSetup, MonitoringBudget } from "./monitoring-panel";
 
 export const marketPrice = (price: number | null): string =>
   price === null
@@ -37,7 +27,6 @@ const SaveToken = ({
   readonly network: string;
 }): ReactElement | null => {
   const { save, list } = useWatchlist();
-  const [offer, setOffer] = useState<WatchlistItem | null>(null);
   const saved = list.data?.items.find(
     (item) =>
       !item.archived &&
@@ -72,7 +61,7 @@ const SaveToken = ({
           aria-label={`Save ${token.symbol ?? token.name ?? "token"}`}
           disabled={save.isPending || list.isPending || list.isError}
           onClick={() => {
-            save.mutate(decoded.success, { onSuccess: setOffer });
+            save.mutate(decoded.success);
           }}
           className="min-h-11 min-w-24"
           size="sm"
@@ -82,40 +71,6 @@ const SaveToken = ({
           {save.isPending ? "Saving…" : "Save"}
         </Button>
       )}
-      <Dialog
-        open={offer !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setOffer(null);
-          }
-        }}
-      >
-        <DialogContent className="max-h-[85dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Keep an eye on this token</DialogTitle>
-            <DialogDescription>
-              Saved. Choose when to check and what should catch your attention.
-            </DialogDescription>
-          </DialogHeader>
-          {offer ? (
-            <MonitorSetup
-              item={offer}
-              onDone={() => {
-                setOffer(null);
-              }}
-            />
-          ) : null}
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setOffer(null);
-            }}
-          >
-            Save without monitoring
-          </Button>
-          <MonitoringBudget />
-        </DialogContent>
-      </Dialog>
       {save.isError ? (
         <p className="text-destructive text-xs" role="alert">
           {save.error.message}

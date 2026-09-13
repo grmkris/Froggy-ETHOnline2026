@@ -84,6 +84,7 @@ const requestFor = (
     },
     market_search: { network: BASE, query: null, limit: 3 },
     token_inspect: { network: BASE, address: TOKEN },
+    token_snapshot: { network: BASE, address: TOKEN },
     token_research: {
       network: BASE,
       address: TOKEN,
@@ -128,6 +129,7 @@ const fixture = async () => {
     },
     trading: {
       market: {
+        snapshot: services.trading.market.snapshot,
         search: async (input) => {
           calls.market_search += 1;
           return await services.trading.market.search(input);

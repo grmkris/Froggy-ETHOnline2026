@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { TaskId, usdMicros } from "@froggy/domain";
+import { WatchlistItemId, TaskId, usdMicros } from "@froggy/domain";
+import type { WatchlistItem } from "@froggy/domain";
 import type { ServiceTicket } from "@froggy/protocol";
 
-import { toolCallOf } from "./tool-call";
+import { toolCallOf, richResultOf } from "./tool-call";
 import { summarize } from "./tool-summary";
 
 const ticket = (status: ServiceTicket["status"]): ServiceTicket => ({
@@ -135,6 +136,31 @@ describe("address lookup cards", () => {
       stubbed: false,
     });
   });
+});
+
+it("keeps saved-item objects renderable instead of dropping them as unknown tool calls", () => {
+  const item: WatchlistItem = {
+    v: 1,
+    id: WatchlistItemId.generate(),
+    title: "Weekend shoes",
+    notes: "Size 42",
+    source: { _tag: "product", url: "https://example.com/shoe" },
+    createdAt: 1,
+    updatedAt: 1,
+    revision: 1,
+    archived: false,
+  };
+  const part = {
+    type: "tool-watchlist_save",
+    state: "output-available",
+    toolCallId: "saved",
+    output: item,
+  };
+  const call = toolCallOf(part);
+  expect(call).not.toBeNull();
+  if (call) {
+    expect(richResultOf(call)).toEqual(item);
+  }
 });
 
 describe("credit balance tool cards", () => {

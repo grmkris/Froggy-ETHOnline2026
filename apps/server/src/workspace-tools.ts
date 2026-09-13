@@ -15,6 +15,7 @@ import { changeMonitor, configureMonitor, monitoringState } from "./monitoring";
 import type { Notices } from "./notices";
 import { createSchedule } from "./schedule-routes";
 import { std } from "./std";
+import { readItemDetails } from "./watchlist-data";
 import { handleWatchlist, saveWatchlistItem } from "./watchlist-routes";
 
 const itemInput = Schema.Struct({ id: WatchlistItemId });
@@ -241,18 +242,19 @@ export const invokeWorkspaceTool = async (
         revision: Schema.optional(Schema.Int),
       })
     )(raw);
-    return await store.watchlist.transact(owner, (book) => {
-      const item = book.get(id);
+    const item = await store.watchlist.transact(owner, (book) => {
+      const saved = book.get(id);
       if (
-        !item ||
-        (input.revision !== undefined && item.revision !== input.revision)
+        !saved ||
+        (input.revision !== undefined && saved.revision !== input.revision)
       ) {
         throw new Error(
           "Saved item is missing or changed. Read its current revision first."
         );
       }
-      return item;
+      return saved;
     });
+    return await readItemDetails(store, owner, item, true);
   }
   const patch =
     key === "watchlist_archive"

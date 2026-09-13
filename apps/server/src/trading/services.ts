@@ -7,6 +7,7 @@ import {
   RpcReadRequest,
   SwapQuoteRequest,
   TokenInspectRequest,
+  TokenSnapshotRequest,
   TokenResearchRequest,
 } from "@froggy/protocol";
 import type {
@@ -15,6 +16,7 @@ import type {
   ServiceResult,
   TradingResult,
   TradingServiceRequest,
+  TradingServiceName,
 } from "@froggy/protocol";
 import { Schema } from "effect";
 
@@ -76,6 +78,15 @@ export const TRADING_TOOL_DEFINITIONS = [
     schema: TokenInspectRequest,
   },
   {
+    name: "token_snapshot",
+    title: "Token price and history",
+    description:
+      "A market snapshot with 24-hour and 7-day closing prices. Missing history stays visible. Retrieval is included.",
+    provider: "Birdeye",
+    mode: "birdeye",
+    schema: TokenSnapshotRequest,
+  },
+  {
     name: "rpc_read",
     title: "Read chain state",
     description:
@@ -111,6 +122,12 @@ const DEMO_RPC_NETWORKS = [
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 ] as const;
 
+const withinSnapshotPrice = (
+  name: TradingServiceName,
+  price: number | undefined
+): boolean =>
+  name !== "token_snapshot" || price === undefined || price <= 1_000_000;
+
 export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
   const { environment } = services;
   return TRADING_TOOL_DEFINITIONS.map((definition) => {
@@ -137,8 +154,15 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
           )
         : ["eip155:4663", "eip155:8453", "eip155:1"];
     }
+    if (definition.name === "token_snapshot") {
+      networks = networks.filter(
+        (network) => network === "eip155:8453" || network === "eip155:4663"
+      );
+    }
     const available =
-      networks.length > 0 && (!providerLive || price !== undefined);
+      networks.length > 0 &&
+      (!providerLive || price !== undefined) &&
+      withinSnapshotPrice(definition.name, price);
     let note =
       "Provider credentials and an explicit service price are required before a live purchase.";
     let status: ServiceCard["status"] = "unavailable";
@@ -202,6 +226,7 @@ export const preflightTrading = (
       }
       break;
     }
+    case "token_snapshot":
     case "token_inspect": {
       const evm = request.input.network.startsWith("eip155:");
       if (evm !== Schema.is(EvmAddress)(request.input.address)) {
@@ -247,6 +272,7 @@ export const serviceRequestText = (request: ServiceRequest): string => {
     case "market_search": {
       return `${request.input.query ?? "Recent listings"} · ${input.network} · up to ${request.input.limit} tokens`;
     }
+    case "token_snapshot":
     case "token_inspect": {
       return `${request.input.address} · ${input.network}`;
     }
@@ -270,6 +296,9 @@ const resultText = (data: TradingResult): string => {
     }
     case "market_search": {
       return `${data.tokens.length} token results on ${data.network}. ${data.tokens.map((token) => `${token.symbol ?? token.name ?? "Unnamed"}: ${token.address}`).join("\n")}`;
+    }
+    case "token_snapshot": {
+      return `Token snapshot on ${data.network}. ${data.series.filter((series) => series.status === "observed").length} of 2 history windows available. Historical closes are in USD; gaps are not filled.`;
     }
     case "token_inspect": {
       return `${data.token.symbol ?? data.token.name ?? data.token.address} on ${data.network}. Price: ${data.token.priceUsd === null ? "unknown" : `$${data.token.priceUsd}`}. Security: ${data.security.status}; missing facts are unknown.`;
@@ -322,6 +351,10 @@ export const runTradingService = async (
     }
     case "market_search": {
       data = await services.trading.market.search(request.input);
+      break;
+    }
+    case "token_snapshot": {
+      data = await services.trading.market.snapshot(request.input);
       break;
     }
     case "token_inspect": {

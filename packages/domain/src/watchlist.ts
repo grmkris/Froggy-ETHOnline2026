@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 
 import { EvmAddress } from "./address";
-import { WatchlistItemId } from "./id";
+import { EmailId, WatchlistItemId } from "./id";
 import { EvmTradingNetwork } from "./trading";
 import { publicHttpUrl } from "./url";
 
@@ -13,9 +13,17 @@ const SourceUrl = Schema.String.check(
   })
 );
 export const WatchlistSource = Schema.Union([
+  Schema.TaggedStruct("wallet", {
+    network: EvmTradingNetwork,
+    address: EvmAddress,
+  }),
   Schema.TaggedStruct("token", {
     network: EvmTradingNetwork,
     address: EvmAddress,
+  }),
+  Schema.TaggedStruct("email", {
+    emailId: EmailId,
+    kind: Schema.Literals(["flight", "product", "link"]),
   }),
   Schema.TaggedStruct("link", { url: SourceUrl }),
   Schema.TaggedStruct("product", { url: SourceUrl }),
@@ -42,8 +50,14 @@ export const WatchlistItem = Schema.Struct({
 export type WatchlistItem = typeof WatchlistItem.Type;
 
 export const watchlistSourceKey = (source: WatchlistSource): string => {
+  if (source._tag === "wallet") {
+    return `wallet:${source.network}:${source.address.toLowerCase()}`;
+  }
   if (source._tag === "token") {
     return `${source.network}:${source.address.toLowerCase()}`;
+  }
+  if (source._tag === "email") {
+    return `email:${source.kind}:${source.emailId}`;
   }
   return `${source._tag}:${source.url}`;
 };

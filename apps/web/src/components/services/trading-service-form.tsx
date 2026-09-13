@@ -113,6 +113,7 @@ const requestFrom = (
       };
       break;
     }
+    case "token_snapshot":
     case "token_inspect": {
       input = { network, address: read("address").trim() };
       break;
@@ -327,7 +328,7 @@ export const TradingServiceForm = ({
             </Field>
           </>
         ) : null}
-        {card.name === "token_inspect" ? (
+        {card.name === "token_inspect" || card.name === "token_snapshot" ? (
           <AddressField
             disabled={disabled}
             label="Token address"

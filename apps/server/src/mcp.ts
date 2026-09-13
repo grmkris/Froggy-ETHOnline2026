@@ -344,6 +344,7 @@ const invokeServiceCall = async (
     case "froggy_watch_launches":
     case "froggy_market_search":
     case "froggy_token_inspect":
+    case "froggy_token_snapshot":
     case "froggy_rpc_read":
     case "froggy_quote_action":
     case "froggy_token_research": {

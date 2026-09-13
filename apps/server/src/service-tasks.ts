@@ -383,3 +383,19 @@ export const purchaseService = async (
   });
   return serviceTicket(reserved.task);
 };
+
+/** Keep repeated chat polls small; the owner-checked immutable task holds the actual series. */
+export const compactServiceTicket = (ticket: ServiceTicket): ServiceTicket => {
+  const { data } = ticket;
+  if (data?.operation !== "token_snapshot") {
+    return ticket;
+  }
+  return {
+    ...ticket,
+    data: {
+      ...data,
+      seriesTaskId: ticket.id,
+      series: data.series.map((series) => ({ ...series, points: [] })),
+    },
+  };
+};

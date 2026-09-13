@@ -1317,3 +1317,25 @@ button:not(:disabled),
     line-height: 24px;
   }
 }
+
+.watchlist-alert-panel {
+  height: var(--collapsible-panel-height);
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    height var(--motion-panel) var(--ease-out),
+    opacity var(--motion-feedback) var(--ease-out);
+}
+.watchlist-alert-panel[data-starting-style],
+.watchlist-alert-panel[data-ending-style] {
+  height: 0;
+  opacity: 0;
+}
+:root[data-motion-input="keyboard"] .watchlist-alert-panel {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .watchlist-alert-panel {
+    transition: opacity var(--motion-feedback) var(--ease-out);
+  }
+}

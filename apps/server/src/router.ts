@@ -17,6 +17,7 @@ import {
   AgentTokenId,
   OAuthGrantId,
   TaskId,
+  WatchlistItemId,
 } from "@froggy/domain";
 import type {
   AgentToken,
@@ -104,6 +105,14 @@ import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
+import { handleWatchlistData } from "./watchlist-data";
+import { handleWatchlistEmail } from "./watchlist-email";
+import {
+  handleWatchlistCapture,
+  handleWatchlistRefresh,
+} from "./watchlist-enrichment";
+import { handleWatchlistImage } from "./watchlist-image";
+import { handleWatchlistResolve } from "./watchlist-resolve";
 import { handleWatchlist } from "./watchlist-routes";
 import type { Workspace, Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
@@ -376,6 +385,18 @@ const handleDirectory = async (
   return json({ error: "Not found." }, 404);
 };
 
+const taskDependencies = (deps: RouterDeps): TaskDeps => ({
+  budget: deps.budget,
+  interactions: deps.interactions,
+  notices: deps.notices,
+  oracleUrl: deps.oracleUrl,
+  runs: deps.runs,
+  services: deps.services,
+  tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
+  unlocks: deps.unlocks,
+  workspaces: deps.workspaces,
+});
+
 /** The digest, reminders and scheduled runs: a person's, never an agent token's. */
 const handleScheduling = async (
   deps: RouterDeps,
@@ -383,6 +404,39 @@ const handleScheduling = async (
   userId: UserId,
   pathname: string
 ): Promise<Response | null> => {
+  if (
+    request.method === "GET" &&
+    pathname.startsWith("/api/watchlist/images/")
+  ) {
+    return await handleWatchlistImage(deps.services.store, userId, pathname);
+  }
+  const refreshItem = /^\/api\/watchlist\/(?<id>[^/]+)\/enrich$/u.exec(pathname)
+    ?.groups?.["id"];
+  if (
+    request.method === "POST" &&
+    refreshItem !== undefined &&
+    WatchlistItemId.is(refreshItem)
+  ) {
+    return await handleWatchlistRefresh(
+      taskDependencies(deps),
+      request,
+      userId,
+      refreshItem
+    );
+  }
+  if (pathname === "/api/watchlist/from-email") {
+    return await handleWatchlistEmail(deps.services, request, userId);
+  }
+  if (pathname === "/api/watchlist/capture") {
+    return await handleWatchlistCapture(
+      taskDependencies(deps),
+      request,
+      userId
+    );
+  }
+  if (pathname === "/api/watchlist/resolve") {
+    return await handleWatchlistResolve(deps.services, request, userId);
+  }
   if (pathname === "/api/digest") {
     return await handleDigest(deps.services.store, request, userId);
   }
@@ -403,6 +457,12 @@ const handleScheduling = async (
     });
   }
   return (
+    (await handleWatchlistData(
+      deps.services.store,
+      request,
+      userId,
+      pathname
+    )) ??
     (await handleWatchlist(deps.services.store, request, userId, pathname)) ??
     (await handleSchedules(deps.services.store, request, userId, pathname))
   );
@@ -540,17 +600,7 @@ const handleTasks = async (
   caller: TaskCaller,
   pathname: string
 ): Promise<Response | null> => {
-  const taskDeps: TaskDeps = {
-    budget: deps.budget,
-    interactions: deps.interactions,
-    notices: deps.notices,
-    oracleUrl: deps.oracleUrl,
-    runs: deps.runs,
-    services: deps.services,
-    tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
-    unlocks: deps.unlocks,
-    workspaces: deps.workspaces,
-  };
+  const taskDeps = taskDependencies(deps);
   const browseResponse = await handleBrowseTaskRoutes(
     taskDeps,
     request,

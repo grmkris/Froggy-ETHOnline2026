@@ -282,3 +282,6 @@ export const CreditPurchaseId = makeIdSchema("ctp", "CreditPurchaseId");
 export type CreditPurchaseId = typeof CreditPurchaseId.Type;
 export const CreditEntryId = makeIdSchema("cle", "CreditEntryId");
 export type CreditEntryId = typeof CreditEntryId.Type;
+
+export const WatchlistPreviewId = makeIdSchema("wlp", "WatchlistPreviewId");
+export type WatchlistPreviewId = typeof WatchlistPreviewId.Type;

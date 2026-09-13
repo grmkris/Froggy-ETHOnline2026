@@ -71,7 +71,7 @@ export const useServiceApi = (taskId?: TaskId, loadOverview = true) => {
       return decodeTickets(await response.json());
     },
     queryKey: ["service-tasks", app.sessionId],
-    enabled: app.sessionId !== null,
+    enabled: loadOverview && app.sessionId !== null,
     refetchInterval: (query) =>
       query.state.data?.tasks.some((task) => isSettling(task.status)) === true
         ? SETTLING_POLL_MS

@@ -117,6 +117,8 @@ export {
   MarketSearchResult,
   TokenInspectInput,
   TokenInspectResult,
+  TokenSnapshotResult,
+  TokenPriceSeries,
 } from "./trading-market";
 export { SwapQuoteInput, SwapQuoteResult } from "./trading-quote";
 export { RpcReadInput, RpcReadResult } from "./trading-rpc";
@@ -131,6 +133,7 @@ export {
   LaunchWatchRequest,
   MarketSearchRequest,
   TokenInspectRequest,
+  TokenSnapshotRequest,
   RpcReadRequest,
   SwapQuoteRequest,
   TokenResearchRequest,
@@ -189,7 +192,18 @@ export {
   EmailSendResult,
 } from "./email";
 
-export { WatchlistCreate, WatchlistPatch, WatchlistList } from "./watchlist";
+export {
+  WatchlistCreate,
+  WatchlistPatch,
+  WatchlistList,
+  WatchlistResolve,
+  WatchlistPreview,
+  WatchlistCapture,
+  WatchlistCaptured,
+  WatchlistRefresh,
+  WatchlistDetails,
+  WatchlistDetailsList,
+} from "./watchlist";
 
 export {
   MonitoringBudgetRequest,

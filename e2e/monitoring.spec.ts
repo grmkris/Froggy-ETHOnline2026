@@ -10,6 +10,7 @@ for (const width of [390, 1440]) {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/watchlist");
+    await page.getByText("Manage monitoring", { exact: true }).click();
     const budget = page.getByRole("region", { name: "Monitoring budget" });
     await budget.getByLabel("Monthly monitoring limit (credits)").fill("200");
     await budget.getByRole("button", { name: "Save budget" }).click();
@@ -28,6 +29,10 @@ for (const width of [390, 1440]) {
     await dialog
       .getByRole("button", { name: "Save item", exact: true })
       .click();
+    await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
+    await dialog
+      .getByRole("button", { name: "Add alert", exact: true })
+      .click();
     await expect(dialog.getByLabel("How often?")).toHaveValue("");
     await dialog.getByLabel("How often?").selectOption("daily");
     await dialog.getByLabel("Notify me when").selectOption("price_below");
@@ -36,6 +41,7 @@ for (const width of [390, 1440]) {
     await dialog
       .getByRole("button", { name: "Enable monitoring", exact: true })
       .click();
+    await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.getByRole("link", { name: /Monitoring sample/u }).click();
     const monitor = page.getByRole("region", {

@@ -59,6 +59,7 @@ import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
 import { chainIdHex } from "./wallet-call";
 import { WalletRequests } from "./wallet-requests";
+import { enrichSavedItems } from "./watchlist-enrichment";
 import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
@@ -543,6 +544,25 @@ class FroggyServer extends Context.Service<
         detached("schedule tick", async () => {
           await ticker.tick();
           await monitoringRunner.tick();
+          const enrichmentOwners = await services.store.watchlistData.owners();
+          await Promise.all(
+            enrichmentOwners.map(async (owner) => {
+              await enrichSavedItems(
+                {
+                  budget,
+                  interactions,
+                  notices,
+                  oracleUrl,
+                  runs,
+                  services,
+                  tasksUrl: `${environment.appOrigin}/api/tasks`,
+                  unlocks,
+                  workspaces,
+                },
+                owner
+              );
+            })
+          );
         });
       }, SCHEDULE_TICK_MS);
 

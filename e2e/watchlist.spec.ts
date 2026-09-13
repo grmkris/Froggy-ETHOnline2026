@@ -25,9 +25,8 @@ for (const width of [1440, 390, 320]) {
     await dialog.getByLabel("Name", { exact: true }).fill("Weekend shoes");
     await dialog.getByLabel(/Details/u).fill("Size 42 · olive green");
     await dialog.getByRole("button", { name: "Save item" }).click();
-    await dialog
-      .getByRole("button", { name: "Save without monitoring" })
-      .click();
+    await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.reload();
     await page.getByRole("link", { name: /Weekend shoes/u }).click();
@@ -123,18 +122,14 @@ for (const [network, name] of [
       result.getByText("Simulated data", { exact: true })
     ).toBeVisible();
     await result.getByRole("button", { name: /^Save /u }).click();
-    const setup = page.getByRole("dialog");
-    await expect(setup.getByLabel("How often?")).toHaveValue("");
-    await setup
-      .getByRole("button", { name: "Save without monitoring" })
-      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(
       result.getByRole("link", { name: /^Open saved /u })
     ).toBeVisible();
     await page.reload();
     const items = page.getByRole("region", { name: "Saved items" });
     await expect(items.getByRole("link")).toHaveCount(1);
-    await expect(items.getByRole("link")).toContainText(name);
+    await expect(items).toContainText(name);
     await discover.getByLabel("Chain", { exact: true }).selectOption(network);
     await discover
       .getByLabel("Name, symbol or address")

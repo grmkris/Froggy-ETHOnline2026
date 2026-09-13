@@ -6,7 +6,7 @@ Froggy remains a broad assistant. Tokens, wallets, shopping, travel, links and s
 
 ## Identity and observations
 
-Human edits keep the existing saved-item revision. Provider observations live in an independent, owner-scoped `saved_item_data` book/table, with at most 200 items, 500 observations per item and a 90-day history window. Each observation carries its time, source, currency, comparison context and simulation marker. Empty or older results cannot replace newer useful facts. A PostgreSQL advisory lock serializes concurrent observations without conflicting with human edits. Migration `0029_watchlist_details.sql` adds this table; item/account deletion cascades to its data.
+Human edits keep the existing saved-item revision. Provider observations live in an independent, owner-scoped `saved_item_data` book/table, with at most 200 items, 500 observations per item and a 90-day history window. Each observation carries its time, source, currency, comparison context and simulation marker. Empty or older results cannot replace newer useful facts. A PostgreSQL advisory lock serializes concurrent observations without conflicting with human edits. Migration `0026_busy_silvermane.sql` adds this table; item/account deletion cascades to its data.
 
 Token historical series remain in their immutable service task. List responses omit observation arrays. Agent reads omit those arrays and reference the stored chart task; owner-authorized result retrieval supplies the chart to the UI. Reading an item, opening its chart, changing chart windows and comparing saved data never purchase research.
 

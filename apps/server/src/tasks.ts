@@ -9,7 +9,12 @@ import type {
   UserId,
   UsdMicros,
 } from "@froggy/domain";
-import { MonitorCheckId, TaskId, usdMicros } from "@froggy/domain";
+import {
+  WatchlistItemId,
+  MonitorCheckId,
+  TaskId,
+  usdMicros,
+} from "@froggy/domain";
 /** Delegated work reserves prepaid credits; the server owns execution beyond every socket. */
 import { describeBestSupply, describeCheapestBorrow } from "@froggy/graph";
 import type { BrowseTaskProgress, TaskOutcome } from "@froggy/protocol";
@@ -94,6 +99,7 @@ const decodeTaskRequest = async (request: Request) => {
 
 export interface TaskDeps {
   readonly unattended?: boolean;
+  readonly enrichmentItemId?: WatchlistItemId;
   readonly monitorCheckId?: MonitorCheckId;
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
@@ -328,6 +334,10 @@ const browseExecution = (deps: TaskDeps, task: Task) => {
   return { allowance, executionMs, stepLimit, stubbed, inputRate, outputRate };
 };
 
+const isReadOnlyBrowse = (task: Task): boolean =>
+  Schema.is(MonitorCheckId)(task.input["monitorCheckId"]) ||
+  Schema.is(WatchlistItemId)(task.input["enrichmentItemId"]);
+
 const runBrowse = async (
   deps: TaskDeps,
   workspace: Workspace,
@@ -339,6 +349,7 @@ const runBrowse = async (
   );
   const monitorCheckId =
     monitorId._tag === "Success" ? monitorId.success : null;
+  const readOnly = isReadOnlyBrowse(task);
   const now = deps.now ?? Date.now;
   const { session } = workspace;
   const { userId } = session;
@@ -395,7 +406,7 @@ const runBrowse = async (
   try {
     const turn = await startTurn(
       {
-        surface: monitorCheckId === null ? "browse" : "monitor",
+        surface: readOnly ? "monitor" : "browse",
         interactive: deps.unattended !== true,
         reportOutcome: (reported) => {
           outcome = reported;
@@ -415,7 +426,7 @@ const runBrowse = async (
           beforeStep: async (promptBytes) => {
             if (
               deps.unattended === true &&
-              monitorCheckId !== null &&
+              readOnly &&
               deps.workspaces.isWatching(userId)
             ) {
               active.paused = true;
@@ -517,8 +528,7 @@ const runBrowse = async (
         );
       }
       const paused =
-        active.paused ||
-        (monitorCheckId !== null && outcome.status === "blocked");
+        active.paused || (readOnly && outcome.status === "blocked");
       const patch = {
         result: { text: progress.summary, progress, stubbed, outcome },
         status: paused ? ("paused" as const) : ("done" as const),

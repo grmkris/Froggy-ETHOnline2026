@@ -946,3 +946,20 @@ export const creditEntries = pgTable(
     check("credit_entries_nonnegative", sql`${table.units} >= 0`),
   ]
 );
+
+/** Independently updated facts; price refreshes do not change the person's saved-item revision. */
+export const savedItemData = pgTable(
+  "saved_item_data",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    itemId: typeIdColumn(WatchlistItemId, "item_id")
+      .notNull()
+      .references(() => savedItems.id, { onDelete: "cascade" }),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("saved_item_data_owner_item").on(table.userId, table.itemId),
+  ]
+);

@@ -88,6 +88,7 @@ const CAPABILITIES: readonly Capability[] = [
       "service_status",
       "market_search",
       "token_inspect",
+      "token_snapshot",
       "token_research",
       "rpc_read",
       "graph_discover",

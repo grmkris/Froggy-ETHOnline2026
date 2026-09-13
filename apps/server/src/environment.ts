@@ -618,6 +618,7 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
         Schema.Struct({
           market_search: Schema.optional(TradingPrice),
           token_inspect: Schema.optional(TradingPrice),
+          token_snapshot: Schema.optional(TradingPrice),
           rpc_read: Schema.optional(TradingPrice),
           quote_action: Schema.optional(TradingPrice),
           watch_launches: Schema.optional(TradingPrice),

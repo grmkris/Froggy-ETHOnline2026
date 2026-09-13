@@ -92,3 +92,5 @@ export {
   creditPurchases,
   creditEntries,
 } from "./schema";
+
+export { savedItemData } from "./schema";

@@ -17,6 +17,7 @@ import {
 } from "@froggy/domain";
 import type { OAuthScope } from "@froggy/domain";
 import {
+  WatchlistDetails,
   ServiceRequest,
   ServiceResult,
   ServiceTicket,
@@ -51,6 +52,7 @@ import { createServices } from "./services";
 import { WorkspaceSession } from "./session";
 import { buildTools } from "./tools";
 import { UnlockTokens } from "./unlock";
+import { recordItemObservation } from "./watchlist-data";
 import { saveWatchlistItem } from "./watchlist-routes";
 import { Workspaces } from "./workspaces";
 
@@ -912,3 +914,49 @@ it.each(["completed", "blocked"] as const)(
     expect(state.monitors[0]?.status).toBe("failed");
   }
 );
+
+it("reads saved facts through the agent without purchasing and refuses another owner's item", async () => {
+  const context = await fixture();
+  const { store } = context.services;
+  const owner = context.session.userId;
+  const item = await saveWatchlistItem(store, owner, {
+    title: "Saved product facts",
+    notes: "Size 42",
+    source: { _tag: "product", url: "https://example.com/shoe" },
+  });
+  await recordItemObservation(store, owner, item.id, {
+    at: Date.now(),
+    source: "Fixture",
+    sourceUrl: null,
+    price: 50,
+    currency: "EUR",
+    basis: "Size 42",
+    stubbed: true,
+    facts: [{ label: "Size", value: "42" }],
+  });
+  const available: ToolSet = context.tools;
+  const read = available["watchlist_get"];
+  if (!read?.execute) {
+    throw new Error("Expected saved-item read tool");
+  }
+  const details = Schema.decodeUnknownSync(WatchlistDetails)(
+    await read.execute({ id: item.id, revision: item.revision }, callOptions)
+  );
+  expect(details.item.id).toBe(item.id);
+  expect(details.data.latest?.price).toBe(50);
+  expect(details.data.observations).toEqual([]);
+  expect(await store.tasks.list(owner, 10)).toHaveLength(0);
+  const foreign = await saveWatchlistItem(
+    store,
+    userId("did:privy:foreign-saved-item"),
+    {
+      title: "Private",
+      notes: "",
+      source: { _tag: "link", url: "https://example.com" },
+    }
+  );
+  expect(read.execute({ id: foreign.id }, callOptions)).resolves.toEqual({
+    v: 1,
+    error: "Saved item not found.",
+  });
+});

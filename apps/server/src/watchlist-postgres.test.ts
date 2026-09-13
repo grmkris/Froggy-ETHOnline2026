@@ -11,6 +11,7 @@ import {
   monitoringState,
   setMonitoringBudget,
 } from "./monitoring";
+import { recordItemObservation } from "./watchlist-data";
 import { handleWatchlist, saveWatchlistItem } from "./watchlist-routes";
 
 const databaseUrl = process.env["FROGGY_TEST_DATABASE_URL"];
@@ -39,6 +40,33 @@ if (databaseUrl === undefined || databaseUrl === "") {
       expect(restored).toEqual(item);
       expect(
         await second.watchlist.transact(bob, (book) => book.get(item.id))
+      ).toBeUndefined();
+      const at = Date.now();
+      const observation = {
+        at,
+        source: "Local PostgreSQL fixture",
+        sourceUrl: null,
+        price: 120,
+        currency: "EUR",
+        basis: "Two adults",
+        stubbed: true,
+        facts: [],
+      };
+      await Promise.all([
+        recordItemObservation(first, alice, item.id, observation),
+        recordItemObservation(second, alice, item.id, {
+          ...observation,
+          at: at - 1000,
+          price: 130,
+        }),
+      ]);
+      const persisted = await second.watchlistData.transact(alice, (book) =>
+        book.get(item.id)
+      );
+      expect(persisted?.latest?.price).toBe(120);
+      expect(persisted?.observations).toHaveLength(2);
+      expect(
+        await second.watchlistData.transact(bob, (book) => book.get(item.id))
       ).toBeUndefined();
       const path = `/api/watchlist/${item.id}`;
       const patch = () =>
@@ -79,6 +107,9 @@ if (databaseUrl === undefined || databaseUrl === "") {
       expect(aliceState.checks).toHaveLength(1);
       expect(bobState.checks).toHaveLength(0);
       await first.watchlist.forget(alice);
+      expect(
+        await second.watchlistData.transact(alice, (book) => book.size)
+      ).toBe(0);
       expect(await second.watchlist.transact(alice, (book) => book.size)).toBe(
         0
       );

@@ -4,13 +4,16 @@ Implemented free address/URL previews, editable metadata-prefilled capture, expl
 
 ## Verification
 
-- Watchlist/monitoring browser suite: **15 passed**, covering widths 320/390/1440, both preview chains, save/edit/attach/archive, chain identity, optional alert setup, history/comparison without purchases, changed prices, duplicate requests and insufficient credits.
-- Affected chat/discovery rerun: **2 passed**. Free address cards retain balance/ownership information; opening discovery remains free and listing retrieval is explicit.
-- PostgreSQL 17: all migrations applied to a disposable local database. Concurrent saved-item and observation writes, revision conflicts, owner isolation and cascading deletion passed. The database was removed after testing.
-- Complete final unit suite: **1,452 passed**, two database tests skipped without a test database. The Watchlist database test was then run successfully against PostgreSQL. Focused agent tests additionally verify enriched reads create no tasks and cannot read another owner's item.
-- Production frontend/server build, strict TypeScript, dependency graph and naming checks passed after integration. Focused type-aware lint and formatting passed for the implementation.
-- The complete browser run recorded **198 passed, 13 failed, 4 did not run**. Four failures related to changed Watchlist/monitoring/address/discovery expectations were fixed and passed on rerun. Remaining failures concern agent-detail, approval, shared-run history, purchases and scripted-chat/Home expectations in the concurrently changing workspace; the complete suite is not green.
-- `bun run check` / `check:fast` remain blocked by global formatting/lint issues, including malformed HTML in newly installed video skills. Agent-skill validation and dead-code checks also report issues in the added skills and concurrent feature work. Independent checks distinguish feature failures from those unrelated errors. No lint rule or global gate was weakened.
+Recovered the enrichment lane from `wip-tree-2026-09-13` onto main `03bd957` in `/tmp/froggy-watchlist-release`, branch `codex/watchlist-enrichment`. Main's newer credit, research, permission and browser-resume behavior is preserved.
+
+- `heavy bun run check` is the release gate. Server and web tests also run directly with `bun test` in each application, bypassing Turbo's cached test results.
+- The complete Chromium browser suite passed: **210 tests**, using isolated ports 3410/3411 and two workers. This includes capture, monitoring, charts, comparisons, chat cards, credits, email, trading and responsive layouts from 320px to 1440px.
+- Capture regression coverage verifies that the Preview action remains free after selecting a result and Enter in the details form saves without enrichment, even when the paid option is available.
+- PostgreSQL 17: all migrations through `0026_busy_silvermane.sql` applied to a fresh disposable database. Concurrent item/observation writes, revision conflicts, owner isolation and cascading deletion passed. The new migration adds only `saved_item_data`, with its journal and snapshot regenerated after main's existing migration.
+- The agent regression verifies that reading saved facts creates no task and refuses another owner's item. Chart windows and comparisons use stored results without new purchases; changed prices, duplicate requests and insufficient-credit recovery are exercised in the browser.
+- Current mobile and comparison captures were inspected. Browser tests check page errors, console errors, accessible interactions and horizontal overflow.
+
+The lane is prepared locally for sequenced integration; it has not been pushed or deployed. Wallet alert implementation remains in the separate alerts lane.
 
 ## Screenshots
 

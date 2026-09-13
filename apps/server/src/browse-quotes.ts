@@ -127,6 +127,9 @@ const createBrowseTask = (
       output: environment.browserModelOutputRate,
     },
   };
+  if (deps.enrichmentItemId !== undefined) {
+    input = { ...input, enrichmentItemId: deps.enrichmentItemId };
+  }
   if (deps.monitorCheckId !== undefined) {
     input = { ...input, monitorCheckId: deps.monitorCheckId };
   }

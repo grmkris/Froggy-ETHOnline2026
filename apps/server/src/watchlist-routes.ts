@@ -150,6 +150,10 @@ export const handleWatchlist = async (
       owner,
       (book) => book.get(id)?.archived === true && book.delete(id)
     );
+    await store.watchlistData.transact(
+      owner,
+      (book) => removed && book.delete(id)
+    );
     return reply({ v: 1, removed }, removed ? 200 : 409);
   }
   if (request.method === "GET") {
