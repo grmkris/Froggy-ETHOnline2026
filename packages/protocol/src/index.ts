@@ -175,7 +175,6 @@ export {
   BrowseBudget,
   BrowseQuote,
   BrowseQuoteResponse,
-  BrowseChallenge,
   BrowseActivity,
   BrowsePhase,
   BrowseTaskProgress,
@@ -184,6 +183,14 @@ export {
   BrowseTasksResponse,
   BrowseTaskControl,
 } from "./browse";
+export {
+  X402Challenge,
+  encodeExactPaymentHeader,
+  exactEvmTypedData,
+  nonceHex,
+  selectExactEvmAccept,
+} from "./x402-exact";
+export type { ExactEvmTypedData } from "./x402-exact";
 
 export { LaunchWatchTicket, LaunchWatchResult } from "./trading-launches";
 export { HistoryBusiness, HistoryDetail, HistoryUpdate } from "./history";
