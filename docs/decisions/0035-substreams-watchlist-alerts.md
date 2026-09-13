@@ -1,4 +1,4 @@
-# 0033 — Substreams alerts belong to Watchlist
+# 0035 — Substreams alerts belong to Watchlist
 
 Accepted 13 September 2026. Implemented and verified locally; production rollout remains pending.
 

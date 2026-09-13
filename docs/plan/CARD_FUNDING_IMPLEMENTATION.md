@@ -1,6 +1,6 @@
 # Saved-card browser purchases: implementation handoff
 
-Updated 13 September 2026. This replaces the earlier speculative swap-and-password-manager plan. The accepted scope is existing **Base USDC → independently entered Linea address → saved card**, with owner approval and the existing hosted browser lifecycle. See [ADR 0034](../decisions/0034-saved-card-checkouts.md).
+Updated 13 September 2026. This replaces the earlier speculative swap-and-password-manager plan. The accepted scope is existing **Base USDC → independently entered Linea address → saved card**, with owner approval and the existing hosted browser lifecycle. See [ADR 0036](../decisions/0036-saved-card-checkouts.md).
 
 Verification results, limits and commands are recorded in [the verification report](../evidence/CARD_CHECKOUT_VERIFICATION_2026-09-13.md).
 

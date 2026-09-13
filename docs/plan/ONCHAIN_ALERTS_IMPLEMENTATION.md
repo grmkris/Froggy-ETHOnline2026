@@ -13,7 +13,7 @@ The Base and Robinhood Watchlist alerts are integrated onto main `0366039` in `/
 - Explicit local stream and price demo adapters; no signing or transaction submission.
 - Cold-start Telegram initialization before outbound sends, recoverable initialization failures and Effect-owned SDK shutdown.
 
-The architectural contract and limitations are in [decision 0033](../decisions/0033-substreams-watchlist-alerts.md). The migration is `packages/database/drizzle/0028_lethal_sentry.sql` and its journal/snapshot entry; it follows main's `0026_busy_silvermane` Watchlist and `0027_dashing_mad_thinker` card migrations. The full merged sequence applied successfully to a fresh disposable local PostgreSQL database. Historical checkpoint migrations are excluded.
+The architectural contract and limitations are in [decision 0035](../decisions/0035-substreams-watchlist-alerts.md). The migration is `packages/database/drizzle/0028_lethal_sentry.sql` and its journal/snapshot entry; it follows main's `0026_busy_silvermane` Watchlist and `0027_dashing_mad_thinker` card migrations. The full merged sequence applied successfully to a fresh disposable local PostgreSQL database. Historical checkpoint migrations are excluded.
 
 ## Prior feature evidence
 

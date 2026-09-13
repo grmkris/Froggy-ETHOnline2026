@@ -59,4 +59,4 @@ The corrected hosted Browser Use probe found and focused an actual cross-origin 
 
 The controlled merchant matrix (redirects, decline, 3DS-style takeover, changed totals, restart and credential leakage) remains outstanding. The user supplies the live checkout URL later and approves the exact debit/purchase in Froggy. Actual Base execution, matching Linea arrival, merchant confirmation and issuer-dashboard confirmation must be recorded separately.
 
-See [implementation and release handoff](../plan/CARD_FUNDING_IMPLEMENTATION.md) and [ADR 0034](../decisions/0034-saved-card-checkouts.md).
+See [implementation and release handoff](../plan/CARD_FUNDING_IMPLEMENTATION.md) and [ADR 0036](../decisions/0036-saved-card-checkouts.md).

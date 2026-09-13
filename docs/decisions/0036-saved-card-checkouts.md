@@ -1,4 +1,4 @@
-# Saved-card checkout funding and credential release
+# 0036 — Saved-card checkout funding and credential release
 
 Date: 13 September 2026. Status: integrated behind a default-off configuration flag; live card entry gated pending iframe acceptance.
 
