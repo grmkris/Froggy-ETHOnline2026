@@ -1,10 +1,8 @@
 import {
   BookmarkIcon,
-  CompassIcon,
   HomeIcon,
   InboxIcon,
   HistoryIcon,
-  PlugIcon,
   SettingsIcon,
   WalletIcon,
 } from "lucide-react";
@@ -18,7 +16,7 @@ export interface NavItem {
 interface SecondaryItem {
   readonly icon: LucideIcon;
   readonly label: string;
-  readonly to: "/explore" | "/wallet" | "/agents" | "/settings" | "/activity";
+  readonly to: "/wallet" | "/settings" | "/activity";
 }
 
 /** Daily destinations, with account and tools one level behind them. */
@@ -29,8 +27,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
 ];
 export const SECONDARY_ITEMS: readonly SecondaryItem[] = [
   { icon: WalletIcon, label: "Your money", to: "/wallet" },
-  { icon: CompassIcon, label: "Tools", to: "/explore" },
   { icon: HistoryIcon, label: "Activity", to: "/activity" },
-  { icon: PlugIcon, label: "Connections", to: "/agents" },
   { icon: SettingsIcon, label: "Account", to: "/settings" },
 ];

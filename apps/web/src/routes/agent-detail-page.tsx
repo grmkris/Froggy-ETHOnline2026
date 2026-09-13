@@ -102,7 +102,8 @@ export const AgentDetailPage = (): ReactElement => {
     <Page title={agent?.name ?? "Agent"}>
       <Link
         className="text-muted-foreground focus-visible:ring-ring inline-flex min-h-11 items-center self-start rounded-lg text-sm underline underline-offset-4 outline-none focus-visible:ring-2"
-        to="/agents"
+        search={{ tab: "agents" }}
+        to="/activity"
       >
         All agents
       </Link>

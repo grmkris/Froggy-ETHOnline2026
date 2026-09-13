@@ -181,7 +181,7 @@ export const TopBar = ({
         ...SECONDARY_ITEMS,
         { to: "/inbox", label: "Inbox" },
         { to: "/watchlist", label: "Watchlist" },
-        { to: "/services", label: "Tools" },
+        { to: "/agents", label: "Connections" },
       ].find((item) => path.startsWith(item.to))?.label ?? "Froggy");
   return (
     <header className="workspace-toolbar relative z-20 shrink-0 border-b">

@@ -5,6 +5,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  Navigate,
 } from "@tanstack/react-router";
 import { Schema } from "effect";
 
@@ -90,6 +91,20 @@ const conversationRoute = page(
   async () => await import("./routes/chat-page"),
   "ChatPage"
 );
+/**
+ * Three tabs on one route. `record` opens the evidence panel, `task` a service
+ * result, `service` a tool's own form; a value the page cannot keep is said,
+ * not swallowed.
+ */
+const ActivitySearch = Schema.Struct({
+  tab: Schema.optional(Schema.Literals(["activity", "agents", "tools"])),
+  record: Schema.optional(HistoryId),
+  task: Schema.optional(TaskId),
+  service: Schema.optional(
+    Schema.Union([ServiceName, Schema.Literal("pay_url")])
+  ),
+  dropped: Schema.optional(Schema.Literal("1")),
+});
 const activityRoute = createRoute({
   component: lazyRouteComponent(
     async () => await import("./routes/activity-page"),
@@ -97,13 +112,13 @@ const activityRoute = createRoute({
   ),
   getParentRoute: () => workspaceRoute,
   path: "/activity",
-  validateSearch: (raw: { readonly record?: unknown }) => {
-    const decoded = Schema.decodeUnknownResult(
-      Schema.Struct({
-        dropped: Schema.optional(Schema.Literal("1")),
-        record: Schema.optional(HistoryId),
-      })
-    )(raw);
+  validateSearch: (raw: {
+    readonly tab?: unknown;
+    readonly record?: unknown;
+    readonly task?: unknown;
+    readonly service?: unknown;
+  }): typeof ActivitySearch.Type => {
+    const decoded = Schema.decodeUnknownResult(ActivitySearch)(raw);
     if (decoded._tag === "Success") {
       return decoded.success;
     }
@@ -212,11 +227,15 @@ const servicesRoute = createRoute({
   path: "/services",
   validateSearch: servicesSearch,
 });
-const agentsRoute = page(
-  "/agents",
-  async () => await import("./routes/agents-page"),
-  "AgentsPage"
+/** Connections moved into Activity; the old address still arrives there. */
+const AgentsRedirect = () => (
+  <Navigate replace search={{ tab: "agents" }} to="/activity" />
 );
+const agentsRoute = createRoute({
+  component: AgentsRedirect,
+  getParentRoute: () => workspaceRoute,
+  path: "/agents",
+});
 const agentDetailRoute = page(
   "/agents/$id",
   async () => await import("./routes/agent-detail-page"),

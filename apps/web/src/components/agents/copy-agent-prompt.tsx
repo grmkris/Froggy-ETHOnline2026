@@ -7,11 +7,17 @@ import { useAgentTokens } from "../../hooks/use-agent-tokens";
 import { useWorkspace } from "../../lib/workspace-context";
 import { CopyButton } from "../copy-button";
 
-const CopyAgentPrompt = (): ReactElement => {
+/** Where the MCP server answers: the deployment's, or this page's when it has not said. */
+export const agentOrigin = (mcpUrl: string | null): string =>
+  mcpUrl === null ? window.location.origin : new URL(mcpUrl).origin;
+
+/** The one sentence a person pastes into an agent; the agent reads the rest itself. */
+export const agentPrompt = (origin: string): string =>
+  `Read ${origin}/llm.md and follow it to connect yourself to my Froggy workspace as an MCP server. Request all supported tools in one consent flow, including email and watchlist monitoring, then tell me what you can do.`;
+
+export const CopyAgentPrompt = (): ReactElement => {
   const { app } = useWorkspace();
-  const origin =
-    app.mcpUrl === null ? window.location.origin : new URL(app.mcpUrl).origin;
-  const prompt = `Read ${origin}/llm.md and follow it to connect yourself to my Froggy workspace as an MCP server. Request all supported tools in one consent flow, including email and watchlist monitoring, then tell me what you can do.`;
+  const prompt = agentPrompt(agentOrigin(app.mcpUrl));
   return (
     <CopyButton
       confirmation="Copied. Paste this into your agent’s chat."
@@ -26,7 +32,7 @@ const CopyAgentPrompt = (): ReactElement => {
   );
 };
 
-const ConnectionStatus = (): ReactElement => {
+export const ConnectionStatus = (): ReactElement => {
   const { agents } = useAgentTokens();
   const connected = [
     ...(agents.data?.agents ?? []),
@@ -70,17 +76,19 @@ const ConnectionStatus = (): ReactElement => {
     );
   }
   const [single] = connected;
+  const className =
+    "text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center rounded-lg text-xs outline-none focus-visible:ring-2";
+  const label = `${connected.length} ${connected.length === 1 ? "agent" : "agents"} connected`;
+  if (connected.length === 1 && single !== undefined) {
+    return (
+      <Link className={className} params={{ id: single.id }} to="/agents/$id">
+        {label}
+      </Link>
+    );
+  }
   return (
-    <Link
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center rounded-lg text-xs outline-none focus-visible:ring-2"
-      to={
-        connected.length === 1 && single !== undefined
-          ? "/agents/$id"
-          : "/agents"
-      }
-      params={{ id: single?.id ?? "" }}
-    >
-      {connected.length} {connected.length === 1 ? "agent" : "agents"} connected
+    <Link className={className} search={{ tab: "agents" }} to="/activity">
+      {label}
     </Link>
   );
 };
