@@ -23,30 +23,6 @@ const landingIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/landing",
 });
-const landingPondRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/landing-page"),
-    "PondLandingPage"
-  ),
-  getParentRoute: () => rootRoute,
-  path: "/landing/pond",
-});
-const landingPlaygroundRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/landing-page"),
-    "PlaygroundLandingPage"
-  ),
-  getParentRoute: () => rootRoute,
-  path: "/landing/playground",
-});
-const landingGlasshouseRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/landing-page"),
-    "GlasshouseLandingPage"
-  ),
-  getParentRoute: () => rootRoute,
-  path: "/landing/glasshouse",
-});
 
 /**
  * The workspace holds the sockets and the conversation; its pages are the
@@ -238,9 +214,6 @@ const oauthManualRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   landingIndexRoute,
-  landingPondRoute,
-  landingPlaygroundRoute,
-  landingGlasshouseRoute,
   workspaceRoute.addChildren([
     homeRoute,
     welcomeRoute,

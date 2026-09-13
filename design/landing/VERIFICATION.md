@@ -20,10 +20,8 @@ The full browser suite did not pass in a single run; the isolated rerun above re
 ## Review surfaces
 
 - Landing comparison: `http://localhost:3210/landing`
-- Pond: `http://localhost:3210/landing/pond`
-- Playground: `http://localhost:3210/landing/playground`
-- Glasshouse: `http://localhost:3210/landing/glasshouse`
-- HyperFrames Studio (Pond): `http://localhost:3220/#project/pond`
+- Playground: `http://localhost:3210/landing`
+- HyperFrames Studio: `http://localhost:3220/#project/playground`
 
 These are local preview processes, not deployed URLs. The preview API reports all external providers as stubbed.
 

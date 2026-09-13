@@ -10,7 +10,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { landingAsset } from "../../lib/landing";
-import type { LandingVariant } from "../../lib/landing";
 import { useIdentity } from "../../lib/privy";
 
 /** A completed sign-in redirects only when the visitor started it here. */
@@ -88,11 +87,7 @@ export const LandingSignIn = ({
 };
 
 /** Playback starts on intent, including in reduced-motion and data-saving modes. */
-export const LandingPromo = ({
-  variant,
-}: {
-  readonly variant: LandingVariant;
-}) => {
+export const LandingPromo = () => {
   const video = useRef<HTMLVideoElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -174,8 +169,8 @@ export const LandingPromo = ({
           muted
           playsInline
           preload="none"
-          poster={landingAsset(`${variant}-poster.webp`)}
-          src={loaded ? landingAsset(`${variant}-promo.mp4`) : undefined}
+          poster={landingAsset("playground-poster.webp")}
+          src={loaded ? landingAsset("playground-promo.mp4") : undefined}
           onPlay={() => {
             setPlaying(true);
             setEnded(false);

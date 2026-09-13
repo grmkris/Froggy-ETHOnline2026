@@ -14,34 +14,6 @@ import {
 
 import { LandingPromo, LandingSignIn } from "../components/landing/controls";
 import { landingAsset } from "../lib/landing";
-import type { LandingVariant } from "../lib/landing";
-
-const concepts = [
-  {
-    variant: "pond",
-    title: "The Pond",
-    note: "A little calmer. A lot more capable.",
-    description:
-      "A welcoming place for big ideas, with a pond-side desk and room to breathe.",
-    to: "/landing/pond",
-  },
-  {
-    variant: "playground",
-    title: "The Playground",
-    note: "Big ideas. Tiny sidekick.",
-    description:
-      "A bright, playful toolkit for the agents that help you get things done.",
-    to: "/landing/playground",
-  },
-  {
-    variant: "glasshouse",
-    title: "The Glasshouse",
-    note: "Your next idea starts here.",
-    description:
-      "A luminous little world where your browser, money and agents come together.",
-    to: "/landing/glasshouse",
-  },
-] as const;
 
 const features = [
   {
@@ -157,7 +129,7 @@ const LandingHeader = () => (
   </header>
 );
 
-const Hero = ({ variant }: { readonly variant: LandingVariant }) => (
+const Hero = () => (
   <section className="landing-hero landing-container">
     <div className="landing-hero-copy">
       <p className="landing-eyebrow">
@@ -190,19 +162,11 @@ const Hero = ({ variant }: { readonly variant: LandingVariant }) => (
     </div>
     <div className="landing-hero-art">
       <img
-        src={landingAsset(`${variant}-hero.webp`)}
+        src={landingAsset("playground-hero.webp")}
         width={1440}
         height={960}
         fetchPriority="high"
-        alt={
-          {
-            pond: "Froggy at a cosy desk beside a pond, with a laptop, wallet and mailbox",
-            playground:
-              "Froggy surrounded by a playful toolkit of a laptop, wallet, shopping bag and telescope",
-            glasshouse:
-              "Froggy in a glowing glass greenhouse with a miniature workstation",
-          }[variant]
-        }
+        alt="Froggy surrounded by a playful toolkit of a laptop, wallet, shopping bag and telescope"
       />
       <span className="landing-art-chip landing-chip-browser">
         <GlobeIcon size={16} />
@@ -215,13 +179,11 @@ const Hero = ({ variant }: { readonly variant: LandingVariant }) => (
         <MailIcon size={16} />
         An inbox of its own
       </span>
-      {variant === "playground" ? (
-        <span className="landing-sticker">
-          THINK BIG.
-          <br />
-          HOP TO IT.
-        </span>
-      ) : null}
+      <span className="landing-sticker">
+        THINK BIG.
+        <br />
+        HOP TO IT.
+      </span>
     </div>
     <a href="#possibilities" className="landing-hero-scroll">
       <ArrowDownIcon size={16} /> MUCH MORE THAN A CHATBOX
@@ -405,21 +367,21 @@ const LandingFooter = () => (
         froggy.
       </Link>
       <p>A home for your agents.</p>
-      <Link to="/landing">
-        Explore the three worlds <ArrowUpRightIcon size={15} />
+      <Link to="/">
+        Open the workspace <ArrowUpRightIcon size={15} />
       </Link>
     </footer>
   </>
 );
 
-const LandingPage = ({ variant }: { readonly variant: LandingVariant }) => (
-  <div className="landing" data-landing={variant}>
+const LandingPage = () => (
+  <div className="landing" data-landing="playground">
     <a className="landing-skip" href="#landing-main">
       Skip to content
     </a>
     <LandingHeader />
     <main id="landing-main">
-      <Hero variant={variant} />
+      <Hero />
       <div className="landing-capabilities" aria-label="Workspace capabilities">
         <span>Browse</span>
         <span>Buy</span>
@@ -428,7 +390,7 @@ const LandingPage = ({ variant }: { readonly variant: LandingVariant }) => (
         <span>Watch</span>
         <span>Connect</span>
       </div>
-      <LandingPromo variant={variant} />
+      <LandingPromo />
       <FeatureSections />
       <BalanceNote />
       <SetupPreview />
@@ -437,58 +399,4 @@ const LandingPage = ({ variant }: { readonly variant: LandingVariant }) => (
   </div>
 );
 
-export const PondLandingPage = () => <LandingPage variant="pond" />;
-export const PlaygroundLandingPage = () => <LandingPage variant="playground" />;
-export const GlasshouseLandingPage = () => <LandingPage variant="glasshouse" />;
-export const LandingIndexPage = () => (
-  <div className="landing" data-landing="pond">
-    <header className="landing-header landing-container">
-      <Link to="/landing" className="landing-wordmark">
-        <FrogMark compact />
-        froggy.
-      </Link>
-      <LandingSignIn compact />
-    </header>
-    <main className="landing-container landing-index">
-      <p className="landing-eyebrow">THREE LITTLE WORLDS. ONE FROGGY.</p>
-      <h1>
-        Find your
-        <br />
-        <span>happy place.</span>
-      </h1>
-      <p>
-        Three ways to feel at home with your agents.
-        <br />
-        Take a look around. Each world has its own little film.
-      </p>
-      <div className="landing-concepts">
-        {concepts.map((concept) => (
-          <Link
-            key={concept.variant}
-            to={concept.to}
-            className="landing-concept"
-            data-concept={concept.variant}
-          >
-            <img
-              src={landingAsset(`${concept.variant}-hero.webp`)}
-              width={1440}
-              height={960}
-              alt={concept.description}
-            />
-            <div>
-              <p className="landing-eyebrow">{concept.note}</p>
-              <h2>
-                {concept.title}
-                <ArrowUpRightIcon />
-              </h2>
-              <p>{concept.description}</p>
-              <span>
-                Step inside <ArrowUpRightIcon size={16} />
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </main>
-  </div>
-);
+export const LandingIndexPage = LandingPage;
