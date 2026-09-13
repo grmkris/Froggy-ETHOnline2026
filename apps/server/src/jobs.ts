@@ -72,6 +72,8 @@ export interface ScheduledJob {
   readonly prompt: string;
   readonly scheduleId: ScheduleId | null;
   readonly surface: RunSurface;
+  /** The schedule's zone, so the run knows what day it is for the person. */
+  readonly timezone?: string | undefined;
   /** What the report is called on Telegram: "Your daily digest", the schedule's label. */
   readonly title: string;
   readonly tools: readonly ToolName[];
@@ -81,8 +83,9 @@ const UNATTENDED = `Nobody is watching and nobody can be asked: a spend that nee
 refused, and that is the correct outcome, not a problem to work around. There
 is no browser. Plain language; no headings.`;
 
-export const digestJob = (): ScheduledJob => ({
+export const digestJob = (timezone?: string): ScheduledJob => ({
   budgetUsdMicros: DIGEST_BUDGET_USD_MICROS,
+  timezone,
   instructions: `You are Froggy, writing the user's daily digest while they are away.
 
 ${UNATTENDED} Query The Graph for the current lending picture with graph_query,
@@ -116,6 +119,7 @@ cost, and anything that was refused.`,
   prompt: `Run the scheduled task "${schedule.label}" now.`,
   scheduleId: schedule.id,
   surface: "schedule",
+  timezone: schedule.timezone,
   title: schedule.label,
   tools: [
     ...PROMPT_TOOLS,
@@ -240,6 +244,7 @@ export const runScheduledFor = async (
       {
         sessionId: session.id,
         source: "schedule",
+        timezone: job.timezone,
         messages: [
           {
             id: `job-${crypto.randomUUID()}`,

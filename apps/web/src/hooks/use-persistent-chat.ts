@@ -108,6 +108,8 @@ export const usePersistentChat = (client: HistoryClient) => {
             v: 1,
             conversationId: id,
             messages: messages.slice(-1),
+            // So the agent knows what time it is where the person sits.
+            timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
         }),
       }),

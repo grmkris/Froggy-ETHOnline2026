@@ -144,6 +144,8 @@ export const ORACLE_PATH = "/oracle/snapshot";
  */
 const ChatBody = Schema.Struct({
   crossThreadHistory: Schema.optional(Schema.Boolean),
+  /** The browser's IANA zone, so the prompt can say what time it is for the person. */
+  timezone: Schema.optional(Schema.String.check(Schema.isMaxLength(64))),
   v: Schema.Literal(1),
   messages: Schema.Array(Schema.Unknown).check(Schema.isMaxLength(100)),
   conversationId: Schema.optional(ConversationId),
@@ -327,6 +329,9 @@ const handleChatPost = async (
     }
     if (decoded.success.revision !== undefined) {
       input.revision = decoded.success.revision;
+    }
+    if (decoded.success.timezone !== undefined) {
+      input.timezone = decoded.success.timezone;
     }
     return await handleChat(
       {
