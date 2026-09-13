@@ -664,7 +664,7 @@ const Evidence = ({ id }: { readonly id: HistoryId }): ReactElement => {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-lg font-medium">{titleOf(record)}</h2>
+        <h2 className="text-section">{titleOf(record)}</h2>
         <p className="text-muted-foreground mt-1 text-xs">
           {record.source} · {new Date(record.createdAt).toLocaleString()}
         </p>
@@ -897,7 +897,7 @@ export const ActivityFeed = (): ReactElement => {
           <ActivityRows connections={connections} key={path} path={path} />
         </section>
         {record !== undefined && !phone ? (
-          <aside className="bg-card border-border sticky top-0 rounded-2xl border p-5">
+          <aside className="bg-card shadow-card sticky top-0 rounded-xl p-5">
             <Button className="mb-4" onClick={close} size="sm" variant="ghost">
               <ArrowLeftIcon data-icon="inline-start" />
               Back to activity

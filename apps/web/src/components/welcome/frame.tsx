@@ -38,7 +38,7 @@ const Steps = ({ current }: { readonly current: StepIndex }): ReactElement => (
               "grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold tabular-nums",
               active
                 ? "bg-primary text-primary-foreground"
-                : "border-border bg-card border",
+                : "bg-card border-2",
               done ? "text-primary border-primary/50" : undefined
             )}
           >

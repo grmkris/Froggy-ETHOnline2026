@@ -106,7 +106,7 @@ const MessageReader = ({ message }: { readonly message: EmailMessage }) => {
             <Badge variant="outline">Demo email · no real delivery</Badge>
           ) : null}
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight">
+        <h2 className="text-section text-[24px] leading-7">
           {message.subject}
         </h2>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
@@ -268,9 +268,7 @@ const DraftReader = ({
           {draft.stubbed ? "Demo · " : ""}
           {DELIVERY[draft.status]}
         </Badge>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          {draft.subject}
-        </h2>
+        <h2 className="text-section text-[24px] leading-7">{draft.subject}</h2>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">From</dt>
           <dd>{status.data?.address}</dd>
@@ -495,7 +493,7 @@ const InboxList = () => {
       <header className="flex shrink-0 flex-col gap-4 border-b p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Mail</h2>
+            <h2 className="text-section">Mail</h2>
             <p
               className="text-muted-foreground truncate text-xs"
               title={status.data?.address ?? ""}

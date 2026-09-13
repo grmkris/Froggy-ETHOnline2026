@@ -41,7 +41,7 @@ export const AppRail = ({
       className="border-border bg-sidebar flex w-56 shrink-0 flex-col gap-1 border-r p-4"
       data-slot="navigation-rail"
     >
-      <span className="flex items-center gap-2 px-2 pt-1 pb-3.5 text-[17px] font-semibold tracking-[-0.025em]">
+      <span className="flex items-center gap-2 px-2 pt-1 pb-3.5 text-[18px] font-extrabold tracking-[-0.04em]">
         <FrogMark className="size-6" compact />
         Froggy
       </span>
@@ -94,7 +94,7 @@ export const AppRail = ({
       <RecentConversations />
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         <div className="flex items-center justify-between px-3">
-          <h2 className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+          <h2 className="playground-eyebrow text-muted-foreground">
             Conversations
           </h2>
         </div>

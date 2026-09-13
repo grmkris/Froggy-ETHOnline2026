@@ -138,9 +138,7 @@ const UpdateReader = ({ id }: { readonly id: UpdateId }) => {
             Simulated
           </Badge>
         ) : null}
-        <h2 className="text-2xl font-semibold tracking-tight">
-          {update.title}
-        </h2>
+        <h2 className="text-section text-[24px] leading-7">{update.title}</h2>
         <time
           className="text-muted-foreground text-sm"
           dateTime={new Date(update.at).toISOString()}
@@ -202,7 +200,7 @@ export const UpdatesFeed = () => {
         )}
       >
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b p-4">
-          <h2 className="text-lg font-semibold">Updates</h2>
+          <h2 className="text-section">Updates</h2>
           <Button
             variant="ghost"
             disabled={(page.data?.unread ?? 0) === 0 || read.isPending}
