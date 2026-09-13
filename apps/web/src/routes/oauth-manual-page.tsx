@@ -48,10 +48,7 @@ export const OAuthManualPage = (): ReactElement => {
           aria-labelledby={`${inputId}-heading`}
           className="flex flex-col gap-3"
         >
-          <h1
-            className="font-display text-xl font-semibold tracking-tight"
-            id={`${inputId}-heading`}
-          >
+          <h1 className="text-greeting" id={`${inputId}-heading`}>
             Paste this code into your agent
           </h1>
           <p className="text-muted-foreground">

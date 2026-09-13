@@ -264,10 +264,7 @@ const Consent = ({
       className="flex flex-col gap-5 text-sm"
     >
       <div>
-        <h1
-          className="font-display text-xl font-semibold tracking-tight"
-          id="consent-heading"
-        >
+        <h1 className="text-greeting" id="consent-heading">
           {client.isPending ? "Loading…" : `${name} wants to connect to Froggy`}
         </h1>
         <p className="text-muted-foreground mt-2">

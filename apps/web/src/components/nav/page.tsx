@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 
 export const Page = ({
   children,
+  eyebrow,
   intro,
   slot,
   title,
@@ -12,6 +13,8 @@ export const Page = ({
   wide = false,
 }: {
   readonly children: ReactNode;
+  /** The mono line above the heading, in the Playground's voice. */
+  readonly eyebrow?: string;
   readonly intro?: string;
   /** A `data-slot` for tests that watch the scroll position. */
   readonly slot?: string;
@@ -31,9 +34,12 @@ export const Page = ({
       )}
     >
       <header className={titleHidden ? "sr-only" : undefined}>
+        {eyebrow === undefined ? null : (
+          <p className="playground-eyebrow mb-3">{eyebrow}</p>
+        )}
         <h1 className="text-title">{title}</h1>
         {intro === undefined ? null : (
-          <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
+          <p className="text-muted-foreground mt-3 max-w-xl text-[17px] leading-[1.45] tracking-[-0.02em]">
             {intro}
           </p>
         )}

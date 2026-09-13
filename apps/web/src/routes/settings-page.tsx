@@ -202,7 +202,7 @@ export const SettingsPage = (): ReactElement => {
     : ["spending", "routines", "email", "account"];
 
   return (
-    <Page intro={INTRO[tab]} title="Account">
+    <Page eyebrow="Your rules, your data" intro={INTRO[tab]} title="Account">
       <Tabs
         onValueChange={(value: string) => {
           if (isTab(value)) {

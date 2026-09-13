@@ -769,8 +769,11 @@ export const InboxPage = () => {
   const updates = useUpdatesPage();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <h1 className="text-lg font-semibold">Inbox</h1>
+      <header className="flex shrink-0 flex-wrap items-end justify-between gap-3 border-b px-4 py-4 sm:px-6">
+        <div>
+          <p className="playground-eyebrow">Mail and updates</p>
+          <h1 className="text-title mt-2">Inbox</h1>
+        </div>
         <Tabs
           value={search.feed ?? "mail"}
           onValueChange={(value) => {

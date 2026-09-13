@@ -99,7 +99,7 @@ export const AgentDetailPage = (): ReactElement => {
   const { revoke } = useAgentTokens();
   const agent = detail.data?.agent;
   return (
-    <Page title={agent?.name ?? "Agent"}>
+    <Page eyebrow="Connected agent" title={agent?.name ?? "Agent"}>
       <Link
         className="text-muted-foreground focus-visible:ring-ring inline-flex min-h-11 items-center self-start rounded-lg text-sm underline underline-offset-4 outline-none focus-visible:ring-2"
         search={{ tab: "agents" }}

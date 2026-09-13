@@ -32,7 +32,12 @@ export const ActivityPage = (): ReactElement => {
   const navigate = useNavigate();
   const tab: ActivityTab = search.tab ?? "activity";
   return (
-    <Page intro={INTRO[tab]} title="Activity" wide>
+    <Page
+      eyebrow="Every run, every credit"
+      intro={INTRO[tab]}
+      title="Activity"
+      wide
+    >
       <DiscardedSearchNotice
         discarded={search.dropped === "1"}
         onDismiss={() => {
