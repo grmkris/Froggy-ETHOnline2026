@@ -100,5 +100,9 @@ jobs:
 
       # The suite runs against an in-memory store (`DATABASE_URL: ""` in
       # playwright.config.ts), so this job needs no Postgres service.
+      # Both shards run on the same box, so each needs its own pair of ports;
+      # the config derives the API port from this one.
       - name: Run browser smoke tests
         run: bun run e2e -- --shard=${{ matrix.shard }}/2 --workers=4
+        env:
+          FROGGY_E2E_PORT: ${{ 3600 + matrix.shard * 10 }}

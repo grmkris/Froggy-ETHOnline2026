@@ -50,7 +50,7 @@ test("account saves masked demo cards, replaces revisions and revokes credential
 
 test("payment-method entry fits a narrow screen and remains keyboard accessible", async ({
   page,
-}) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => {
     errors.push(error.message);
@@ -79,7 +79,9 @@ test("payment-method entry fits a narrow screen and remains keyboard accessible"
     () => document.documentElement.scrollWidth <= window.innerWidth
   );
   expect(fits).toBe(true);
-  await panel.screenshot({ path: "/tmp/froggy-card-mobile.png" });
+  // Through testInfo, not a fixed /tmp name: two shards share one machine on
+  // the self-hosted runners, and whoever wrote the file first owns it.
+  await panel.screenshot({ path: testInfo.outputPath("card-mobile.png") });
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   expect(errors).toEqual([]);
 });
