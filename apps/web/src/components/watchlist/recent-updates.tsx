@@ -3,11 +3,7 @@ import type { ReactElement } from "react";
 
 import { useWatchlist } from "../../lib/watchlist-client";
 
-export const RecentUpdates = ({
-  limit = 6,
-}: {
-  readonly limit?: number;
-}): ReactElement | null => {
+export const RecentUpdates = (): ReactElement | null => {
   const { list, details } = useWatchlist();
   const updates = (details.data?.items ?? [])
     .flatMap((data) => {
@@ -17,7 +13,7 @@ export const RecentUpdates = ({
       return item && data.latest ? [{ item, observation: data.latest }] : [];
     })
     .toSorted((a, b) => b.observation.at - a.observation.at)
-    .slice(0, limit);
+    .slice(0, 6);
   if (updates.length === 0) {
     return null;
   }

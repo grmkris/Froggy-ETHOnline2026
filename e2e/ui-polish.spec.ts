@@ -31,9 +31,7 @@ for (const width of [320, 390, 1440]) {
       page.getByRole("heading", { name: "What can I help with?" })
     ).toBeVisible();
     await expect(
-      page
-        .getByRole("main")
-        .getByRole("link", { name: "Your credits", exact: true })
+      page.getByRole("main").getByRole("link", { name: /^Your money/u })
     ).toBeVisible();
     await expect(
       page.getByRole("complementary", { name: "Watchlist pane" })
@@ -57,9 +55,7 @@ for (const width of [320, 390, 1440]) {
       page.getByRole("heading", { name: "What can I help with?" })
     ).toHaveCount(0);
     await expect(
-      page
-        .getByRole("main")
-        .getByRole("link", { name: "Your credits", exact: true })
+      page.getByRole("main").getByRole("link", { name: /^Your money/u })
     ).toHaveCount(0);
     await page.getByRole("log").click();
     await captureScreen(page, testInfo, `chat-${width}`);

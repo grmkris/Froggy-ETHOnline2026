@@ -2,7 +2,7 @@
 
 Generated with the built-in image_gen tool on 12 September 2026. Both originals are transparent 1254 × 1254 RGBA PNGs. Explicit rendered dimensions reserve layout space; the existing SVG remains the navigation and status icon.
 
-- `next-idea.png`: empty Home, 96px on mobile and 160px on desktop.
+- `next-idea.png`: the original for Home. Served as `next-idea.webp` (640) and `next-idea-320.webp`, alpha WebPs made with ffmpeg on 13 September; 120px below 1024px and up to 300px on desktop.
 - `setup-complete.png`: setup completion, 96px. First-use motion is limited to the illustration; the text and controls remain available.
 
 ## Home prompt

@@ -7,6 +7,7 @@ import {
   SheetDescription,
 } from "@froggy/ui/components/sheet";
 import { Skeleton } from "@froggy/ui/components/skeleton";
+import { cn } from "@froggy/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { XIcon } from "lucide-react";
 /**
@@ -26,8 +27,8 @@ import {
   LiveBrowserCard,
 } from "../components/browser/live-browser-card";
 import { ComposerStack } from "../components/chat/composer-stack";
-import { HomeSummary } from "../components/chat/home-summary";
 import { LiveCardSlot } from "../components/chat/live-card-slot";
+import { MoneyLine } from "../components/chat/money-line";
 import { ConversationHeader } from "../components/chat/recent-conversations";
 import { EmailThread } from "../components/email/email-thread";
 import { EmptyState } from "../components/stream/empty-state";
@@ -48,6 +49,13 @@ import {
 } from "../lib/stream-model";
 import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 import { useWorkspace } from "../lib/workspace-context";
+
+/** The column is the Playground until the first message; the class carries the tokens. */
+const columnClass = (firstUse: boolean): string =>
+  cn(
+    "home-playground relative flex min-h-0 min-w-0 flex-1 flex-col",
+    firstUse && "playground"
+  );
 
 const showInlineBrowser = (show: boolean, phone: boolean): boolean =>
   show && !phone;
@@ -268,8 +276,8 @@ export const ChatPage = (): ReactElement => {
       >
         {card(true)}
       </MobileBrowser>
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {firstUse ? <HomeSummary /> : null}
+      <div className={columnClass(firstUse)}>
+        {firstUse ? <MoneyLine /> : null}
         {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
           // Over the stream, not in the column: its arrival moves nothing.
           <div className="pointer-events-none absolute inset-x-0 top-12 z-20 px-4">
@@ -297,9 +305,10 @@ export const ChatPage = (): ReactElement => {
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 data-slot="chat-welcome-scroll"
               >
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-8">
+                <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-10">
                   <EmptyState
                     disabled={disabledReason !== null}
+                    needsUser={app.approvals.length + pendingPurchases}
                     onSend={send}
                   />
                 </div>
