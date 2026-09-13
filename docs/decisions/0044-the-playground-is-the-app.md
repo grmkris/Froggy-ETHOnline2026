@@ -4,7 +4,7 @@
 
 ## Decision
 
-Every screen and the shell draw in the Playground. The twelve tokens the landing and Home shared inside `.playground` move to the root for both themes, in a new stylesheet, `packages/ui/src/styles/playground.css`, loaded after `globals.css`. The same file restyles the shared surfaces through their `data-slot` attributes rather than page by page:
+Every screen and the shell draw in the Playground. The twelve tokens the landing and Home shared inside `.playground` move to the root for both themes, initially in `packages/ui/src/styles/playground.css`, then folded into `packages/ui/src/styles/globals.css` the same afternoon. The base stylesheet now owns the tokens and type utilities and restyles the shared surfaces through their `data-slot` attributes rather than page by page:
 
 | Surface | Now |
 | --- | --- |
@@ -26,8 +26,8 @@ The shared page wrapper takes a mono eyebrow above its heading. Lilypad uses the
 
 ## Consequences
 
-- 0041's "the rail, top bar and bottom navigation stay Passbook" is superseded. The `playground` class on Home's first-use column and the Watchlist column now repeats the root values; it is scope only, and Home's fade from paper to workspace on the first send is a no-op.
+- 0041's "the rail, top bar and bottom navigation stay Passbook" is superseded. The `playground` class on Home's first-use column and the Watchlist column no longer declares tokens; it is scope only, and Home's fade from paper to workspace on the first send is a no-op.
 - No accessible name changed. Uppercase is `text-transform`, which the accessibility tree does not apply, so every heading, tab, region and button the browser specs pin reads as before.
 - `destructive` stays the soft refused field (0038), the amber and blue driving rings stay, `text-machine` is never uppercased (addresses), and the browser canvas keeps its ring rather than a border.
-- Follow-ups, once the files are free: fold `playground.css` into `globals.css`; add IBM Plex Mono 700 to the font imports (chips ask for it and synthesise today); turn the `rounded-xl` literals into tokens; the welcome step dots at 2px; a sentence in `apps/web/AGENTS.md` and an entry in `docs/plan/STATUS.md`.
-- Not verified in a browser. The gate for this lane was `heavy bun run check:fast` on each commit; the first look is the owner's, before filming.
+- Completed the same afternoon: folded the theme into `globals.css`, loaded IBM Plex Mono 700, set the shared radius tokens, aligned overflowing tabs to the start, muted nested cards, aligned compact schedule headings, and updated the theme assertions. The rail wordmark, Inbox and Activity headings, evidence card and 2px welcome step dots use the Playground styles; `apps/web/AGENTS.md` and `docs/plan/STATUS.md` record the fold. Remaining: the owner's visual review of Lilypad and the folded theme.
+- The first capture sweep recorded in the follow-up plan found clipped Account tabs, nested hard shadows and a compact empty-state alignment issue. This fold uses formatting, lint and TypeScript as the local gate at the owner's request; no new browser run was performed.
