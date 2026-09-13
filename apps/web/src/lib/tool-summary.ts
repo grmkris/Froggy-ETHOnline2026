@@ -418,7 +418,7 @@ const creditSummary = (text: string): ToolSummary | null => {
     `${formatCredits(credits.availableUnits)} available`,
     "info",
     `${formatCredits(credits.reservedUnits)} held. Limit: ${formatCredits(credits.limits.perTaskUnits)} per task, ${formatCredits(credits.limits.dailyUnits)} in 24 hours.`,
-    credits.stubbed
+    false
   );
 };
 

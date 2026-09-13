@@ -36,7 +36,6 @@ export const CreditSummary = Schema.Struct({
   reservedUnits: CreditUnits,
   spentUnits: CreditUnits,
   limits: CreditLimits,
-  stubbed: Schema.Boolean,
 });
 export type CreditSummary = typeof CreditSummary.Type;
 
@@ -58,7 +57,6 @@ export const CreditCharge = Schema.Struct({
   reason: Schema.NullOr(Schema.String),
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
-  stubbed: Schema.Boolean,
 });
 export type CreditCharge = typeof CreditCharge.Type;
 
@@ -92,6 +90,7 @@ export const CreditLedgerEntry = Schema.Struct({
   id: CreditEntryId,
   kind: Schema.Literals([
     "funding",
+    "grant",
     "reserve",
     "capture",
     "release",
@@ -105,6 +104,5 @@ export const CreditLedgerEntry = Schema.Struct({
   taskId: Schema.NullOr(TaskId),
   at: Schema.Int,
   note: Schema.String,
-  stubbed: Schema.Boolean,
 });
 export type CreditLedgerEntry = typeof CreditLedgerEntry.Type;

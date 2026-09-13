@@ -27,7 +27,6 @@ const fixture = async () => {
       source: "pons",
       minimumLiquidityUsd: null,
     },
-    paymentStubbed: true,
   });
 };
 

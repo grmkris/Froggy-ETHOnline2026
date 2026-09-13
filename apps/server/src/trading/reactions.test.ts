@@ -166,7 +166,6 @@ const setup = async (
       source: null,
       minimumLiquidityUsd: null,
     },
-    paymentStubbed: true,
   });
   const ruleRequest = {
     v: 1 as const,

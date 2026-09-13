@@ -64,7 +64,6 @@ const creditFixture = async (
           spentUnits: 0,
           limits,
           funding,
-          stubbed: true,
         },
       });
       return;
@@ -325,7 +324,6 @@ test("one real local funding flow covers two services and survives reload", asyn
         Schema.Struct({
           kind: Schema.String,
           units: Schema.Int,
-          stubbed: Schema.Boolean,
         })
       ),
       purchases: Schema.Array(CreditPurchase),

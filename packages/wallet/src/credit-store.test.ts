@@ -19,7 +19,7 @@ import { postgresCreditStore } from "./credit-store-postgres";
 
 const NOW = 1_789_300_000_000;
 const owner = () => userId(`did:privy:credits-${crypto.randomUUID()}`);
-const quote = (units: number, stubbed = true): FundingPurchase => ({
+const quote = (units: number): FundingPurchase => ({
   v: 1,
   id: CreditPurchaseId.generate(),
   idempotencyKey: crypto.randomUUID(),
@@ -36,7 +36,7 @@ const quote = (units: number, stubbed = true): FundingPurchase => ({
   updatedAt: NOW,
   transactionId: null,
   error: null,
-  stubbed,
+  stubbed: true,
   proofHash: null,
   authorizationKey: null,
   paymentHeader: null,
@@ -48,18 +48,12 @@ const proof = () => ({
   authorizationKey: crypto.randomUUID(),
   paymentHeader: "stub-proof",
 });
-const fund = async (
-  store: CreditStore,
-  who: UserId,
-  units: number,
-  stubbed = true
-) => {
-  const purchase = quote(units, stubbed);
+const fund = async (store: CreditStore, who: UserId, units: number) => {
+  const purchase = quote(units);
   await store.createFunding(who, purchase);
   await store.claimFunding(who, purchase.id, proof(), NOW);
   await store.confirmFunding(who, purchase.id, {
     transactionId: crypto.randomUUID(),
-    stubbed,
     now: NOW,
   });
   return purchase;
@@ -89,7 +83,7 @@ const reserve = async (
   who: UserId,
   input: Task,
   now = NOW
-) => await store.reserveTask(who, input, { stubbed: true, now });
+) => await store.reserveTask(who, input, { now });
 
 const expectFailure = async (pending: Promise<unknown>, message: string) => {
   let failure: unknown;
@@ -109,7 +103,6 @@ const suite = (name: string, first: CreditStore, second = first) => {
     it("starts at zero with independent credit permission", async () => {
       const state = await first.summary(owner());
       expect(state.availableUnits).toBe(creditUnits(0));
-      expect(state.stubbed).toBe(false);
       expect(state.limits).toEqual(defaultCreditLimits());
       expect(
         defaultCreditLimits({
@@ -346,7 +339,6 @@ const suite = (name: string, first: CreditStore, second = first) => {
       await fund(first, who, 100_000);
       const one = task(60_000);
       const options = {
-        stubbed: true,
         now: NOW,
         runBudgetUnits: creditUnits(60_000),
       };
@@ -413,42 +405,39 @@ const suite = (name: string, first: CreditStore, second = first) => {
       const summaryResult20 = await first.summary(who);
       expect(summaryResult20.availableUnits).toBe(creditUnits(100_000));
     });
-    it("isolates real funds from simulated funding and simulated tasks", async () => {
+    it("grants credits the operator issued and lets a task spend them", async () => {
       const who = owner();
-      await fund(first, who, 100_000, false);
-      await expectFailure(fund(second, who, 1, true), "cannot share");
-      const reservationResult21 = await reserve(second, who, task(1));
-      expect(reservationResult21.charge.reason).toContain(
-        "credit_mode_mismatch"
+      await expectFailure(
+        first.grant(who, creditUnits(0), "nothing", NOW),
+        "at least one unit"
       );
-      const summaryResult22 = await first.summary(who);
-      expect(summaryResult22.availableUnits).toBe(creditUnits(100_000));
-    });
-    it("chooses one funding mode atomically before either payment can settle", async () => {
-      const who = owner();
-      const simulated = quote(100, true);
-      const real = quote(100, false);
-      await first.createFunding(who, simulated);
-      await first.createFunding(who, real);
-      const outcomes = await Promise.allSettled([
-        first.claimFunding(who, simulated.id, proof(), NOW),
-        second.claimFunding(who, real.id, proof(), NOW),
-      ]);
-      expect(
-        outcomes.filter((result) => result.status === "fulfilled")
-      ).toHaveLength(1);
-      expect(
-        outcomes.filter((result) => result.status === "rejected")
-      ).toHaveLength(1);
-      const state = await first.summary(who);
-      expect(state.availableUnits).toBe(creditUnits(0));
-      const saved = await first.listFunding(who);
-      expect(
-        saved.filter((purchase) => purchase.status === "pending")
-      ).toHaveLength(1);
-      expect(
-        saved.filter((purchase) => purchase.status === "quoted")
-      ).toHaveLength(1);
+      await expectFailure(
+        first.grant(who, creditUnits(50_000), "  ", NOW),
+        "needs a note"
+      );
+      const granted = await first.grant(
+        who,
+        creditUnits(50_000),
+        "Granted by the operator.",
+        NOW
+      );
+      expect(granted.availableUnits).toBe(creditUnits(50_000));
+      const entriesResult21 = await second.entries(who);
+      expect(entriesResult21).toHaveLength(1);
+      expect(entriesResult21[0]).toMatchObject({
+        kind: "grant",
+        units: 50_000,
+        availableDelta: 50_000,
+        reservedDelta: 0,
+        purchaseId: null,
+        chargeId: null,
+        note: "Granted by the operator.",
+      });
+      const reservationResult22 = await reserve(second, who, task(30_000));
+      expect(reservationResult22.charge.status).toBe("reserved");
+      const summaryResult23 = await first.summary(who);
+      expect(summaryResult23.availableUnits).toBe(creditUnits(20_000));
+      expect(summaryResult23.reservedUnits).toBe(creditUnits(30_000));
     });
     it("persists uncertain transaction identity and never replaces signed bytes", async () => {
       const who = owner();

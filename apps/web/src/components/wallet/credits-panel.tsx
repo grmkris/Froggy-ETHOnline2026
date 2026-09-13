@@ -1,4 +1,4 @@
-import { Badge } from "@froggy/ui/components/badge";
+import type { CreditLedgerEntry } from "@froggy/domain";
 import { Button } from "@froggy/ui/components/button";
 import {
   Card,
@@ -27,11 +27,12 @@ import { BuyCredits } from "./buy-credits";
 
 const ACTIVITY_WORDS = {
   funding: "Added",
+  grant: "Granted",
   reserve: "Held",
   capture: "Used",
   release: "Returned",
   refusal: "Refused",
-};
+} satisfies Record<CreditLedgerEntry["kind"], string>;
 
 export const CreditLimitsForm = () => {
   const { summary, limits } = useCredits();
@@ -124,12 +125,7 @@ export const CreditsPanel = () => {
     <section aria-label="Platform credits" className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle>Froggy credits</CardTitle>
-            {state?.stubbed === true ? (
-              <Badge variant="outline">Simulated</Badge>
-            ) : null}
-          </div>
+          <CardTitle>Froggy credits</CardTitle>
           <CardDescription>
             One balance for tools, browser tasks and paid monitoring.
           </CardDescription>
@@ -210,7 +206,6 @@ export const CreditsPanel = () => {
                 <p className="text-muted-foreground mt-1 text-xs">
                   {new Date(entry.at).toLocaleString()} ·{" "}
                   {ACTIVITY_WORDS[entry.kind]}
-                  {entry.stubbed ? " · Simulated" : ""}
                 </p>
               </div>
               <span className="shrink-0 text-sm tabular-nums">

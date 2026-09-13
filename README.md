@@ -128,7 +128,7 @@ The dashed cross is the point: `packages/browser` cannot import `packages/wallet
 - **Stop aborts the run first, then withdraws every open ticket.** "Stop the agent" on a ticket does both. There is no freeze: the controls are Stop, the ticket, the caps and Disconnect.
 - **Credit accounting is atomic with the task.** Reserve once under the owner account lock; capture successful work, release failed or cancelled work, and hold uncertain outcomes. A funding proof and authorization identity are globally claimed before settlement; a confirmed transaction credits the account once.
 - **Privy is the outer leash on the EVM leg.** Every signature the agent asks for goes through Privy's policy engine under a committed default-deny policy; an address the person typed passes the host's checks and is refused by Privy in Privy's words, on the receipt.
-- **Credit limits are separate from wallet authority.** Existing numeric allowance caps initialize credit limits once; wallet signer expiry does not expire purchased credits. Real and simulated funding cannot share an account. Cryptocurrency transfers, trading capital and external merchant purchases retain their existing wallet controls.
+- **Credit limits are separate from wallet authority.** Existing numeric allowance caps initialize credit limits once; wallet signer expiry does not expire purchased credits. Credits have one mode: they come from x402 settlement or from an operator grant (`bun run credits:grant`), and a purchase paid on a local stub rail says so on its own receipt. Cryptocurrency transfers, trading capital and external merchant purchases retain their existing wallet controls.
 
 ## The demo, in order
 

@@ -88,9 +88,6 @@ const update = async (
     const task = filed.taskId
       ? await deps.services.store.tasks.byId(owner, filed.taskId)
       : null;
-    const recordedCharge = task
-      ? await deps.services.store.credits.findCharge(owner, task.id)
-      : null;
     if (item) {
       await (
         deps.updates ??
@@ -103,10 +100,9 @@ const update = async (
           key,
           filed.status,
           filed.note,
-          recordedCharge?.stubbed === true ||
-            Schema.decodeUnknownResult(
-              Schema.Struct({ stubbed: Schema.Literal(true) })
-            )(task?.result)._tag === "Success",
+          Schema.decodeUnknownResult(
+            Schema.Struct({ stubbed: Schema.Literal(true) })
+          )(task?.result)._tag === "Success",
           (deps.now ?? Date.now)()
         )
       );

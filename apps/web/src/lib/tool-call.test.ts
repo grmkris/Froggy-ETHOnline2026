@@ -164,7 +164,7 @@ it("keeps saved-item objects renderable instead of dropping them as unknown tool
 });
 
 describe("credit balance tool cards", () => {
-  it("decodes a structured balance and preserves the simulated marker", () => {
+  it("decodes a structured balance into a plain summary", () => {
     const part = {
       type: "tool-credits_balance",
       state: "output-available",
@@ -181,7 +181,6 @@ describe("credit balance tool cards", () => {
           expiresAt: null,
           frozen: false,
         },
-        stubbed: true,
       },
     };
     const call = toolCallOf(part);
@@ -190,7 +189,7 @@ describe("credit balance tool cards", () => {
     }
     expect(summarize(call)).toMatchObject({
       headline: "98 credits available",
-      stubbed: true,
+      stubbed: false,
     });
     expect(summarize(call)?.detail).toContain("2 credits held");
   });

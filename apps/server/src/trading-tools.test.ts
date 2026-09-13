@@ -351,7 +351,6 @@ describe("named trading chat tools", () => {
         ticket.id
       );
       expect(charge?.status).toBe("captured");
-      expect(charge?.stubbed).toBe(true);
       const entries = await context.services.store.credits.entries(
         context.session.userId
       );
@@ -1151,7 +1150,6 @@ it("an explicitly accepted discovered-token snapshot is purchased once per captu
   }
   const charge = await store.credits.findCharge(owner, firstTask);
   expect(charge?.status).toBe("captured");
-  expect(charge?.stubbed).toBe(true);
   const current = await store.watchlist.transact(owner, (book) =>
     book.get(item.id)
   );

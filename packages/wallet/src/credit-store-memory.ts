@@ -48,7 +48,6 @@ export const memoryCreditStore = (
           reservedUnits: creditUnits(0),
           spentUnits: creditUnits(0),
           limits: initialLimits ?? defaultCreditLimits(allowanceFor(owner)),
-          stubbed: false,
         }
       );
       const stagedTasks = new Map(
@@ -124,14 +123,6 @@ export const memoryCreditStore = (
             [...stagedFunding.values()].find(
               (purchase) => purchase.idempotencyKey === key
             ) ?? null
-          ),
-        conflictingFundingMode: (stubbed) =>
-          [...stagedFunding.values()].some(
-            (purchase) =>
-              purchase.stubbed !== stubbed &&
-              (purchase.status === "pending" ||
-                purchase.status === "uncertain" ||
-                purchase.status === "confirmed")
           ),
         saveFunding: (purchase) => {
           const other = purchases.get(purchase.id);

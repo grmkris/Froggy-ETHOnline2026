@@ -841,7 +841,6 @@ export const creditAccounts = pgTable(
     dailyUnits: bigint("daily_units", { mode: "number" }).notNull(),
     expiresAt: bigint("expires_at", { mode: "number" }),
     frozen: boolean("frozen").notNull().default(false),
-    stubbed: boolean("stubbed").notNull().default(false),
   },
   (table) => [
     check(
@@ -866,7 +865,6 @@ export const creditCharges = pgTable(
     reason: text("reason"),
     createdAt: bigint("created_at", { mode: "number" }).notNull(),
     updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-    stubbed: boolean("stubbed").notNull(),
   },
   (table) => [
     uniqueIndex("credit_charges_owner_key").on(
@@ -939,7 +937,6 @@ export const creditEntries = pgTable(
     taskId: typeIdColumn(TaskId, "task_id"),
     at: bigint("at", { mode: "number" }).notNull(),
     note: text("note").notNull(),
-    stubbed: boolean("stubbed").notNull(),
   },
   (table) => [
     index("credit_entries_owner_time").on(table.userId, table.at),

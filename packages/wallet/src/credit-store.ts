@@ -66,11 +66,17 @@ export interface CreditStore {
     task: Task,
     options?: {
       readonly initialLimits?: CreditLimits;
-      readonly stubbed?: boolean;
       readonly now?: number;
       readonly runBudgetUnits?: CreditUnits;
     }
   ) => Promise<CreditTaskResult>;
+  /** Credits issued by the operator, not paid for: one ledger entry, no purchase. */
+  readonly grant: (
+    owner: UserId,
+    units: CreditUnits,
+    note: string,
+    now?: number
+  ) => Promise<CreditSummary>;
   readonly finishTask: (
     owner: UserId,
     id: TaskId,
@@ -132,7 +138,6 @@ export interface CreditStore {
     id: CreditPurchaseId,
     result: {
       readonly transactionId: string;
-      readonly stubbed?: boolean;
       readonly now?: number;
     }
   ) => Promise<CreditSummary>;
@@ -171,9 +176,6 @@ interface CreditTransaction {
   readonly fundingByKey: (
     key: string
   ) => FundingPurchase | null | Promise<FundingPurchase | null>;
-  readonly conflictingFundingMode: (
-    stubbed: boolean
-  ) => boolean | Promise<boolean>;
   readonly saveFunding: (purchase: FundingPurchase) => void | Promise<void>;
   readonly append: (entry: CreditLedgerEntry) => void | Promise<void>;
 }
@@ -199,21 +201,6 @@ const requireFunding = async (tx: CreditTransaction, id: CreditPurchaseId) => {
     throw new CreditStoreError("not_found", "Credit purchase not found.");
   }
   return purchase;
-};
-const requireFundingMode = async (tx: CreditTransaction, stubbed: boolean) => {
-  const funded =
-    tx.account.availableUnits +
-      tx.account.reservedUnits +
-      tx.account.spentUnits >
-    0;
-  if (
-    (funded && tx.account.stubbed !== stubbed) ||
-    (await tx.conflictingFundingMode(stubbed))
-  ) {
-    conflict(
-      "Simulated credits and real purchased credits cannot share an account."
-    );
-  }
 };
 const entry = (input: Omit<CreditLedgerEntry, "id">): CreditLedgerEntry => ({
   id: CreditEntryId.generate(),
@@ -315,10 +302,6 @@ const reservationRefusal = async (
         "credit_run_cap: This task exceeds the run's remaining credit budget.";
     }
   }
-  if (refusal === null && (options.stubbed === true) !== tx.account.stubbed) {
-    refusal =
-      "credit_mode_mismatch: Simulated tasks and real purchased credits are kept separate.";
-  }
   return refusal;
 };
 
@@ -381,7 +364,6 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
         reason: refusal,
         createdAt: now,
         updatedAt: now,
-        stubbed: options.stubbed === true || tx.account.stubbed,
       };
       const updated: Task = {
         ...task,
@@ -412,10 +394,37 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
           taskId: task.id,
           at: now,
           note: refusal ?? "Credits reserved for a task.",
-          stubbed: charge.stubbed,
         })
       );
       return { task: updated, charge, replayed: false };
+    }),
+  grant: async (owner, units, note, now = Date.now()) =>
+    await repository.transact(owner, undefined, async (tx) => {
+      if (units === 0) {
+        return conflict("A credit grant must add at least one unit.");
+      }
+      if (note.trim() === "") {
+        return conflict("A credit grant needs a note saying why.");
+      }
+      const account = {
+        ...tx.account,
+        availableUnits: creditUnits(tx.account.availableUnits + units),
+      };
+      await tx.saveAccount(account);
+      await tx.append(
+        entry({
+          kind: "grant",
+          units,
+          availableDelta: units,
+          reservedDelta: 0,
+          chargeId: null,
+          purchaseId: null,
+          taskId: null,
+          at: now,
+          note,
+        })
+      );
+      return account;
     }),
   finishTask: async (owner, id, patch, outcome, now = Date.now()) =>
     await repository.transact(owner, undefined, async (tx) => {
@@ -472,7 +481,6 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
               (outcome === "capture"
                 ? "Task completed."
                 : "Unused credits returned."),
-            stubbed: charge.stubbed,
           })
         );
       }
@@ -501,7 +509,6 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
       ) {
         return conflict("A new credit purchase must be an unpaid quote.");
       }
-      await requireFundingMode(tx, purchase.stubbed);
       await tx.saveFunding(purchase);
       return { purchase, replayed: false };
     }),
@@ -541,8 +548,6 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
           "A payment proof and authorization identity are required."
         );
       }
-      // Claim chooses the funding mode under the account lock, before any outbound settlement.
-      await requireFundingMode(tx, purchase.stubbed);
       const next: FundingPurchase = {
         ...purchase,
         ...proof,
@@ -610,22 +615,18 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
         );
       }
       const now = result.now ?? Date.now();
-      const stubbed = purchase.stubbed || result.stubbed === true;
-      await requireFundingMode(tx, stubbed);
       await tx.saveFunding({
         ...purchase,
         status: "confirmed",
         transactionId: result.transactionId,
         error: null,
         updatedAt: now,
-        stubbed,
       });
       const account = {
         ...tx.account,
         availableUnits: creditUnits(
           tx.account.availableUnits + purchase.creditUnits
         ),
-        stubbed: tx.account.stubbed || stubbed,
       };
       await tx.saveAccount(account);
       await tx.append(
@@ -639,7 +640,6 @@ export const makeCreditStore = (repository: CreditRepository): CreditStore => ({
           taskId: null,
           at: now,
           note: "Credit purchase confirmed.",
-          stubbed,
         })
       );
       return account;

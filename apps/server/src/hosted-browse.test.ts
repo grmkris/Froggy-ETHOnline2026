@@ -280,9 +280,7 @@ const fixture = async () => {
     status: "paid",
   };
   await fundTestCredits(services.store, owner, 2_000_000);
-  const reserved = await services.store.credits.reserveTask(owner, task, {
-    stubbed: true,
-  });
+  const reserved = await services.store.credits.reserveTask(owner, task);
   const job = new HostedBrowseJob(deps, workspace, reserved.task);
   const saved = async (): Promise<Task> => {
     const value = await services.store.tasks.byId(owner, id);

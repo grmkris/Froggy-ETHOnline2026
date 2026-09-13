@@ -223,7 +223,6 @@ const performBrowse = async (
   await authorizeCreditTask(services, caller.userId, task);
   const reserved = await store.credits.reserveTask(caller.userId, task, {
     initialLimits: creditLimitsFromMandate(workspace.session.currentMandate),
-    stubbed: task.input["stubbed"] === true,
     now,
   });
   if (reserved.charge.status === "refused") {

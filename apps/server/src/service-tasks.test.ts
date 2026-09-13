@@ -199,7 +199,7 @@ describe("service purchases", () => {
       context.session.userId,
       ticket.id
     );
-    expect(checkedResult11?.stubbed).toBe(true);
+    expect(checkedResult11?.status).toBe("captured");
     const replayed = await purchaseService(context, input);
     expect(replayed.id).toBe(ticket.id);
     await rejectsWith(

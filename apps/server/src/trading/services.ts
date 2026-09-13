@@ -47,7 +47,6 @@ export interface TradingServiceContext {
   readonly owner: UserId;
   readonly connectionId: AgentConnectionId | null;
   readonly sourceTaskId: TaskId;
-  readonly paymentStubbed: boolean;
 }
 
 export const TRADING_TOOL_DEFINITIONS = [
@@ -172,7 +171,7 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
         "One paid request; result retrieval is included. Trading capital is not spent.";
     } else if (available) {
       status = "demo";
-      note = "Demo fixture using simulated credits. No live provider call.";
+      note = "Demo fixture. No live provider call.";
     }
     return {
       name: definition.name,
@@ -395,7 +394,7 @@ export const runTradingService = async (
   return {
     v: 1,
     service: request.service,
-    stubbed: data.stubbed || context?.paymentStubbed === true,
+    stubbed: data.stubbed,
     text: `${data.stubbed ? "DEMO — recorded fixture. " : ""}${resultText(data)}\n${data.limitations.join(" ")}`.slice(
       0,
       6000

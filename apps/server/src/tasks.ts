@@ -708,10 +708,6 @@ const postCreditTask = async (
     task,
     {
       initialLimits: creditLimitsFromMandate(workspace.session.currentMandate),
-      stubbed:
-        body.kind === "brief"
-          ? deps.services.environment.modes.graph === "stub"
-          : deps.services.environment.modes.browser === "stub",
       now,
     }
   );

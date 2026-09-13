@@ -58,7 +58,6 @@ const setup = () => {
       minimumLiquidityUsd: null,
       source: null,
     },
-    paymentStubbed: true,
   };
   return {
     store,

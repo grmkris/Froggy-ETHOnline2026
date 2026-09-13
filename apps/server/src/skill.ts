@@ -86,7 +86,7 @@ It covers the original brief, browse, pay and services tools and does not expire
 
 100 credits equals $1. Every account starts at zero. Credits are internal and nontransferable; cryptocurrency balances stay separate. The owner buys credits in [Wallet](${input.url}/wallet), then you can use that balance for Froggy tools within their per-task and rolling 24-hour limits. GET \`/api/credits\` reads the current balance and limits with your bearer token.
 
-Read the catalog before requesting work. A task reserves its quoted credits once. Success captures them; failure or cancellation releases them. Uncertain work remains reserved until its outcome is reconciled. Simulated credits and services are explicitly labelled and isolated from real purchased credits. Never buy again to resolve an uncertain task.
+Read the catalog before requesting work. A task reserves its quoted credits once. Success captures them; failure or cancellation releases them. Uncertain work remains reserved until its outcome is reconciled. Simulated services are explicitly labelled. Never buy again to resolve an uncertain task.
 
 ## Use
 
@@ -115,7 +115,7 @@ Read the catalog before requesting work. A task reserves its quoted credits once
 - \`node ~/froggy.mjs services\` lists provider availability, exact customer prices and input limits.
 - \`node ~/froggy.mjs service web_search "affordable train travel" --idempotency-key=trip-research-1\` buys a task. Reuse the key for the same request; changed input needs a new key.
 - \`node ~/froggy.mjs service-status <task id>\` retrieves results and artifact download paths. Fetch artifacts with the same bearer token; never put a token in a URL.
-- The CLI service command covers \`x_search\`, \`web_search\`, \`image\`, \`inference\` and \`speech\`; use the named MCP tools for trading research. Read the catalog note: provider fixtures and simulated credits are labelled and isolated from real purchased credits.
+- The CLI service command covers \`x_search\`, \`web_search\`, \`image\`, \`inference\` and \`speech\`; use the named MCP tools for trading research. Read the catalog note: provider fixtures are labelled.
 
 For an MCP client that cannot do OAuth itself, the signed-in CLI bridges stdio to \`${input.url}/mcp\` (replace the path with the actual absolute path):
 

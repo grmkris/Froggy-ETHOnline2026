@@ -601,7 +601,6 @@ export class CreditFunding {
         }
         await this.deps.store.credits.confirmFunding(owner, id, {
           transactionId: `stub-credit-${id}`,
-          stubbed: true,
         });
         return;
       }

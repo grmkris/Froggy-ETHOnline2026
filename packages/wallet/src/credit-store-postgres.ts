@@ -54,7 +54,6 @@ const accountFromRow = (row: typeof creditAccounts.$inferSelect) =>
     availableUnits: row.availableUnits,
     reservedUnits: row.reservedUnits,
     spentUnits: row.spentUnits,
-    stubbed: row.stubbed,
     limits: {
       perTaskUnits: row.perTaskUnits,
       dailyUnits: row.dailyUnits,
@@ -135,7 +134,6 @@ export const postgresCreditStore = (sql: Sql): CreditStore => {
                 availableUnits: account.availableUnits,
                 reservedUnits: account.reservedUnits,
                 spentUnits: account.spentUnits,
-                stubbed: account.stubbed,
               })
               .where(eq(creditAccounts.userId, owner));
           },
@@ -271,24 +269,6 @@ export const postgresCreditStore = (sql: Sql): CreditStore => {
                 )
               );
             return row ? fundingFromRow(row) : null;
-          },
-          conflictingFundingMode: async (stubbed) => {
-            const rows = await tx
-              .select({ id: creditPurchases.id })
-              .from(creditPurchases)
-              .where(
-                and(
-                  eq(creditPurchases.userId, owner),
-                  ne(creditPurchases.stubbed, stubbed),
-                  inArray(creditPurchases.status, [
-                    "pending",
-                    "uncertain",
-                    "confirmed",
-                  ])
-                )
-              )
-              .limit(1);
-            return rows.length > 0;
           },
           saveFunding: async (purchase) => {
             const values = fundingValues(purchase);

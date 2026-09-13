@@ -31,6 +31,7 @@
     "fix": "ultracite fix",
     "db:generate": "bun run --cwd packages/database db:generate",
     "db:migrate": "bun apps/server/src/migrate.ts",
+    "credits:grant": "bun apps/server/src/grant-credits.ts",
     "privy:agent-key": "bun tools/privy-agent-key.ts",
     "privy:policy": "bun tools/privy-policy.ts"
   },

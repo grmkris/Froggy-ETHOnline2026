@@ -24,7 +24,7 @@ Successful work captures the reservation. Failure or cancellation releases it. U
 
 Funding quotes freeze their terms and expire. The payment proof hash and authorization identity are globally unique and claimed before settlement. Transaction identity is unique per network. Signed EVM transaction bytes, hash and nonce are durable before broadcast; HBAR recovery reuses the exact stored signed proof. Confirmation and the single credit ledger entry are atomic. Recovery reads chain evidence and never signs a replacement payment for an uncertain purchase.
 
-Real and simulated funding cannot share an account. An atomic proof claim selects the funding mode before settlement; a task's service mode must match its funded account. Zero balances are not labelled simulated merely because a new account exists.
+~~Real and simulated funding cannot share an account. An atomic proof claim selects the funding mode before settlement; a task's service mode must match its funded account. Zero balances are not labelled simulated merely because a new account exists.~~ Superseded by [decision 0042](0042-credits-have-one-mode.md): credits have one mode; only a purchase records that it was settled on the local stub rail.
 
 ## Public migration
 

@@ -306,7 +306,6 @@ export const purchaseService = async (
     Parameters<typeof store.credits.reserveTask>[2]
   > = {
     initialLimits: creditLimitsFromMandate(session.currentMandate),
-    stubbed: card.status === "demo",
   };
   if (context.budgetUsdMicros !== undefined) {
     reserveOptions = {
@@ -342,7 +341,6 @@ export const purchaseService = async (
           owner: session.userId,
           connectionId,
           sourceTaskId: task.id,
-          paymentStubbed: reserved.charge.stubbed,
         }
       );
       const patch = { status: "done" as const, result, updatedAt: Date.now() };

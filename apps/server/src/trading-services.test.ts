@@ -307,7 +307,6 @@ describe("paid trading services", () => {
         context.session.userId,
         result.id
       );
-      expect(charge?.stubbed).toBe(true);
       expect(charge?.id).toBe(result.chargeId);
       expect(charge?.idempotencyKey).toBe(request.idempotencyKey);
       const stored = await context.services.store.tasks.byId(

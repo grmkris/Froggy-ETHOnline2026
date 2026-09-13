@@ -101,7 +101,6 @@ export class LaunchCoordinator {
     readonly connectionId: AgentConnectionId | null;
     readonly sourceTaskId: TaskId;
     readonly input: LaunchWatchInput;
-    readonly paymentStubbed: boolean;
   }): Promise<LaunchWatch> {
     const checked = Schema.decodeUnknownSync(LaunchWatchInput)(input.input);
     return await this.options.store.transact(input.owner, (book) => {
@@ -155,7 +154,7 @@ export class LaunchCoordinator {
             : "Native logs start with a bounded backfill; gaps and reorganizations are retained.",
         error: null,
         providerStubbed,
-        stubbed: providerStubbed || input.paymentStubbed,
+        stubbed: providerStubbed,
       });
       book.set(watch.id, watch);
       return watch;
