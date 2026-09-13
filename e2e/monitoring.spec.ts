@@ -38,9 +38,14 @@ for (const width of [390, 1440]) {
     await dialog.getByLabel("Notify me when").selectOption("price_below");
     await dialog.getByLabel("Target price").fill("50");
     await dialog.getByLabel("Currency").fill("EUR");
+    await expect(dialog.getByLabel("Currency")).toHaveValue("EUR");
     await dialog
       .getByRole("button", { name: "Enable monitoring", exact: true })
       .click();
+    // The saved confirmation stays open; dismissal no longer confirms setup.
+    await expect(
+      dialog.getByText("Monitoring enabled.", { exact: true })
+    ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.getByRole("link", { name: /Monitoring sample/u }).click();
