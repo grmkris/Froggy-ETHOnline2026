@@ -18,11 +18,19 @@ import type {
 } from "@froggy/domain";
 import type {
   AppServerMessage,
+  BrowseTaskView,
   ApprovalRequest,
   ServiceModes,
   WalletRequestView,
   WalletSummary,
 } from "@froggy/protocol";
+
+import {
+  BROWSE_LABELS,
+  mergeBrowseTasks,
+  taskPhase,
+  taskTerminal,
+} from "./browse-task-state";
 
 export interface Notice {
   readonly at: number;
@@ -80,6 +88,8 @@ const ANSWER_WORDS: Record<ApprovalResolution, string> = {
 };
 
 export interface AppState {
+  readonly browseTasks: readonly BrowseTaskView[];
+  readonly browseRecoveryError: boolean;
   readonly historySequence: number;
   readonly approvals: readonly ApprovalRequest[];
   readonly connected: boolean;
@@ -106,6 +116,12 @@ export interface AppState {
 }
 
 export type AppEvent =
+  | {
+      readonly type: "browse.snapshot";
+      readonly sessionId: string;
+      readonly tasks: readonly BrowseTaskView[];
+    }
+  | { readonly type: "browse.error"; readonly sessionId: string }
   | { readonly type: "dismiss"; readonly id: string }
   | {
       readonly type: "receipts";
@@ -119,6 +135,8 @@ export type AppEvent =
   | { readonly type: "socket"; readonly connected: boolean };
 
 export const initialAppState: AppState = {
+  browseTasks: [],
+  browseRecoveryError: false,
   historySequence: 0,
   approvals: [],
   connected: false,
@@ -314,12 +332,45 @@ const mergeWalletRequests = (
   return [...byId.values()].toSorted((a, b) => b.updatedAt - a.updatedAt);
 };
 
+const browseUpdate = (
+  state: AppState,
+  task: BrowseTaskView,
+  at: number
+): AppState => {
+  const before = state.browseTasks.find((item) => item.id === task.id);
+  const tasks = mergeBrowseTasks(state.browseTasks, [task]);
+  const changed = tasks.find((item) => item.id === task.id) !== before;
+  const notice: Notice = {
+    id: `browse:${task.id}`,
+    at,
+    text: BROWSE_LABELS[taskPhase(task)],
+    tone: taskPhase(task) === "failed" ? "error" : "info",
+  };
+  return {
+    ...state,
+    browseTasks: tasks,
+    notices:
+      changed &&
+      before !== undefined &&
+      !taskTerminal(before) &&
+      taskTerminal(task)
+        ? [
+            notice,
+            ...state.notices.filter((item) => item.id !== notice.id),
+          ].slice(0, MAX_NOTICES)
+        : state.notices,
+  };
+};
+
 const onServer = (
   state: AppState,
   message: AppServerMessage,
   at: number
 ): AppState => {
   switch (message.type) {
+    case "browse.task.updated": {
+      return browseUpdate(state, message.task, at);
+    }
     case "history.changed": {
       return {
         ...state,
@@ -329,6 +380,10 @@ const onServer = (
     case "session.welcome": {
       return {
         ...state,
+        browseTasks:
+          state.sessionId === message.sessionId ? state.browseTasks : [],
+        browseRecoveryError: false,
+        notices: state.sessionId === message.sessionId ? state.notices : [],
         agentSignerId: message.agentSignerId,
         hcsTopicId: message.hcsTopicId,
         mcpUrl: message.mcpUrl,
@@ -419,6 +474,20 @@ const onServer = (
 
 export const reduceApp = (state: AppState, event: AppEvent): AppState => {
   switch (event.type) {
+    case "browse.snapshot": {
+      return event.sessionId === state.sessionId
+        ? {
+            ...state,
+            browseRecoveryError: false,
+            browseTasks: mergeBrowseTasks(state.browseTasks, event.tasks),
+          }
+        : state;
+    }
+    case "browse.error": {
+      return event.sessionId === state.sessionId
+        ? { ...state, browseRecoveryError: true }
+        : state;
+    }
     case "socket": {
       return { ...state, connected: event.connected };
     }

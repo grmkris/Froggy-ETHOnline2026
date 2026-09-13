@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Announcer } from "../components/announcer";
+import { ActiveBrowseTask } from "../components/browser/active-browse-task";
 import { useSplitWidth } from "../components/browser/browser-split-pane";
 import { AppFrame } from "../components/nav/app-frame";
 import { PurchaseApprovals } from "../components/purchases/purchase-approvals";
@@ -63,6 +64,9 @@ export const WorkspaceLayout = (): ReactElement => {
   const showBrowser = useCallback(() => {
     setBrowserRequested(true);
   }, []);
+  const hideBrowser = useCallback(() => {
+    setBrowserRequested(false);
+  }, []);
   const phone = useMediaQuery("(max-width: 767px)");
   const split = useSplitWidth();
   const app = useAppSocket();
@@ -71,6 +75,9 @@ export const WorkspaceLayout = (): ReactElement => {
     setWorkspaceSession(app.sessionId);
     setWatchlistOpen(false);
     setAttachedItem(null);
+    if (workspaceSession !== null) {
+      setBrowserRequested(false);
+    }
   }
   const purchases = usePurchases(app.sessionId);
   const trades = useTrades(app.sessionId);
@@ -196,6 +203,7 @@ export const WorkspaceLayout = (): ReactElement => {
       browser,
       browserRequested,
       showBrowser,
+      hideBrowser,
       busy,
       chat,
       chatNotices,
@@ -214,6 +222,7 @@ export const WorkspaceLayout = (): ReactElement => {
       browser,
       browserRequested,
       showBrowser,
+      hideBrowser,
       busy,
       chat,
       chatNotices,
@@ -245,6 +254,7 @@ export const WorkspaceLayout = (): ReactElement => {
                   modes={app.modes}
                   waiting={app.approvals.length + pendingPurchases}
                 >
+                  <ActiveBrowseTask />
                   <PurchaseApprovals api={purchases} />
                   <TradeNotice api={trades} />
                   <Outlet />

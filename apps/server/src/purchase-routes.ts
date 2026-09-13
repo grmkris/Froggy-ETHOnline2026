@@ -5,6 +5,7 @@ import type { PurchaseTicket, PurchaseWallets } from "@froggy/protocol";
 import { Schema } from "effect";
 
 import { bearerFromRequest } from "./auth";
+import { controlCurrentHostedBrowse, hostedBrowseFor } from "./hosted-browse";
 import { boundedBytes } from "./outbound";
 import { PurchaseError } from "./purchases";
 import type { PurchaseContext } from "./purchases";
@@ -100,8 +101,26 @@ const handleIndividual = async (
       accessToken
     );
     if (input.decision === "deny_stop") {
-      runs.abort(session.id);
-      await services.purchases.cancelAll(userId, browser);
+      const purchase = await services.store.purchases.byId(userId, id);
+      if (purchase?.runId === hostedBrowseFor(userId)?.id) {
+        await controlCurrentHostedBrowse(userId, "stop");
+      } else {
+        const activeRun = runs.get(session.id);
+        if (purchase !== null && activeRun?.id === purchase.runId) {
+          activeRun.abort();
+        }
+        if (purchase !== null) {
+          const pending = await services.store.purchases.forRun(
+            userId,
+            purchase.runId
+          );
+          await Promise.all(
+            pending.map(async (entry) => {
+              await services.purchases.cancel(userId, entry.id, browser);
+            })
+          );
+        }
+      }
     }
     return json(answered);
   }

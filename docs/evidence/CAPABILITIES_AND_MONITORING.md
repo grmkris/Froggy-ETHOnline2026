@@ -16,10 +16,17 @@ The release is prepared in `/tmp/froggy-monitoring-release` from the deployed wo
 ## Verified locally
 
 - `bun run check` passed on the isolated implementation: format, type-aware lint, all project typechecks, boundaries, agent/name checks, 1,328 package tests, and unused-code detection. Tests requiring externally configured databases remain explicitly skipped by that default gate.
-- A separate real PostgreSQL test applied migration 0024 to a fresh local database, verified owner isolation and durability, and used two connections to claim only one check and reservation. Migration 0024 adds only `monitoring_accounts`.
+- A separate real PostgreSQL run applied migration 0024 to a fresh local database and passed 28 ledger, persistence and watchlist tests (135 assertions). Two connections claim only one check and reservation. Migration 0024 adds only `monitoring_accounts`.
 - Targeted regressions verify revoked email grants, attachment conversion, no automatic grant expansion, baseline/alert transitions, cap enforcement, quote signing concurrency, pause before signing, and accounting after a sale-write failure.
-- Browser acceptance is running against mobile and desktop, with console/page errors checked in the monitoring flows. Both monitoring viewport scenarios have passed; final browser and deployment results will be recorded after release verification.
+- The full isolated browser suite passed: 196 tests, zero failures. Mobile/desktop monitoring scenarios check console/page errors, overflow, exact item context, budget, pause, persistence and archive. The release then merged hosted-browser commit `12de97d`; checks of the combined result are recorded below.
 
 ## Live acceptance
 
 A new external-agent email signup needs a human OAuth consent containing email-read permission. A live monitoring check needs the human's chosen monthly budget. Local simulated-provider checks are not evidence of a live signup, real monitor charge, or Telegram delivery.
+
+## Combined release checks
+
+- After merging hosted-browser commit `12de97d`, `bun run check` passed with 1,361 passing package tests and no failures.
+- `bun run build` passed.
+- All 29 browser tests affected by the merge passed, covering hosted progress and task outcomes, browser handoff, purchase flows, monitoring, saved items and agent connection instructions.
+- The separate full 196-test browser run passed before the hosted merge. A local simulated run is not evidence of a live external email signup or a paid monitor observation.

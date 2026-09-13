@@ -16,4 +16,4 @@ Human browser activity takes priority. Login, CAPTCHA and required decisions pau
 
 General scheduled prompts still have no browser. Background Chrome is confined to the dedicated monitoring workflow. Email sending remains a human approval action; no tool can approve, send, raise a cap, or change a grant.
 
-Browser tasks use the tool-enabled Froggy loop so delegated connections, email and monitoring retain their required capabilities. This release is based on the deployed research and workspace UI commits; the separately developed hosted executor and wallet-stream integration remain outside its scope.
+This release preserves the hosted-browser executor and progress UI introduced in decision 0031. Delegated tasks, email requests and unattended monitoring use the tool-enabled Froggy loop so required capabilities are not silently omitted. Task results keep their reported goal outcome through the shared progress view. The ongoing wallet-stream integration remains in the original shared checkout, outside this release.

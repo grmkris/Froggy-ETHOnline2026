@@ -1,0 +1,45 @@
+.browse-task-status,
+.browse-task-activity-row,
+.browse-viewer-overlay {
+  transition: opacity var(--motion-feedback) var(--ease-out);
+}
+.browse-task-completion[data-fresh="true"] {
+  transition:
+    opacity var(--motion-panel) var(--ease-out),
+    transform var(--motion-panel) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.browse-task-working {
+  animation: browse-task-pulse 1800ms ease-in-out infinite;
+}
+@keyframes browse-task-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .browse-task-working {
+    animation: none;
+  }
+  .browse-task-completion[data-fresh="true"] {
+    transition: opacity var(--motion-feedback) var(--ease-out);
+    @starting-style {
+      transform: none;
+    }
+  }
+}
+:root[data-motion-input="keyboard"] .browse-task-status,
+:root[data-motion-input="keyboard"] .browse-task-activity-row,
+:root[data-motion-input="keyboard"] .browse-viewer-overlay,
+:root[data-motion-input="keyboard"] .browse-task-completion {
+  transition: none;
+}
+
+.browse-task-status[data-new="true"] {
+  @starting-style {
+    opacity: 0;
+  }
+}

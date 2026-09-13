@@ -26,6 +26,7 @@ import {
 } from "@froggy/domain";
 import { Schema } from "effect";
 
+import { BrowseTaskView } from "./browse";
 import { WalletRequestView } from "./browser-wallet";
 
 const Envelope = { v: ProtocolVersion };
@@ -306,6 +307,11 @@ export const WalletSummary = Schema.Struct({
 export type WalletSummary = typeof WalletSummary.Type;
 
 export const AppServerMessage = Schema.Union([
+  Schema.Struct({
+    ...Envelope,
+    type: Schema.Literal("browse.task.updated"),
+    task: BrowseTaskView,
+  }),
   Schema.Struct({
     ...Envelope,
     type: Schema.Literal("history.changed"),

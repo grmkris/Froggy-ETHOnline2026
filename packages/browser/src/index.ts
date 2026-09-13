@@ -30,3 +30,14 @@ export type { Snapshot } from "./snapshot";
 export { CloudBrowser, StubCloudBrowser } from "./cloud";
 export type { CloudBrowserRecord, CloudBrowserOptions } from "./cloud";
 export { cloudApi, CloudApiError } from "./cloud-api";
+
+export {
+  hostedAgentApi,
+  stubHostedAgent,
+  HostedAgentError,
+  HostedEvent,
+  HostedRunStatus,
+} from "./hosted-agent";
+export type { HostedAgentApi, HostedRunInput } from "./hosted-agent";
+
+export { HostedBrowserExpiredError } from "./hosted-agent";

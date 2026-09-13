@@ -40,7 +40,7 @@ import {
   paymentFrom,
 } from "@froggy/payments";
 import type { PaymentChallenge } from "@froggy/payments";
-import type { TaskOutcome } from "@froggy/protocol";
+import type { BrowseTaskProgress, TaskOutcome } from "@froggy/protocol";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
 
@@ -56,6 +56,12 @@ import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { connectionScopes } from "./capabilities";
 import { detached } from "./detached";
+import {
+  controlCurrentHostedBrowse,
+  hasHostedBrowse,
+  startHostedBrowse,
+} from "./hosted-browse";
+import { hostedTask, publicBrowseTask } from "./hosted-browse-state";
 import type { InteractionRegistry } from "./interactions";
 import { assertMonitorCurrent, monitoringState } from "./monitoring";
 import type { Notices } from "./notices";
@@ -176,6 +182,8 @@ interface TaskApproval {
 
 /** A task as a caller sees it. Approval and receipts are joined at read time. */
 export interface TaskView {
+  readonly requestKey?: string | null;
+  readonly browse: BrowseTaskProgress | null;
   readonly approval: readonly TaskApproval[];
   readonly createdAt: number;
   readonly error: string | null;
@@ -262,7 +270,20 @@ const taskView = (
       : workspace.session.history.filter(
           (receipt) => receipt.runId === task.runId
         );
+  const browse =
+    task.kind === "browse"
+      ? publicBrowseTask(task, (deps.now ?? Date.now)(), awaiting)
+      : null;
+  let { result } = task;
+  if (hostedTask(task)) {
+    result = browse?.result ?? null;
+  }
+  if (task.kind === "service") {
+    result = serviceTicket(task);
+  }
   return {
+    browse: browse?.browse ?? null,
+    requestKey: browse?.requestKey ?? null,
     approval: awaiting
       ? pending.map((request) => ({
           amountLabel: request.amountLabel,
@@ -274,11 +295,11 @@ const taskView = (
     createdAt: task.createdAt,
     error: task.error,
     id: task.id,
-    input: task.input,
+    input: hostedTask(task) && browse !== null ? browse.input : task.input,
     kind: task.kind,
     priceUsdMicros: task.priceUsdMicros,
     receipts,
-    result: task.kind === "service" ? serviceTicket(task) : task.result,
+    result,
     runId: task.runId,
     saleId: task.saleId,
     status: awaiting ? "awaiting_approval" : task.status,
@@ -589,6 +610,10 @@ const failureText = (error: Error): string =>
 
 /** Run a paid task to its end, whatever that is, and write the end down. */
 const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
+  if (hostedTask(task)) {
+    startHostedBrowse(deps, workspace, task);
+    return;
+  }
   const now = deps.now ?? Date.now;
   const { userId } = workspace.session;
   detached(`task ${task.id}`, async () => {
@@ -638,6 +663,13 @@ export const resumeBrowseTask = async (
   taskId?: TaskId
 ): Promise<void> => {
   const workspace = await deps.workspaces.hydrate(userId);
+  if (hasHostedBrowse(userId)) {
+    if (deps.unattended === true || taskId !== undefined) {
+      return;
+    }
+    await controlCurrentHostedBrowse(userId, "continue");
+    return;
+  }
   if (
     deps.runs.get(workspace.session.id) !== null ||
     activeBrowses.has(workspace.session.id)
@@ -911,7 +943,7 @@ const performTaskPost = async (
     return await serializeBrowsePayment(caller.userId, async () => {
       const activeTasks = await deps.services.store.tasks.activeBrowses();
       const active = activeTasks.some((row) => row.userId === caller.userId);
-      if (active) {
+      if (active || hasHostedBrowse(caller.userId)) {
         return json(
           {
             error: "Another browser task is active. Nothing else was charged.",

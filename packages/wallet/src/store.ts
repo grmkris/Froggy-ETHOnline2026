@@ -262,6 +262,7 @@ export interface OwnedWalletRequest {
 export const BrowserProfileRecord = Schema.Struct({
   profileId: Schema.String.check(Schema.isUUID()),
   browserId: Schema.NullOr(Schema.String.check(Schema.isUUID())),
+  apiVersion: Schema.optional(Schema.Literals([3, 4])),
   uncertain: Schema.Boolean,
   usage: Schema.optional(
     Schema.Struct({

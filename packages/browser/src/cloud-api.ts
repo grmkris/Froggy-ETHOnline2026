@@ -1,15 +1,13 @@
 /**
  * The Browser Use Cloud boundary.
  *
- * Browsers, profiles and their reported costs come from the provider's Browser
- * API — `/api/v3`, the version whose published client exposes browser
- * create/get/stop, profile CRUD and billing. `/api/v4` is the hosted *agent*
- * API; Froggy drives the page itself, so it does not use it.
+ * Profiles use V3. Hosted-agent browsers use V4; legacy browsers retain V3.
+ * The persisted browser record pins its API version across executor rollbacks.
  */
 
 import { Schema } from "effect";
 
-const API_BASE = "https://api.browser-use.com/api/v3";
+const API_BASE = "https://api.browser-use.com/api";
 const VIEWER_ORIGIN = "https://live.browser-use.com";
 /** Every browser gets its own CDP subdomain: `<browser id>.cdp.browser-use.com`. */
 const CDP_HOST_SUFFIX = ".cdp.browser-use.com";
@@ -123,6 +121,7 @@ export const cloudApi = (options: {
   readonly apiKey: string;
   readonly country: string | null;
   readonly fetch?: typeof fetch;
+  readonly version?: 3 | 4;
 }): CloudApi => {
   const call = options.fetch ?? fetch;
   const request = async <S extends Schema.Codec<unknown>>(
@@ -143,7 +142,10 @@ export const cloudApi = (options: {
     if (body !== undefined) {
       init.body = JSON.stringify(body);
     }
-    const response = await call(`${API_BASE}${path}`, init);
+    const response = await call(
+      `${API_BASE}/v${path.startsWith("/profiles") ? 3 : (options.version ?? 3)}${path}`,
+      init
+    );
     if (!response.ok) {
       await response.body?.cancel();
       throw new CloudApiError(response.status, method);

@@ -1,0 +1,569 @@
+{
+  "provider": "Browser Use Cloud V4",
+  "productionChanged": false,
+  "walletCredentialsAttached": false,
+  "experiments": [
+    {
+      "mode": "live-compatibility-pilot",
+      "model": "gpt-5.6-luna",
+      "maxCostUsdPerRun": 0.25,
+      "runs": [
+        {
+          "task": "Use the actual browser to open https://example.com, follow its information link to IANA, and report the resulting URL and main page heading. Do not use an HTTP client instead of the browser. Do not open unrelated pages, log in, submit forms or make purchases. Finish after this two-page navigation.",
+          "maxCostUsd": 0.25,
+          "startedAt": "2026-09-12T22:23:54.233Z",
+          "runId": "dfa6abba-b90e-4f92-baf3-3c7f0d80ade2",
+          "sessionId": "8989e0be-4d29-4e96-959b-3d7b13b31abe"
+        }
+      ],
+      "events": [
+        {
+          "type": "run.created",
+          "elapsedMs": 828
+        },
+        {
+          "type": "run.dispatching",
+          "elapsedMs": 828
+        },
+        {
+          "type": "browser.ready",
+          "elapsedMs": 2576
+        }
+      ],
+      "bridge": [],
+      "cleanup": [
+        "run-cancelled",
+        {
+          "id": "001c1a93-fc87-4b2b-af55-9d10cfc65aab",
+          "status": "stopped",
+          "browserCost": "0.0003333333333333333333333333333",
+          "proxyCost": "0"
+        }
+      ],
+      "error": "Missing key\n  at [\"browser_id\"]",
+      "cancelledRunCostUsd": "0.000000"
+    },
+    {
+      "mode": "live-compatibility-pilot",
+      "model": "gpt-5.6-luna",
+      "maxCostUsdPerRun": 0.25,
+      "runs": [
+        {
+          "task": "Use the actual browser to open https://example.com, follow its information link to IANA, and report the resulting URL and main page heading. Do not use an HTTP client instead of the browser. Do not open unrelated pages, log in, submit forms or make purchases. Finish after this two-page navigation.",
+          "maxCostUsd": 0.25,
+          "startedAt": "2026-09-12T22:24:51.039Z",
+          "runId": "40816172-0620-4599-82ba-93867c58acb0",
+          "sessionId": "c0030e44-33d6-4f09-bd67-3dfa9db0ee56",
+          "browserReadyMs": 2666,
+          "status": "completed",
+          "result": "Resulting URL: `https://www.iana.org/help/example-domains`  \nMain page heading: **Example Domains**",
+          "error": null,
+          "costUsd": "0.005188",
+          "elapsedMs": 17404
+        }
+      ],
+      "events": [
+        {
+          "type": "run.created",
+          "elapsedMs": 914
+        },
+        {
+          "type": "run.dispatching",
+          "elapsedMs": 914
+        },
+        {
+          "type": "browser.ready",
+          "elapsedMs": 2666
+        },
+        {
+          "type": "run.dispatched",
+          "elapsedMs": 4845
+        },
+        {
+          "type": "worker.started",
+          "elapsedMs": 4845
+        },
+        {
+          "type": "browser.attached",
+          "elapsedMs": 4845
+        },
+        {
+          "type": "workspace.ready",
+          "elapsedMs": 4845
+        },
+        {
+          "type": "core.spawn",
+          "elapsedMs": 6614
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 6614
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6614
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8484
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 10247
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 12014
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 12014
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 12014
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 12014
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13769
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13769
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 15527
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 15527
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 15527
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 15527
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "outputs.promoted",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "state.promoted",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "run.completed",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "browser.released",
+          "elapsedMs": 17281
+        },
+        {
+          "type": "worker.session_released",
+          "elapsedMs": 17281
+        }
+      ],
+      "bridge": [],
+      "cleanup": [
+        {
+          "browserStatus": "stopped",
+          "browserCost": "0.0003333333333333333333333333333",
+          "proxyCost": "0"
+        }
+      ],
+      "browserId": "e8e8e9c7-a773-465a-8d5c-a2405531e45b",
+      "bridgeAttachedMs": 4846,
+      "verifiedNavigation": {
+        "url": "https://www.iana.org/help/example-domains",
+        "heading": "Example Domains"
+      },
+      "error": "evaluate: TypeError: Cannot read properties of undefined (reading 'request')\n    at eval (eval at evaluate (:311:30), <anonymous>:1:93)\n    at UtilityScript.evaluate (<anonymous>:313:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+    },
+    {
+      "mode": "live-compatibility-pilot",
+      "model": "gpt-5.6-luna",
+      "maxCostUsdPerRun": 0.25,
+      "runs": [
+        {
+          "task": "Use the actual browser to open https://example.com, follow its information link to IANA, and report the resulting URL and main page heading. Do not use an HTTP client instead of the browser. Do not open unrelated pages, log in, submit forms or make purchases. Finish after this two-page navigation.",
+          "maxCostUsd": 0.25,
+          "startedAt": "2026-09-12T22:26:22.456Z",
+          "runId": "27cc61a2-606e-4a14-9dd6-804510000e35",
+          "sessionId": "a2a8c529-325e-412c-b013-7b9fd4fb6c06",
+          "browserReadyMs": 2530,
+          "status": "completed",
+          "result": "Resulting URL: `https://www.iana.org/help/example-domains`  \nMain page heading: **Example Domains**",
+          "error": null,
+          "costUsd": "0.005232",
+          "elapsedMs": 15533
+        },
+        {
+          "task": "Inspect the current browser page using JavaScript. Check whether window.ethereum exists and call only window.ethereum.request({method:\"eth_chainId\"}). Report the exact returned chain id and whether the provider exists. Do not request accounts, sign anything, navigate elsewhere, or make purchases.",
+          "maxCostUsd": 0.25,
+          "startedAt": "2026-09-12T22:26:39.707Z",
+          "runId": "d7909b9d-0508-4640-8b83-4235494829ee",
+          "sessionId": "a2a8c529-325e-412c-b013-7b9fd4fb6c06",
+          "status": "completed",
+          "result": "Provider exists: `true`  \nChain ID: `0x2105`",
+          "error": null,
+          "costUsd": "0.000930",
+          "elapsedMs": 9336
+        }
+      ],
+      "events": [
+        {
+          "type": "run.created",
+          "elapsedMs": 780
+        },
+        {
+          "type": "run.dispatching",
+          "elapsedMs": 780
+        },
+        {
+          "type": "browser.ready",
+          "elapsedMs": 2530
+        },
+        {
+          "type": "run.dispatched",
+          "elapsedMs": 4795
+        },
+        {
+          "type": "worker.started",
+          "elapsedMs": 4795
+        },
+        {
+          "type": "browser.attached",
+          "elapsedMs": 4795
+        },
+        {
+          "type": "workspace.ready",
+          "elapsedMs": 4795
+        },
+        {
+          "type": "core.spawn",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 6653
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 8401
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8401
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 8401
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 8401
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 10145
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 10145
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 10145
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 11898
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 11898
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 11898
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 11898
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 11898
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 13644
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "state.promoted",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "outputs.promoted",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "run.completed",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "browser.released",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "worker.session_released",
+          "elapsedMs": 15408
+        },
+        {
+          "type": "run.created",
+          "elapsedMs": 473
+        },
+        {
+          "type": "run.dispatching",
+          "elapsedMs": 473
+        },
+        {
+          "type": "browser.reattached",
+          "elapsedMs": 473
+        },
+        {
+          "type": "worker.started",
+          "elapsedMs": 2224
+        },
+        {
+          "type": "run.dispatched",
+          "elapsedMs": 2224
+        },
+        {
+          "type": "browser.attached",
+          "elapsedMs": 2224
+        },
+        {
+          "type": "workspace.ready",
+          "elapsedMs": 2224
+        },
+        {
+          "type": "core.spawn",
+          "elapsedMs": 2224
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 3971
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 5722
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 5722
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "llm.request",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "llm.response",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "core.event",
+          "elapsedMs": 7469
+        },
+        {
+          "type": "outputs.promoted",
+          "elapsedMs": 9218
+        },
+        {
+          "type": "state.promoted",
+          "elapsedMs": 9218
+        },
+        {
+          "type": "run.completed",
+          "elapsedMs": 9218
+        },
+        {
+          "type": "browser.released",
+          "elapsedMs": 9218
+        },
+        {
+          "type": "worker.session_released",
+          "elapsedMs": 9218
+        }
+      ],
+      "bridge": [
+        {
+          "method": "eth_requestAccounts",
+          "origin": "https://www.iana.org",
+          "isTop": true
+        }
+      ],
+      "cleanup": [
+        {
+          "browserStatus": "stopped",
+          "browserCost": "0.0003333333333333333333333333333",
+          "proxyCost": "0"
+        }
+      ],
+      "browserId": "609cb7bd-7417-4466-b4d1-635374a7f5f3",
+      "bridgeAttachedMs": 4796,
+      "verifiedNavigation": {
+        "url": "https://www.iana.org/help/example-domains",
+        "heading": "Example Domains"
+      },
+      "providerBeforeReload": {
+        "present": true,
+        "chainId": "0x2105",
+        "accountRequest": {
+          "code": 4001,
+          "message": "Compatibility pilot: no wallet or spending authority attached."
+        }
+      },
+      "providerAfterReload": {
+        "present": true,
+        "chainId": "0x2105"
+      },
+      "bridgeErrors": []
+    }
+  ],
+  "reportedCostUsd": {
+    "agent": "0.011350",
+    "browser": "0.0009999999999999999999999999999",
+    "proxy": "0",
+    "total": "0.01235000000000000000000000000"
+  }
+}

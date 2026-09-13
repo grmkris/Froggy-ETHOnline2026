@@ -8,6 +8,7 @@ import {
   OAuthClientId,
   OAuthGrantId,
   SessionId,
+  SaleId,
   RunId,
   TaskId,
   usdMicros,
@@ -775,9 +776,14 @@ it("releases a monitor reservation when the payment was refused before signing",
   expect(state.months[0]?.spentUsdMicros).toBe(0);
 });
 
-it.each(["service", "browse"] as const)(
-  "holds the reservation for a failed %s task with missing payment evidence",
-  async (kind) => {
+it.each([
+  ["service", "failed"],
+  ["browse", "failed"],
+  ["service", "cancelled"],
+  ["browse", "cancelled"],
+] as const)(
+  "holds the reservation for a %s task ending %s with missing payment evidence",
+  async (kind, status) => {
     const context = await fixture();
     const runner = await monitoringFixture(context);
     const { store } = context.services;
@@ -792,7 +798,7 @@ it.each(["service", "browse"] as const)(
       kind,
       runId: RunId.generate(),
       saleId: null,
-      status: "failed",
+      status,
       error: "Interrupted after payment attempt",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -815,5 +821,65 @@ it.each(["service", "browse"] as const)(
     expect(state.checks[0]?.reservedUsdMicros).toBe(1_000_000);
     expect(state.checks[0]?.spentUsdMicros).toBe(0);
     expect(state.months).toHaveLength(0);
+  }
+);
+
+it.each(["completed", "blocked"] as const)(
+  "reconciles a cancelled paid browser check immediately despite its prior %s report",
+  async (status) => {
+    const context = await fixture();
+    const runner = await monitoringFixture(context);
+    const { store } = context.services;
+    const owner = context.session.userId;
+    const check = await claimMonitor(store, owner);
+    if (check === null) {
+      throw new Error("Missing monitoring claim");
+    }
+    const id = TaskId.generate();
+    await store.tasks.create(owner, {
+      id,
+      kind: "browse",
+      runId: RunId.generate(),
+      saleId: SaleId.generate(),
+      status: "cancelled",
+      error: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      priceUsdMicros: usdMicros(12_000),
+      input: {},
+      result: {
+        outcome: {
+          status,
+          reason: "Prior report",
+          evidence: "Synthetic page",
+          observation: {
+            at: Date.now(),
+            value: "$0.50",
+            price: 0.5,
+            currency: "USD",
+            sourceUrl: "https://example.com/token",
+            evidence: "Synthetic token",
+            stubbed: true,
+          },
+        },
+      },
+      idempotencyKey: `monitor:${check.id}`,
+      agentTokenId: null,
+      connectionId: null,
+    });
+    await updateMonitorCheck(store, owner, check.id, {
+      taskId: id,
+      status: "running",
+    });
+    await runner.tick();
+    await runner.tick();
+    const state = await monitoringState(store, owner);
+    expect(state.checks).toHaveLength(1);
+    expect(state.checks[0]?.status).toBe("failed");
+    expect(state.checks[0]?.error).toBe("The check was cancelled.");
+    expect(state.checks[0]?.reservedUsdMicros).toBe(0);
+    expect(state.months[0]?.spentUsdMicros).toBe(12_000);
+    expect(state.monitors[0]?.baseline).toBeNull();
+    expect(state.monitors[0]?.status).toBe("failed");
   }
 );

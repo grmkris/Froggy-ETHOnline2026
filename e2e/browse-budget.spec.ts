@@ -48,8 +48,34 @@ for (const uncertain of [false, true]) {
     const taskId = TaskId.generate();
     let signatures = 0;
     let purchases = 0;
+    let finished = false;
     const task = {
       id: taskId,
+      requestKey: "browse:budget-offer",
+      kind: "browse",
+      input: { instruction: "Read the fixture page" },
+      priceUsdMicros: 1_000_000,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      browse: {
+        executor: "legacy",
+        revision: 1,
+        phase: uncertain ? "checking" : "queued",
+        conversationId: null,
+        startedAt: null,
+        finishedAt: null,
+        refreshedAt: Date.now(),
+        activeMs: 0,
+        activity: [],
+        controls: {
+          stop: false,
+          takeControl: false,
+          continue: false,
+          forceStop: false,
+          watch: !uncertain,
+        },
+        stubbed: true,
+      },
       status: uncertain ? "uncertain" : "paid",
       error: uncertain ? "Payment outcome is unknown." : null,
       result: null,
@@ -94,7 +120,21 @@ for (const uncertain of [false, true]) {
       });
     });
     await page.route("**/api/tasks/*", async (route) => {
-      await route.fulfill({ json: { v: 1, task } });
+      const latest = finished
+        ? {
+            ...task,
+            status: "done",
+            updatedAt: Date.now(),
+            result: { text: "Legacy browsing completed." },
+            browse: {
+              ...task.browse,
+              revision: 2,
+              phase: "done",
+              finishedAt: Date.now(),
+            },
+          }
+        : task;
+      await route.fulfill({ json: { v: 1, task: latest } });
     });
     await page.route("**/api/wallet/pay", async (route) => {
       signatures += 1;
@@ -130,9 +170,12 @@ for (const uncertain of [false, true]) {
       .getByRole("button", { name: "Pay $1 and browse", exact: true })
       .click();
     await expect(
-      page.getByText(`Browsing task · ${uncertain ? "uncertain" : "paid"}`, {
-        exact: true,
-      })
+      page.getByText(
+        uncertain ? "Checking what happened" : "Waiting for a browser",
+        {
+          exact: true,
+        }
+      )
     ).toBeVisible();
     expect(signatures).toBe(1);
     expect(purchases).toBe(uncertain ? 0 : 1);
@@ -142,9 +185,13 @@ for (const uncertain of [false, true]) {
     expect(errors).toEqual([]);
     if (!uncertain) {
       await page
-        .getByRole("button", { name: "Open browser", exact: true })
+        .getByRole("button", { name: "Watch live", exact: true })
         .click();
       await expect(page.locator('[data-slot="driving-ring"]')).toBeVisible();
+      finished = true;
+      await expect(
+        page.getByText("Legacy browsing completed.", { exact: true })
+      ).toBeVisible();
     }
   });
 }

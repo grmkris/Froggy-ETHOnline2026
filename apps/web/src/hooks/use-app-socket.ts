@@ -9,12 +9,13 @@
 
 import type { AppClientMessage } from "@froggy/protocol";
 import {
+  BrowseTasksResponse,
   decodeAppServerMessage,
   encodeAppClientMessage,
   wsProtocols,
 } from "@froggy/protocol";
-import { Result } from "effect";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { Result, Schema } from "effect";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { socketUrl } from "../environment";
 import { initialAppState, reduceApp } from "../lib/app-state";
@@ -29,6 +30,7 @@ const backoffMs = (attempt: number): number =>
   Math.min(750 * 2 ** attempt, MAX_BACKOFF_MS);
 
 export interface AppStream extends AppState {
+  readonly retryBrowseTasks: () => void;
   readonly dispatch: (event: AppEvent) => void;
   readonly send: (message: AppClientMessage) => void;
 }
@@ -131,5 +133,80 @@ export const useAppSocket = (): AppStream => {
     };
   }, [canConnect, getToken]);
 
-  return { ...state, dispatch, send };
+  const { sessionId, connected } = state;
+  const [recoveryRequestedAt, setRecoveryRequestedAt] = useState(0);
+  const lastManualRecovery = useRef(0);
+  const retryBrowseTasks = useCallback(() => {
+    const now = Date.now();
+    if (now - lastManualRecovery.current < 5000) {
+      return;
+    }
+    lastManualRecovery.current = now;
+    setRecoveryRequestedAt(now);
+  }, []);
+  useEffect(() => {
+    if (!connected || sessionId === null) {
+      return () => {
+        // No active resource needs cleanup.
+      };
+    }
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let retries = 0;
+    const recover = async (): Promise<void> => {
+      // Only failed snapshots retry. Provider polling remains server-owned.
+      if (controller.signal.aborted) {
+        return;
+      }
+      let recovered = false;
+      try {
+        const token = await getToken();
+        const response = await fetch("/api/browse-tasks", {
+          headers: { authorization: `Bearer ${token ?? ""}` },
+          cache: "no-store",
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(10_000),
+          ]),
+        });
+        if (response.ok) {
+          const value = Schema.decodeUnknownSync(BrowseTasksResponse)(
+            await response.json()
+          );
+          if (!controller.signal.aborted) {
+            dispatch({
+              type: "browse.snapshot",
+              sessionId,
+              tasks: value.tasks,
+            });
+            recovered = true;
+          }
+        }
+      } catch {
+        recovered = false;
+      }
+      if (controller.signal.aborted || recovered) {
+        return;
+      }
+      dispatch({ type: "browse.error", sessionId });
+      if (retries < 3) {
+        const delay = 5000 * 2 ** retries;
+        retries += 1;
+        timer = setTimeout(() => {
+          void recover();
+        }, delay);
+      }
+    };
+    const delay = Math.max(0, recoveryRequestedAt + 5000 - Date.now());
+    timer = setTimeout(() => {
+      void recover();
+    }, delay);
+    return () => {
+      controller.abort();
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+    };
+  }, [getToken, connected, sessionId, recoveryRequestedAt]);
+  return { ...state, dispatch, send, retryBrowseTasks };
 };

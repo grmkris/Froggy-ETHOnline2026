@@ -296,6 +296,32 @@ const finishBrowserTask = async (
   await deps.workspaces.releaseUnwatched(owner);
 };
 
+const finishTaskCheck = async (
+  deps: TaskDeps,
+  owner: UserId,
+  check: MonitorCheck,
+  task: Task,
+  spentUsdMicros: number
+): Promise<void> => {
+  if (task.status === "cancelled") {
+    await finishMonitorCheck(
+      deps.services.store,
+      owner,
+      check.id,
+      null,
+      spentUsdMicros,
+      task.error ?? "The check was cancelled."
+    );
+    if (task.kind === "browse") {
+      await deps.workspaces.releaseUnwatched(owner);
+    }
+    return;
+  }
+  await (task.kind === "service"
+    ? finishDataTask(deps, owner, check, task, spentUsdMicros)
+    : finishBrowserTask(deps, owner, check, task, spentUsdMicros));
+};
+
 const reconcileCheck = async (
   deps: TaskDeps,
   owner: UserId,
@@ -329,7 +355,7 @@ const reconcileCheck = async (
   if (task.status === "paused" && check.status === "needs_help") {
     return;
   }
-  if (["done", "failed", "paused"].includes(task.status)) {
+  if (["done", "failed", "paused", "cancelled"].includes(task.status)) {
     const spentUsdMicros = await taskSpend(deps, owner, task);
     if (spentUsdMicros === null) {
       if (check.status !== "uncertain") {
@@ -341,9 +367,7 @@ const reconcileCheck = async (
       }
       return;
     }
-    await (task.kind === "service"
-      ? finishDataTask(deps, owner, check, task, spentUsdMicros)
-      : finishBrowserTask(deps, owner, check, task, spentUsdMicros));
+    await finishTaskCheck(deps, owner, check, task, spentUsdMicros);
   } else if (
     check.status !== "uncertain" &&
     (task.status === "uncertain" || Date.now() - task.updatedAt > 12 * 60_000)

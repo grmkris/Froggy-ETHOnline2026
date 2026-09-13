@@ -1,7 +1,7 @@
-import { TaskId, TaskStatus } from "@froggy/domain";
+import type { TaskId, ConversationId } from "@froggy/domain";
 import {
   BrowseBudget,
-  TaskOutcome,
+  BrowseTaskResponse,
   BrowseChallenge,
   BrowseQuoteResponse,
 } from "@froggy/protocol";
@@ -23,57 +23,24 @@ import { useEffect, useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useChatSurface } from "../../lib/chat-context";
-import { scrollToLive } from "../../lib/scroll-to-live";
 import { useSessionToken } from "../../lib/session-token";
 import { useWorkspace } from "../../lib/workspace-context";
+import { BrowseTaskCard } from "./browse-task-card";
 
 const BUDGETS: readonly BrowseBudget[] = [1, 3, 5];
 const dollars = (micros: number): string =>
   `$${(micros / 1_000_000).toFixed(2)}`;
 
-const TaskResponse = Schema.Struct({
-  v: Schema.Literals([1]),
-  task: Schema.Struct({
-    id: TaskId,
-    status: TaskStatus,
-    error: Schema.NullOr(Schema.String),
-    result: Schema.Unknown,
-  }),
-});
+const TaskResponse = BrowseTaskResponse;
 type Task = (typeof TaskResponse.Type)["task"];
 const Signed = Schema.Struct({
   v: Schema.Literals([1]),
   header: Schema.String,
 });
 const ErrorResponse = Schema.Struct({ error: Schema.String });
-const ResultText = Schema.Struct({
-  text: Schema.String,
-  outcome: Schema.optionalKey(TaskOutcome),
-});
-const TaskResult = ({
-  result,
-}: {
-  readonly result: unknown;
-}): ReactElement | null => {
-  const text = Schema.decodeUnknownResult(ResultText)(result);
-  if (text._tag === "Failure") {
-    return null;
-  }
-  return (
-    <>
-      <p className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
-        {text.success.text}
-      </p>
-      {text.success.outcome === undefined ? null : (
-        <p className="text-muted-foreground text-sm">
-          Goal {text.success.outcome.status}: {text.success.outcome.reason}
-        </p>
-      )}
-    </>
-  );
-};
 type GetToken = () => Promise<string | null>;
 interface BrowseRequest {
+  readonly conversationId?: ConversationId;
   readonly kind: "browse";
   readonly instruction: string;
   readonly budgetUsd: BrowseBudget;
@@ -246,6 +213,12 @@ const purchaseTask = async (
     return {
       task: task ?? {
         id: quote.taskId,
+        kind: "browse",
+        input: { instruction: quote.instruction },
+        priceUsdMicros: quote.priceUsdMicros,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        browse: null,
         status: "uncertain",
         error:
           "Payment outcome is unknown. Retrieve this task before retrying.",
@@ -267,16 +240,9 @@ export const BrowseTaskForm = ({
   readonly requestKey: string;
 }): ReactElement => {
   const { getToken } = useSessionToken();
-  const { showBrowser } = useChatSurface();
+  const { conversationId } = useChatSurface();
   const { app } = useWorkspace();
-  const revealBrowser = (): void => {
-    showBrowser();
-    // The live card mounts on the next paint; scrolling in this tick finds
-    // nothing, which is how Open browser looked like a dead button.
-    requestAnimationFrame(() => {
-      scrollToLive();
-    });
-  };
+  const { sessionId, dispatch } = app;
   // The leash judges this payment like any other, so a budget over the
   // person's own per-payment cap is refused the moment they press Pay. Better
   // to say so here, where the number is chosen, than after a signature.
@@ -297,16 +263,30 @@ export const BrowseTaskForm = ({
       const saved = await fetchSavedTask(getToken, requestKey);
       if (active && saved !== null) {
         setTask(saved);
+        if (sessionId !== null) {
+          dispatch({ type: "browse.snapshot", sessionId, tasks: [saved] });
+        }
       }
     })();
     return () => {
       active = false;
     };
-  }, [getToken, requestKey]);
-  const taskId = task?.id;
-  const status = task?.status;
+  }, [getToken, requestKey, sessionId, dispatch]);
+  const currentTask =
+    app.browseTasks.find(
+      (item) => item.id === task?.id || item.requestKey === requestKey
+    ) ?? task;
+  const taskId = currentTask?.id;
+  const status = currentTask?.status;
+  const hosted = currentTask?.browse?.executor === "hosted";
   useEffect(() => {
-    if (taskId === undefined || status === "done" || status === "failed") {
+    if (
+      hosted ||
+      taskId === undefined ||
+      status === "done" ||
+      status === "cancelled" ||
+      status === "failed"
+    ) {
       return () => {
         // There is no active polling interval for a finished task.
       };
@@ -317,6 +297,9 @@ export const BrowseTaskForm = ({
         const updated = await fetchTask(getToken, taskId);
         if (updated !== null && active) {
           setTask(updated);
+          if (sessionId !== null) {
+            dispatch({ type: "browse.snapshot", sessionId, tasks: [updated] });
+          }
         }
       })();
     }, 2000);
@@ -324,12 +307,13 @@ export const BrowseTaskForm = ({
       active = false;
       clearInterval(timer);
     };
-  }, [getToken, status, taskId]);
+  }, [dispatch, getToken, hosted, sessionId, status, taskId]);
   const requestQuote = async (): Promise<void> => {
     setBusy(true);
     setError(null);
     const result = await fetchQuote(getToken, {
       kind: "browse",
+      conversationId,
       instruction,
       budgetUsd: budget,
       idempotencyKey: requestKey,
@@ -359,38 +343,20 @@ export const BrowseTaskForm = ({
     setError(result.error);
     setChallenge(null);
     setBusy(false);
-    if (result.error === null) {
-      revealBrowser();
+    if (app.sessionId !== null) {
+      app.dispatch({
+        type: "browse.snapshot",
+        sessionId: app.sessionId,
+        tasks: [result.task],
+      });
     }
   };
-  if (task !== null) {
-    return (
-      <div className="flex flex-col gap-2 px-3 pb-3">
-        <p className="text-sm">
-          Browsing task ·{" "}
-          {task.status === "paused"
-            ? "Paused — use Resume in the browser"
-            : task.status}
-        </p>
-        {task.error === null ? null : (
-          <p className="text-destructive text-sm" role="alert">
-            {task.error}
-          </p>
-        )}
-        {error === null ? null : (
-          <p className="text-destructive text-sm" role="alert">
-            {error}
-          </p>
-        )}
-        <TaskResult result={task.result} />
-        <Button size="sm" variant="outline" onClick={revealBrowser}>
-          Open browser
-        </Button>
-      </div>
-    );
+  if (currentTask !== null) {
+    return <BrowseTaskCard task={currentTask} />;
   }
   return (
-    <FieldGroup className="px-3 pb-3">
+    <FieldGroup className="border-border bg-card rounded-2xl border p-4">
+      <p className="text-sm font-medium">{instruction}</p>
       <Field>
         <FieldLabel>Browsing budget</FieldLabel>
         <ToggleGroup

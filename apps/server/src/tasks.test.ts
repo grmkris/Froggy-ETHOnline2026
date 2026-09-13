@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import type { BrowserHandle } from "@froggy/browser";
 import {
   OAuthGrantId,
+  MonitorCheckId,
   OAUTH_SCOPES,
   SaleId,
   defaultAllowance,
@@ -474,6 +475,7 @@ const quoteBody = (key: string) => ({
 });
 const quoteView = (task: Task) => ({
   ...task,
+  browse: null,
   approval: [],
   receipts: [],
 });
@@ -558,6 +560,62 @@ describe("bounded browser quotes", () => {
     expect(
       await services.store.tasks.byIdempotencyKey(ALICE, "bad-budget")
     ).toBeNull();
+  });
+
+  it("keeps unattended and internally identified monitors on Froggy's tool-enabled executor", async () => {
+    const servicesWithHosted = {
+      ...services,
+      environment: {
+        ...services.environment,
+        browseExecutor: "hosted" as const,
+      },
+    };
+    const checks: readonly {
+      key: string;
+      deps: TaskDeps;
+      executor: "legacy" | "hosted";
+    }[] = [
+      {
+        key: "executor-unattended",
+        deps: { ...deps, services: servicesWithHosted, unattended: true },
+        executor: "legacy",
+      },
+      {
+        key: "executor-monitor-id",
+        deps: {
+          ...deps,
+          services: servicesWithHosted,
+          monitorCheckId: MonitorCheckId.generate(),
+        },
+        executor: "legacy",
+      },
+      {
+        key: "executor-normal",
+        deps: { ...deps, services: servicesWithHosted },
+        executor: "hosted",
+      },
+    ];
+    await Promise.all(
+      checks.map(async (check) => {
+        const response = await handleTaskPost(
+          check.deps,
+          post(quoteBody(check.key)),
+          workspace(),
+          caller
+        );
+        expect(response.status).toBe(402);
+        const saved = await services.store.tasks.byIdempotencyKey(
+          ALICE,
+          check.key
+        );
+        expect(saved?.input["executor"]).toBe(check.executor);
+        if (check.deps.monitorCheckId !== undefined) {
+          expect(saved?.input["monitorCheckId"]).toBe(
+            check.deps.monitorCheckId
+          );
+        }
+      })
+    );
   });
 
   it("does not sign or hold wallet funds when a monitor pauses during payment setup", async () => {

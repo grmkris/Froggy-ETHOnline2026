@@ -1,4 +1,10 @@
-import { SaleId, TaskId, usdMicros, quotePaymentState } from "@froggy/domain";
+import {
+  ConversationId,
+  SaleId,
+  TaskId,
+  usdMicros,
+  quotePaymentState,
+} from "@froggy/domain";
 import type { Task, UserId } from "@froggy/domain";
 import {
   decodePaymentChallenge,
@@ -9,6 +15,7 @@ import {
 import { BrowseBudget, BrowseQuote } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { hostedTask } from "./hosted-browse-state";
 import type { TaskCaller, TaskDeps, TaskView } from "./tasks";
 import type { Workspaces } from "./workspaces";
 
@@ -24,6 +31,7 @@ export const QuotedBrowseInput = Schema.Struct({
     Schema.isMaxLength(200)
   ),
   quoteTaskId: Schema.optional(TaskId),
+  conversationId: Schema.optional(ConversationId),
 });
 type BrowseInput = typeof QuotedBrowseInput.Type;
 const StoredQuote = Schema.Struct({
@@ -102,6 +110,15 @@ const priceQuote = (
   const { deps, now } = context;
   const { services } = deps;
   const { environment } = services;
+  // Delegated tools and email run in Froggy's loop, where their current grants are enforced.
+  const workspaceTools =
+    deps.unattended === true ||
+    deps.monitorCheckId !== undefined ||
+    context.caller.grantId !== null ||
+    context.caller.agentTokenId !== null ||
+    /\b(?:email|inbox|verification code|confirmation code)\b/iu.test(
+      body.instruction
+    );
   if (environment.browserUseApiKey === null) {
     return json(
       { error: "Browsing is not configured. Nothing was charged." },
@@ -109,6 +126,7 @@ const priceQuote = (
     );
   }
   if (
+    (workspaceTools || environment.browseExecutor !== "hosted") &&
     environment.modes.model !== "stub" &&
     (!(environment.browserModelInputRate > 0) ||
       !(environment.browserModelOutputRate > 0))
@@ -148,6 +166,7 @@ const priceQuote = (
       environment.modes.browser === "stub" ||
       environment.modes.hedera === "stub" ||
       environment.modes.privy === "stub",
+    executor: workspaceTools ? "legacy" : environment.browseExecutor,
     quote,
     challenge,
     modelRates: {
@@ -157,6 +176,9 @@ const priceQuote = (
   };
   if (deps.monitorCheckId) {
     input = { ...input, monitorCheckId: deps.monitorCheckId };
+  }
+  if (body.conversationId !== undefined) {
+    input = { ...input, conversationId: body.conversationId };
   }
   return { input, priceUsdMicros: price, quote };
 };
@@ -293,7 +315,7 @@ const performSettlement = async (
       409
     );
   }
-  if (deps.runs.get(workspace.session.id) !== null) {
+  if (!hostedTask(task) && deps.runs.get(workspace.session.id) !== null) {
     return json(
       {
         error:
@@ -498,6 +520,15 @@ const performBrowseQuote = async (
           },
           409
         );
+  }
+  if (body.conversationId !== undefined) {
+    const conversation = await deps.services.store.history.get(
+      caller.userId,
+      body.conversationId
+    );
+    if (conversation === null || conversation.kind !== "conversation") {
+      return json({ error: "Conversation not found." }, 404);
+    }
   }
   const task = await quotedTaskFor(context, body, key, payment);
   if (task instanceof Response) {

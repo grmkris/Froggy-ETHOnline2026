@@ -29,6 +29,7 @@ export const TaskStatus = Schema.Literals([
   "awaiting_approval",
   "done",
   "failed",
+  "cancelled",
   "uncertain",
 ]);
 export type TaskStatus = typeof TaskStatus.Type;

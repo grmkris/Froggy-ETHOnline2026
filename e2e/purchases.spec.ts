@@ -210,12 +210,9 @@ test.describe("URL purchases", () => {
     const errors = watchErrors(page);
     await page.goto("/chat");
     await page.getByRole("button", { name: "Show the browser" }).click();
-    await page
-      .getByRole("textbox", { name: "Address", exact: true })
-      .fill("https://example.com/paid");
-    await page
-      .getByRole("textbox", { name: "Address", exact: true })
-      .press("Enter");
+    await expect(
+      page.getByRole("textbox", { name: "Address", exact: true })
+    ).toBeDisabled();
     await expect(
       page.getByText("Browser Use is stubbed.", { exact: false })
     ).toBeVisible();
