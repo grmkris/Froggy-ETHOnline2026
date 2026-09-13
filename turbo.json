@@ -27,6 +27,9 @@
         "$TURBO_ROOT$/docs/privy-treasury-relay-rule.json"
       ],
       "outputs": []
+    },
+    "@froggy/web#build": {
+      "env": ["APP_ORIGIN"]
     }
   }
 }

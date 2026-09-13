@@ -24,6 +24,15 @@ const landingIndexRoute = createRoute({
   path: "/landing",
 });
 
+const landingPlaygroundRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/landing-page"),
+    "LandingIndexPage"
+  ),
+  getParentRoute: () => rootRoute,
+  path: "/landing/playground",
+});
+
 /**
  * The workspace holds the sockets and the conversation; its pages are the
  * routes beneath it. Not lazy: it is the first thing every page needs.
@@ -214,6 +223,7 @@ const oauthManualRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   landingIndexRoute,
+  landingPlaygroundRoute,
   workspaceRoute.addChildren([
     homeRoute,
     welcomeRoute,

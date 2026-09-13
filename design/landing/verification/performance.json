@@ -1,0 +1,52 @@
+[
+  {
+    "width": 1440,
+    "environment": "Headless Chromium, local Vite production preview, cold context, no throttling, one run",
+    "lcp": 736,
+    "cls": 0.001496682098765432,
+    "images": [
+      {
+        "path": "/froggy/landing/playground-hero-720.webp",
+        "transfer": 44652,
+        "bytes": 44352
+      },
+      {
+        "path": "/froggy/landing/watch-sneakers.webp",
+        "transfer": 45014,
+        "bytes": 44714
+      }
+    ],
+    "totalTransfer": 747948,
+    "heroCtaY": 668.328125,
+    "canonical": "http://127.0.0.1:3188/landing",
+    "descriptions": 1,
+    "scrollWidth": 1440,
+    "errors": [],
+    "privateRequests": []
+  },
+  {
+    "width": 390,
+    "environment": "Headless Chromium, local Vite production preview, cold context, no throttling, one run",
+    "lcp": 556,
+    "cls": 0.0012642717948717949,
+    "images": [
+      {
+        "path": "/froggy/landing/playground-hero-720.webp",
+        "transfer": 44652,
+        "bytes": 44352
+      },
+      {
+        "path": "/froggy/landing/watch-sneakers-480.webp",
+        "transfer": 17032,
+        "bytes": 16732
+      }
+    ],
+    "totalTransfer": 719966,
+    "heroCtaY": 503.578125,
+    "canonical": "http://127.0.0.1:3188/landing",
+    "descriptions": 1,
+    "scrollWidth": 390,
+    "errors": [],
+    "privateRequests": []
+  }
+]

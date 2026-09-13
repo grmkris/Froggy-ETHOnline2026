@@ -1,5 +1,5 @@
 /** Public entry points stay explicit so workspace URLs retain their auth gate. */
-const LANDING_PATHS = ["/landing"] as const;
+const LANDING_PATHS = ["/landing", "/landing/playground"] as const;
 
 export const landingAsset = (name: string): string => `/froggy/landing/${name}`;
 

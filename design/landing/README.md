@@ -1,3 +1,5 @@
+> Current landing: [Playground implementation handoff](IMPLEMENTATION.md). The September 13 update uses illustrations and HTML examples; product screenshots and the promo below are retained as historical assets and are not used on the page.
+
 # Froggy landing
 
 One public entry page, one existing workspace and onboarding flow.

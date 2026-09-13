@@ -6,7 +6,39 @@ const API_TARGET = process.env["API_URL"] ?? "http://localhost:3001";
 
 export default defineConfig({
   build: { chunkSizeWarningLimit: 1000 },
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: "froggy-public-metadata",
+      transformIndexHtml(html) {
+        // The existing deployment origin is public configuration, never a guessed domain.
+        const configured = process.env["APP_ORIGIN"];
+        if (configured === undefined || configured === "") {
+          return html;
+        }
+        const { origin } = new URL(configured);
+        return {
+          html: html.replace(
+            'content="/froggy/landing/playground-social.jpg"',
+            `content="${origin}/froggy/landing/playground-social.jpg"`
+          ),
+          tags: [
+            {
+              tag: "link",
+              attrs: { rel: "canonical", href: `${origin}/landing` },
+              injectTo: "head",
+            },
+            {
+              tag: "meta",
+              attrs: { property: "og:url", content: `${origin}/landing` },
+              injectTo: "head",
+            },
+          ],
+        };
+      },
+    },
+  ],
   server: {
     // The client talks to its own origin and the dev server proxies. That keeps
     // dev and production identical — in production one Bun process serves both

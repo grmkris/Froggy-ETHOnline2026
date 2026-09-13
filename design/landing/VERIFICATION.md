@@ -1,3 +1,5 @@
+> Current landing: [Playground implementation handoff](IMPLEMENTATION.md). The September 13 update uses illustrations and HTML examples; product screenshots and the promo below are retained as historical assets and are not used on the page.
+
 # Verification — 13 September 2026
 
 Implementation branch: `codex/landing-concepts`, based on `56d9e6a`. Built in the isolated `/tmp/froggy-landing` worktree while the shared checkout was being reconciled.

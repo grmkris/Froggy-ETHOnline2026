@@ -1,3 +1,5 @@
+> Current landing: [Playground implementation handoff](IMPLEMENTATION.md). The September 13 update uses illustrations and HTML examples; product screenshots and the promo below are retained as historical assets and are not used on the page.
+
 # Deferred follow-on work
 
 The approved implementation covers the landing entry step, the five-step visual preview, and three short promos. It does not replace the existing post-sign-in onboarding or produce the longer presentation film.
