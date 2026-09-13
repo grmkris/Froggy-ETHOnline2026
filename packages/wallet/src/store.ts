@@ -442,6 +442,11 @@ export interface Store {
   readonly sales: {
     readonly byId: (id: SaleId) => Promise<Sale | null>;
     readonly byPaymentHash: (paymentHash: string) => Promise<Sale | null>;
+    /** Historical payments cannot also fund platform credits. */
+    readonly byTransaction: (
+      network: Sale["network"],
+      transactionId: string
+    ) => Promise<Sale | null>;
     readonly record: (
       sale: Sale
     ) => Promise<{ readonly created: boolean; readonly sale: Sale }>;
@@ -1202,6 +1207,18 @@ export const memoryStore = (): Store => {
         await Promise.resolve();
         for (const sale of sales.values()) {
           if (sale.paymentHash === paymentHash) {
+            return sale;
+          }
+        }
+        return null;
+      },
+      byTransaction: async (network, transactionId) => {
+        await Promise.resolve();
+        for (const sale of sales.values()) {
+          if (
+            sale.network === network &&
+            sale.transactionId === transactionId
+          ) {
             return sale;
           }
         }

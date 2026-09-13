@@ -37,3 +37,7 @@ The runtime and committed agent skills, CLI, API, catalog and Wallet UI use the 
 The ledger is tested in memory and against PostgreSQL through independent connection pools, including racing funding claims, globally reused authorizations, duplicate transactions, reservation overspend, result replay, connection isolation, run budgets, uncertain holds and mode isolation. Payment coordinator and SDK adapter tests exercise saved proof recovery. Public-route tests assert that a fresh signed request cannot create a sale, while historical reports remain readable.
 
 Unit tests and simulated checkout are not live payment evidence. Deployment verification must separately record actual chain settlement, one-time crediting, a tool debit, retry behavior and the public UI/API journey.
+
+## Historical payment replay
+
+HBAR funding accepts only matching ledger transfers whose decimal consensus timestamp is at or after the purchase quote. A network/transaction lookup against every historical sale status prevents a tool payment from also purchasing credits, even when the surrounding x402 envelope changes. Missing or malformed timestamps and verifier refusals with an unknown mirror remain uncertain: a second recovery worker may already have submitted the same transaction. Recovery never replaces the signed payment.

@@ -36,3 +36,11 @@ Read-only checks on 13 September confirmed Base chain ID 8453 and Hedera mainnet
 The actual production migration journal matched the isolated source through migration 0024: the latest timestamp was 1789252565771 and its SHA-256 hash was `10b62ad8b70b1f61e3b02383998cb0ba9fe426c0a8386066ff069bb955f41fc6`. The preceding 0022 and 0023 hashes also matched. Recheck before deploying if production changes meanwhile.
 
 The USDC adapter passed 11 tests with 53 assertions using a local JSON-RPC server and actual EIP-3009 signing. These establish exact receipt-leg matching, rejection of reverted or mismatched transfers, saved-byte resubmission, persistence before broadcast, and no replacement signature during recovery. They establish no mainnet settlement.
+
+## Final payment review
+
+The funding coordinator now rejects historical HBAR transfers, including a previously recorded sale presented with a rewritten x402 envelope. Twelve coordinator tests pass, covering new settlement, replay, missing or malformed decimal consensus timestamps and a verifier refusal racing an unknown mirror. Ambiguous evidence retains the purchase for recovery. The sales lookup passed memory and separate-pool PostgreSQL tests across every historical sale status.
+
+At 02:29 UTC the production source still matched `6614144` and the migration journal still ended at 0024. No task payment or running task needed draining. One previously paid browser task was paused; six unpaid quotes had expired. Two older uncertain external wallet spends (a conversion and a merchant purchase) were left untouched. These historical records are neither retried nor converted to credits by the migration.
+
+After this review, `bun run check` passed again, including 730 server tests and 218 wallet tests. Conditional PostgreSQL skips in the workspace gate were covered by direct database runs. The server build passed again with 3,131 bundled modules. The earlier browser verification remains applicable because the final changes affect live HBAR settlement and historical-sales lookup only.

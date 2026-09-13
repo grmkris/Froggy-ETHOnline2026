@@ -49,6 +49,7 @@ interface Dependencies extends Pick<
   | "accounts"
 > {
   readonly base: EvmCreditSettlement | null;
+  readonly hederaTransaction?: typeof lookupHederaTransactionDetails;
   readonly withTreasuryLock: <T>(
     operation: () => Promise<T>,
     purchaseId?: CreditPurchaseId
@@ -59,6 +60,55 @@ const publicPurchase = (purchase: FundingPurchase): CreditPurchase =>
   Schema.decodeUnknownSync(CreditPurchase)(purchase);
 const hash = (value: string): string =>
   new Bun.CryptoHasher("sha256").update(value).digest("hex");
+const consensusTimestampPattern = /^\d+\.\d{1,9}$/u;
+const hederaFundingReceipt = (
+  purchase: FundingPurchase,
+  payer: string,
+  transactionId: string,
+  result: Awaited<ReturnType<typeof lookupHederaTransactionDetails>>
+): CreditSettlement => {
+  const settledAt = Number(result.consensusTimestamp) * 1000;
+  if (
+    result.status === "unknown" ||
+    (result.status === "success" &&
+      (result.consensusTimestamp === null ||
+        !consensusTimestampPattern.test(result.consensusTimestamp) ||
+        !Number.isFinite(settledAt)))
+  ) {
+    return {
+      status: "uncertain",
+      transactionId,
+      error: "HBAR settlement confirmation is pending.",
+    };
+  }
+  const credit = result.transfers.some(
+    (leg) =>
+      leg.accountId === purchase.payTo &&
+      leg.asset === "0.0.0" &&
+      leg.amount === BigInt(purchase.amount)
+  );
+  const debit = result.transfers.some(
+    (leg) =>
+      leg.accountId === payer &&
+      leg.asset === "0.0.0" &&
+      leg.amount === -BigInt(purchase.amount)
+  );
+  // A prior wallet/service payment must never become a second purchase of credits.
+  if (
+    result.status === "success" &&
+    credit &&
+    debit &&
+    settledAt >= purchase.createdAt
+  ) {
+    return { status: "confirmed", transactionId, error: null };
+  }
+  return {
+    status: "failed",
+    transactionId,
+    error: "The HBAR payment did not settle a new transfer for this quote.",
+  };
+};
+
 /** Owner-approved funding. No caller supplies a recipient, signer, price, or credit quantity. */
 export class CreditFunding {
   private readonly running = new Map<CreditPurchaseId, Promise<void>>();
@@ -639,12 +689,14 @@ export class CreditFunding {
     }
     // Query before resubmission: a crash may have happened on either side of the network write.
     // Reusing this exact Hedera transaction is idempotent; recovery never asks the owner to sign again.
-    let result = await lookupHederaTransactionDetails({
+    const lookup =
+      this.deps.hederaTransaction ?? lookupHederaTransactionDetails;
+    let result = await lookup({
       network: purchase.network,
       transactionId,
     });
     if (result.status === "unknown") {
-      const settled = await this.deps.oracle
+      await this.deps.oracle
         .settle(purchase.paymentHeader, {
           ...offer,
           network: purchase.network,
@@ -652,49 +704,30 @@ export class CreditFunding {
           maxTimeoutSeconds: offer.maxTimeoutSeconds ?? 120,
         })
         .catch(() => null);
-      if (
-        purchase.transactionId === null &&
-        settled?.rejectedBeforeSubmission === true
-      ) {
-        return {
-          status: "failed",
-          transactionId,
-          error:
-            settled.error ?? "The HBAR payment was rejected before submission.",
-        };
-      }
-      result = await lookupHederaTransactionDetails({
+      // A verifier refusal can race another worker's successful submission. Only
+      // ledger evidence can end recovery; an unknown mirror keeps the purchase held.
+      result = await lookup({
         network: purchase.network,
         transactionId,
       });
     }
-    const credit = result.transfers.some(
-      (leg) =>
-        leg.accountId === purchase.payTo &&
-        leg.asset === "0.0.0" &&
-        leg.amount === BigInt(purchase.amount)
+    const previousSale = await this.deps.store.sales.byTransaction(
+      purchase.network,
+      transactionId
     );
-    const debit = result.transfers.some(
-      (leg) =>
-        leg.accountId === description.payer &&
-        leg.asset === "0.0.0" &&
-        leg.amount === -BigInt(purchase.amount)
-    );
-    if (result.status === "success" && credit && debit) {
-      return { status: "confirmed", transactionId, error: null };
-    }
-    if (result.status === "unknown") {
+    if (previousSale !== null) {
       return {
-        status: "uncertain",
+        status: "failed",
         transactionId,
-        error: "HBAR settlement confirmation is pending.",
+        error: "This HBAR transaction already belongs to a historical sale.",
       };
     }
-    return {
-      status: "failed",
+    return hederaFundingReceipt(
+      purchase,
+      description.payer,
       transactionId,
-      error: "The HBAR payment did not settle the quoted transfer.",
-    };
+      result
+    );
   }
 
   async recover(): Promise<void> {

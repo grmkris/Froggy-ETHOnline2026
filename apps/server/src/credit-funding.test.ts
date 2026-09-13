@@ -1,9 +1,17 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 
-import { creditUnits, defaultCreditLimits, userId } from "@froggy/domain";
+import {
+  CreditPurchaseId,
+  SaleId,
+  creditUnits,
+  defaultCreditLimits,
+  userId,
+} from "@froggy/domain";
 import type { CreditPurchase } from "@froggy/domain";
+import { describePayment, liveHederaPayer } from "@froggy/payments";
 import { ConfigProvider, Effect } from "effect";
 
+import { CreditFunding } from "./credit-funding";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { createServices } from "./services";
@@ -46,7 +54,11 @@ const waitForFunding = async (
   remaining = 100
 ): Promise<CreditPurchase> => {
   const purchase = await context.services.creditFunding.get(context.owner, id);
-  if (purchase.status === "confirmed" || purchase.status === "failed") {
+  if (
+    purchase.status === "confirmed" ||
+    purchase.status === "failed" ||
+    purchase.status === "uncertain"
+  ) {
     return purchase;
   }
   if (remaining === 0) {
@@ -160,4 +172,145 @@ describe("owner credit funding", () => {
     await paying;
     await services.shutdown();
   });
+});
+
+describe("HBAR funding cannot reuse historical payments", () => {
+  it.each([
+    {
+      when: "before-quote",
+      timestamp: (now: number) => ((now - 60_000) / 1000).toFixed(9),
+      expected: "failed",
+    },
+    {
+      when: "after-quote",
+      timestamp: (now: number) => ((now + 1000) / 1000).toFixed(9),
+      expected: "confirmed",
+    },
+    { when: "missing-time", timestamp: () => null, expected: "uncertain" },
+    {
+      when: "malformed-time",
+      timestamp: () => "invalid",
+      expected: "uncertain",
+    },
+    { when: "exponent-time", timestamp: () => "1e30", expected: "uncertain" },
+    { when: "empty-time", timestamp: () => "", expected: "uncertain" },
+    {
+      when: "legacy-sale",
+      timestamp: (now: number) => ((now + 1000) / 1000).toFixed(9),
+      expected: "failed",
+    },
+    { when: "verifier-refusal", timestamp: () => null, expected: "uncertain" },
+  ] as const)(
+    "checks consensus evidence: $when",
+    async ({ when, timestamp, expected }) => {
+      const context = fixture();
+      const { owner, services } = context;
+      const id = CreditPurchaseId.generate();
+      const now = Date.now();
+      // Synthetic local key and accounts. The signed transaction is never broadcast.
+      const payer = liveHederaPayer({
+        accountId: "0.0.123",
+        network: "hedera:testnet",
+        privateKey: "11".repeat(32),
+      });
+      const challenge = {
+        x402Version: 2,
+        accepts: [
+          {
+            scheme: "exact",
+            network: "hedera:testnet",
+            asset: "0.0.0",
+            payTo: "0.0.456",
+            amount: "100000000",
+            maxTimeoutSeconds: 120,
+            extra: { feePayer: "0.0.789" },
+          },
+        ],
+      };
+      await services.store.credits.createFunding(owner, {
+        v: 1,
+        id,
+        status: "quoted",
+        creditUnits: creditUnits(1_000_000),
+        network: "hedera:testnet",
+        asset: "0.0.0",
+        amount: "100000000",
+        payTo: "0.0.456",
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 120_000,
+        transactionId: null,
+        error: null,
+        stubbed: false,
+        idempotencyKey: id,
+        requestFingerprint: id,
+        challenge,
+        proofHash: null,
+        authorizationKey: null,
+        paymentHeader: null,
+        signedTransaction: null,
+        transactionNonce: null,
+      });
+      const funding = new CreditFunding({
+        ...services,
+        base: null,
+        oracle: {
+          ...services.oracle,
+          settle: async () =>
+            await Promise.resolve({
+              ok: false,
+              transactionId: null,
+              error: "Authorization was already used.",
+              rejectedBeforeSubmission: true,
+              stubbed: false,
+            }),
+        },
+        withTreasuryLock: async (operation) => await operation(),
+        hederaPayerFor: async () => await Promise.resolve(payer),
+        hederaTransaction: async () =>
+          await Promise.resolve({
+            status: when === "verifier-refusal" ? "unknown" : "success",
+            entityId: null,
+            consensusTimestamp: timestamp(now),
+            transfers: [
+              { accountId: "0.0.123", asset: "0.0.0", amount: -100_000_000n },
+              { accountId: "0.0.456", asset: "0.0.0", amount: 100_000_000n },
+            ],
+          }),
+      });
+      const payment = await payer.pay(challenge);
+      if (payment.header === null) {
+        throw new Error("Test payment was not signed.");
+      }
+      if (when === "legacy-sale") {
+        await services.store.sales.record({
+          id: SaleId.generate(),
+          paymentHash: "historical-proof-has-a-different-envelope",
+          network: "hedera:testnet",
+          asset: "0.0.0",
+          amount: "100000000",
+          payer: "0.0.123",
+          transactionId: describePayment(payment.header).transactionId,
+          resource: "/api/paid/legacy-tool",
+          status: "delivered",
+          result: { delivered: true },
+          error: null,
+          at: now,
+          deliveredAt: now + 1000,
+          stubbed: false,
+        });
+      }
+      await funding.accept(owner, id, payment.header);
+      const result = await waitForFunding(
+        { owner, services: { ...services, creditFunding: funding } },
+        id
+      );
+      expect(result.status).toBe(expected);
+      const summary = await services.store.credits.summary(owner);
+      expect(summary.availableUnits).toBe(
+        creditUnits(when === "after-quote" ? 1_000_000 : 0)
+      );
+      await services.shutdown();
+    }
+  );
 });

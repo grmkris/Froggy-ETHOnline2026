@@ -958,6 +958,20 @@ export const postgresStore = (sql: Sql): Store => {
         const [row] = rows;
         return row === undefined ? null : saleOf(row);
       },
+      byTransaction: async (network, transactionId) => {
+        const rows = await database
+          .select()
+          .from(sales)
+          .where(
+            and(
+              eq(sales.network, network),
+              eq(sales.transactionId, transactionId)
+            )
+          )
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : saleOf(row);
+      },
       record: async (sale) => {
         // Insert-or-return on the hash, across processes: the unique index
         // decides who recorded the sale, the way the spends index decides who
