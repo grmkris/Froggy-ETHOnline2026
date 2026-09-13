@@ -1,5 +1,6 @@
 /** One service: what it does, what it costs, whether it is real here. */
 
+import { formatUsd } from "@froggy/domain";
 import type { ServiceCard as Card } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
@@ -15,7 +16,6 @@ import { ArrowUpRightIcon } from "lucide-react";
 import { createElement } from "react";
 import type { ReactElement } from "react";
 
-import { formatCredits } from "../../lib/credit-view";
 import { readinessBadge, serviceIcon } from "../../lib/services-view";
 
 export const ServiceCard = ({
@@ -45,7 +45,7 @@ export const ServiceCard = ({
           <Badge className="tabular-nums" variant="secondary">
             {card.status === "unavailable"
               ? "Unpriced"
-              : formatCredits(card.priceCreditUnits ?? card.priceUsdMicros)}
+              : formatUsd(card.priceUsdMicros)}
           </Badge>
         </div>
         <CardTitle className="pt-1">{card.title}</CardTitle>

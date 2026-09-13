@@ -88,37 +88,6 @@ const Blocks = ({
               </MotionItem>
             );
           }
-          case "service": {
-            const latest = block.calls.at(-1);
-            if (!latest) {
-              return null;
-            }
-            return (
-              <div key={key} className="flex flex-col gap-2">
-                <ToolCard
-                  asking={asking}
-                  call={latest}
-                  receipt={claimed.byCall.get(latest.toolCallId) ?? null}
-                />
-                {block.calls.length > 1 ? (
-                  <details>
-                    <summary className="text-muted-foreground min-h-11 cursor-pointer py-3 text-xs">
-                      {block.calls.length} task updates and receipts
-                    </summary>
-                    <div className="flex flex-col gap-2">
-                      {block.calls.slice(0, -1).map((call) => (
-                        <ToolCard
-                          key={call.toolCallId}
-                          call={call}
-                          receipt={claimed.byCall.get(call.toolCallId) ?? null}
-                        />
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
-              </div>
-            );
-          }
           case "tool": {
             return (
               <MotionItem delay={delays.get(key) ?? 0} key={key}>

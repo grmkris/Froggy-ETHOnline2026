@@ -1,13 +1,42 @@
+import { Result, Schema } from "effect";
+
 const skillRoot = ".agents/skills";
 const skillDirectoryGlob = new Bun.Glob("*/SKILL.md");
 const names = new Set<string>();
 const errors: string[] = [];
 let count = 0;
 
+/**
+ * Skills installed from elsewhere through skills-lock.json are checked by
+ * their own authors. This gate is for the skills written in this repository,
+ * so a vendored pack with a long description does not fail a build it is not
+ * part of.
+ */
+const Lock = Schema.Struct({
+  skills: Schema.Record(
+    Schema.String,
+    Schema.Struct({ sourceType: Schema.optional(Schema.String) })
+  ),
+});
+const lock = Schema.decodeUnknownResult(Schema.fromJsonString(Lock))(
+  await Bun.file("skills-lock.json").text()
+);
+const vendored = new Set(
+  Result.isSuccess(lock)
+    ? Object.entries(lock.success.skills)
+        .filter(([, entry]) => entry.sourceType === "github")
+        .map(([name]) => name)
+    : []
+);
+
 for await (const relativePath of skillDirectoryGlob.scan({
   cwd: skillRoot,
   onlyFiles: true,
 })) {
+  const [owner] = relativePath.split("/");
+  if (owner !== undefined && vendored.has(owner)) {
+    continue;
+  }
   count += 1;
   const path = `${skillRoot}/${relativePath}`;
   const source = await Bun.file(path).text();

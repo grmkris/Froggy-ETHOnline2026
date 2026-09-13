@@ -1,6 +1,6 @@
 import { PURCHASE_INPUT_LIMIT, PURCHASE_MAX_USD_MICROS } from "@froggy/domain";
 import type { PurchaseRequest } from "@froggy/protocol";
-import { Button } from "@froggy/ui/components/button";
+import { Button, buttonVariants } from "@froggy/ui/components/button";
 import {
   Card,
   CardContent,
@@ -116,9 +116,35 @@ export const PurchasePanel = (): ReactElement => {
         <div>
           <h2 className="text-section">Pay a URL</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Pay external x402 sellers from your wallet. Review the price,
-            approve once, and keep the result.
+            Get a price, approve once, keep the result.
           </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            href="/demo/x402"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Open demo
+          </a>
+          <Button
+            disabled={api.request.isPending}
+            onClick={() => {
+              setUrl(
+                new URL("/demo/x402/report", globalThis.location.origin).href
+              );
+              setMethod("GET");
+              setPurpose("Try the x402 demo report");
+              setError(null);
+              api.request.reset();
+            }}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Use demo report
+          </Button>
         </div>
       </div>
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

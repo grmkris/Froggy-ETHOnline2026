@@ -68,6 +68,7 @@ export const WelcomePage = (): ReactElement => {
           onContinue={() => {
             setStep(2);
           }}
+          wallet={app.wallet}
         />
       ) : null}
       {step === 2 ? (
@@ -100,6 +101,7 @@ export const WelcomePage = (): ReactElement => {
           onStop={() => {
             stopRun.stop();
           }}
+          wallet={app.wallet}
         />
       ) : null}
       {step === 4 && door === "assistant" ? (

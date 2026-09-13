@@ -1,32 +1,54 @@
-/** Historical oracle sale reads; new tool purchases use authenticated platform credits. */
+/**
+ * `GET /oracle/snapshot` — the thing we sell — and the book it is sold in.
+ *
+ * Hedera's track asks for a live x402-gated service *and* an agent that pays
+ * one. This is the first half, and it is deliberately not a toy endpoint: what
+ * it sells is the packed cross-protocol lending answer the agent would
+ * otherwise have to assemble itself, which is what makes The Graph load-bearing
+ * for the *payment* rather than a sidebar next to it.
+ *
+ * The order is proof, book, work. A payment proof is settled, then written to
+ * the sales book with its hash, then the answer is fetched. So:
+ *
+ *   - the same proof presented twice finds its sale and gets the same answer
+ *     back, without the facilitator being asked to settle it again;
+ *   - an answer that fails after the money moved is a `failed` sale with the
+ *     settlement on it, answered 502, not a 500 with a debit and no record;
+ *   - anyone holding a sale id can fetch what it bought at `/oracle/sales/:id`.
+ *
+ * Priced per query rather than per seat — the track lists metering as worth
+ * extra points, and a flat fee would not be a meter.
+ */
+
 import { SaleId } from "@froggy/domain";
 import type { Sale } from "@froggy/domain";
-import { encodeSettlementHeader, paymentFrom } from "@froggy/payments";
+import { describeCheapestBorrow, snapshotHash } from "@froggy/graph";
+import type { GraphClient } from "@froggy/graph";
+import {
+  describePayment,
+  encodeChallengeHeader,
+  encodeSettlementHeader,
+  paymentFrom,
+} from "@froggy/payments";
+import type { HcsWriter, OracleGate } from "@froggy/payments";
 import type { Store } from "@froggy/wallet";
 import { Schema } from "effect";
+
+import { detached } from "./detached";
+
+/** 0.05 HBAR in tinybars. Small enough to run the demo repeatedly. One place, so the card and the 402 cannot disagree. */
+export const PRICE_TINYBARS = "5000000";
 
 export const SALES_PATH = "/oracle/sales/";
 
 export interface OracleDeps {
+  readonly gate: OracleGate;
+  readonly graph: GraphClient;
+  readonly hcs: HcsWriter;
+  readonly now?: () => number;
   readonly publicUrl: string;
   readonly store: Pick<Store, "sales">;
 }
-
-/** New anonymous purchases are retired; old sale credentials remain readable. */
-export const retiredSaleResponse = (origin: string): Response =>
-  Response.json(
-    {
-      v: 1,
-      code: "platform_credits_required",
-      error:
-        "Sign in to Froggy and buy platform credits before requesting tools. Anonymous per-resource payments are retired.",
-      signIn: origin,
-      credits: `${origin}/wallet`,
-      mcp: `${origin}/mcp`,
-      skill: `${origin}/skill.md`,
-    },
-    { status: 410, headers: { "cache-control": "no-store" } }
-  );
 
 /**
  * What a sale delivers, as stored and as read back. Decoded on replay so a
@@ -188,17 +210,132 @@ export const handleOracleRequest = async (
   deps: OracleDeps,
   request: Request
 ): Promise<Response> => {
+  const now = deps.now ?? Date.now;
+  const url = new URL(request.url);
+  const symbol = url.searchParams.get("symbol") ?? "USDC";
+  const resource = {
+    description: `Cross-protocol ${symbol} lending snapshot, cheapest borrow first.`,
+    units: PRICE_TINYBARS,
+    url: deps.publicUrl,
+  };
+
   const payment = paymentFrom(request.headers);
-  if (payment !== null && payment.length <= 32_768) {
-    const seen = await deps.store.sales.byPaymentHash(paymentHash(payment));
-    if (
-      seen !== null &&
-      new URL(seen.resource).pathname === new URL(deps.publicUrl).pathname
-    ) {
-      return answerFromBook(seen);
-    }
+  if (payment === null) {
+    const challenge = deps.gate.challenge(resource);
+    // Body for v1 buyers, header for v2 ones; the same challenge either way.
+    return Response.json(challenge, {
+      headers: {
+        "cache-control": "no-store",
+        "payment-required": encodeChallengeHeader(challenge),
+      },
+      status: 402,
+    });
   }
-  return retiredSaleResponse(new URL(deps.publicUrl).origin);
+
+  // The book first. A proof we have seen is answered from what it bought,
+  // before the facilitator could be asked to settle it a second time.
+  const hash = paymentHash(payment);
+  const seen = await deps.store.sales.byPaymentHash(hash);
+  if (seen !== null) {
+    return answerFromBook(seen);
+  }
+
+  const [requirements] = deps.gate.challenge(resource).accepts;
+  if (requirements === undefined) {
+    return Response.json(
+      { error: "No payment requirements." },
+      { status: 500 }
+    );
+  }
+
+  const settled = await deps.gate.settle(payment, requirements);
+  if (!settled.ok) {
+    // 402 again, not 400: the request was well-formed, the payment was not
+    // accepted, and a client that retries with a better payment is behaving
+    // correctly rather than repeating a mistake.
+    return Response.json(
+      { error: settled.error ?? "Payment was not settled." },
+      { status: 402 }
+    );
+  }
+
+  // The money moved. The book is written before anything else can fail.
+  const described = describePayment(payment);
+  const recorded = await deps.store.sales.record({
+    amount: requirements.amount,
+    asset: requirements.asset,
+    at: now(),
+    deliveredAt: null,
+    error: null,
+    id: SaleId.generate(),
+    network: requirements.network,
+    payer: described.payer,
+    paymentHash: hash,
+    resource: `${deps.publicUrl}?symbol=${symbol}`,
+    result: null,
+    status: "settled",
+    stubbed: settled.stubbed,
+    transactionId: settled.transactionId,
+  });
+  if (!recorded.created) {
+    // Lost a race with the same proof arriving twice within one settlement.
+    return answerFromBook(recorded.sale);
+  }
+  const { sale } = recorded;
+
+  if (sale.transactionId !== null) {
+    // The public note. Not awaited: the buyer paid and is owed an answer now;
+    // the note is for whoever audits later.
+    const { transactionId } = sale;
+    detached("hcs sale note", async () => {
+      await deps.hcs.record({
+        amount: requirements.amount,
+        asset: requirements.asset,
+        at: now(),
+        kind: "sold",
+        network: requirements.network,
+        ref: sale.id,
+        transactionId,
+      });
+    });
+  }
+
+  // Queried *after* settlement so the buyer pays for a fresh answer rather than
+  // one that was assembled before they committed to buying it — and inside a
+  // catch, because a fetch that fails now has already been paid for.
+  try {
+    const snapshot = await deps.graph.lendingMarkets(symbol);
+    const result: OracleAnswer = {
+      answer: describeCheapestBorrow(snapshot),
+      capturedAt: snapshot.capturedAt,
+      markets: snapshot.markets,
+      snapshotHash: snapshotHash(snapshot),
+      source: snapshot.source,
+      stubbed: snapshot.stubbed || settled.stubbed,
+    };
+    await deps.store.sales.update(sale.id, {
+      deliveredAt: now(),
+      result,
+      status: "delivered",
+    });
+    return Response.json(
+      { ...result, saleId: sale.id },
+      { headers: settlementHeaders(sale) }
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "the answer could not be assembled";
+    await deps.store.sales.update(sale.id, {
+      error: message,
+      status: "failed",
+    });
+    return Response.json(
+      { error: message, saleId: sale.id, settled: true },
+      { headers: settlementHeaders(sale), status: 502 }
+    );
+  }
 };
 
 /** `GET /oracle/sales/:id`: what a sale bought. The id is the credential. */

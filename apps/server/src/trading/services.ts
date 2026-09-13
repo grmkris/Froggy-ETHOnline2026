@@ -1,5 +1,5 @@
-import { creditUnits, EvmAddress, usdMicros } from "@froggy/domain";
 import type { UserId, AgentConnectionId, TaskId } from "@froggy/domain";
+import { EvmAddress, usdMicros } from "@froggy/domain";
 import {
   LaunchWatchRequest,
   LaunchWatchTicket,
@@ -7,7 +7,6 @@ import {
   RpcReadRequest,
   SwapQuoteRequest,
   TokenInspectRequest,
-  TokenSnapshotRequest,
   TokenResearchRequest,
 } from "@froggy/protocol";
 import type {
@@ -16,7 +15,6 @@ import type {
   ServiceResult,
   TradingResult,
   TradingServiceRequest,
-  TradingServiceName,
 } from "@froggy/protocol";
 import { Schema } from "effect";
 
@@ -78,15 +76,6 @@ export const TRADING_TOOL_DEFINITIONS = [
     schema: TokenInspectRequest,
   },
   {
-    name: "token_snapshot",
-    title: "Token price and history",
-    description:
-      "A market snapshot with 24-hour and 7-day closing prices. Missing history stays visible. Retrieval is included.",
-    provider: "Birdeye",
-    mode: "birdeye",
-    schema: TokenSnapshotRequest,
-  },
-  {
     name: "rpc_read",
     title: "Read chain state",
     description:
@@ -122,12 +111,6 @@ const DEMO_RPC_NETWORKS = [
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 ] as const;
 
-const withinSnapshotPrice = (
-  name: TradingServiceName,
-  price: number | undefined
-): boolean =>
-  name !== "token_snapshot" || price === undefined || price <= 1_000_000;
-
 export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
   const { environment } = services;
   return TRADING_TOOL_DEFINITIONS.map((definition) => {
@@ -135,10 +118,11 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
       definition.name === "watch_launches"
         ? services.launches.networks(true).length > 0
         : environment.modes[definition.mode] === "live";
+    const paymentLive = environment.modes.hedera === "live";
     const price = environment.trading.prices[definition.name];
     let networks: readonly string[] = BIRDEYE_NETWORKS;
     if (definition.name === "watch_launches") {
-      networks = services.launches.networks(providerLive);
+      networks = services.launches.networks(paymentLive);
     } else if (definition.name === "quote_action") {
       networks = environment.trading.uniswapChains
         .filter(supportsUniswapChain)
@@ -154,33 +138,28 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
           )
         : ["eip155:4663", "eip155:8453", "eip155:1"];
     }
-    if (definition.name === "token_snapshot") {
-      networks = networks.filter(
-        (network) => network === "eip155:8453" || network === "eip155:4663"
-      );
-    }
     const available =
       networks.length > 0 &&
-      (!providerLive || price !== undefined) &&
-      withinSnapshotPrice(definition.name, price);
+      (!paymentLive || (providerLive && price !== undefined));
     let note =
       "Provider credentials and an explicit service price are required before a live purchase.";
     let status: ServiceCard["status"] = "unavailable";
-    if (available && providerLive) {
+    if (available && paymentLive) {
       status = "configured";
       note =
         "One paid request; result retrieval is included. Trading capital is not spent.";
     } else if (available) {
       status = "demo";
-      note = "Demo fixture using simulated credits. No live provider call.";
+      note = providerLive
+        ? "Payment is simulated. This operation calls the configured live provider."
+        : "Demo fixture and simulated payment. No live provider call.";
     }
     return {
       name: definition.name,
       title: definition.title,
       description: definition.description,
       provider: definition.provider,
-      priceUsdMicros: usdMicros(price ?? (providerLive ? 0 : 10_000)),
-      priceCreditUnits: creditUnits(price ?? (providerLive ? 0 : 10_000)),
+      priceUsdMicros: usdMicros(price ?? (paymentLive ? 0 : 10_000)),
       maxInput: 16_000,
       status,
       note,
@@ -226,7 +205,6 @@ export const preflightTrading = (
       }
       break;
     }
-    case "token_snapshot":
     case "token_inspect": {
       const evm = request.input.network.startsWith("eip155:");
       if (evm !== Schema.is(EvmAddress)(request.input.address)) {
@@ -272,7 +250,6 @@ export const serviceRequestText = (request: ServiceRequest): string => {
     case "market_search": {
       return `${request.input.query ?? "Recent listings"} · ${input.network} · up to ${request.input.limit} tokens`;
     }
-    case "token_snapshot":
     case "token_inspect": {
       return `${request.input.address} · ${input.network}`;
     }
@@ -296,9 +273,6 @@ const resultText = (data: TradingResult): string => {
     }
     case "market_search": {
       return `${data.tokens.length} token results on ${data.network}. ${data.tokens.map((token) => `${token.symbol ?? token.name ?? "Unnamed"}: ${token.address}`).join("\n")}`;
-    }
-    case "token_snapshot": {
-      return `Token snapshot on ${data.network}. ${data.series.filter((series) => series.status === "observed").length} of 2 history windows available. Historical closes are in USD; gaps are not filled.`;
     }
     case "token_inspect": {
       return `${data.token.symbol ?? data.token.name ?? data.token.address} on ${data.network}. Price: ${data.token.priceUsd === null ? "unknown" : `$${data.token.priceUsd}`}. Security: ${data.security.status}; missing facts are unknown.`;
@@ -353,10 +327,6 @@ export const runTradingService = async (
       data = await services.trading.market.search(request.input);
       break;
     }
-    case "token_snapshot": {
-      data = await services.trading.market.snapshot(request.input);
-      break;
-    }
     case "token_inspect": {
       data = await services.trading.market.inspect(request.input);
       break;
@@ -395,7 +365,7 @@ export const runTradingService = async (
   return {
     v: 1,
     service: request.service,
-    stubbed: data.stubbed || context?.paymentStubbed === true,
+    stubbed: data.stubbed || services.environment.modes.hedera === "stub",
     text: `${data.stubbed ? "DEMO — recorded fixture. " : ""}${resultText(data)}\n${data.limitations.join(" ")}`.slice(
       0,
       6000

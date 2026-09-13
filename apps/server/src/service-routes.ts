@@ -69,23 +69,6 @@ export const handleServices = async (
               await boundedBytes(new Response(request.body), 16_000)
             )
           );
-          const version = Schema.decodeUnknownResult(
-            Schema.Struct({ v: Schema.Literal(2) })
-          )(input);
-          if (
-            version._tag === "Failure" ||
-            request.headers.has("payment-signature") ||
-            request.headers.has("x-payment")
-          ) {
-            return json(
-              {
-                v: 1,
-                error:
-                  "Upgrade this client. Froggy services now use prepaid credits; no payment was accepted.",
-              },
-              426
-            );
-          }
           const decoded = Schema.decodeUnknownSync(ServiceRequest)(input);
           invocation.name = decoded.service;
           const ticket = await purchaseService(

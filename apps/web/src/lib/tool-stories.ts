@@ -117,11 +117,6 @@ const STORIES = {
       `Tried to send ${amount(input)} to ${shortAddress(input.to ?? null)}`,
     tone: "money",
   },
-  credits_balance: {
-    icon: WalletIcon,
-    sentence: () => "Checked your credits",
-    tone: "plain",
-  },
   wallet_status: {
     icon: WalletIcon,
     sentence: () => "Checked the wallet",

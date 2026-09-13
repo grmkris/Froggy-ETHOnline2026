@@ -83,18 +83,26 @@ test("the welcome runs through its four steps and lands on Home", async ({
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Set your credit limits." })
+    page.getByRole("heading", { name: "How much may Froggy spend?" })
   ).toBeVisible();
-  await expect(page.getByLabel("Most per task (credits)")).toHaveValue("200");
-  await expect(page.getByLabel("Most in 24 hours (credits)")).toHaveValue(
-    "1000"
+  await Promise.all(
+    ["$1.00", "$2.00", "$10.00", "30 days"].map(async (value) => {
+      await expect(page.getByText(value, { exact: true })).toBeVisible();
+    })
   );
+  // A local identity has nothing for Privy to hold, so there is no grant to ask for.
   await expect(
     page.getByRole("button", { name: "Let Froggy pay under these rules" })
   ).toHaveCount(0);
   await expect(
-    page.getByText("You start with zero credits.", { exact: false })
+    page.getByText("Froggy can look but not pay here.")
   ).toBeVisible();
+  await expect(
+    page.getByText("Froggy’s engine and Privy both enforce these numbers.")
+  ).toBeVisible();
+  await expect(
+    page.getByText(/\bleash\b|\bpocket\b|\ballowance\b|\btop-up\b/iu)
+  ).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("welcome-2.png") });
   await page.getByRole("button", { name: "Back" }).click();
   await expect(
@@ -124,9 +132,9 @@ test("the welcome runs through its four steps and lands on Home", async ({
   );
   await expect(page.getByText("Every day at 8 AM")).toBeVisible();
   await expect(
-    page.getByText("200 credits per task · 1,000 credits in 24 hours")
+    page.getByText("Not granted. Froggy cannot pay yet.")
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Buy credits" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add funds" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("welcome-4.png") });
   await page.getByRole("button", { name: "Finish" }).click();
 
@@ -156,7 +164,7 @@ for (const viewport of [
     ).toBeVisible();
     expect(await fits()).toBe(true);
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByLabel("Most per task (credits)")).toBeVisible();
+    await expect(page.getByText("30 days", { exact: true })).toBeVisible();
     expect(await fits()).toBe(true);
     await page.screenshot({
       fullPage: true,

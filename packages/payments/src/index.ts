@@ -1,13 +1,3 @@
-export {
-  creditEvmAuthorization,
-  creditEvmPayer,
-  evmCreditSettlement,
-} from "./credit-evm";
-export type {
-  CreditEvmSubmission,
-  CreditSettlement,
-  EvmCreditSettlement,
-} from "./credit-evm";
 export { liveOracleGate, STUB_PAY_TO, stubOracleGate } from "./oracle";
 export type { LiveOracleOptions } from "./oracle";
 export {

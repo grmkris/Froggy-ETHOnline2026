@@ -193,7 +193,7 @@ describe("lookupAddress", () => {
       usdc: { decimals: 6, units: "12500000" },
       token: null,
     });
-    expect(row?.note).toContain("holds USDC");
+    expect(row?.note).toContain("wallet");
     // Every read on the row is pinned to the block the row reports.
     for (const { call } of calls) {
       if (call.method === "eth_getCode" || call.method === "eth_getBalance") {

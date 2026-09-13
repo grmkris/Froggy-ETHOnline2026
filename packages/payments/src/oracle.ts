@@ -193,7 +193,6 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
       body: JSON.stringify(body),
       headers: { "content-type": "application/json" },
       method: "POST",
-      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
       throw new Error(
@@ -224,9 +223,7 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
     payTo: options.payTo,
     refresh: async () => {
       try {
-        const response = await fetch(`${options.facilitatorUrl}/supported`, {
-          signal: AbortSignal.timeout(8000),
-        });
+        const response = await fetch(`${options.facilitatorUrl}/supported`);
         if (!response.ok) {
           return false;
         }
@@ -249,7 +246,6 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
       if (paymentPayload === null) {
         return {
           error: "X-PAYMENT was not base64-encoded JSON.",
-          rejectedBeforeSubmission: true,
           ok: false,
           stubbed: false,
           transactionId: null,
@@ -267,7 +263,6 @@ export const liveOracleGate = (options: LiveOracleOptions): OracleGate => {
             verified.invalidMessage ??
             verified.invalidReason ??
             "Payment rejected.",
-          rejectedBeforeSubmission: true,
           ok: false,
           stubbed: false,
           transactionId: null,
@@ -320,7 +315,6 @@ export const stubOracleGate = (): OracleGate => ({
     if (decodeHeader(paymentHeader) === null) {
       return {
         error: "X-PAYMENT was not base64-encoded JSON.",
-        rejectedBeforeSubmission: true,
         ok: false,
         stubbed: true,
         transactionId: null,

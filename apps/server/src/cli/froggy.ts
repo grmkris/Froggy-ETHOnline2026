@@ -4,8 +4,10 @@
  *
  * Built for Node 20 and Bun alike, because it runs in whatever sandbox a
  * personal agent has: Hermes' Docker terminal, a Claude Code shell, a laptop.
- * Each authenticated task reserves prepaid credits and returns a durable id.
- * The owner buys credits in Froggy using x402; the agent never holds a key.
+ * It is a real x402 client whose signer is the person's Froggy wallet: the 402
+ * comes back, the wallet endpoint signs a header under the person's mandate,
+ * the request is retried with it, and the task id that comes back is polled
+ * until the task ends. The agent never holds a key.
  *
  * It signs in the way an MCP client does: `login` sends the person to
  * Froggy's consent page in their browser (or prints the link, with
@@ -14,7 +16,8 @@
  * refreshing them before they expire. `FROGGY_TOKEN` still works for an
  * unattended agent with a token the person minted.
  *
- * The server enforces credit limits. A refusal is printed as returned.
+ * Nothing here decides money. A refusal from the wallet is printed in the
+ * wallet's words and the command exits non-zero.
  */
 
 import { spawn } from "node:child_process";
@@ -40,13 +43,12 @@ const Task = Schema.Struct({
   kind: Schema.String,
   result: Schema.NullOr(Schema.Unknown),
   saleId: Schema.NullOr(Schema.String),
-  chargeId: Schema.optional(Schema.String),
-  chargeStatus: Schema.optional(Schema.String),
-  priceCreditUnits: Schema.optional(Schema.Int),
   status: Schema.String,
 });
 type Task = typeof Task.Type;
 const TaskEnvelope = Schema.Struct({ task: Task });
+const Signed = Schema.Struct({ header: Schema.String });
+const Refusal = Schema.Struct({ error: Schema.String });
 
 /** What a login leaves behind. Never printed. */
 const Credentials = Schema.Struct({
@@ -79,6 +81,8 @@ const OAuthError = Schema.Struct({
 });
 
 const decodeTask = Schema.decodeUnknownResult(TaskEnvelope);
+const decodeSigned = Schema.decodeUnknownResult(Signed);
+const decodeRefusal = Schema.decodeUnknownResult(Refusal);
 const decodeCredentials = Schema.decodeUnknownResult(Credentials);
 const decodeMetadata = Schema.decodeUnknownResult(Metadata);
 const decodeRegistered = Schema.decodeUnknownResult(Registered);
@@ -129,8 +133,7 @@ const usage = `froggy — let Froggy do a paid task for you
   froggy ask "<instruction>"     a browse on the person's own Chrome, under their mandate
   froggy status <task id>        where a task is, its result and its receipts
   froggy tasks                   recent tasks
-  froggy credits                 available balance and credit limits
-  froggy services                service catalog and credit prices
+  froggy services                service catalog and prices
   froggy service <name> "<text>"   buy a service (returns a ticket)
   froggy service-status <id>      read a service result
   froggy mcp                     MCP stdio bridge for agent clients
@@ -145,9 +148,9 @@ same request). Login accepts --all-tools to request every supported permission,
 or --scopes="browse pay email:read" for a smaller set. Both use the person's
 consent screen; neither changes spending limits or existing grants.
 
-Paid tasks use Froggy credits: 100 credits = $1. The owner buys credits with
-USDC or HBAR in Your money. Failed or canceled work returns reserved credits;
-uncertain execution holds credits until recovery confirms the outcome.`;
+A task is paid in HBAR from the person's Froggy wallet before it runs; the
+receipt and the sale id come back with the task. If the wallet refuses, the
+refusal is printed in the wallet's words and nothing is charged.`;
 
 const fail = (message: string): never => {
   console.error(message);
@@ -680,19 +683,50 @@ const taskOf = async (response: Response): Promise<Task> => {
   return decoded.success.task;
 };
 
-/** One authenticated request reserves credits; reusing the key returns the same task. */
+/** POST the task, pay the 402 with the person's wallet, POST again. */
 const submit = async (
   options: Options,
   body: Record<string, string>
 ): Promise<Task> => {
-  const response = await api(options, "/api/tasks", {
-    body: JSON.stringify({ ...body, v: 2, idempotencyKey: options.requestKey }),
+  const idempotencyKey = options.requestKey;
+  const first = await api(options, "/api/tasks", {
+    body: JSON.stringify({ ...body, idempotencyKey }),
     method: "POST",
   });
-  if (!response.ok) {
-    return fail(`Froggy answered ${response.status}: ${await response.text()}`);
+  if (first.status !== 402) {
+    if (!first.ok) {
+      return fail(`Froggy answered ${first.status}: ${await first.text()}`);
+    }
+    return await taskOf(first);
   }
-  return await taskOf(response);
+  const challenge: unknown = await first.json();
+  const signed = await api(options, "/api/wallet/pay", {
+    body: JSON.stringify({ challenge }),
+    method: "POST",
+  });
+  const signedBody: unknown = await signed.json();
+  if (!signed.ok) {
+    // The wallet's refusal in its own words when the body carries one.
+    const refusal = decodeRefusal(signedBody);
+    const reason =
+      refusal._tag === "Failure"
+        ? `status ${signed.status}`
+        : refusal.success.error;
+    return fail(`The wallet did not pay: ${reason}`);
+  }
+  const header = decodeSigned(signedBody);
+  if (header._tag === "Failure") {
+    return fail("The wallet answered without a payment header.");
+  }
+  const paid = await api(options, "/api/tasks", {
+    body: JSON.stringify({ ...body, idempotencyKey }),
+    headers: { "x-payment": header.success.header },
+    method: "POST",
+  });
+  if (!paid.ok) {
+    return fail(`Froggy did not accept the payment: ${await paid.text()}`);
+  }
+  return await taskOf(paid);
 };
 
 const show = (task: Task, options: Options): void => {
@@ -712,11 +746,6 @@ const show = (task: Task, options: Options): void => {
   }
   if (task.status === "done" && task.result !== null) {
     console.log(JSON.stringify(task.result, null, 2));
-  }
-  if (task.chargeId !== undefined) {
-    console.log(
-      `  credits ${(task.priceCreditUnits ?? 0) / 10_000}: ${task.chargeStatus ?? "reserved"} (${task.chargeId})`
-    );
   }
   if (task.saleId !== null) {
     console.log(`  sale ${task.saleId}`);
@@ -785,14 +814,6 @@ const serviceCommand = async (
       }
       return true;
     }
-    case "credits": {
-      const response = await api(options, "/api/credits");
-      console.log(await response.text());
-      if (!response.ok) {
-        process.exitCode = 1;
-      }
-      return true;
-    }
     case "services": {
       const response = await api(options, "/api/services");
       console.log(await response.text());
@@ -806,7 +827,7 @@ const serviceCommand = async (
       const response = await api(options, "/api/services/run", {
         method: "POST",
         body: JSON.stringify({
-          v: 2,
+          v: 1,
           service,
           prompt: words.join(" "),
           idempotencyKey: options.requestKey,

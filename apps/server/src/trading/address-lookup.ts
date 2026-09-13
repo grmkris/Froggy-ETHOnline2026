@@ -28,7 +28,6 @@ import type { WorkspaceSession } from "../session";
 import type { TradingRpc } from "./rpc";
 
 const ERC20 = parseAbi([
-  "function name() view returns (string)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
   "function totalSupply() view returns (uint256)",
@@ -142,21 +141,19 @@ const readErc20 = async (
   reader: Reader
 ): Promise<NonNullable<AddressLookupNetwork["token"]>> => {
   const probe = async (
-    functionName: "name" | "symbol" | "decimals" | "totalSupply"
+    functionName: "symbol" | "decimals" | "totalSupply"
   ): Promise<Hex | null> =>
     await reader.call(
       reader.address,
       encodeFunctionData({ abi: ERC20, functionName })
     );
-  const [name, symbol, decimals, totalSupply] = await Promise.all([
-    probe("name"),
+  const [symbol, decimals, totalSupply] = await Promise.all([
     probe("symbol"),
     probe("decimals"),
     probe("totalSupply"),
   ]);
   const decimalsValue = decimals === null ? null : decodeUint(decimals);
   return {
-    name: name === null ? null : decodeString(name),
     symbol: symbol === null ? null : decodeString(symbol),
     decimals:
       decimalsValue === null || decimalsValue > 255n
@@ -180,8 +177,8 @@ const describe = (
   return row.nativeBalance === "0" &&
     row.usdc !== null &&
     row.usdc.units !== "0"
-    ? "No contract code. This address holds USDC but no native gas token."
-    : "No contract code observed. This does not establish wallet ownership or activity.";
+    ? "No contract code: a wallet, holding USDC but no gas."
+    : "No contract code: a wallet (externally owned account), not a token.";
 };
 
 export const lookupAddress = async (

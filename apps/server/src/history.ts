@@ -26,46 +26,17 @@ const ARTIFACT_CAP = 65_536;
 export const decodeHistoryJson = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Json)
 );
-const redactCardText = (text: string): string =>
-  text.replaceAll(
-    /(?<![a-zA-Z0-9])(?:[0-9][ -]?){12,18}[0-9](?![a-zA-Z0-9])/gu,
-    (candidate) => {
-      const digits = candidate.replaceAll(/[ -]/gu, "");
-      let sum = 0;
-      for (let index = 0; index < digits.length; index += 1) {
-        const digit = Number(digits[index]);
-        const doubled = (digits.length - index) % 2 === 0 ? digit * 2 : digit;
-        sum += doubled > 9 ? doubled - 9 : doubled;
-      }
-      return sum % 10 === 0 ? "[card number redacted]" : candidate;
-    }
-  );
-const redactCardOutput = (value: Schema.Json): Schema.Json => {
-  if (Schema.is(Schema.String)(value)) {
-    return redactCardText(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(redactCardOutput);
-  }
-  if (!Schema.is(Schema.Record(Schema.String, Schema.Json))(value)) {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, redactCardOutput(item)])
-  );
-};
 export const historyPreview = (value: Schema.Json, limit = PREVIEW_CAP) => {
   const text: string = Schema.is(Schema.String)(value)
     ? value
     : JSON.stringify(value);
-  const safe = redactCardText(text);
-  const bytes = new TextEncoder().encode(safe);
+  const bytes = new TextEncoder().encode(text);
   return {
     text: new TextDecoder().decode(bytes.subarray(0, limit), {
       stream: bytes.length > limit,
     }),
     truncated: bytes.length > limit,
-    redacted: safe !== text,
+    redacted: false,
   };
 };
 interface SavedParts {
@@ -535,11 +506,8 @@ export const executeHistoryTool = async ({
     await tx.save(execution, 0);
   });
   let output: Schema.Json;
-  let cardRedacted = false;
   try {
-    const raw = await action();
-    output = name.startsWith("browser_") ? redactCardOutput(raw) : raw;
-    cardRedacted = !Bun.deepEquals(raw, output, true);
+    output = await action();
   } catch (error) {
     await store.transaction(userId, async (tx) => {
       assertHistoryLease(tx, run);
@@ -602,7 +570,7 @@ export const executeHistoryTool = async ({
           outcome: "returned",
           result: result.text,
           truncated: result.truncated,
-          redacted: result.redacted || execution.redacted || cardRedacted,
+          redacted: result.redacted || execution.redacted,
           artifactIds: [artifactId],
           updatedAt: at,
           finishedAt: at,

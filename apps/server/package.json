@@ -15,7 +15,6 @@
     "@ai-sdk/anthropic": "4.0.49",
     "@ai-sdk/openai-compatible": "3.0.37",
     "@ai-sdk/provider": "4.0.10",
-    "@chat-adapter/shared": "4.40.0",
     "@chat-adapter/state-memory": "4.40.0",
     "@chat-adapter/state-pg": "4.40.0",
     "@chat-adapter/telegram": "4.40.0",

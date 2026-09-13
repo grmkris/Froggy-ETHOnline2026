@@ -4,7 +4,6 @@ import { Schema } from "effect";
 import { AgentToken } from "../packages/domain/src/agent-token";
 import { AgentDetail } from "../packages/protocol/src/agents";
 import { ServiceTicket, TaskDetail } from "../packages/protocol/src/services";
-import { fundCredits } from "./fund-credits";
 
 const Minted = Schema.Struct({ secret: Schema.String, token: AgentToken });
 interface ToolArguments {
@@ -93,9 +92,8 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
     data: { kind: "brief", symbol: "USDC" },
   });
   await request.post("/api/wallet/pay", { headers, data: { challenge: {} } });
-  await fundCredits(page);
   const input = {
-    v: 2,
+    v: 1,
     service: "web_search",
     prompt: "Find local fixture sources",
     idempotencyKey: `agent-history-${token.id}`,
@@ -139,7 +137,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   ).toBe(true);
   expect(
     history.invocations.some(
-      (row) => row.name === "tasks.create" && row.outcome === "upgrade_required"
+      (row) => row.name === "brief" && row.outcome === "payment_required"
     )
   ).toBe(true);
   expect(JSON.stringify(history)).not.toContain("NEVER_PERSIST_ARGUMENTS");
@@ -154,9 +152,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   await page.getByRole("button", { name: "Refresh history" }).click();
   const list = page.getByRole("region", { name: "Invocation history" });
   await expect(list.getByRole("listitem")).toHaveCount(8);
-  await expect(
-    list.getByText("1 credit used", { exact: true }).first()
-  ).toBeVisible();
+  await expect(list.getByText("$0.01 paid")).toBeVisible();
   await list.getByRole("link", { name: ticket.id }).first().click();
   await expect(
     page.getByRole("region", { name: "Selected service task" })
@@ -251,7 +247,7 @@ test("history is capped at the newest 50 calls and records HTTP service requests
   ).toHaveCount(50);
 });
 
-test("a CLI brief uses prepaid credits and links to its result", async ({
+test("a CLI brief shows signing separately from payment and links to its result", async ({
   page,
   request,
 }) => {
@@ -272,14 +268,25 @@ test("a CLI brief uses prepaid credits and links to its result", async ({
     await minted.json()
   );
   const headers = { authorization: `Bearer ${secret}` };
-  await fundCredits(page);
   const body = {
-    v: 2,
     kind: "brief",
     symbol: "USDC",
     idempotencyKey: `brief-${token.id}`,
   };
-  const paid = await request.post("/api/tasks", { headers, data: body });
+  const quoted = await request.post("/api/tasks", { headers, data: body });
+  expect(quoted.status()).toBe(402);
+  const challenge: unknown = await quoted.json();
+  const signed = await request.post("/api/wallet/pay", {
+    headers,
+    data: { challenge },
+  });
+  const proof = Schema.decodeUnknownSync(
+    Schema.Struct({ header: Schema.String })
+  )(await signed.json());
+  const paid = await request.post("/api/tasks", {
+    headers: { ...headers, "x-payment": proof.header },
+    data: body,
+  });
   expect(paid.status()).toBe(202);
   const ticket = Schema.decodeUnknownSync(TaskDetail)(await paid.json());
   const fetched = await request.get(`/api/tasks/${ticket.task.id}`, {
@@ -308,13 +315,13 @@ test("a CLI brief uses prepaid credits and links to its result", async ({
   ).toBe(true);
   await page.goto(`/agents/${token.id}`);
   const history = page.getByRole("region", { name: "Invocation history" });
-  await expect(history.getByRole("listitem")).toHaveCount(4);
+  await expect(history.getByRole("listitem")).toHaveCount(6);
+  await expect(history.getByText("$0.05 paid", { exact: true })).toBeVisible();
   await expect(
-    history.getByText("5 credits used", { exact: true })
+    history.getByText("$0.05 signed · settlement not confirmed", {
+      exact: true,
+    })
   ).toBeVisible();
-  await expect(
-    history.getByText("signed · settlement not confirmed", { exact: false })
-  ).toHaveCount(0);
   await history.getByRole("link", { name: ticket.task.id }).first().click();
   const selected = page.getByRole("region", { name: "Selected service task" });
   await expect(selected).toContainText("Lending brief");

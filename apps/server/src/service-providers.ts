@@ -1,5 +1,5 @@
 /** Fixed provider routes and budgets. No URL, model, payee or price comes from the model. */
-import { creditUnits, KNOWN_ASSETS, usdMicros } from "@froggy/domain";
+import { KNOWN_ASSETS, usdMicros } from "@froggy/domain";
 import {
   challengeFrom,
   decodeSettlementHeader,
@@ -25,18 +25,6 @@ import {
   runTradingService,
   tradingCatalog,
 } from "./trading/services";
-
-export class ProviderExecutionUncertainError extends Error {
-  override readonly name = "ProviderExecutionUncertainError";
-}
-
-export const StoredServiceJob = Schema.Struct({
-  providerJob: Schema.Struct({
-    id: Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{1,160}$/u)),
-    headers: Schema.Record(Schema.String, Schema.String),
-    transactionId: Schema.NullOr(Schema.String),
-  }),
-});
 
 const DEFINITIONS: Readonly<
   Record<
@@ -115,7 +103,7 @@ const readinessNote = (
     return "Demo fixture — no live provider call.";
   }
   if (configured) {
-    return "Configured. Each successful result uses the displayed Froggy credits.";
+    return "Configured. Payment remains subject to wallet policy and available funds.";
   }
   return name === "x_search"
     ? "X API access is not configured."
@@ -125,12 +113,7 @@ const readinessNote = (
 export const serviceCatalog = (services: Services): readonly ServiceCard[] => [
   ...Object.entries(DEFINITIONS).map(([key, definition]) => {
     const name = Schema.decodeUnknownSync(PromptName)(key);
-    const demo =
-      name === "x_search"
-        ? services.environment.modes.model === "stub" &&
-          Redacted.value(services.environment.xApiBearer).trim() === ""
-        : services.environment.modes.privy === "stub" &&
-          services.treasuryPayer === null;
+    const demo = services.environment.modes.hedera === "stub";
     const host = name === "web_search" ? "api.you.com" : "blockrun.ai";
     const configured =
       name === "x_search"
@@ -143,7 +126,6 @@ export const serviceCatalog = (services: Services): readonly ServiceCard[] => [
       description: definition.description,
       provider: definition.provider,
       priceUsdMicros: usdMicros(definition.price),
-      priceCreditUnits: creditUnits(definition.price),
       maxInput: definition.maxInput,
       status: availability(demo, configured),
       note: readinessNote(demo, configured, name),
@@ -263,14 +245,7 @@ const supplier = async (
   headers.set("payment-signature", payment["payment-signature"]);
   headers.set("x-payment", payment["x-payment"]);
   // Exactly one paid attempt. A timeout is not permission to buy again.
-  let response: Response;
-  try {
-    response = await safeFetch(url, { ...init, headers }, outbound);
-  } catch (error) {
-    throw new ProviderExecutionUncertainError(
-      `The provider payment or execution outcome is unknown${error instanceof Error ? `: ${error.message.slice(0, 300)}` : "."} Credits remain held; no automatic repurchase.`
-    );
-  }
+  const response = await safeFetch(url, { ...init, headers }, outbound);
   const settlement = decodeSettlementHeader(
     settlementHeaderFrom(response.headers)
   );
@@ -410,8 +385,8 @@ const pollImage = async (
   attempts = 90
 ): Promise<Response> => {
   if (attempts === 0) {
-    throw new ProviderExecutionUncertainError(
-      `Image job ${id} is still pending. Credits remain held; no new purchase was made.`
+    throw new Error(
+      `Image job ${id} is still pending. No new purchase was made.`
     );
   }
   await Bun.sleep(3000);
@@ -619,27 +594,7 @@ export const runServiceProvider = async (
   let { response } = bought;
   if (response.status === 202 && request.service === "image") {
     const job = await readJson(response, ImageJob);
-    if (context !== undefined) {
-      await services.store.tasks.update(context.owner, context.sourceTaskId, {
-        result: {
-          providerJob: {
-            id: job.id,
-            headers: Object.fromEntries(bought.headers),
-            transactionId: bought.transactionId,
-          },
-        },
-        updatedAt: Date.now(),
-      });
-    }
-    try {
-      response = await pollImage(job.id, bought.headers, outbound);
-    } catch (error) {
-      throw new ProviderExecutionUncertainError(
-        error instanceof Error
-          ? error.message
-          : "The image job is still pending."
-      );
-    }
+    response = await pollImage(job.id, bought.headers, outbound);
   }
   if (!response.ok || response.status === 202) {
     throw new Error(await providerFailure(response, bought));
@@ -653,41 +608,6 @@ export const runServiceProvider = async (
     {
       ...base,
       upstreamTransactionId: settlement?.transactionId ?? bought.transactionId,
-    },
-    outbound
-  );
-};
-
-/** Resume only the persisted job read; this never creates or pays for another provider job. */
-export const resumeServiceProvider = async (
-  saved: typeof StoredServiceJob.Type,
-  options: OutboundOptions = {}
-): Promise<ServiceResult> => {
-  const { providerJob: job } = saved;
-  const outbound = { ...options, maxRedirects: 0, timeoutMs: 120_000 };
-  let response: Response;
-  try {
-    response = await pollImage(job.id, new Headers(job.headers), outbound);
-  } catch (error) {
-    throw new ProviderExecutionUncertainError(
-      error instanceof Error
-        ? error.message.slice(0, 1000)
-        : "The image job remains pending."
-    );
-  }
-  if (!response.ok) {
-    throw new Error(`Image job failed (${response.status}).`);
-  }
-  return await imageResult(
-    response,
-    {
-      v: 1,
-      service: "image",
-      stubbed: false,
-      text: "",
-      sources: [],
-      artifact: null,
-      upstreamTransactionId: job.transactionId,
     },
     outbound
   );

@@ -1,20 +1,48 @@
-/** The former seller landing page now explains account credits; historical reports still replay. */
+/** A small seller whose original HTML page opens after an x402 payment. */
+import { formatAmount, SaleId } from "@froggy/domain";
 import type { Sale } from "@froggy/domain";
-import { encodeSettlementHeader, paymentFrom } from "@froggy/payments";
+import { snapshotHash } from "@froggy/graph";
+import type { GraphSnapshot, LendingMarket } from "@froggy/graph";
+import {
+  describePayment,
+  encodeChallengeHeader,
+  encodeSettlementHeader,
+  paymentFrom,
+} from "@froggy/payments";
+import type { OracleGate, SettleOutcome } from "@froggy/payments";
 import { Schema } from "effect";
 
+import { detached } from "./detached";
+import { PRICE_TINYBARS } from "./oracle-route";
 import type { Services } from "./services";
 
 export const X402_DEMO_PATH = "/demo/x402";
 export const X402_DEMO_REPORT_PATH = `${X402_DEMO_PATH}/report`;
 const MAX_HTML_BYTES = 65_536;
-type DemoServices = Pick<Services, "store">;
+const MAX_PAYMENT_HEADER = 32_768;
+const SETTLEMENT_TIMEOUT_MS = 15_000;
+
+interface DemoServices extends Pick<
+  Services,
+  "graph" | "hcs" | "oracle" | "store"
+> {
+  readonly environment: Pick<Services["environment"], "appOrigin" | "modes">;
+}
+
 const StoredReport = Schema.Struct({
   v: Schema.Literal(1),
   html: Schema.String.check(Schema.isMaxLength(MAX_HTML_BYTES)),
   stubbed: Schema.Boolean,
 });
 const decodeReport = Schema.decodeUnknownResult(StoredReport);
+const PaymentEnvelope = Schema.Struct({
+  accepted: Schema.Unknown,
+  payload: Schema.Unknown,
+  x402Version: Schema.Literal(2),
+});
+const decodePaymentEnvelope = Schema.decodeUnknownResult(
+  Schema.fromJsonString(PaymentEnvelope)
+);
 
 const escaped = (value: string, limit = 2000): string =>
   value
@@ -38,7 +66,7 @@ const CSS = `
 `;
 
 const document = (title: string, content: string): string =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escaped(title)} · Pond Observatory</title><style>${CSS}</style></head><body><main class="sheet"><header class="masthead"><a class="brand" href="${X402_DEMO_PATH}">Pond Observatory<span>Froggy field reports</span></a><a class="workspace" href="/">Back to Froggy ↗</a></header>${content}<footer><span>Froggy · platform credits</span><span>Fund once. Use credits across tools.</span></footer></main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escaped(title)} · Pond Observatory</title><style>${CSS}</style></head><body><main class="sheet"><header class="masthead"><a class="brand" href="${X402_DEMO_PATH}">Pond Observatory<span>Froggy field reports</span></a><a class="workspace" href="/">Back to Froggy ↗</a></header>${content}<footer><span>Pond Observatory · a Froggy x402 demonstration</span><span>One resource. One approved purchase.</span></footer></main></body></html>`;
 
 const htmlResponse = (
   html: string,
@@ -55,18 +83,153 @@ const htmlResponse = (
   return new Response(html, { headers, status });
 };
 
-const landing = (retired: boolean): Response =>
-  htmlResponse(
-    document(
-      "Credits for every Froggy tool",
-      `
-<section class="hero"><div><p class="eyebrow">Froggy / platform credits</p><h1>Fund once.<br><em>Let the work flow.</em></h1><p class="lede">Buy credits with USDC on Base or native HBAR through x402, then use the same balance for research, browsing, generation and monitoring.</p><div class="badges"><span class="seal">100 credits = $1</span><span class="seal">Your account · your limits</span></div>${retired ? '<p class="note">Individual report payments have retired. Sign in to use Froggy tools with credits. Existing sale records remain available.</p>' : ""}</div>
-<aside class="offer"><p class="eyebrow">One balance for your tools</p><h2>Start with<br>your next task.</h2><p>Every account starts at zero. Review a funding quote, choose USDC or HBAR, and confirm the purchase yourself.</p><hr class="rule"><a class="button" href="/wallet">Sign in and buy credits →</a><p class="quiet">Credits are internal and nontransferable. Your cryptocurrency balances remain separate.</p></aside></section>
-<section class="steps" aria-label="How credits work"><article><span class="step-number">01 / FUND</span><h3>Choose your currency</h3><p>x402 confirms your USDC or HBAR payment before credits reach your account. Your agent cannot buy credits or change spending limits.</p></article><article><span class="step-number">02 / USE</span><h3>Approve the work</h3><p>Review the catalog price. Froggy reserves that many credits when your tool task starts, within your per-task and daily limits.</p></article><article><span class="step-number">03 / FOLLOW</span><h3>Keep the result and receipt</h3><p>Successful tasks use their reservation. Failed or cancelled tasks release it. An uncertain outcome stays reserved while Froggy reconciles it.</p></article></section>
-<section class="try"><article><h2>Use your own agent</h2><p>Connect over MCP and sign in with your Froggy account. The agent can use your existing credits within the scopes you allow.</p><a href="/skill.md">Read the connection instructions ↗</a></article><article><h2>See what is available</h2><p>Research, browser tasks and other Froggy services share the same balance. Availability and prices are shown before you start.</p><a href="/services">Explore tools ↗</a></article></section>`
-    ),
-    retired ? 410 : 200
+const paymentBadge = (stubbed: boolean): string =>
+  stubbed
+    ? '<span class="seal stub">STUB · simulated payment</span>'
+    : '<span class="seal live">Live Hedera payment</span>';
+
+/**
+ * The price as the offer states it, in whatever asset the offer is in.
+ *
+ * Known assets get their decimals and symbol; anything else keeps its base
+ * units rather than being rendered with a decimal point it has not earned.
+ */
+const priceLabel = (
+  offer:
+    | {
+        readonly amount: string;
+        readonly asset: string;
+        readonly network: string;
+      }
+    | undefined
+): string => {
+  if (offer === undefined) {
+    return `${Number(PRICE_TINYBARS) / 100_000_000} HBAR`;
+  }
+  return formatAmount(offer.amount, offer.asset, offer.network);
+};
+
+const challengeFor = (services: DemoServices) => {
+  const issued = services.oracle.challenge({
+    description:
+      "Pond Observatory USDC lending report: market rates, liquidity and index provenance.",
+    units: PRICE_TINYBARS,
+    url: new URL(
+      X402_DEMO_REPORT_PATH,
+      services.environment.appOrigin
+    ).toString(),
+  });
+  return {
+    ...issued,
+    resource: {
+      ...issued.resource,
+      mimeType: "text/html",
+      serviceName: "Pond Observatory",
+    },
+  };
+};
+
+const landing = (services: DemoServices, locked: boolean): Response => {
+  const challenge = challengeFor(services);
+  const [offer] = challenge.accepts;
+  const { url } = challenge.resource;
+  const paymentStubbed = services.oracle.mode === "stub";
+  // Read from the offer rather than divided by a constant: when HEDERA_ASSET
+  // prices this in a token, `/ 100_000_000` and the word HBAR are both wrong,
+  // and a page that advertises a price the 402 does not ask for is the one
+  // thing the card and the challenge were built from one source to prevent.
+  const price = priceLabel(offer);
+  const network = offer?.network ?? services.environment.modes.hedera;
+  const prompt = `Open ${url} in the shared browser and buy the USDC lending report for at most $0.05. Ask me to approve the purchase, then explain the result.`;
+  // The door needs no Froggy account, so it is the only one of the three
+  // routes below that a stranger can take without us doing anything first.
+  const doorInstall = [
+    `curl -fsSL ${services.environment.appOrigin}/froggy-mcp.mjs -o froggy-mcp.mjs`,
+    "claude mcp add froggy \\",
+    "  -e FROGGY_HEDERA_ACCOUNT_ID=0.0.your-account \\",
+    "  -e FROGGY_HEDERA_PRIVATE_KEY=0xyour-ecdsa-key \\",
+    "  -- node ./froggy-mcp.mjs",
+  ].join("\n");
+  const example = JSON.stringify(
+    {
+      url,
+      method: "GET",
+      purpose: "Read the USDC lending report",
+      idempotencyKey: "pond-report-1",
+      maxUsdMicros: 50_000,
+    },
+    null,
+    2
   );
+  const headers = new Headers({ "x-froggy-stubbed": String(paymentStubbed) });
+  if (locked) {
+    headers.set("payment-required", encodeChallengeHeader(challenge));
+  }
+  return htmlResponse(
+    document(
+      locked ? "Payment required" : "USDC field report",
+      `
+<section class="hero"><div><p class="eyebrow">Field report 01 / USDC lending</p><h1>A lending report,<br><em>one request away.</em></h1><p class="lede">Compare USDC borrowing and supply rates across lending markets. Open the report in Froggy, approve the purchase, and watch this page become your report.</p><div class="badges">${paymentBadge(paymentStubbed)}<span class="seal">The Graph · market data</span></div>${locked ? '<p class="note">Payment required. Froggy can detect this page and bring you an approval request. Approving opens the report here.</p>' : ""}</div>
+<aside class="offer" aria-label="Report price"><p class="eyebrow">Inside the report</p><h2>Where USDC<br>meets the market.</h2><p>Borrow and supply comparisons, market liquidity, and the exact indexes behind every observation.</p><p class="price">${escaped(price)} <small>/ report</small></p><p class="quiet">${escaped(network)} · one exact payment</p><hr class="rule"><a class="button" href="${X402_DEMO_REPORT_PATH}">${locked ? "Check the paid report" : "Open the paid report"} →</a><p class="quiet">${paymentStubbed ? "No real charge in this deployment. Payment and receipt are explicitly marked STUB." : "This deployment uses real Hedera settlement. Froggy shows the quote and spending permission before sending payment."}</p></aside></section>
+<section class="steps" aria-label="How the purchase works"><article><span class="step-number">01 / DISCOVER</span><h3>Open a paid resource</h3><p>The report answers with an HTTP 402 and its exact price, recipient and network.</p></article><article><span class="step-number">02 / APPROVE</span><h3>Keep the decision yours</h3><p>Froggy asks for permission when this purchase has no matching grant. Pay once approves this exact request.</p></article><article><span class="step-number">03 / RECEIVE</span><h3>Read it where you opened it</h3><p>The report loads in the same Chrome tab. Your purchase and settlement stay in Froggy.</p></article></section>
+<section class="try"><article><h2>Try it in Froggy</h2><p>Select and copy this prompt into the chat. Open the demo inside the shared browser to exercise detection.</p><textarea readonly aria-label="Froggy chat prompt">${escaped(prompt, 8192)}</textarea></article><article><h2>Try it from Claude Code</h2><p>With Froggy connected over MCP, call <code>froggy_x402_request</code> with these arguments.</p><details><summary>Show the MCP request</summary><pre>${escaped(example, 12_000)}</pre><p>Approve the ticket in Froggy. Retrieve it with <code>froggy_x402_status</code> and <code>{"purchaseId":"the returned id"}</code>. Keep the same idempotency key when retrying.</p></details></article></section>
+<section class="try" id="for-agents"><article><h2>For agents · no account needed</h2><p>Install the door and your own agent buys this from your own Hedera account. There is no signup, no API key and no subscription: the price comes from the 402 above, and the payment is a transfer you sign. The facilitator pays the network fee, so you need no HBAR for gas — only the ${escaped(price)}.</p><pre>${escaped(doorInstall, 2000)}</pre><p class="quiet">Your key stays in your environment. Nothing here holds it, and nothing here opens an account for you.</p></article><article><h2>Three tools, and no fourth</h2><p><code>froggy_catalogue</code> lists what is for sale and costs nothing. <code>froggy_buy</code> pays for one of them. <code>froggy_receipt</code> takes any settlement id and answers whether it really happened — the transfer as the ledger recorded it, and the matching public note on the consensus topic.</p><p>The last one works for settlements you did not make, including ours. Nothing in this demonstration has to be taken on our word.</p></article></section>`
+    ),
+    locked ? 402 : 200,
+    headers
+  );
+};
+
+const dollars = (amount: number): string =>
+  new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 1,
+  }).format(amount);
+const apr = (amount: number): string => `${amount.toFixed(2)}%`;
+
+const marketRow = (market: LendingMarket, index: number): string =>
+  `<tr><td><strong>${escaped(market.name, 120)}</strong><small>${escaped(market.chain, 40)} · ${escaped(market.protocol, 60)}</small></td><td class="number ${index === 0 ? "low" : ""}">${apr(market.borrowApr)}</td><td class="number">${apr(market.supplyApr)}</td><td class="number">${dollars(market.totalSupplyUsd)}</td><td class="number">${dollars(market.totalBorrowUsd)}</td><td class="number">${market.blockNumber}</td></tr>`;
+
+const report = (
+  services: DemoServices,
+  sale: Sale,
+  snapshot: GraphSnapshot
+): string => {
+  const markets = snapshot.markets
+    .slice(0, 24)
+    .toSorted((a, b) => a.borrowApr - b.borrowApr);
+  const [borrow] = markets;
+  const [supply] = [...markets].toSorted((a, b) => b.supplyApr - a.supplyApr);
+  if (borrow === undefined || supply === undefined) {
+    throw new Error("No usable USDC markets were returned.");
+  }
+  const dataStubbed =
+    snapshot.stubbed || services.environment.modes.graph === "stub";
+  const paymentStubbed = sale.stubbed || services.oracle.mode === "stub";
+  const fresh = snapshot.deployments.filter(
+    (entry) => entry.status === "fresh"
+  ).length;
+  const captured = new Date(snapshot.capturedAt).toISOString();
+  const indexes = snapshot.deployments
+    .slice(0, 12)
+    .map(
+      (entry) =>
+        `<li><strong>${escaped(entry.label, 100)}</strong>${escaped(entry.chain, 40)} · ${escaped(entry.status, 30)}<small>${entry.blockNumber === null ? "No indexed block" : `Block ${entry.blockNumber}`} · ${entry.marketCount} markets</small>${entry.note === null ? "" : `<small>${escaped(entry.note, 240)}</small>`}</li>`
+    )
+    .join("");
+  return document(
+    "Your USDC lending report",
+    `
+<header class="report-header"><p class="eyebrow">Field report 01 / purchase complete</p><h1 class="report-title">USDC, across<br>the lending landscape.</h1><p class="report-deck">A point-in-time comparison of borrowing rates, supply rates and liquidity, with the index behind each observation.</p><div class="badges">${paymentBadge(paymentStubbed)}${dataStubbed ? '<span class="seal stub">STUB · recorded Graph fixture</span>' : '<span class="seal live">Live Graph observations</span>'}<span class="seal">${escaped(captured)}</span></div></header>
+${dataStubbed || paymentStubbed ? `<p class="note stub"><strong>STUB demonstration.</strong> ${paymentStubbed ? "No real payment was made. " : "The payment was real. "}${dataStubbed ? "These market observations are a recorded fixture, not current rates." : "Market observations come from the live Graph integration."}</p>` : '<p class="note">Payment settled. This report is stored against the sale, so presenting the same proof retrieves the same report without another settlement.</p>'}
+<section class="stats" aria-label="Market observations"><article class="stat"><p class="eyebrow">Lowest observed borrow</p><strong>${apr(borrow.borrowApr)}</strong><small>${escaped(borrow.name, 120)} · ${escaped(borrow.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Highest observed supply</p><strong>${apr(supply.supplyApr)}</strong><small>${escaped(supply.name, 120)} · ${escaped(supply.chain, 40)}</small></article><article class="stat"><p class="eyebrow">Markets compared</p><strong>${markets.length.toString().padStart(2, "0")}</strong><small>${dataStubbed ? "Recorded fixture · block 0" : `${fresh} of ${snapshot.deployments.length} indexes fresh`}</small></article></section>
+<section><div class="section-heading"><h2>The market sheet</h2><span>USDC · lowest borrowing APR first</span></div><div class="table-scroll" role="region" aria-label="USDC lending market comparison" tabindex="0"><table><thead><tr><th scope="col">Market / network</th><th scope="col">Borrow APR</th><th scope="col">Supply APR</th><th scope="col">Supplied</th><th scope="col">Borrowed</th><th scope="col">Indexed block</th></tr></thead><tbody>${markets.map(marketRow).join("")}</tbody></table></div><p class="quiet">Rates are observations at the indexed blocks shown. They do not include an assessment of protocol risk, collateral requirements or transaction costs.</p></section>
+<section><div class="section-heading"><h2>Where the observations came from</h2><span>${escaped(snapshot.source, 300)}</span></div><ul class="index-list">${indexes}</ul></section>
+<section class="receipt" aria-label="Purchase receipt"><h2>A receipt, kept with the report.</h2><dl><dt>Sale</dt><dd>${sale.id}</dd><dt>Payment</dt><dd>${escaped(priceLabel({ amount: sale.amount, asset: sale.asset, network: sale.network }), 80)} · ${escaped(sale.network, 80)}</dd><dt>Transaction</dt><dd>${escaped(sale.transactionId ?? "No transaction reference returned", 256)}</dd><dt>Snapshot hash</dt><dd>${snapshotHash(snapshot)}</dd><dt>Captured</dt><dd>${escaped(captured)}</dd></dl><p class="quiet"><a href="/oracle/sales/${sale.id}">Open the durable sale record ↗</a></p></section>`
+  );
+};
 
 const saleHeaders = (sale: Sale): Headers => {
   const headers = new Headers({
@@ -170,6 +333,191 @@ const fromSale = (sale: Sale): Response => {
   }
 };
 
+const settleWithDeadline = async (
+  gate: OracleGate,
+  payment: string,
+  requirements: Parameters<OracleGate["settle"]>[1]
+): Promise<SettleOutcome> => {
+  const deadline = Promise.withResolvers<SettleOutcome>();
+  const timer = setTimeout(() => {
+    deadline.reject(new Error("Settlement deadline elapsed."));
+  }, SETTLEMENT_TIMEOUT_MS);
+  try {
+    return await Promise.race([
+      gate.settle(payment, requirements),
+      deadline.promise,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const deliver = async (
+  services: DemoServices,
+  sale: Sale
+): Promise<Response> => {
+  try {
+    const snapshot = await services.graph.lendingMarkets("USDC");
+    const html = report(services, sale, snapshot);
+    if (Buffer.byteLength(html) > MAX_HTML_BYTES) {
+      throw new Error("The demo report exceeded its response limit.");
+    }
+    const stubbed =
+      sale.stubbed ||
+      snapshot.stubbed ||
+      services.environment.modes.graph === "stub";
+    const delivered: Sale = {
+      ...sale,
+      deliveredAt: Date.now(),
+      result: { v: 1, html, stubbed },
+      status: "delivered",
+      stubbed,
+    };
+    await services.store.sales.update(sale.id, {
+      deliveredAt: delivered.deliveredAt,
+      result: delivered.result,
+      status: delivered.status,
+      stubbed,
+    });
+    return fromSale(delivered);
+  } catch {
+    const failed: Sale = {
+      ...sale,
+      error: "The USDC lending report could not be assembled after payment.",
+      status: "failed",
+    };
+    await services.store.sales.update(sale.id, {
+      error: failed.error,
+      status: failed.status,
+    });
+    return fromSale(failed);
+  }
+};
+
+const purchaseReport = async (
+  services: DemoServices,
+  payment: string
+): Promise<Response> => {
+  if (
+    payment.length > MAX_PAYMENT_HEADER ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+      payment
+    ) ||
+    decodePaymentEnvelope(Buffer.from(payment, "base64").toString("utf-8"))
+      ._tag === "Failure"
+  ) {
+    return statusPage(
+      "Payment header not accepted",
+      "Send a bounded x402 v2 payment envelope.",
+      400
+    );
+  }
+  const challenge = challengeFor(services);
+  const [requirements] = challenge.accepts;
+  if (requirements === undefined) {
+    return statusPage(
+      "Payment unavailable",
+      "This deployment has no payment offer for the report.",
+      503
+    );
+  }
+  const described = describePayment(payment);
+  const sale: Sale = {
+    amount: requirements.amount,
+    asset: requirements.asset,
+    at: Date.now(),
+    deliveredAt: null,
+    error: null,
+    id: SaleId.generate(),
+    network: requirements.network,
+    payer: described.payer,
+    paymentHash: new Bun.CryptoHasher("sha256").update(payment).digest("hex"),
+    resource: challenge.resource.url,
+    result: null,
+    status: "pending",
+    stubbed: services.oracle.mode === "stub",
+    transactionId: described.transactionId,
+  };
+  // The unique proof claim precedes the facilitator, including across server
+  // processes. A lost response leaves a durable state that cannot charge again.
+  const recorded = await services.store.sales.record(sale);
+  if (!recorded.created) {
+    return recorded.sale.resource === sale.resource
+      ? fromSale(recorded.sale)
+      : statusPage(
+          "Payment belongs to another resource",
+          "This proof is already recorded for a different purchase and will not be settled again.",
+          409
+        );
+  }
+  let settled: SettleOutcome;
+  try {
+    settled = await settleWithDeadline(services.oracle, payment, requirements);
+  } catch {
+    const uncertain: Sale = {
+      ...sale,
+      error:
+        "The facilitator did not return a conclusive settlement result. This proof must not be resubmitted.",
+      status: "uncertain",
+    };
+    await services.store.sales.update(sale.id, {
+      error: uncertain.error,
+      status: uncertain.status,
+    });
+    return fromSale(uncertain);
+  }
+  if (!settled.ok) {
+    const rejected: Sale = {
+      ...sale,
+      error: (settled.error ?? "Payment rejected by the facilitator.").slice(
+        0,
+        500
+      ),
+      status: "rejected",
+      stubbed: settled.stubbed,
+      transactionId: null,
+    };
+    await services.store.sales.update(sale.id, {
+      error: rejected.error,
+      status: rejected.status,
+      stubbed: rejected.stubbed,
+      transactionId: null,
+    });
+    return fromSale(rejected);
+  }
+  const accepted: Sale = {
+    ...sale,
+    status: "settled",
+    stubbed: settled.stubbed || services.oracle.mode === "stub",
+    transactionId: settled.transactionId ?? described.transactionId,
+  };
+  await services.store.sales.update(sale.id, {
+    status: accepted.status,
+    stubbed: accepted.stubbed,
+    transactionId: accepted.transactionId,
+  });
+  // The same public note the snapshot writes, for the same reason: the card
+  // says every settlement leaves one, and this resource is on the card. Not
+  // awaited — the buyer paid and is owed the report now; the note is for
+  // whoever audits later.
+  if (accepted.transactionId !== null) {
+    const { transactionId } = accepted;
+    detached("hcs demo sale note", async () => {
+      await services.hcs.record({
+        amount: requirements.amount,
+        asset: requirements.asset,
+        at: Date.now(),
+        kind: "sold",
+        network: requirements.network,
+        ref: accepted.id,
+        transactionId,
+      });
+    });
+  }
+  return await deliver(services, accepted);
+};
+
+/** Public seller routes. All payment authority still lives in the buyer's coordinator. */
 export const handleX402Demo = async (
   services: DemoServices,
   request: Request
@@ -182,24 +530,23 @@ export const handleX402Demo = async (
     return null;
   }
   if (request.method !== "GET") {
-    return new Response("This page supports GET requests only.", {
+    return new Response("This report supports GET requests only.", {
       status: 405,
       headers: { allow: "GET" },
     });
   }
+  if (url.search !== "") {
+    return statusPage(
+      "Unknown report variant",
+      "This report has one fixed USDC resource. Remove query parameters before requesting it.",
+      400
+    );
+  }
   if (url.pathname === X402_DEMO_PATH) {
-    return landing(false);
+    return landing(services, false);
   }
   const payment = paymentFrom(request.headers);
-  if (payment !== null && payment.length <= 32_768) {
-    const hash = new Bun.CryptoHasher("sha256").update(payment).digest("hex");
-    const sale = await services.store.sales.byPaymentHash(hash);
-    if (
-      sale !== null &&
-      new URL(sale.resource).pathname === X402_DEMO_REPORT_PATH
-    ) {
-      return fromSale(sale);
-    }
-  }
-  return landing(true);
+  return payment === null
+    ? landing(services, true)
+    : await purchaseReport(services, payment);
 };

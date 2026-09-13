@@ -7,8 +7,6 @@ import { text } from "node:stream/consumers";
 import { expect, test } from "@playwright/test";
 import { Schema } from "effect";
 
-import { fundCredits } from "./fund-credits";
-
 test("buy a demo service and recover its result after reload", async ({
   page,
 }, testInfo) => {
@@ -17,8 +15,7 @@ test("buy a demo service and recover its result after reload", async ({
   await page.goto("/services");
   await page.getByRole("button", { name: "Choose search the web" }).click();
   await page.getByLabel("Your request").fill("Find affordable train tickets");
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   await expect(page.getByLabel("Service tasks")).toContainText("Done");
   await expect(page.getByLabel("Service tasks")).toContainText("Simulated");
   await expect(page.getByLabel("Service tasks")).toContainText(

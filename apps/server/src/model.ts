@@ -9,7 +9,7 @@
  *   3. A scripted model, when neither is configured.
  *
  * Tier 3 is not a mock in the testing sense. It emits real tool calls, so the
- * tool loop — Graph, credit balances, services and wallet controls —
+ * whole loop — browser, Graph, the 402, the policy, the ledger, the receipt —
  * executes exactly as it will with a live model. What it cannot do is *decide*,
  * so it follows a fixed script and says so. That distinction is why it is worth
  * having: the parts most likely to be wrong are the ones a scripted run still
@@ -29,7 +29,7 @@ import type { Environment } from "./environment";
 
 const ANTHROPIC_MODEL = "claude-opus-5";
 
-/** The scripted model consumes no model tokens. Tools report their own charges. */
+/** The scripted model genuinely spends nothing, so every counter is zero. */
 const NO_USAGE = {
   inputTokens: {
     cacheRead: undefined,
@@ -39,6 +39,36 @@ const NO_USAGE = {
   },
   outputTokens: { reasoning: undefined, text: undefined, total: 0 },
 } as const;
+
+/**
+ * The scripted turn.
+ *
+ * Deliberately the shape of the demo: look at the data, pay for the packed
+ * answer, then read the wallet. Running it end to end without a key is the
+ * cheapest way to find out that, say, the idempotency key is wrong — and the
+ * paid step is the one that reaches the policy engine, the ledger and the
+ * receipt, so a keyless run exercises the whole spend path rather than
+ * stopping just short of it.
+ */
+const script = (
+  oracleUrl: string
+): readonly { readonly args: string; readonly tool: string }[] => [
+  { args: '{"symbol":"USDC"}', tool: "graph_query" },
+  { args: JSON.stringify({ url: oracleUrl }), tool: "x402_fetch" },
+  { args: "{}", tool: "wallet_status" },
+];
+
+/**
+ * What the scripted model says when the script is spent, as markdown, in the
+ * pieces a live model would stream it in. The chat renders markdown while it
+ * arrives, so a keyless run must hand it a heading, a table and a code span
+ * mid-flight — that is how the renderer is exercised without a key.
+ */
+const CLOSING: readonly string[] = [
+  "**That is as far as the scripted model goes.** It ran the demo's three steps without deciding anything:\n\n",
+  "| Step | Tool | What it proves |\n| --- | --- | --- |\n| 1 | `graph_query` | The Graph answered, and the answer was checked across indexes |\n| 2 | `x402_fetch` | A 402 was met, the mandate judged it, a receipt was filed |\n",
+  "| 3 | `wallet_status` | The ledger and the pocket read back |\n\nSet `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and `OPENAI_COMPATIBLE_MODEL` (or `ANTHROPIC_API_KEY`) for a model that can actually reason about this.",
+];
 
 const userText = (prompt: LanguageModelV3Prompt): string => {
   const message = prompt.findLast((entry) => entry.role === "user");
@@ -51,71 +81,19 @@ const userText = (prompt: LanguageModelV3Prompt): string => {
     .join(" ");
 };
 
-/** A service purchase needs an explicit request even when the model is scripted. */
-const SERVICE_REQUEST =
-  /^(?:please\s+)?buy\s+(?:a\s+)?(?<service>web[_ ]search|x[_ ]search|image|inference|speech)(?:\s+service)?(?:\s|:|$)/iu;
-
-const script = (
-  prompt: LanguageModelV3Prompt,
-  idempotencyKey: string
-): readonly { readonly args: string; readonly tool: string }[] => {
-  const text = userText(prompt);
-  const service = SERVICE_REQUEST.exec(text)?.groups?.["service"];
-  if (service !== undefined) {
-    return [
-      { args: '{"symbol":"USDC"}', tool: "graph_query" },
-      {
-        args: JSON.stringify({
-          service: service.toLowerCase().replace(" ", "_"),
-          prompt: text.slice(0, 2000),
-          idempotencyKey,
-        }),
-        tool: "service_run",
-      },
-      { args: "{}", tool: "credits_balance" },
-    ];
-  }
-  return [
-    { args: '{"symbol":"USDC"}', tool: "graph_query" },
-    { args: "{}", tool: "credits_balance" },
-    { args: "{}", tool: "wallet_status" },
-  ];
-};
-
-/**
- * What the scripted model says when the script is spent, as markdown, in the
- * pieces a live model would stream it in. The chat renders markdown while it
- * arrives, so a keyless run must hand it a heading, a table and a code span
- * mid-flight — that is how the renderer is exercised without a key.
- */
-const CLOSING: readonly string[] = [
-  "**That is as far as the scripted model goes.** It requested three free reads. Their tool results show what was available:\n\n",
-  "| Step | Tool | Requested read |\n| --- | --- | --- |\n| 1 | `graph_query` | USDC lending data |\n| 2 | `credits_balance` | Available and held platform credits |\n",
-  "| 3 | `wallet_status` | Wallet balances and spending controls |\n\nSet `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and `OPENAI_COMPATIBLE_MODEL` (or `ANTHROPIC_API_KEY`) for a model that can reason about the results.",
-];
-const SERVICE_CLOSING = [
-  "**The scripted service request has finished.** The service tool result shows whether the request was accepted or refused and whether its credits are held, captured or returned. A pending task still needs its result checked. The balance read shows the latest available and held credits.",
-];
-const SEND_CLOSING = [
-  "**The scripted transfer request has finished.** Its tool result and wallet receipt show the approval outcome and whether any transfer completed. This demo does not infer success from a request being sent.",
-];
-
-/** Explicit merchant purchases still use wallet authority, never platform credits. */
-const purchaseUrlFrom = (
+/** The local paid report also exercises chat approvals without a model key. */
+const demoUrlFrom = (
   prompt: LanguageModelV3Prompt,
   oracleUrl: string
 ): string | null => {
   const { origin } = new URL(oracleUrl);
-  const text = userText(prompt);
-  const explicitPurchase = /^buy\s/iu.test(text);
-  const candidates = text.match(/https?:\/\/[^\s<>"`]+/gu) ?? [];
+  const candidates = userText(prompt).match(/https?:\/\/[^\s<>"`]+/gu) ?? [];
   return (
     candidates.find(
       (candidate) =>
         URL.canParse(candidate) &&
-        (explicitPurchase ||
-          (new URL(candidate).origin === origin &&
-            new URL(candidate).pathname === "/demo/x402/report"))
+        new URL(candidate).origin === origin &&
+        new URL(candidate).pathname === "/demo/x402/report"
     ) ?? null
   );
 };
@@ -154,9 +132,8 @@ const ADDRESS_CLOSING = [
   "**The scripted model looked the address up and bought nothing.** The card above says whether it is a wallet or a contract and what it holds on each configured network. What would you like to know about it?",
 ];
 
-const scriptedModel = (oracleUrl: string): LanguageModel => {
-  const idempotencyKey = `scripted-service:${crypto.randomUUID()}`;
-  return new MockLanguageModelV3({
+const scriptedModel = (oracleUrl: string): LanguageModel =>
+  new MockLanguageModelV3({
     doStream: async ({ prompt }) => {
       // The SDK's `doStream` returns a promise and a scripted turn has nothing
       // to await, so the first statement makes the contract honest rather than
@@ -176,7 +153,7 @@ const scriptedModel = (oracleUrl: string): LanguageModel => {
           (message.role === "assistant" &&
             message.content.some((part) => part.type === "tool-call"))
       ).length;
-      const purchaseUrl = purchaseUrlFrom(recent, oracleUrl);
+      const demoUrl = demoUrlFrom(recent, oracleUrl);
       const send = sendFrom(recent);
       const address = bareAddressFrom(recent);
       let steps: readonly { readonly args: string; readonly tool: string }[];
@@ -194,13 +171,13 @@ const scriptedModel = (oracleUrl: string): LanguageModel => {
           },
           { args: "{}", tool: "wallet_status" },
         ];
-      } else if (purchaseUrl === null) {
-        steps = script(recent, idempotencyKey);
+      } else if (demoUrl === null) {
+        steps = script(oracleUrl);
       } else {
         steps = [
           {
             args: JSON.stringify({
-              url: purchaseUrl,
+              url: demoUrl,
               purpose: "Read the USDC lending report",
               maxUsdMicros: 50_000,
             }),
@@ -210,13 +187,9 @@ const scriptedModel = (oracleUrl: string): LanguageModel => {
         ];
       }
       const step = steps[Math.floor(completed / 2)];
-      let closing = purchaseUrl === null ? CLOSING : URL_CLOSING;
+      let closing = demoUrl === null ? CLOSING : URL_CLOSING;
       if (address !== null) {
         closing = ADDRESS_CLOSING;
-      } else if (send !== null) {
-        closing = SEND_CLOSING;
-      } else if (steps.some((entry) => entry.tool === "service_run")) {
-        closing = SERVICE_CLOSING;
       }
 
       const parts: LanguageModelV3StreamPart[] =
@@ -255,7 +228,6 @@ const scriptedModel = (oracleUrl: string): LanguageModel => {
       };
     },
   });
-};
 
 export const createModel = (
   environment: Environment,

@@ -2,14 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import {
   ReceiptId,
-  TaskId,
   RunId,
   SessionId,
   SpendId,
   usdMicros,
 } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
-import type { ServiceTicket } from "@froggy/protocol";
 
 import type { FroggyMessage } from "./stream-model";
 import { groupParts, matchReceipts, turnCost } from "./turn-model";
@@ -183,55 +181,4 @@ describe("turnCost", () => {
       usdMicros: 4000,
     });
   });
-});
-
-it("groups service polling by task within one turn while retaining every call and receipt", () => {
-  const id = TaskId.generate();
-  const ticket: ServiceTicket = {
-    v: 1,
-    id,
-    runId: null,
-    saleId: null,
-    upstreamTransactionId: null,
-    service: "image",
-    prompt: "Fixture",
-    status: "running",
-    priceUsdMicros: usdMicros(1000),
-    error: null,
-    text: "",
-    sources: [],
-    stubbed: true,
-    artifact: null,
-  };
-  const first: FroggyMessage["parts"][number] = {
-    type: "tool-service_run",
-    toolCallId: "purchase",
-    state: "output-available",
-    input: {},
-    output: ticket,
-  };
-  const last: FroggyMessage["parts"][number] = {
-    type: "tool-service_status",
-    toolCallId: "poll",
-    state: "output-available",
-    input: {},
-    output: { ...ticket, status: "done", text: "Ready" },
-  };
-  const turn: FroggyMessage = {
-    id: "group-fixture",
-    role: "assistant",
-    parts: [first, { type: "text", text: "I am checking the result." }, last],
-  };
-  const blocks = groupParts(turn);
-  expect(blocks.map((block) => block.kind)).toEqual(["service", "text"]);
-  expect(
-    blocks[0]?.kind === "service"
-      ? blocks[0].calls.map((call) => call.toolCallId)
-      : []
-  ).toEqual(["purchase", "poll"]);
-  const paid = receipt(1, "purchase");
-  expect(matchReceipts(turn, [paid]).byCall.get("purchase")).toEqual(paid);
-  expect(groupParts({ ...turn, id: "next-turn", parts: [last] })).toHaveLength(
-    1
-  );
 });

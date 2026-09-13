@@ -12,7 +12,6 @@ import {
 import type { TradingServiceName } from "@froggy/protocol";
 import { ConfigProvider, Effect, Redacted, Schema } from "effect";
 
-import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { handleMcp } from "./mcp";
@@ -84,7 +83,6 @@ const requestFor = (
     },
     market_search: { network: BASE, query: null, limit: 3 },
     token_inspect: { network: BASE, address: TOKEN },
-    token_snapshot: { network: BASE, address: TOKEN },
     token_research: {
       network: BASE,
       address: TOKEN,
@@ -105,7 +103,7 @@ const requestFor = (
     },
   };
   return Schema.decodeUnknownSync(TradingServiceRequest)({
-    v: 2,
+    v: 1,
     service,
     input: inputs[service],
     idempotencyKey,
@@ -129,7 +127,6 @@ const fixture = async () => {
     },
     trading: {
       market: {
-        snapshot: services.trading.market.snapshot,
         search: async (input) => {
           calls.market_search += 1;
           return await services.trading.market.search(input);
@@ -184,7 +181,6 @@ const fixture = async () => {
     }
   );
   await session.hydrate();
-  await fundTestCredits(services.store, person, 2_000_000);
   return { services: counted, session, agentTokenId: null, calls };
 };
 type Fixture = Awaited<ReturnType<typeof fixture>>;
@@ -282,7 +278,7 @@ const rejectsWith = async <T>(
 
 describe("paid trading services", () => {
   it.each([...OPERATIONS])(
-    "persists typed %s results with one matching simulated credit charge",
+    "persists typed %s results with one matching stubbed payment and sale",
     async (operation) => {
       const context = await fixture();
       const request = requestFor(operation);
@@ -299,17 +295,26 @@ describe("paid trading services", () => {
         environment.trading.prices[operation] ?? 0
       );
       expect(context.calls[operation]).toBe(1);
-      expect(context.calls.payments).toBe(0);
-      expect(context.session.history).toHaveLength(0);
-      expect(result.saleId).toBeNull();
-      expect(result.chargeStatus).toBe("captured");
-      const charge = await context.services.store.credits.findCharge(
+      expect(context.calls.payments).toBe(1);
+      expect(context.session.history).toHaveLength(1);
+      const [receipt] = context.session.history;
+      expect(receipt?.stubbed).toBe(true);
+      expect(receipt?.intent.idempotencyKey).toBe(`service:${ticket.id}`);
+      expect(result.runId).toBe(receipt?.runId ?? null);
+      expect(receipt?.settlement).toBeDefined();
+      const savedReceipts = await context.services.store.receipts.recent(
         context.session.userId,
-        result.id
+        10
       );
-      expect(charge?.stubbed).toBe(true);
-      expect(charge?.id).toBe(result.chargeId);
-      expect(charge?.idempotencyKey).toBe(request.idempotencyKey);
+      expect(savedReceipts).toHaveLength(1);
+      expect(savedReceipts[0]?.id).toBe(receipt?.id);
+      expect(savedReceipts[0]?.stubbed).toBe(true);
+      if (result.saleId === null) {
+        throw new Error("Delivered trading task has no sale.");
+      }
+      const sale = await context.services.store.sales.byId(result.saleId);
+      expect(sale?.stubbed).toBe(true);
+      expect(sale?.transactionId).toBe(receipt?.settlement?.transactionId);
       const stored = await context.services.store.tasks.byId(
         context.session.userId,
         result.id
@@ -338,7 +343,7 @@ describe("paid trading services", () => {
         network: BASE,
       },
       service: "quote_action",
-      v: 2,
+      v: 1,
     });
     const tickets = await Promise.all([
       purchaseService(context, first),
@@ -360,8 +365,8 @@ describe("paid trading services", () => {
     const replay = await purchaseService(context, reordered);
     expect(replay.data).toEqual(result.data);
     expect(context.calls.quote_action).toBe(1);
-    expect(context.calls.payments).toBe(0);
-    expect(context.session.history).toHaveLength(0);
+    expect(context.calls.payments).toBe(1);
+    expect(context.session.history).toHaveLength(1);
   });
 
   it.each([...OPERATIONS])(
@@ -461,9 +466,13 @@ describe("paid trading services", () => {
   });
 
   it.each([...OPERATIONS])(
-    "refuses live %s purchases when its explicit price is missing",
+    "refuses live %s purchases when credentials or a price are missing",
     async (operation) => {
       const context = await fixture();
+      const noCredentials: Environment = {
+        ...environment,
+        modes: { ...environment.modes, hedera: "live" },
+      };
       const noPrice: Environment = {
         ...environment,
         modes: {
@@ -482,7 +491,7 @@ describe("paid trading services", () => {
         },
       };
       await Promise.all(
-        [noPrice].map(async (configured) => {
+        [noCredentials, noPrice].map(async (configured) => {
           await rejectsWith(
             purchaseService(
               {
@@ -540,7 +549,7 @@ describe("paid trading services", () => {
     );
     expect(hiddenMcp.isError).toBe(true);
     expect(hiddenMcp.content[0]?.text).toContain("No such service task");
-    expect(context.calls.payments).toBe(0);
+    expect(context.calls.payments).toBe(1);
   });
 
   it("publishes named MCP object schemas and structured HTTP catalog entries", async () => {
@@ -618,7 +627,7 @@ describe("paid trading services", () => {
       );
       expect(status.data).toEqual(result.data);
       expect(context.calls[operation]).toBe(1);
-      expect(context.calls.payments).toBe(0);
+      expect(context.calls.payments).toBe(1);
     }
   );
 
@@ -646,7 +655,7 @@ describe("paid trading services", () => {
     }
   });
 
-  it("returns credits for a provider failure and never executes it again on retry", async () => {
+  it("keeps a paid provider failure durable and never buys it again on retry", async () => {
     const context = await fixture();
     let attempts = 0;
     const services: Services = {
@@ -666,16 +675,15 @@ describe("paid trading services", () => {
     const ticket = await purchaseService({ ...context, services }, request);
     const result = await completed(context, ticket.id);
     expect(result.status).toBe("failed");
-    expect(result.error).toContain("RPC provider unavailable");
-    expect(result.chargeStatus).toBe("released");
-    expect(result.saleId).toBeNull();
+    expect(result.error).toContain("Paid task; not refunded");
+    expect(result.saleId).not.toBeNull();
     expect(result.data).toBeUndefined();
     const retried = await purchaseService({ ...context, services }, request);
     expect(retried.id).toBe(ticket.id);
     expect(retried.status).toBe("failed");
     expect(attempts).toBe(1);
-    expect(context.calls.payments).toBe(0);
-    expect(context.session.history).toHaveLength(0);
+    expect(context.calls.payments).toBe(1);
+    expect(context.session.history).toHaveLength(1);
   });
 });
 
@@ -703,7 +711,7 @@ describe("paid launch watches", () => {
         idempotencyKey: request.idempotencyKey,
       },
     });
-    expect(context.calls.payments).toBe(0);
+    expect(context.calls.payments).toBe(1);
     await context.services.launches.tick();
     const status = await mcp(context, "tools/call", {
       name: "froggy_watch_status",
@@ -723,7 +731,7 @@ describe("paid launch watches", () => {
       pollsUsed: 1,
     });
     await context.services.launches.tick();
-    expect(context.calls.payments).toBe(0);
+    expect(context.calls.payments).toBe(1);
     const stopped = await context.services.launches.get(
       context.session.userId,
       id,
@@ -749,7 +757,7 @@ describe("paid launch watches", () => {
       requestFor("watch_launches")
     ).then(() => null, String);
     expect(failure).toContain("watch.capacity");
-    expect(context.calls.payments).toBe(0);
+    expect(context.calls.payments).toBe(5);
     const request = requestFor("watch_launches");
     expect(() =>
       Schema.decodeUnknownSync(ServiceRequest)({

@@ -1,3 +1,4 @@
+import { formatUsd } from "@froggy/domain";
 import { TradingServiceName, TradingServiceRequest } from "@froggy/protocol";
 import type { ServiceCard } from "@froggy/protocol";
 import {
@@ -25,7 +26,6 @@ import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import type { ServiceApi } from "../../hooks/use-service-api";
-import { formatCredits } from "../../lib/credit-view";
 import { runLabel } from "../../lib/services-view";
 
 const NETWORK_NAMES = new Map<string, string>(
@@ -90,7 +90,7 @@ const requestFrom = (
     Schema.decodeUnknownSync(Schema.String)(data.get(name));
   const network = read("network");
   const service = Schema.decodeUnknownSync(TradingServiceName)(card.name);
-  const shared = { v: 2, service: card.name, idempotencyKey: key };
+  const shared = { v: 1, service: card.name, idempotencyKey: key };
   let input;
   switch (service) {
     case "watch_launches": {
@@ -113,7 +113,6 @@ const requestFrom = (
       };
       break;
     }
-    case "token_snapshot":
     case "token_inspect": {
       input = { network, address: read("address").trim() };
       break;
@@ -328,7 +327,7 @@ export const TradingServiceForm = ({
             </Field>
           </>
         ) : null}
-        {card.name === "token_inspect" || card.name === "token_snapshot" ? (
+        {card.name === "token_inspect" ? (
           <AddressField
             disabled={disabled}
             label="Token address"
@@ -468,9 +467,7 @@ export const TradingServiceForm = ({
         <FieldError role="alert">{error ?? run.error?.message}</FieldError>
       ) : null}
       <p className="text-muted-foreground text-xs">
-        {card.note} Credits are held while the task runs and used when its
-        result is saved. Failed or canceled work returns credits once the
-        outcome is known.
+        {card.note} Once paid, failed work is not automatically refunded.
       </p>
       <Button
         className="min-h-11 self-start"
@@ -483,10 +480,7 @@ export const TradingServiceForm = ({
             Starting…
           </>
         ) : (
-          runLabel(
-            card,
-            formatCredits(card.priceCreditUnits ?? card.priceUsdMicros)
-          )
+          runLabel(card, formatUsd(card.priceUsdMicros))
         )}
       </Button>
     </form>

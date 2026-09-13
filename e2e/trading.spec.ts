@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import { Schema } from "effect";
 
 import { TradeList } from "../packages/protocol/src/trade-execution";
-import { fundCredits } from "./fund-credits";
 
 test("token search uses structured inputs and keeps its result after reload", async ({
   page,
@@ -19,8 +18,7 @@ test("token search uses structured inputs and keeps its result after reload", as
       value.url().endsWith("/api/services/run") &&
       value.request().method() === "POST"
   );
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   const created = await response;
   const ticket = Schema.decodeUnknownSync(
     Schema.Struct({ id: Schema.String, service: Schema.String })
@@ -57,8 +55,7 @@ test("token research renders launcher and per-source status", async ({
       value.url().endsWith("/api/services/run") &&
       value.request().method() === "POST"
   );
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   const created = await response;
   const ticket = Schema.decodeUnknownSync(
     Schema.Struct({ id: Schema.String, service: Schema.String })
@@ -104,8 +101,7 @@ test("an unsigned swap quote is inspectable on a narrow screen", async ({
       value.url().endsWith("/api/services/run") &&
       value.request().method() === "POST"
   );
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   const created = await response;
   const ticket = Schema.decodeUnknownSync(
     Schema.Struct({ id: Schema.String, service: Schema.String })
@@ -473,8 +469,7 @@ test("a listing watch shows fixed capacity and stays stopped after a mobile relo
   await page.getByLabel("Duration (minutes)").fill("5");
   await page.getByLabel("Minimum reported liquidity").fill("100");
   await page.getByLabel("Listing source (optional)").fill("pump");
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   const watches = page.getByRole("region", {
     name: "Listing watches",
     exact: true,
@@ -516,8 +511,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
     .getByLabel("Network", { exact: true })
     .selectOption("eip155:4663");
   await page.getByLabel("Duration (minutes)").fill("5");
-  await fundCredits(page);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+  await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
   await expect(
     page.getByRole("region", { name: "Listing watches", exact: true })
   ).toContainText("5-minute listing watch");

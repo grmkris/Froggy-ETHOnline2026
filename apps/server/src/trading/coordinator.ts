@@ -33,7 +33,6 @@ import type {
   AgentEvmSigner,
   PrivyServer,
   TradingStore,
-  CardStore,
   LaunchStore,
   TradeSubmission,
 } from "@froggy/wallet";
@@ -85,7 +84,6 @@ export interface TradeContext {
 }
 export interface TradeCoordinatorOptions {
   readonly store: TradingStore;
-  readonly cards?: CardStore;
   readonly watches?: LaunchStore;
   readonly privy: PrivyServer;
   readonly backend: (input: TradeInput) => TradeBackend | null;
@@ -176,40 +174,6 @@ export class TradeCoordinator {
     return trade;
   }
 
-  private async validateCardFunding(
-    owner: UserId,
-    input: TradeInput
-  ): Promise<void> {
-    if (input.action !== "bridge") {
-      return;
-    }
-    const { bridge } = input;
-    if (bridge === undefined || this.options.cards === undefined) {
-      throw new Error(
-        "trade.card_method: card funding requires an owner-scoped saved recipient."
-      );
-    }
-    await this.options.cards.transact(owner, (book) => {
-      const method = book.methods.get(bridge.paymentMethodId);
-      const checkout = book.checkouts.get(bridge.checkoutId);
-      if (
-        method === undefined ||
-        checkout === undefined ||
-        method.revokedAt !== null ||
-        method.revision !== bridge.paymentMethodRevision ||
-        checkout.paymentMethodId !== method.id ||
-        checkout.paymentMethodRevision !== method.revision ||
-        checkout.stoppedAt !== null ||
-        method.fundingAddress.toLowerCase() !==
-          bridge.recipient.toLowerCase() ||
-        checkout.fundingAddress.toLowerCase() !== bridge.recipient.toLowerCase()
-      ) {
-        throw new Error(
-          "trade.card_method: saved payment method or approved recipient changed."
-        );
-      }
-    });
-  }
   private backend(input: TradeInput): TradeBackend {
     const backend = this.options.backend(input);
     if (backend === null) {
@@ -232,17 +196,8 @@ export class TradeCoordinator {
   ): Promise<TradeTicket> {
     const decoded = Schema.decodeUnknownSync(TradePrepare)(request);
     const { input } = decoded;
-    if (input.bridge !== undefined && input.action !== "bridge") {
-      throw new Error(
-        "trade.bridge_identity: recipient overrides apply only to card funding."
-      );
-    }
-    if (input.action === "bridge" && context.connectionId !== null) {
-      throw new Error("trade.human_only: agents cannot prepare card funding.");
-    }
     const backend = this.backend(input);
     const owner = context.session.userId;
-    await this.validateCardFunding(owner, input);
     if (!backend.stubbed) {
       const wallets = await this.options.privy.paymentWallets(owner);
       const matches = input.network.startsWith("solana:")
@@ -520,7 +475,6 @@ export class TradeCoordinator {
     }
     const owner = context.session.userId;
     const trade = await this.load(owner, id, null);
-    await this.validateCardFunding(owner, trade.input);
     const step = trade.steps.find((entry) => entry.id === answer.stepId);
     if (
       step === undefined ||
@@ -792,7 +746,6 @@ export class TradeCoordinator {
       );
     }
     const trade = await this.load(context.session.userId, id, null);
-    await this.validateCardFunding(context.session.userId, trade.input);
     const step = trade.steps.find((entry) => entry.id === answer.stepId);
     if (
       step === undefined ||

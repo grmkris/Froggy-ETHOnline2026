@@ -18,6 +18,15 @@ docs/plan/archive/IDEAS_V3_KIMI.md
 .codex/
 .grok/
 
+# Vendored skills installed through skills-lock.json (the hyperframes video
+# pack and its media tooling, 900-odd files nobody here wrote). Kept tracked so
+# the lock resolves, kept out of the formatter and linter so the gate judges
+# our code and not theirs. The repository's own skills stay formatted.
+.agents/skills/
+!.agents/skills/froggy-browser/
+!.agents/skills/froggy-leash/
+!.agents/skills/froggy-verification/
+
 # Generated from design/preproduction/brand/frog-mark.svg by
 # design/preproduction/tools/build-prototype.mjs. The generator owns these files'
 # bytes: formatting one after generation makes `build-prototype.mjs --check`

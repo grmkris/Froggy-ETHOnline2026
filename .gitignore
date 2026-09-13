@@ -42,3 +42,31 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 packages/ui/.ds-generated/
+
+# The hyperframes video pack and its media tooling, installed through
+
+# skills-lock.json for the demo video: about nine hundred third-party files
+
+# whose prose and formatting fight three of our gates. On disk for the pane
+
+# that renders the video, restorable from the lock, not tracked.
+.agents/skills/embedded-captions
+faceless-explainer
+figma
+general-video
+hyperframes
+hyperframes-animation
+hyperframes-audio
+hyperframes-cli
+hyperframes-core
+hyperframes-creative
+hyperframes-keyframes
+hyperframes-registry
+media-use
+motion-graphics
+music-to-video
+product-launch-video
+pr-to-video
+remotion-to-hyperframes
+slideshow
+talking-head-recut/

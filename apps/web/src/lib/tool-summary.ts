@@ -1,4 +1,3 @@
-import { formatUsd, Purchase } from "@froggy/domain";
 /**
  * One line that says what a tool call came to, read from the tool's own words.
  *
@@ -10,6 +9,8 @@ import { formatUsd, Purchase } from "@froggy/domain";
  * The fixtures in the tests are copied from the server verbatim, so a change
  * of wording there fails a test here rather than silently blanking a card.
  */
+
+import { formatUsd, Purchase } from "@froggy/domain";
 import type { TaskStatus } from "@froggy/domain";
 import {
   AddressLookupResult,
@@ -19,7 +20,6 @@ import {
 import type { AddressLookupNetwork, GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
-import { creditChargeWords, formatCredits } from "./credit-view";
 import { networkWords } from "./mandate-words";
 import { statusWords } from "./services-view";
 import type { ToolCall } from "./tool-call";
@@ -280,9 +280,9 @@ const clickSummary = (text: string): ToolSummary =>
 
 /** What the person is waiting on, by phase, when the ticket has no text yet. */
 const SERVICE_PHASE_DETAIL: ReadonlyMap<TaskStatus, string> = new Map([
-  ["quoted", "Starting the task. The result will appear in Tools."],
-  ["running", "Starting the task. The result will appear in Tools."],
-  ["paid", "The provider is working; results will appear in Tools."],
+  ["quoted", "Settling your payment. The provider has not been called yet."],
+  ["running", "Settling your payment. The provider has not been called yet."],
+  ["paid", "Paid. The provider is working; results will appear in Services."],
 ]);
 
 const serviceSummary = (text: string): ToolSummary | null => {
@@ -291,11 +291,7 @@ const serviceSummary = (text: string): ToolSummary | null => {
     const ticket = Schema.decodeUnknownResult(ServiceTicket)(raw);
     if (ticket._tag === "Success") {
       const task = ticket.success;
-      const billing =
-        task.priceCreditUnits === undefined
-          ? ""
-          : ` · ${formatCredits(task.priceCreditUnits)} ${creditChargeWords(task.chargeStatus)}`;
-      const headline = `${task.service.replaceAll("_", " ")} · ${statusWords(task.status).label.toLowerCase()}${billing}`;
+      const headline = `${task.service.replaceAll("_", " ")} · ${statusWords(task.status).label.toLowerCase()}`;
       if (task.status === "failed" || task.status === "uncertain") {
         return summary(headline, "refused", task.error, task.stubbed);
       }

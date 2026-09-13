@@ -15,21 +15,12 @@
  * token never looks like one with a bot that is silently ignoring people.
  */
 
-import {
-  AdapterRateLimitError,
-  AuthenticationError,
-  PermissionError,
-  ResourceNotFoundError,
-  ValidationError,
-} from "@chat-adapter/shared";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { createPostgresState } from "@chat-adapter/state-pg";
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { TelegramAdapterConfig } from "@chat-adapter/telegram";
-import { MessageId, NoticeId } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import type { AppServerMessage, ApprovalRequest } from "@froggy/protocol";
-import type { WalletAlert } from "@froggy/wallet";
 import { HistoryConflictError } from "@froggy/wallet";
 import type { UIMessage } from "ai";
 import { Chat } from "chat";
@@ -52,7 +43,6 @@ import type { ChatRunRegistry } from "../runs";
 import type { Services } from "../services";
 import { recordTurn, sseOf, startTurn } from "../turn";
 import type { UnlockTokens } from "../unlock";
-import type { WalletAlertDelivery } from "../wallet-monitor-worker";
 import type { Workspaces } from "../workspaces";
 import {
   APPROVAL_ACTION,
@@ -65,7 +55,6 @@ import { PairingCodes } from "./pairing";
 
 export interface TelegramPager extends ReportSink {
   readonly codes: PairingCodes;
-  readonly shutdown: () => Promise<void>;
   /** The deep link a person opens to pair, given a fresh code. */
   readonly link: (code: string) => string | null;
   readonly mode: "live" | "stub";
@@ -75,9 +64,6 @@ export interface TelegramPager extends ReportSink {
    * the caller says "shown in the web stream only" on the strength of it.
    */
   readonly notify: (userId: UserId, text: string) => Promise<boolean>;
-  readonly deliverWalletAlert: (
-    alert: WalletAlert
-  ) => Promise<WalletAlertDelivery>;
   /** An approval question, to the person's paired chat if they have one. */
   readonly postApproval: (userId: UserId, request: ApprovalRequest) => void;
   readonly webhook: (request: Request) => Promise<Response>;
@@ -85,10 +71,6 @@ export interface TelegramPager extends ReportSink {
 
 export const stubTelegramPager = (): TelegramPager => ({
   codes: new PairingCodes(),
-  shutdown: async () => {
-    await Promise.resolve();
-  },
-  deliverWalletAlert: async () => await Promise.resolve({ kind: "not_paired" }),
   deliver: async (report: JobReport) => {
     await Promise.resolve();
     console.info(
@@ -167,26 +149,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     userName: deps.botUsername === "" ? "froggy" : deps.botUsername,
   });
 
-  let ready: Promise<void> | null = null;
-  const initialize = async (): Promise<void> => {
-    try {
-      await bot.initialize();
-    } catch (error) {
-      // Chat caches a rejected startup promise. Reset it after disconnecting so
-      // a definitely-unsent retry can recover from a transient state-store error.
-      try {
-        await bot.shutdown();
-      } finally {
-        ready = null;
-      }
-      throw error;
-    }
-  };
-  const ensureReady = async (): Promise<void> => {
-    ready ??= initialize();
-    await ready;
-  };
-
   const whose = async (telegramUserId: string): Promise<UserId | null> =>
     await store.telegram.lookup(telegramUserId);
 
@@ -199,7 +161,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
     if (pairing === null) {
       return;
     }
-    await ensureReady();
     const intent = await recordTelegramIntent(
       store,
       userId,
@@ -355,86 +316,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
 
   return {
     codes,
-    shutdown: async () => {
-      await bot.shutdown();
-    },
-    deliverWalletAlert: async (alert) => {
-      const pairing = await store.telegram.forUser(alert.owner);
-      if (
-        !pairing ||
-        (alert.kind !== "correction" && pairing.since > alert.createdAt)
-      ) {
-        return { kind: "not_paired" };
-      }
-      const stableId = MessageId.fromUuid(NoticeId.toUuid(alert.id));
-      const previous = await store.history.transaction(
-        alert.owner,
-        async (tx) => await tx.get(stableId)
-      );
-      if (previous?.kind === "message" && previous.delivery === "delivered") {
-        return {
-          kind: "delivered",
-          messageId: previous.clientId.replace(/^tg-/u, ""),
-        };
-      }
-      let intent: MessageId;
-      try {
-        // Outbound alerts can precede the first webhook after a restart. The SDK
-        // otherwise sends before its disconnected history store loses the receipt.
-        await ensureReady();
-        intent = await recordTelegramIntent(
-          store,
-          alert.owner,
-          pairing.threadId,
-          alert.text,
-          stableId
-        );
-      } catch {
-        return { kind: "definitely_not_sent", retryAfterMs: 2000 };
-      }
-      const current = await store.telegram.forUser(alert.owner);
-      if (
-        !current ||
-        current.threadId !== pairing.threadId ||
-        current.since !== pairing.since
-      ) {
-        return { kind: "not_paired" };
-      }
-      let messageId: string;
-      try {
-        const sent = await bot.thread(current.threadId).post(alert.text);
-        messageId = sent.id;
-      } catch (error) {
-        if (error instanceof AdapterRateLimitError) {
-          return {
-            kind: "definitely_not_sent",
-            retryAfterMs: Math.max(1, error.retryAfter ?? 1) * 1000,
-          };
-        }
-        if (
-          error instanceof AuthenticationError ||
-          error instanceof PermissionError ||
-          error instanceof ResourceNotFoundError ||
-          error instanceof ValidationError
-        ) {
-          return { kind: "definitely_not_sent", retryAfterMs: null };
-        }
-        await recordTelegramDelivery(
-          store.history,
-          alert.owner,
-          intent,
-          null
-        ).catch(() => null);
-        return { kind: "uncertain" };
-      }
-      await recordTelegramDelivery(
-        store.history,
-        alert.owner,
-        intent,
-        messageId
-      ).catch(() => null);
-      return { kind: "delivered", messageId };
-    },
     deliver: async (report) => {
       await postTo(
         report.userId,
@@ -452,7 +333,6 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       if (pairing === null) {
         return false;
       }
-      await ensureReady();
       const intent = await recordTelegramIntent(
         store,
         userId,

@@ -1,13 +1,4 @@
-import {
-  CreditChargeId,
-  CreditChargeStatus,
-  CreditUnits,
-  RunId,
-  SaleId,
-  TaskId,
-  TaskStatus,
-  UsdMicros,
-} from "@froggy/domain";
+import { RunId, SaleId, TaskId, TaskStatus, UsdMicros } from "@froggy/domain";
 import { Schema } from "effect";
 
 import { TradingNetwork } from "./trading";
@@ -16,13 +7,6 @@ import {
   TradingServiceName,
   TradingServiceRequest,
 } from "./trading-services";
-
-export const CreditBillingError = Schema.Struct({
-  code: Schema.String,
-  message: Schema.String,
-  fundingUrl: Schema.String,
-});
-export type CreditBillingError = typeof CreditBillingError.Type;
 
 export const PromptServiceName = Schema.Literals([
   "x_search",
@@ -38,7 +22,7 @@ export const ServiceName = Schema.Union([
 ]);
 export type ServiceName = typeof ServiceName.Type;
 export const PromptServiceRequest = Schema.Struct({
-  v: Schema.Literals([2]),
+  v: Schema.Literals([1]),
   service: PromptServiceName,
   prompt: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
   idempotencyKey: Schema.String.check(
@@ -58,7 +42,6 @@ export const ServiceCard = Schema.Struct({
   description: Schema.String,
   provider: Schema.String,
   priceUsdMicros: UsdMicros,
-  priceCreditUnits: Schema.optional(CreditUnits),
   maxInput: Schema.Int,
   status: Schema.Literals(["demo", "configured", "unavailable"]),
   note: Schema.String,
@@ -102,16 +85,12 @@ export const ServiceTicket = Schema.Struct({
   id: TaskId,
   runId: Schema.NullOr(RunId),
   saleId: Schema.NullOr(SaleId),
-  billingError: Schema.optional(CreditBillingError),
-  chargeId: Schema.optional(CreditChargeId),
-  chargeStatus: Schema.optional(CreditChargeStatus),
   upstreamTransactionId: Schema.NullOr(Schema.String),
   status: TaskStatus,
   service: ServiceName,
   prompt: Schema.String,
   data: Schema.optional(TradingResult),
   priceUsdMicros: UsdMicros,
-  priceCreditUnits: Schema.optional(CreditUnits),
   error: Schema.NullOr(Schema.String),
   text: Schema.String,
   sources: Schema.Array(ServiceSource),
@@ -126,11 +105,7 @@ const taskDetailFields = {
   id: TaskId,
   status: TaskStatus,
   priceUsdMicros: UsdMicros,
-  priceCreditUnits: Schema.optional(CreditUnits),
   saleId: Schema.NullOr(SaleId),
-  billingError: Schema.optional(CreditBillingError),
-  chargeId: Schema.optional(CreditChargeId),
-  chargeStatus: Schema.optional(CreditChargeStatus),
   error: Schema.NullOr(Schema.String),
 };
 

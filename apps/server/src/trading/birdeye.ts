@@ -5,9 +5,8 @@ import {
   SolanaTradingAddress,
   TokenInspectInput,
   TokenInspectResult,
-  TokenSnapshotResult,
 } from "@froggy/protocol";
-import type { TokenPriceSeries, TradingNetwork } from "@froggy/protocol";
+import type { TradingNetwork } from "@froggy/protocol";
 import { Redacted, Schema } from "effect";
 
 import { boundedBytes, safeFetch } from "../outbound";
@@ -142,7 +141,6 @@ type Security = TokenInspectResult["security"];
 type Fact = Security["facts"][number];
 interface Birdeye {
   search: (input: MarketSearchInput) => Promise<MarketSearchResult>;
-  snapshot: (input: TokenInspectInput) => Promise<TokenSnapshotResult>;
   inspect: (input: TokenInspectInput) => Promise<TokenInspectResult>;
 }
 interface BirdeyeQuery {
@@ -339,99 +337,7 @@ export const liveBirdeye = (options: BirdeyeOptions): Birdeye => {
       return { status: "unavailable", facts: [] };
     }
   };
-  const overview = async (input: TokenInspectInput): Promise<Token> => {
-    const chain = chainFor(input.network);
-    const result = await request(
-      "/defi/token_overview",
-      chain,
-      { address: input.address, ui_amount_mode: "raw" },
-      OverviewResponse
-    );
-    const item = result.data;
-    if (item.address.toLowerCase() !== input.address.toLowerCase()) {
-      throw new Error("Birdeye returned a different token address.");
-    }
-    return {
-      ...tokenBase(item, input.network),
-      priceUsd: item.price ?? null,
-      volume24hUsd: item.v24hUSD ?? null,
-      priceChange24hPercent: item.priceChange24hPercent ?? null,
-      lastTradeAt: seconds(item.lastTradeUnixTime),
-    };
-  };
-  const history = async (
-    input: TokenInspectInput,
-    window: "24h" | "7d",
-    at: number
-  ): Promise<TokenPriceSeries> => {
-    const interval = window === "24h" ? "15m" : "1H";
-    const to = Math.floor(at / 1000);
-    const from = to - (window === "24h" ? 86_400 : 604_800);
-    try {
-      const result = await request(
-        "/defi/v3/ohlcv",
-        chainFor(input.network),
-        {
-          address: input.address,
-          type: interval,
-          currency: "usd",
-          chart_type: "price",
-          padding: "false",
-          mode: "range",
-          time_from: String(from),
-          time_to: String(to),
-        },
-        Schema.Struct({
-          success: Schema.Literal(true),
-          data: Schema.Struct({
-            items: Schema.Array(
-              Schema.Struct({
-                unixTime: Schema.Int,
-                c: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
-              })
-            ),
-          }),
-        })
-      );
-      const points = [
-        ...new Map(
-          result.data.items
-            .filter((point) => point.unixTime >= from && point.unixTime <= to)
-            .map((point) => [
-              point.unixTime,
-              { at: point.unixTime * 1000, close: point.c },
-            ])
-        ).values(),
-      ]
-        .toSorted((a, b) => a.at - b.at)
-        .slice(-250);
-      return { window, interval, status: "observed", points };
-    } catch {
-      return { window, interval, status: "unavailable", points: [] };
-    }
-  };
   return {
-    snapshot: async (input) => {
-      const checked = Schema.decodeUnknownSync(TokenInspectInput)(input);
-      addressFor(checked.address, checked.network);
-      const at = now();
-      const [token, day, week] = await Promise.all([
-        overview(checked).catch(() => null),
-        history(checked, "24h", at),
-        history(checked, "7d", at),
-      ]);
-      return Schema.decodeUnknownSync(TokenSnapshotResult)({
-        ...snapshot(checked.network, at, false),
-        operation: "token_snapshot",
-        address: checked.address,
-        token,
-        series: [day, week],
-        limitations: [
-          "Historical USD closes from Birdeye. Missing intervals are not filled.",
-          "Each source can be unavailable independently. This is a saved snapshot, not a live quote.",
-        ],
-      });
-    },
     search: async (input) => {
       const checked = Schema.decodeUnknownSync(MarketSearchInput)(input);
       const chain = chainFor(checked.network);
@@ -542,27 +448,6 @@ export const liveBirdeye = (options: BirdeyeOptions): Birdeye => {
 };
 
 export const stubBirdeye = (): Birdeye => ({
-  snapshot: async (input) => {
-    await Promise.resolve();
-    const checked = Schema.decodeUnknownSync(TokenInspectInput)(input);
-    const at = Date.now();
-    return Schema.decodeUnknownSync(TokenSnapshotResult)({
-      ...snapshot(checked.network, at, true),
-      operation: "token_snapshot",
-      address: checked.address,
-      token: tokenBase(
-        { address: checked.address, name: "Stub token" },
-        checked.network
-      ),
-      series: [
-        { window: "24h", interval: "15m", status: "unavailable", points: [] },
-        { window: "7d", interval: "1H", status: "unavailable", points: [] },
-      ],
-      limitations: [
-        "Simulated service. No provider data or historical prices were requested.",
-      ],
-    });
-  },
   search: async (input) => {
     await Promise.resolve();
     const checked = Schema.decodeUnknownSync(MarketSearchInput)(input);

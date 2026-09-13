@@ -190,36 +190,6 @@ export class Workspaces {
   }
 
   /** Browsers with a process behind them, as opposed to workspaces that exist. */
-  isWatching(userId: UserId): boolean {
-    return (this.watchers.get(userId) ?? 0) > 0;
-  }
-
-  async releaseUnwatched(userId: UserId): Promise<void> {
-    const workspace = this.existing(userId);
-    if (
-      workspace &&
-      !this.isWatching(userId) &&
-      !this.deps.isBusy(workspace.session.id)
-    ) {
-      await workspace.browser.close();
-    }
-  }
-
-  tryAdmitHosted(userId: UserId): boolean {
-    if (!this.seated.has(userId) && !this.hasSeatFor(userId)) {
-      return false;
-    }
-    this.seated.add(userId);
-    this.hostedSeats.add(userId);
-    this.touch(userId);
-    return true;
-  }
-
-  releaseHosted(userId: UserId): void {
-    this.hostedSeats.delete(userId);
-    this.observe(userId, this.for(userId).browser.state());
-  }
-
   get runningBrowsers(): number {
     return this.seated.size;
   }

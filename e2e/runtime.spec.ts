@@ -36,23 +36,22 @@ test("settings show what the session is connected as", async ({ page }) => {
   await expect(page.getByText("Signer", { exact: true })).toBeVisible();
 });
 
-test("the retired paid tool door explains authenticated credit access", async ({
+test("the paid endpoint answers 402 before it answers anything else", async ({
   request,
-  page,
 }) => {
   const response = await request.get("/oracle/snapshot?symbol=USDC");
-  expect(response.status()).toBe(410);
-  expect(await response.text()).toContain("credits");
-  const errors: string[] = [];
-  page.on("pageerror", (error) => {
-    errors.push(error.message);
-  });
-  await page.goto("/demo/x402");
-  await expect(
-    page.getByText("100 credits = $1", { exact: false })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /credits|wallet/iu }).first()
-  ).toHaveAttribute("href", "/wallet");
-  expect(errors).toEqual([]);
+
+  // This is the Hedera qualification in one assertion: the resource is really
+  // gated, not gated-looking.
+  expect(response.status()).toBe(402);
+  const parsed: unknown = await response.json();
+  // SAFETY: the assertions below are the test. A 402 body that does not carry
+  // these fields fails them, which is exactly what this spec exists to catch.
+  const body = parsed as {
+    accepts: { network: string; payTo: string; scheme: string }[];
+    x402Version: number;
+  };
+  expect(body.x402Version).toBe(2);
+  expect(body.accepts[0]?.network).toBe("hedera:testnet");
+  expect(body.accepts[0]?.scheme).toBe("exact");
 });

@@ -2,12 +2,9 @@ import { beforeAll, describe, expect, it } from "bun:test";
 
 import type { TaskId } from "@froggy/domain";
 import {
-  creditUnits,
   AgentTokenId,
   OAuthGrantId,
-  OAuthClientId,
   RunId,
-  MonitorCheckId,
   SessionId,
   userId,
 } from "@froggy/domain";
@@ -15,7 +12,6 @@ import { ServiceTicket } from "@froggy/protocol";
 import { Effect, Schema } from "effect";
 
 import { trackAgentInvocation } from "./agent-invocations";
-import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { handleMcp } from "./mcp";
@@ -46,12 +42,7 @@ beforeAll(async () => {
   environment = await Effect.runPromise(loadEnvironment());
 });
 const fixture = async (credit = 2_000_000) => {
-  const services = createServices({
-    environment: {
-      ...environment,
-      modes: { ...environment.modes, model: "stub" },
-    },
-  });
+  const services = createServices({ environment });
   const person = userId(`did:privy:service-${crypto.randomUUID()}`);
   const { quote } = createQuotes(services.rates);
   const session = new WorkspaceSession(
@@ -80,11 +71,10 @@ const fixture = async (credit = 2_000_000) => {
     }
   );
   await session.hydrate();
-  await fundTestCredits(services.store, person, credit);
   return { services, session, agentTokenId: null };
 };
 const request = () => ({
-  v: 2 as const,
+  v: 1 as const,
   service: "web_search" as const,
   prompt: "affordable train travel",
   idempotencyKey: crypto.randomUUID(),
@@ -186,22 +176,16 @@ describe("service purchases", () => {
     expect(result.status).toBe("done");
     expect(result.stubbed).toBe(true);
     expect(result.text).toContain("DEMO");
-    expect(result.saleId).toBeNull();
-    expect(result.chargeId).toBeDefined();
-    expect(result.chargeStatus).toBe("captured");
-    expect(context.session.history).toHaveLength(0);
-    const checkedResult11 = await context.services.store.credits.findCharge(
-      context.session.userId,
-      ticket.id
-    );
-    expect(checkedResult11?.stubbed).toBe(true);
+    expect(result.saleId).not.toBeNull();
+    expect(context.session.history).toHaveLength(1);
+    expect(context.session.history[0]?.stubbed).toBe(true);
     const replayed = await purchaseService(context, input);
     expect(replayed.id).toBe(ticket.id);
     await rejectsWith(
       purchaseService(context, { ...input, prompt: "different purchase" }),
       "different request"
     );
-    expect(context.session.history).toHaveLength(0);
+    expect(context.session.history).toHaveLength(1);
   });
   it("refuses empty, oversize and unavailable work before charging", async () => {
     const context = await fixture();
@@ -217,11 +201,7 @@ describe("service purchases", () => {
       ...context.services,
       environment: {
         ...environment,
-        modes: {
-          ...environment.modes,
-          hedera: "live" as const,
-          privy: "live" as const,
-        },
+        modes: { ...environment.modes, hedera: "live" as const },
       },
     };
     await rejectsWith(
@@ -237,94 +217,50 @@ describe("service purchases", () => {
     expect(result.status).toBe("failed");
     expect(result.text).toBe("");
     expect(result.saleId).toBeNull();
-    expect(result.chargeStatus).toBe("refused");
+    expect(context.session.history[0]?.decision._tag).toBe("deny");
   });
-  it("runs from funded credits with no HBAR rate, signing, or customer settlement", async () => {
-    const context = await fixture(100_000);
-    let payments = 0;
+  it("keeps a sent but unconfirmed payment uncertain and does not refund or retry", async () => {
+    const context = await fixture();
+    let settlements = 0;
     const services = {
       ...context.services,
-      rates: { ...context.services.rates, current: () => null },
-      hederaPayerFor: async () => {
-        payments += 1;
-        return await Promise.reject(new Error("No customer payment expected"));
-      },
       oracle: {
         ...context.services.oracle,
         settle: async () => {
-          payments += 1;
-          return await Promise.reject(new Error("No settlement expected"));
+          settlements += 1;
+          await Promise.resolve();
+          throw new Error("network timeout");
         },
       },
     };
-    const ticket = await purchaseService({ ...context, services }, request());
+    const input = request();
+    const before = context.session.pocket;
+    const ticket = await purchaseService({ ...context, services }, input);
     const result = await done(context, ticket.id);
-    expect(result.status).toBe("done");
-    expect(result.chargeStatus).toBe("captured");
-    expect(result.saleId).toBeNull();
-    expect(payments).toBe(0);
-    const checkedResult10 = await services.store.credits.summary(
-      context.session.userId
-    );
-    expect(checkedResult10.availableUnits).toBe(creditUnits(90_000));
-    expect(context.session.history).toHaveLength(0);
+    expect(result.status).toBe("uncertain");
+    expect(result.error).toContain("timeout");
+    expect(context.session.pocket).toBeLessThan(before ?? 0);
+    await purchaseService({ ...context, services }, input);
+    expect(settlements).toBe(1);
   });
-  it("holds a delivered result on a failed credit commit and recovers without rerunning", async () => {
-    const context = await fixture();
-    const original = context.services.store.credits;
-    let captureAttempts = 0;
+  it("funds first-use accounts from the balance before the spend reservation", async () => {
+    const context = await fixture(100_000);
+    let opening = 0;
     const services = {
       ...context.services,
-      store: {
-        ...context.services.store,
-        credits: {
-          ...original,
-          finishTask: async (
-            ...args: Parameters<typeof original.finishTask>
-          ) => {
-            if (args[3] === "capture") {
-              captureAttempts += 1;
-              if (captureAttempts === 1) {
-                throw new Error("Database connection lost");
-              }
-            }
-            return await original.finishTask(...args);
-          },
-        },
+      hederaPayerFor: async (input: {
+        openingUsdMicros: number;
+        userId: typeof context.session.userId;
+      }) => {
+        opening = input.openingUsdMicros;
+        return await context.services.hederaPayerFor(input);
       },
     };
     const ticket = await purchaseService({ ...context, services }, request());
-    const held = await done(context, ticket.id);
-    expect(held.status).toBe("uncertain");
-    expect(held.chargeStatus).toBe("uncertain");
-    expect(held.text).toContain("DEMO");
-    await recoverOrphanedServiceTasks(services);
-    const recovered = await done(context, ticket.id);
-    expect(recovered.status).toBe("done");
-    expect(recovered.chargeStatus).toBe("captured");
-    expect(captureAttempts).toBe(2);
-  });
-  it("monitor service execution needs automation and services scopes without wallet pay", async () => {
-    const context = await fixture();
-    const connectionId = OAuthGrantId.generate();
-    await context.services.store.oauth.grants.create(context.session.userId, {
-      id: connectionId,
-      clientId: OAuthClientId.generate(),
-      clientName: "Monitor",
-      createdAt: Date.now(),
-      lastUsedAt: null,
-      revokedAt: null,
-      scopes: ["automation", "services"],
-    });
-    const ticket = await purchaseService(
-      { ...context, connectionId, monitorCheckId: MonitorCheckId.generate() },
-      request()
-    );
-    const result = await done(context, ticket.id);
-    expect(result.status).toBe("done");
-    expect(result.chargeStatus).toBe("reserved");
-    expect(context.session.history).toHaveLength(0);
-    expect(result.saleId).toBeNull();
+    const completed = await done(context, ticket.id);
+    expect(completed.status).toBe("done");
+    expect(opening).toBe(100_000);
+    expect(context.session.pocket).toBeLessThan(opening);
   });
   it("marks a stale persisted task uncertain without purchasing it again", async () => {
     const context = await fixture();
@@ -339,7 +275,7 @@ describe("service purchases", () => {
     const replayed = await purchaseService(context, input);
     expect(replayed.status).toBe("uncertain");
     expect(replayed.error).toContain("15 minutes");
-    expect(context.session.history).toHaveLength(0);
+    expect(context.session.history).toHaveLength(1);
   });
   it("holds a status read until the task settles, and answers with the phase at the deadline", async () => {
     const context = await fixture();
@@ -463,22 +399,6 @@ describe("service purchases", () => {
     };
     const grantA = OAuthGrantId.generate();
     const grantB = OAuthGrantId.generate();
-    await Promise.all(
-      [grantA, grantB].map(async (id) => {
-        await context.services.store.oauth.grants.create(
-          context.session.userId,
-          {
-            id,
-            clientId: OAuthClientId.generate(),
-            clientName: "Credit service test",
-            createdAt: Date.now(),
-            lastUsedAt: null,
-            revokedAt: null,
-            scopes: ["services"],
-          }
-        );
-      })
-    );
     const ticket = await purchaseService(
       { ...context, connectionId: grantA },
       request()
