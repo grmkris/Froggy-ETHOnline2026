@@ -11,7 +11,7 @@ Verification results, limits and commands are recorded in [the verification repo
 - A `bridge` trade through the existing reservation/authorization/submission/recovery machinery. Rules and agent credentials cannot authorize it. Saved method recipient/revision checks apply at the trading boundary.
 - Uniswap `BRIDGE` and `/swap_5792` decoding, exact bounded allowance, Across deposit validation, Base simulation and independent Linea deposit/fill/transfer reconciliation with durable cursors.
 - Hosted inspection without secrets, run-scoped credential bindings, disabled recording/sharing, current frame checks, worker-release handover, 3DS continuation without secret redispatch, and ambiguous-dispatch recovery without an automatic payment retry.
-- Feature default off, Linea read-only configuration, loud synthetic funding/rates/outcomes, fixed order observations and card-number history redaction.
+- Feature default off. Every card route refuses with a versioned `403 card.disabled` response before storage or provider access while disabled; Account and purchase controls stay hidden. Linea read-only configuration, loud synthetic funding/rates/outcomes, fixed order observations and card-number history redaction.
 
 The runtime still needs the release checks below. Local code and stubs are not proof of a real purchase.
 
@@ -29,13 +29,13 @@ Resolve the provider's iframe entry path, then prove both allowed-frame success 
 
 ## Migration and Railway release
 
-Migration `0028_serious_newton_destine.sql` creates `payment_methods`, `payment_method_credentials`, and `card_checkouts`. It belongs in the existing migration sequence; preserve subsequent unrelated migrations. Take a database backup before the normal release migration. The migration is additive; disabling the feature does not delete recovery records or reverse funding.
+Migration `0027_dashing_mad_thinker.sql` creates `payment_methods`, `payment_method_credentials`, and `card_checkouts`. It was regenerated after main’s `0026_busy_silvermane`, preserving that SQL and snapshot unchanged. The `0027` snapshot points to main’s `0026` and adds only the three card tables; the journal retains both lanes’ entries. Take a database backup before the normal release migration. The migration is additive; disabling the feature does not delete recovery records or reverse funding.
 
 Existing Railway target: project `d6f4178e-fc21-4827-8347-20b1cec2aba4`, production environment `44c2247f-e0a2-43f8-9b46-586a29126157`, app service `393648df-65e9-4491-87f3-1b896c736b9f`.
 
-Prepare a scoped release on current main with the required hosted-browser/trading prerequisites. The shared checkout contains substantial unrelated ongoing work; do not upload that whole directory as a card release. Run `bun run check:fast`, `bun run check`, `bun run e2e`, and the normal build/migration checks in isolation. Configure `CARD_VAULT_KEY` as a new secret 32-byte lowercase hex key and `LINEA_RPC_URL` as an HTTPS Linea read-only RPC. Preserve the vault key across deploys; changing it without re-encryption makes saved credentials unreadable. Set `LINEA_CONFIRMATIONS=2`. Verify configured Base mainnet RPC, sponsored Privy execution, Uniswap and Tenderly. Initially keep both feature flags false.
+The saved-card lane is isolated at `/tmp/froggy-card-main-integration`, on local branch `codex/saved-card-dark-20260913`, based on `origin/main` `c944a11`. Only card changes were restored from `wip-tree-2026-09-13`; main’s credits and other shared behavior were preserved. The coordinator authorized pushing the rebased dark lane to main after the full gate and PostgreSQL contracts pass. Run `heavy bun run check` without a pipe, then `bun test` directly in both `apps/server` and `apps/web`; cached Turbo tests are not the final app verification. Browser acceptance uses isolated ports via `FROGGY_E2E_PORT`. See the verification report for results. Configure `CARD_VAULT_KEY` as a new secret 32-byte lowercase hex key and `LINEA_RPC_URL` as an HTTPS Linea read-only RPC. Preserve the vault key across deploys; changing it without re-encryption makes saved credentials unreadable. Set `LINEA_CONFIRMATIONS=2`. Verify configured Base mainnet RPC, sponsored Privy execution, Uniswap and Tenderly. Initially keep both feature flags false.
 
-After all acceptance checks, enable `CARD_CHECKOUT_ENABLED=true`; enable `CARD_CHECKOUT_IFRAMES_VERIFIED` only after the cross-origin proof. No environment mutation, migration or deployment was performed by this implementation run.
+After all acceptance checks, enable `CARD_CHECKOUT_ENABLED=true`; enable `CARD_CHECKOUT_IFRAMES_VERIFIED` only after the cross-origin proof. No production environment mutation, production migration or deployment was performed during local verification. A disposable local database verified the full migration chain and was removed afterward.
 
 ## Remaining acceptance
 

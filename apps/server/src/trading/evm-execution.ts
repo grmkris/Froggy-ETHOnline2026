@@ -37,12 +37,9 @@ export interface EvmExecutionOptions {
   ) => { readonly output: string | null; readonly actualInput?: string };
 }
 
-const validateSimulation = (
-  input: TradeInput,
-  minimum: string,
+const validateEvmResults = (
   steps: readonly TradeStep[],
-  results: readonly TradeSimulation[],
-  phase: "standard" | "curve" | "graduated"
+  results: readonly TradeSimulation[]
 ): void => {
   if (results.length !== steps.length) {
     throw new Error("trade.simulation: missing step results.");
@@ -60,6 +57,16 @@ const validateSimulation = (
       );
     }
   }
+};
+
+const validateSimulation = (
+  input: TradeInput,
+  minimum: string,
+  steps: readonly TradeStep[],
+  results: readonly TradeSimulation[],
+  phase: "standard" | "curve" | "graduated"
+): void => {
+  validateEvmResults(steps, results);
   const changes = results.at(-1)?.assetChanges;
   const spent = changes?.find(
     (entry) => entry.asset.toLowerCase() === input.tokenIn.toLowerCase()
@@ -69,6 +76,14 @@ const validateSimulation = (
   );
   const actualInput =
     spent === undefined ? 0n : BigInt(spent.before) - BigInt(spent.after);
+  if (input.action === "bridge") {
+    if (actualInput !== BigInt(input.amount) || actualInput <= 0n) {
+      throw new Error(
+        "trade.simulation: bridge debit differs from the approved input."
+      );
+    }
+    return;
+  }
   const partial = input.venue === "pons" && phase === "curve";
   if (
     spent === undefined ||
@@ -100,7 +115,10 @@ export const simulateEvmTrade = async (
   if (blockNumber > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("trade.block: block exceeds the simulator range.");
   }
-  const tokens = [input.tokenIn, input.tokenOut];
+  const tokens =
+    input.action === "bridge"
+      ? [input.tokenIn]
+      : [input.tokenIn, input.tokenOut];
   const assets = await Promise.all(
     tokens.map(async (address) => {
       const balance = await tradeTokenBalance(

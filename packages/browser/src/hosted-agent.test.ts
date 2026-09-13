@@ -84,3 +84,55 @@ test("malformed and oversized responses fail closed, and cancellation accepts 20
   await cancelled.api.cancel(ID);
   expect(cancelled.calls).toHaveLength(1);
 });
+
+test("private purchase dispatch disables sharing before sending run-scoped secret bindings", async () => {
+  const { api, calls } = fixture([
+    new Response(null, { status: 204 }),
+    Response.json({ id: ID, sessionId: ID, workspaceId: ID, status: "queued" }),
+  ]);
+  await api.create({
+    task: "Fill by alias after checking the approved checkout.",
+    model: "gpt-5.6-luna",
+    maxCostUsd: 0.1,
+    sessionId: ID,
+    country: null,
+    privateSession: true,
+    secretBindings: [
+      {
+        alias: "card_number",
+        source: { type: "inline", value: "synthetic-secret" },
+        allowedDomains: ["checkout.example", "fields.example"],
+      },
+    ],
+  });
+  expect(calls).toHaveLength(2);
+  expect(calls[0]?.url).toEndWith(`/sessions/${ID}/share`);
+  expect(calls[0]?.init?.method).toBe("PUT");
+  expect(calls[0]?.init?.body).toBe(JSON.stringify({ isActive: false }));
+  const run = calls[1]?.init?.body;
+  expect(typeof run).toBe("string");
+  expect(run).toContain('"record":false');
+  expect(run).toContain(
+    '"allowedDomains":["checkout.example","fields.example"]'
+  );
+  expect(run).toContain('"alias":"card_number"');
+});
+
+test("purchase dispatch stops when session sharing cannot be disabled", async () => {
+  const { api, calls } = fixture([
+    new Response("synthetic-secret", { status: 503 }),
+  ]);
+  const result = await api
+    .create({
+      task: "Purchase",
+      model: "gpt-5.6-luna",
+      maxCostUsd: 0.1,
+      sessionId: ID,
+      country: null,
+      privateSession: true,
+    })
+    .catch((error: unknown) => error);
+  expect(result).toBeInstanceOf(HostedAgentError);
+  expect(String(result)).not.toContain("synthetic-secret");
+  expect(calls).toHaveLength(1);
+});

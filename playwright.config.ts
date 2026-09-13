@@ -41,6 +41,10 @@ export default defineConfig({
       // `environment.ts` spells "unset".
       env: {
         DATABASE_URL: "",
+        CARD_CHECKOUT_ENABLED: "true",
+        CARD_VAULT_KEY: "replace-card-vault-key",
+        LINEA_RPC_URL: "replace-linea-read-only-rpc",
+        CARD_CHECKOUT_IFRAMES_VERIFIED: "false",
         EMAIL_DOMAIN: "",
         EMAIL_WORKER_URL: "",
         EMAIL_WEBHOOK_SECRET: "",

@@ -17,13 +17,16 @@ import { ConnectionDetails } from "../components/settings/connection-details";
 import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
+import { PaymentMethodsPanel } from "../components/settings/payment-methods";
 import { ScheduleList } from "../components/settings/schedule-list";
+import { usePaymentMethods } from "../hooks/use-card-checkouts";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
 
 export const SettingsPage = (): ReactElement => {
   const { app, deleteMyData, webMcp } = useWorkspace();
   const identity = useIdentity();
+  const methods = usePaymentMethods();
   return (
     <Page
       intro="Your routines, connections, and account. All in one place."
@@ -36,19 +39,24 @@ export const SettingsPage = (): ReactElement => {
       >
         {[
           ["email", "Email"],
+          ["payment-methods", "Payment methods"],
           ["routines", "Routines"],
           ["spending", "Spending controls"],
           ["appearance", "Appearance"],
           ["account", "Your account"],
-        ].map(([id, label]) => (
-          <a
-            className="hover:text-brand focus-visible:outline-ring inline-flex min-h-11 items-center focus-visible:outline-2"
-            key={id}
-            href={`#${id}`}
-          >
-            {label}
-          </a>
-        ))}
+        ]
+          .filter(
+            ([id]) => id !== "payment-methods" || methods.data?.enabled === true
+          )
+          .map(([id, label]) => (
+            <a
+              className="hover:text-brand focus-visible:outline-ring inline-flex min-h-11 items-center focus-visible:outline-2"
+              key={id}
+              href={`#${id}`}
+            >
+              {label}
+            </a>
+          ))}
       </nav>
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-6">
@@ -82,6 +90,7 @@ export const SettingsPage = (): ReactElement => {
           </Card>
         </div>
         <div className="flex min-w-0 flex-col gap-6">
+          <PaymentMethodsPanel />
           <Card id="spending" className="scroll-mt-6">
             <CardHeader>
               <CardTitle>Spending controls</CardTitle>

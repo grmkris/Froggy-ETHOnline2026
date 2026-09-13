@@ -27,6 +27,7 @@ import { creditChargeWords, formatCredits } from "../../lib/credit-view";
 import { UI_EASE, keyboardInteraction } from "../../lib/motion";
 import { useWorkspace } from "../../lib/workspace-context";
 import { MarkdownText } from "../stream/markdown-text";
+import { BrowserCardCheckout } from "./card-checkout";
 
 import "./browse-task.css";
 
@@ -417,6 +418,7 @@ export const BrowseTaskCard = ({
       </div>
       <TaskResult task={task} />
       <TaskControls task={task} onWatch={onWatch} />
+      <BrowserCardCheckout taskId={task.id} />
     </section>
   );
 };

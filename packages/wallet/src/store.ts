@@ -51,6 +51,8 @@ import type {
  */
 import { Result, Schema } from "effect";
 
+import { memoryCardStore } from "./card-store";
+import type { CardStore } from "./card-store";
 import type { CreditStore } from "./credit-store";
 import { memoryCreditStore } from "./credit-store-memory";
 import type { HistoryStore } from "./history-store";
@@ -305,6 +307,7 @@ export interface Store {
   readonly watchlistData: WatchlistDataStore;
   readonly monitoring: MonitoringStore;
   readonly history: HistoryStore;
+  readonly cards: CardStore;
   readonly trading: TradingStore;
   readonly launches: LaunchStore;
   readonly purchases: {
@@ -825,6 +828,7 @@ export const memoryStore = (): Store => {
     watchlist,
     watchlistData,
     monitoring,
+    cards: memoryCardStore(),
     trading: memoryTradingStore(),
     launches: memoryLaunchStore(),
     purchases: {

@@ -48,6 +48,7 @@ import { authenticate, bearerFromRequest } from "./auth";
 import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
+import { handleCardCheckouts } from "./card-routes";
 import type { ChatRequest } from "./chat";
 import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
@@ -933,6 +934,7 @@ const deleteAccount = async (
     );
   }
   deps.runs.abort(workspace.session.id);
+  await deps.services.cards.forget(userId);
   await deps.services.trades.stopAndRevoke(userId);
   await deps.services.launches.cancelAll(userId);
   await deps.services.purchases.cancelAll(userId, workspace.browser);
@@ -948,6 +950,7 @@ const handleBilling = async (
   caller: TaskCaller,
   request: Request
 ): Promise<Response | null> =>
+  (await handleCardCheckouts(services, workspace, caller, request)) ??
   (await handleCredits(services, workspace, caller, request)) ??
   (await handleTrades(services, workspace, caller, request));
 

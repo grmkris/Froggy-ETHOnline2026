@@ -90,6 +90,8 @@ import type { Redacted } from "effect";
 import postgres from "postgres";
 import { erc20Abi, getAddress } from "viem";
 
+import { CardCheckouts } from "./card-checkouts";
+import { cardProviders, cardCheckoutConfiguration } from "./card-services";
 import { CreditFunding } from "./credit-funding";
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
@@ -159,6 +161,7 @@ const createEmail = (
   return null;
 };
 export interface Services {
+  readonly cards: CardCheckouts;
   readonly creditFunding: CreditFunding;
   readonly hostedAgent: HostedAgentApi;
   readonly email: Email | null;
@@ -610,16 +613,22 @@ export const createServices = (options: ServiceOptions): Services => {
       : evmPayer({ network: environment.evmNetwork, signer });
   };
 
+  const cardProvider = cardProviders(environment, privy.execution);
+  const ordinaryTrades = executionProviders(
+    environment.trading,
+    environment.modes.privy === "live",
+    environment.allowStubs,
+    privy.execution
+  );
   const trades = new TradeCoordinator({
+    cards: store.cards,
     store: store.trading,
     watches: store.launches,
     privy,
-    backend: executionProviders(
-      environment.trading,
-      environment.modes.privy === "live",
-      environment.allowStubs,
-      privy.execution
-    ),
+    backend: (input) =>
+      input.action === "bridge"
+        ? cardProvider.backend(input)
+        : ordinaryTrades(input),
     now: Date.now,
   });
 
@@ -676,6 +685,14 @@ export const createServices = (options: ServiceOptions): Services => {
     Services,
     "purchases" | "createBrowser" | "creditFunding"
   > = {
+    cards: new CardCheckouts({
+      ...cardCheckoutConfiguration(environment),
+      store: store.cards,
+      trades,
+      privy,
+      linea: cardProvider.reader,
+      now: Date.now,
+    }),
     hostedAgent:
       environment.browserUseApiKey === null
         ? stubHostedAgent

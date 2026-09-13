@@ -1,12 +1,14 @@
 # Saved-card checkout funding and credential release
 
-Date: 13 September 2026. Status: implemented locally; live card entry gated pending iframe acceptance.
+Date: 13 September 2026. Status: integrated behind a default-off configuration flag; live card entry gated pending iframe acceptance.
 
 The owner requested a demo that funds an independently entered Linea address using existing Base USDC and pays a merchant with a saved card in the shared Chrome. Swaps, password managers, Linea signing, and issuer APIs are outside this change.
 
 ## Credential storage
 
 For the explicitly selected demo configuration, the database stores the cardholder name, PAN, expiry and CVC encrypted together with AES-256-GCM. Each write uses a fresh 96-bit nonce. Associated data binds the ciphertext to owner, payment-method TypeID and revision. A redacted server-only 32-byte key is configured separately. Credentials live in a separate table; checkouts contain masked references and observations. This decision does **not** claim PCI compliance. A production card vault requires separate security, retention and compliance review.
+
+`CARD_CHECKOUT_ENABLED` defaults to false. When disabled, every payment-method and card-checkout route returns a versioned `403 card.disabled` refusal before reading request bodies, card storage or provider state. Account and browser purchase controls remain hidden, and checkout polling is disabled.
 
 Only authenticated owner endpoints save, replace, revoke or approve. Revision changes invalidate pending authority, erase revoked credentials and request cancellation of the associated browser task. Account deletion revokes all saved methods. Funding already submitted remains recoverable. A dispatched payment is never automatically retried. Its reservation survives stop and an ambiguous result until the owner explicitly reviews their issuer dashboard and reconciles after confirmed browser-worker release. That acknowledgement is not an issuer-verified charge.
 

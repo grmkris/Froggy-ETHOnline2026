@@ -263,6 +263,14 @@ const optionalResearchKey = (
 ): Redacted.Redacted | null => (Redacted.value(key).trim() === "" ? null : key);
 
 export interface Environment {
+  readonly cards?: {
+    readonly enabled: boolean;
+    readonly mode: "stub" | "live" | "unavailable";
+    readonly vaultKey: Redacted.Redacted;
+    readonly lineaRpc: Redacted.Redacted;
+    readonly confirmations: number;
+    readonly liveCardEntry: boolean;
+  };
   readonly email?:
     | {
         readonly domain: string;
@@ -819,6 +827,63 @@ const loadEmailEnvironment = Effect.fn("loadEmailEnvironment")(
   }
 );
 
+const loadCardConfiguration = Effect.fn("loadCardConfiguration")(
+  function* loadCardConfiguration(
+    appOrigin: string,
+    privyLive: boolean,
+    uniswapLive: boolean
+  ) {
+    const cardEnabled = yield* Config.boolean("CARD_CHECKOUT_ENABLED").pipe(
+      Config.withDefault(false)
+    );
+    const cardVaultKey = yield* secret(
+      "CARD_VAULT_KEY",
+      "replace-card-vault-key"
+    );
+    const lineaRpc = yield* secret(
+      "LINEA_RPC_URL",
+      "replace-linea-read-only-rpc"
+    );
+    const cardFramesVerified = yield* Config.boolean(
+      "CARD_CHECKOUT_IFRAMES_VERIFIED"
+    ).pipe(Config.withDefault(false));
+    const cardConfirmations = yield* Config.number("LINEA_CONFIRMATIONS").pipe(
+      Config.withDefault(2)
+    );
+    const cardStub =
+      Redacted.value(cardVaultKey) === "replace-card-vault-key" &&
+      isLoopback(appOrigin);
+    const cardLive =
+      /^[a-f0-9]{64}$/u.test(Redacted.value(cardVaultKey)) &&
+      Redacted.value(lineaRpc).startsWith("https://") &&
+      privyLive &&
+      uniswapLive;
+    if (
+      cardEnabled &&
+      (!Number.isInteger(cardConfirmations) ||
+        cardConfirmations < 2 ||
+        cardConfirmations > 100 ||
+        (!cardStub && !cardLive))
+    ) {
+      throw new Error(
+        "Invalid card checkout configuration: configure the vault key, Linea HTTPS RPC, sponsored Base execution and at least two Linea confirmations."
+      );
+    }
+    let cardMode: "stub" | "live" | "unavailable" = "unavailable";
+    if (cardEnabled) {
+      cardMode = cardStub ? "stub" : "live";
+    }
+    return {
+      enabled: cardEnabled,
+      mode: cardMode,
+      vaultKey: cardStub ? Redacted.make("e".repeat(64)) : cardVaultKey,
+      lineaRpc,
+      confirmations: cardConfirmations,
+      liveCardEntry: cardFramesVerified,
+    };
+  }
+);
+
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
     const email = yield* loadEmailEnvironment();
@@ -1126,9 +1191,15 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       ),
     };
 
+    const cards = yield* loadCardConfiguration(
+      appOrigin,
+      modes.privy === "live",
+      trading.uniswapMode === "live"
+    );
     refuseStubbedBoot(appOrigin, stubbedNames(modes, trading));
 
     return {
+      cards,
       email,
       trading,
       xApiBearer,

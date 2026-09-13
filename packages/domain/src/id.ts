@@ -285,3 +285,8 @@ export type CreditEntryId = typeof CreditEntryId.Type;
 
 export const WatchlistPreviewId = makeIdSchema("wlp", "WatchlistPreviewId");
 export type WatchlistPreviewId = typeof WatchlistPreviewId.Type;
+
+export const PaymentMethodId = makeIdSchema("pmt", "PaymentMethodId");
+export type PaymentMethodId = typeof PaymentMethodId.Type;
+export const CardCheckoutId = makeIdSchema("cco", "CardCheckoutId");
+export type CardCheckoutId = typeof CardCheckoutId.Type;

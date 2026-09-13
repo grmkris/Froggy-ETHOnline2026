@@ -1,7 +1,13 @@
 import { HostedBrowserExpiredError, HostedAgentError } from "@froggy/browser";
 import type { HostedRunInput, HostedRunStatus } from "@froggy/browser";
 import { RunId, walletRequestFinished } from "@froggy/domain";
-import type { Task, TaskId, TaskStatus, UserId } from "@froggy/domain";
+import type {
+  CardCheckoutId,
+  Task,
+  TaskId,
+  TaskStatus,
+  UserId,
+} from "@froggy/domain";
 import type {
   AppServerMessage,
   BrowseTaskControl,
@@ -9,6 +15,7 @@ import type {
 } from "@froggy/protocol";
 
 import { storedBrowseQuote } from "./browse-quotes";
+import { cardRunInput } from "./card-browser";
 import { authorizeCreditTask, finishCreditTask } from "./credit-task";
 import { detached } from "./detached";
 import {
@@ -21,6 +28,7 @@ import {
   publicBrowseTask,
 } from "./hosted-browse-state";
 import type { HostedBrowseState } from "./hosted-browse-state";
+import type { Services } from "./services";
 import type { TaskDeps } from "./tasks";
 import type { Workspace } from "./workspaces";
 
@@ -283,7 +291,40 @@ export class HostedBrowseJob {
       if (this.state.profileId !== null) {
         input = { ...input, profileId: this.state.profileId };
       }
+      if (
+        this.state.checkoutId !== undefined &&
+        this.state.checkoutStage !== undefined
+      ) {
+        const checkout = await this.deps.services.cards.get(
+          this.workspace.userId,
+          this.state.checkoutId
+        );
+        input = {
+          ...input,
+          privateSession: true,
+          ...(await cardRunInput(
+            this.deps.services,
+            this.workspace,
+            checkout,
+            this.state.checkoutStage
+          )),
+        };
+        const current = await this.deps.services.cards.get(
+          this.workspace.userId,
+          checkout.id
+        );
+        if (current.stoppedAt !== null) {
+          throw new Error("Purchase stopped before dispatch.");
+        }
+      }
       const created = await this.deps.services.hostedAgent.create(input);
+      if (this.state.checkoutId !== undefined) {
+        await this.deps.services.cards.dispatched(
+          this.workspace.userId,
+          this.state.checkoutId,
+          created.id
+        );
+      }
       this.state = {
         ...this.state,
         providerRunId: created.id,
@@ -297,6 +338,13 @@ export class HostedBrowseJob {
       };
       await this.save();
     } catch {
+      if (this.state.checkoutId !== undefined) {
+        await this.deps.services.cards.pause(
+          this.workspace.userId,
+          this.state.checkoutId,
+          "Purchase dispatch could not be confirmed. Reconcile the existing run; no further payment attempt will be created."
+        );
+      }
       this.state = { ...this.state, phase: "checking" };
       this.task = {
         ...this.task,
@@ -401,6 +449,21 @@ export class HostedBrowseJob {
     if (this.state.phase === "expired") {
       this.deps.workspaces.releaseHosted(this.workspace.userId);
       return true;
+    }
+    if (this.state.phase === "human" && this.state.checkoutId !== undefined) {
+      const checkout = await this.deps.services.cards.refresh(
+        this.workspace.userId,
+        this.state.checkoutId
+      );
+      if (
+        checkout.stoppedAt === null &&
+        checkout.stage === "paying" &&
+        checkout.paymentDispatchedAt === null
+      ) {
+        this.state = { ...this.state, checkoutStage: "pay" };
+        await this.resumePurchase();
+        return false;
+      }
     }
     if (this.state.phase !== "human") {
       return false;
@@ -652,6 +715,38 @@ export class HostedBrowseJob {
       )
     );
   }
+  private completedText(result: string | null): string {
+    if (this.state.checkoutId !== undefined) {
+      return "Purchase run finished. See the purchase review for its observed outcome.";
+    }
+    return this.state.stage === "task"
+      ? (result ?? this.state.text).slice(0, 16_000)
+      : this.state.text;
+  }
+  private async completeCheckout(result: string | null): Promise<void> {
+    const { checkoutId } = this.state;
+    if (checkoutId === undefined) {
+      return;
+    }
+    const { cards } = this.deps.services;
+    await (this.state.checkoutStage === "inspect"
+      ? cards.inspect(
+          { session: this.workspace.session, connectionId: null },
+          checkoutId,
+          result ?? "{}"
+        )
+      : cards
+          .outcome(this.workspace.userId, checkoutId, result ?? "{}")
+          .catch(
+            async () =>
+              await cards.pause(
+                this.workspace.userId,
+                checkoutId,
+                "The order outcome is unknown. Inspect the existing page before any further purchase."
+              )
+          ));
+    await this.confirmHandover();
+  }
   private async completeRun(status: HostedRunStatus): Promise<void> {
     const id = this.state.providerRunId;
     if (id === null) {
@@ -673,10 +768,7 @@ export class HostedBrowseJob {
         ...this.state,
         settled: true,
         spentUsdMicros: this.state.spentUsdMicros + cost,
-        text:
-          this.state.stage === "task"
-            ? (summary.result ?? this.state.text).slice(0, 16_000)
-            : this.state.text,
+        text: this.completedText(summary.result),
       };
       await this.save();
     }
@@ -696,6 +788,15 @@ export class HostedBrowseJob {
           ? "The purchased execution allowance is used up. No new task was purchased."
           : null
       );
+      return;
+    }
+    if (status !== "completed" && this.state.checkoutId !== undefined) {
+      await this.deps.services.cards.pause(
+        this.workspace.userId,
+        this.state.checkoutId,
+        "The purchase run ended without a confirmed outcome. Inspect the existing page; do not submit another payment."
+      );
+      await this.confirmHandover();
       return;
     }
     if (status !== "completed") {
@@ -719,6 +820,10 @@ export class HostedBrowseJob {
         settled: false,
       };
       await this.save();
+      return;
+    }
+    if (this.state.checkoutId !== undefined) {
+      await this.completeCheckout(summary.result);
       return;
     }
     await this.finish(
@@ -757,6 +862,18 @@ export class HostedBrowseJob {
       clockAt: this.now(),
     };
     await this.save();
+    if (
+      this.state.checkoutId !== undefined &&
+      this.state.checkoutStage === "inspect"
+    ) {
+      const checkout = await this.deps.services.cards.get(
+        this.workspace.userId,
+        this.state.checkoutId
+      );
+      if (checkout.stage === "inspecting" && checkout.stoppedAt === null) {
+        await this.resumePurchase();
+      }
+    }
   }
   private async finish(
     phase: "done" | "failed" | "cancelled" | "budget_reached",
@@ -789,6 +906,15 @@ export class HostedBrowseJob {
   }
   private async setIntent(intent: "take" | "stop" | "budget"): Promise<void> {
     this.controller.abort();
+    if (
+      (intent === "stop" || intent === "budget") &&
+      this.state.checkoutId !== undefined
+    ) {
+      await this.deps.services.cards.stop(
+        this.workspace.userId,
+        this.state.checkoutId
+      );
+    }
     if (this.task.runId !== null) {
       this.deps.interactions.abortRun(
         this.workspace.userId,
@@ -855,6 +981,82 @@ export class HostedBrowseJob {
     return await this.waitForRelease(attempts - 1);
   }
 
+  private async resumePurchase(): Promise<void> {
+    if (!this.state.released || !this.state.settled) {
+      throw new Error(
+        "Wait for confirmed worker release before purchase continuation."
+      );
+    }
+    this.controller = new AbortController();
+    this.state = {
+      ...this.state,
+      stage: "task",
+      phase: "starting",
+      dispatch: "none",
+      providerRunId: null,
+      released: false,
+      settled: false,
+      cancelSent: false,
+      cursor: 0,
+      clockAt: this.now(),
+    };
+    await this.workspace.browser.hosted?.control("agent");
+    await this.save();
+  }
+  async purchase(id: CardCheckoutId): Promise<void> {
+    await this.serial(async () => {
+      if (this.stopped || this.state.dispatch === "creating") {
+        throw new Error(
+          "Reconcile the current browser run before preparing a purchase."
+        );
+      }
+      const checkout = await this.deps.services.cards.get(
+        this.workspace.userId,
+        id
+      );
+      if (checkout.taskId !== this.task.id) {
+        throw new Error("Purchase belongs to another browser task.");
+      }
+      this.state = { ...this.state, checkoutId: id, checkoutStage: "inspect" };
+      await (this.state.phase === "human"
+        ? this.resumePurchase()
+        : this.setIntent("take"));
+      this.schedule(0);
+    });
+  }
+  private async prepareContinuation(): Promise<void> {
+    if (this.state.checkoutId !== undefined) {
+      const checkout = await this.deps.services.cards.get(
+        this.workspace.userId,
+        this.state.checkoutId
+      );
+      if (checkout.stoppedAt !== null) {
+        throw new Error("This purchase is stopped.");
+      }
+      if (checkout.paymentDispatchedAt !== null) {
+        this.state = { ...this.state, checkoutStage: "reconcile" };
+      } else if (
+        checkout.stage !== "inspecting" &&
+        checkout.stage !== "paying"
+      ) {
+        throw new Error("Review the purchase before continuing payment.");
+      }
+    }
+  }
+  async reconcilePurchase(id: CardCheckoutId): Promise<void> {
+    await this.serial(async () => {
+      if (
+        this.state.checkoutId !== id ||
+        !this.state.released ||
+        !this.state.settled
+      ) {
+        throw new Error(
+          "card.worker: wait for confirmed browser handover before releasing the reservation."
+        );
+      }
+      await this.deps.services.cards.reconcile(this.workspace.userId, id);
+    });
+  }
   async control(action: BrowseTaskControl["action"]): Promise<BrowseTaskView> {
     return await this.serial(async () => {
       if (browseFinished(this.task)) {
@@ -879,6 +1081,7 @@ export class HostedBrowseJob {
         this.task = { ...this.task, error: null };
         await this.save();
       } else if (action === "continue") {
+        await this.prepareContinuation();
         if (this.view().browse?.controls.continue !== true) {
           throw new Error("Wait for confirmed handover before continuing.");
         }
@@ -994,10 +1197,11 @@ export const controlHostedBrowse = async (
 };
 export const controlCurrentHostedBrowse = async (
   userId: UserId,
-  action: BrowseTaskControl["action"]
+  action: BrowseTaskControl["action"],
+  taskId?: TaskId
 ): Promise<boolean> => {
   const job = jobs.get(userId);
-  if (job === undefined) {
+  if (job === undefined || (taskId !== undefined && job.view().id !== taskId)) {
     return false;
   }
   await job.control(action);
@@ -1014,4 +1218,48 @@ export const suspendHostedBrowses = async (): Promise<ReadonlySet<UserId>> => {
     })
   );
   return preserved;
+};
+
+export const purchaseHostedBrowse = async (
+  userId: UserId,
+  taskId: TaskId,
+  checkoutId: CardCheckoutId
+): Promise<void> => {
+  const job = jobs.get(userId);
+  if (job === undefined || job.view().id !== taskId) {
+    throw new Error(
+      "Start or resume a hosted browser task before buying with a saved card."
+    );
+  }
+  await job.purchase(checkoutId);
+};
+
+export const reconcileHostedPurchase = async (
+  services: Services,
+  owner: UserId,
+  taskId: TaskId,
+  id: CardCheckoutId
+): Promise<void> => {
+  const job = jobs.get(owner);
+  if (job !== undefined && job.view().id === taskId) {
+    // A purchase already in human control has released its worker; do not request another takeover.
+    if (job.view().browse?.phase !== "human") {
+      await job.control("take_control");
+    }
+    await job.reconcilePurchase(id);
+    return;
+  }
+  const task = await services.store.tasks.byId(owner, taskId);
+  const state = task === null ? null : hostedState(task);
+  if (
+    state === null ||
+    !state.released ||
+    !state.settled ||
+    state.checkoutId !== id
+  ) {
+    throw new Error(
+      "card.worker: reconcile the existing browser run before releasing the reservation."
+    );
+  }
+  await services.cards.reconcile(owner, id);
 };

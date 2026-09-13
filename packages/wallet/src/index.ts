@@ -117,3 +117,6 @@ export type {
   CreditTaskResult,
   FundingPatch,
 } from "./credit-store";
+
+export type { CardStore, CardBook } from "./card-store";
+export { memoryCardStore } from "./card-store";

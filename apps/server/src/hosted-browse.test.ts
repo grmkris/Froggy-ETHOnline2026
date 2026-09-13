@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import { StubCloudBrowser, HostedBrowserExpiredError } from "@froggy/browser";
 import type {
@@ -8,6 +8,7 @@ import type {
   HostedRunStatus,
 } from "@froggy/browser";
 import {
+  EvmAddress,
   RunId,
   TaskId,
   usdMicros,
@@ -18,13 +19,15 @@ import {
 } from "@froggy/domain";
 import type { Task, Purchase } from "@froggy/domain";
 import type { BrowserState } from "@froggy/protocol";
-import { ConfigProvider, Effect } from "effect";
+import { ConfigProvider, Effect, Schema } from "effect";
 
 import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudget } from "./budget";
+import { cardRunInput } from "./card-browser";
+import { handleCardCheckouts } from "./card-routes";
 import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
-import { HostedBrowseJob } from "./hosted-browse";
+import { HostedBrowseJob, reconcileHostedPurchase } from "./hosted-browse";
 import type { HostedBrowseState } from "./hosted-browse-state";
 import {
   applyHostedEvent,
@@ -80,6 +83,13 @@ class BrowserFixture extends StubCloudBrowser {
     },
     release: noop,
   };
+  override async checkoutFrames() {
+    this.calls.push("checkoutFrames");
+    return await Promise.resolve({
+      merchant: "shop.example",
+      hosts: ["shop.example", "pay.example"],
+    });
+  }
   override state(): BrowserState {
     const state = super.state();
     return {
@@ -108,7 +118,7 @@ interface ProviderFixture {
   ids: string[];
   browserId: string;
 }
-const fixture = async () => {
+const fixture = async (cardEnabled = true) => {
   const owner = userId(`did:privy:hosted-${crypto.randomUUID()}`);
   const environment = await Effect.runPromise(
     loadEnvironment().pipe(
@@ -117,6 +127,7 @@ const fixture = async () => {
         ConfigProvider.fromUnknown({
           APP_ORIGIN: "http://localhost:3000",
           BROWSE_EXECUTOR: "hosted",
+          CARD_CHECKOUT_ENABLED: cardEnabled,
         })
       )
     )
@@ -770,4 +781,243 @@ test("approval cancellation is scoped to the browser run", async () => {
   expect(publicBrowseTask(task, Date.now()).browse?.controls.continue).toBe(
     false
   );
+});
+
+const inspectedCard = JSON.stringify({
+  v: 1,
+  merchant: "shop.example",
+  item: "Demo purchase",
+  total: "20.00",
+  currency: "USD",
+  finalTotal: true,
+  paymentHosts: ["pay.example"],
+});
+const beginCard = async (f: Awaited<ReturnType<typeof fixture>>) => {
+  await f.boot();
+  const method = await f.deps.services.cards.saveMethod(f.owner, {
+    v: 1,
+    label: "Demo card",
+    fundingAddress: Schema.decodeUnknownSync(EvmAddress)(
+      "0x2468246824682468246824682468246824682468"
+    ),
+    credentials: {
+      name: "Synthetic Shopper",
+      number: "4242424242424242",
+      expiryMonth: "12",
+      expiryYear: "2030",
+      cvc: "123",
+    },
+  });
+  const task = await f.saved();
+  const checkout = await f.deps.services.cards.prepare(
+    f.owner,
+    method.id,
+    task.id,
+    crypto.randomUUID()
+  );
+  f.provider.released = false;
+  await f.job.purchase(checkout.id);
+  await f.job.refresh();
+  expect(f.provider.calls).toHaveLength(2);
+  f.provider.released = true;
+  await f.job.refresh();
+  f.provider.result = inspectedCard;
+  await f.job.refresh();
+  expect(f.provider.calls).toHaveLength(3);
+  expect(f.provider.calls[2]?.secretBindings).toBeUndefined();
+  await f.job.refresh();
+  const reviewed = await f.deps.services.cards.get(f.owner, checkout.id);
+  expect(reviewed.stage).toBe("awaiting_approval");
+  if (reviewed.tradeId === null || reviewed.fingerprint === null) {
+    throw new Error("Missing funding review");
+  }
+  const trade = await f.deps.services.trades.get(
+    f.owner,
+    reviewed.tradeId,
+    null
+  );
+  const [step] = trade.steps;
+  if (step === undefined) {
+    throw new Error("Missing bridge step");
+  }
+  await f.deps.services.cards.approve(
+    { session: f.workspace.session, connectionId: null },
+    reviewed.id,
+    {
+      v: 1,
+      fingerprint: reviewed.fingerprint,
+      tradeAnswer: {
+        v: 1,
+        stepId: step.id,
+        approvalId: step.approvalId,
+        fingerprint: step.fingerprint,
+        decision: "allow_once",
+      },
+    },
+    "owner-token"
+  );
+  return reviewed.id;
+};
+
+test("saved-card inspection waits for worker release; payment and 3DS inspection share the same allowance", async () => {
+  const f = await fixture();
+  const id = await beginCard(f);
+  await f.job.refresh();
+  expect(f.provider.calls).toHaveLength(4);
+  const payment = f.provider.calls.at(3);
+  expect(payment?.sessionId).toBe(PROFILE);
+  expect(payment?.secretBindings?.map((binding) => binding.alias)).toContain(
+    "card_cvc"
+  );
+  expect(payment?.task).not.toContain("4242424242424242");
+  expect(payment?.privateSession).toBe(true);
+  f.provider.result = JSON.stringify({
+    v: 1,
+    status: "needs_help",
+    order: null,
+  });
+  await f.job.refresh();
+  const help = await f.deps.services.cards.get(f.owner, id);
+  expect(help.stage).toBe("needs_help");
+  expect(f.browser.control).toBe("human");
+  await f.job.control("continue");
+  await f.job.refresh();
+  expect(f.provider.calls).toHaveLength(5);
+  expect(f.provider.calls[4]?.secretBindings).toBeUndefined();
+  expect(f.provider.calls[4]?.task).toContain("Do not enter card data");
+  f.provider.result = JSON.stringify({
+    v: 1,
+    status: "order_observed",
+    order: "DEMO-ORDER",
+  });
+  await f.job.refresh();
+  const observed = await f.deps.services.cards.get(f.owner, id);
+  expect(observed.stage).toBe("order_observed");
+  expect(observed.charge).toBe("unverified");
+  const task = await f.saved();
+  await reconcileHostedPurchase(f.deps.services, f.owner, task.id, id);
+  const reconciled = await f.deps.services.cards.get(f.owner, id);
+  expect(reconciled.reconciledAt).not.toBeNull();
+  expect(reconciled.stage).toBe("order_observed");
+
+  expect(JSON.stringify(await f.saved())).not.toContain("4242424242424242");
+  expect(JSON.stringify(f.job.view())).not.toContain("Synthetic Shopper");
+});
+
+test("ambiguous card dispatch survives restart without another payment attempt", async () => {
+  const f = await fixture();
+  const id = await beginCard(f);
+  f.provider.ambiguous = true;
+  await f.job.refresh();
+  const uncertain = await f.deps.services.cards.get(f.owner, id);
+  expect(uncertain.stage).toBe("outcome_unknown");
+  const count = f.provider.calls.length;
+  const recovered = new HostedBrowseJob(f.deps, f.workspace, await f.saved());
+  await recovered.refresh();
+  await recovered.refresh();
+  expect(f.provider.calls).toHaveLength(count);
+});
+
+test("card endpoints accept owner sessions and reject agent credentials before reading card data", async () => {
+  const f = await fixture();
+  const request = new Request(
+    `http://localhost/api/payment-methods?owner=${f.owner}`
+  );
+  const ownerResponse = await handleCardCheckouts(
+    f.deps.services,
+    f.workspace,
+    { grantId: null, agentTokenId: null, scopes: null, userId: f.owner },
+    request.clone()
+  );
+  expect(ownerResponse?.status).toBe(200);
+  const agentResponse = await handleCardCheckouts(
+    f.deps.services,
+    f.workspace,
+    {
+      grantId: null,
+      agentTokenId: AgentTokenId.generate(),
+      scopes: null,
+      userId: f.owner,
+    },
+    request.clone()
+  );
+  expect(agentResponse?.status).toBe(403);
+});
+
+test("synthetic funding cannot release credentials into a live browser", async () => {
+  const f = await fixture();
+  const id = await beginCard(f);
+  const checkout = await f.deps.services.cards.get(f.owner, id);
+  const services = {
+    ...f.deps.services,
+    environment: {
+      ...f.deps.services.environment,
+      modes: { ...f.deps.services.environment.modes, browser: "live" as const },
+    },
+  };
+  const refusal = await cardRunInput(
+    services,
+    f.workspace,
+    checkout,
+    "pay"
+  ).then(() => null, String);
+  expect(refusal).toContain("simulated funding");
+  const current = await services.cards.get(f.owner, id);
+  expect(current.paymentDispatchedAt).toBeNull();
+});
+
+test("disabled card routes refuse every method before storage, body decoding, or browser dispatch", async () => {
+  const f = await fixture(false);
+  const transact = spyOn(f.deps.services.store.cards, "transact");
+  const paths = [
+    "/api/payment-methods",
+    "/api/payment-methods/invalid-id",
+    "/api/card-checkouts",
+    "/api/card-checkouts/prepare",
+    "/api/card-checkouts/invalid-id",
+    ...["approve", "authorization", "stop", "review", "reconcile"].map(
+      (action) => `/api/card-checkouts/invalid-id/${action}`
+    ),
+  ];
+  try {
+    await Promise.all(
+      paths.flatMap((path) =>
+        ["GET", "POST", "PUT", "DELETE"].map(async (method) => {
+          const response = await handleCardCheckouts(
+            f.deps.services,
+            f.workspace,
+            {
+              grantId: null,
+              agentTokenId: null,
+              scopes: null,
+              userId: f.owner,
+            },
+            new Request(`http://localhost${path}`, { method })
+          );
+          expect(response?.status).toBe(403);
+          expect(await response?.json()).toEqual({
+            v: 1,
+            error: "card.disabled: Saved-card checkout is disabled.",
+          });
+        })
+      )
+    );
+    expect(transact).not.toHaveBeenCalled();
+    expect(f.provider.calls).toHaveLength(0);
+  } finally {
+    transact.mockRestore();
+  }
+});
+
+test("card checkout is disabled when its configuration flag is omitted", async () => {
+  const environment = await Effect.runPromise(
+    loadEnvironment().pipe(
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromUnknown({ APP_ORIGIN: "http://localhost:3000" })
+      )
+    )
+  );
+  expect(environment.cards?.enabled).toBe(false);
+  expect(environment.cards?.mode).toBe("unavailable");
 });

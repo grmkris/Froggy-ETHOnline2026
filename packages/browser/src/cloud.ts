@@ -236,6 +236,9 @@ export class CloudBrowser implements BrowserHandle {
   async agentNavigate(url: string) {
     return await this.agent(async () => await this.session.agentNavigate(url));
   }
+  async checkoutFrames() {
+    return await this.session.checkoutFrames();
+  }
   async agentSnapshot() {
     return await this.agent(async () => await this.session.agentSnapshot());
   }

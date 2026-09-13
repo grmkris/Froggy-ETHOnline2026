@@ -21,6 +21,8 @@
  */
 
 import {
+  CardCheckoutId,
+  PaymentMethodId,
   CreditChargeId,
   CreditPurchaseId,
   CreditEntryId,
@@ -961,5 +963,39 @@ export const savedItemData = pgTable(
   },
   (table) => [
     uniqueIndex("saved_item_data_owner_item").on(table.userId, table.itemId),
+  ]
+);
+
+export const paymentMethods = pgTable("payment_methods", {
+  id: typeIdPrimaryKey(PaymentMethodId),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.did),
+  document: jsonb("document").notNull(),
+});
+export const paymentMethodCredentials = pgTable("payment_method_credentials", {
+  id: typeIdColumn(PaymentMethodId, "id")
+    .primaryKey()
+    .references(() => paymentMethods.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.did),
+  envelope: jsonb("envelope").notNull(),
+});
+export const cardCheckouts = pgTable(
+  "card_checkouts",
+  {
+    id: typeIdPrimaryKey(CardCheckoutId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    idempotencyKey: text("idempotency_key").notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("card_checkout_owner_key").on(
+      table.userId,
+      table.idempotencyKey
+    ),
   ]
 );

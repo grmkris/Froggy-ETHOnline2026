@@ -1,5 +1,9 @@
 import type { HostedEvent } from "@froggy/browser";
-import { ConversationId, quotePaymentState } from "@froggy/domain";
+import {
+  CardCheckoutId,
+  ConversationId,
+  quotePaymentState,
+} from "@froggy/domain";
 import type { Task } from "@froggy/domain";
 import { BrowseActivity, BrowsePhase, TaskOutcome } from "@froggy/protocol";
 import type { BrowseTaskProgress, BrowseTaskView } from "@froggy/protocol";
@@ -8,6 +12,10 @@ import { Schema } from "effect";
 const ProviderId = Schema.String.check(Schema.isUUID());
 /** Kept inside the task result document; never serialized as a public result. */
 export const HostedBrowseState = Schema.Struct({
+  checkoutId: Schema.optionalKey(CardCheckoutId),
+  checkoutStage: Schema.optionalKey(
+    Schema.Literals(["inspect", "pay", "reconcile"])
+  ),
   revision: Schema.Int,
   phase: BrowsePhase,
   stage: Schema.Literals(["bootstrap", "task"]),

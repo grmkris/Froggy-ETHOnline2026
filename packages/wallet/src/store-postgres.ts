@@ -64,6 +64,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
+import { postgresCardStore } from "./card-store-postgres";
 import { postgresCreditStore } from "./credit-store-postgres";
 import { postgresHistoryStore } from "./history-store-postgres";
 import { postgresLaunchStore } from "./launch-store-postgres";
@@ -342,6 +343,7 @@ export const postgresStore = (sql: Sql): Store => {
     watchlist,
     watchlistData,
     monitoring,
+    cards: postgresCardStore(sql),
     trading: postgresTradingStore(sql),
     launches: postgresLaunchStore(sql),
     purchases: {

@@ -634,7 +634,20 @@ class FroggyServer extends Context.Service<
         },
       });
       const tradeTick = setInterval(() => {
-        detached("trade recovery", tradeRecovery.tick);
+        detached("trade recovery", async () => {
+          await tradeRecovery.tick();
+          const owners = await services.store.cards.pendingOwners();
+          await Promise.all(
+            owners.map(async (owner) => {
+              const checkouts = await services.cards.pending(owner);
+              await Promise.all(
+                checkouts.map(async (id) => {
+                  await services.cards.refresh(owner, id);
+                })
+              );
+            })
+          );
+        });
       }, 15_000);
       detached("trade recovery at startup", tradeRecovery.tick);
       detached("service task recovery at startup", async () => {

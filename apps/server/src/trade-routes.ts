@@ -114,6 +114,16 @@ const handleTrade = async (
   const id = Schema.decodeUnknownSync(TradeId)(match["id"]);
   const { action } = match;
   const owner = context.session.userId;
+  const saved = await services.trades.get(owner, id, context.connectionId);
+  if (
+    saved.input.action === "bridge" &&
+    ["answer", "authorization", "execute"].includes(action ?? "")
+  ) {
+    return json(
+      { error: "Approve card funding from its checkout review." },
+      403
+    );
+  }
   if (action === undefined && request.method === "GET") {
     return json(await services.trades.get(owner, id, context.connectionId));
   }
@@ -198,12 +208,17 @@ export const handleTrades = async (
       });
     }
     if (path === "/api/trades" && request.method === "POST") {
-      return json(
-        await services.trades.prepare(
-          context,
-          Schema.decodeUnknownSync(TradePrepare)(await body(request))
-        )
-      );
+      const input = Schema.decodeUnknownSync(TradePrepare)(await body(request));
+      if (input.input.action === "bridge" || input.input.bridge !== undefined) {
+        return json(
+          {
+            error:
+              "Card funding must be prepared from the saved payment method checkout.",
+          },
+          403
+        );
+      }
+      return json(await services.trades.prepare(context, input));
     }
     return await handleTrade(services, context, request, path);
   } catch (error) {
