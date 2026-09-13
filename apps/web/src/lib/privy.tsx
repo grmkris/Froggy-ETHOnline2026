@@ -1,3 +1,4 @@
+import type { ExactEvmTypedData } from "@froggy/protocol";
 /**
  * Privy, client side.
  *
@@ -113,6 +114,16 @@ type GrantOutcome =
     };
 
 /**
+ * What came of asking the person's wallet to sign a typed-data document.
+ * `closed` is the person dismissing Privy's prompt, when one is shown;
+ * `refused` carries Privy's words for anything else.
+ */
+type SignOutcome =
+  | { readonly kind: "signed"; readonly signature: string }
+  | { readonly kind: "closed" }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/**
  * Where sign-in stands.
  *
  * `loading` is a real state, not a placeholder: with an app id configured the
@@ -175,6 +186,25 @@ export interface Identity {
         readonly signerId: string;
       }) => Promise<GrantOutcome>)
     | null;
+  /**
+   * Signs an EIP-712 document with the person's embedded wallet, in their
+   * browser. This is how the person pays: their key never leaves Privy's
+   * enclave for this tab, no credential of theirs reaches our server, and
+   * the server only verifies what comes back. Privy's own confirmation is
+   * hidden per action; the caller has already shown the person exactly what
+   * is being signed. Null without a Privy sign-in.
+   */
+  readonly signTypedData:
+    | ((input: {
+        readonly typedData: ExactEvmTypedData;
+        readonly address: string;
+        readonly words: {
+          readonly title: string;
+          readonly description: string;
+          readonly buttonText: string;
+        };
+      }) => Promise<SignOutcome>)
+    | null;
   readonly login: () => void;
   readonly logout: () => void;
   readonly ready: boolean;
@@ -219,6 +249,7 @@ const LOCAL: Identity = {
   address: null,
   grantAgentSigner: null,
   signPrivyRequest: null,
+  signTypedData: null,
   startDeposit: null,
   // True: there *is* a caller, and the server will accept them. `stubbed`
   // is what tells the UI not to call it a sign-in.
@@ -240,6 +271,7 @@ const LOADING: Identity = {
   address: null,
   grantAgentSigner: null,
   signPrivyRequest: null,
+  signTypedData: null,
   startDeposit: null,
   authenticated: false,
   login: unavailable,
@@ -283,6 +315,30 @@ interface PrivyModule {
     }) => Promise<void>;
   };
   readonly useLogin: () => { login: () => void };
+  readonly useSignTypedData: () => {
+    signTypedData: (
+      input: {
+        domain: {
+          name: string;
+          version: string;
+          chainId: number;
+          verifyingContract: string;
+        };
+        types: ExactEvmTypedData["types"];
+        primaryType: string;
+        message: ExactEvmTypedData["message"];
+      },
+      options?: {
+        address?: string;
+        uiOptions?: {
+          showWalletUIs?: boolean;
+          title?: string;
+          description?: string;
+          buttonText?: string;
+        };
+      }
+    ) => Promise<{ signature: string }>;
+  };
   readonly useSigners: () => {
     addSigners: (input: {
       address: string;
@@ -337,6 +393,7 @@ const PrivyBridge = ({
   const { login } = mod.useLogin();
   const { fund } = mod.useFiatOnramp();
   const { addSigners, removeSigners } = mod.useSigners();
+  const { signTypedData: privySignTypedData } = mod.useSignTypedData();
   const { createDepositAddress } = mod.useDepositAddress();
   const { generateAuthorizationSignature } = mod.useAuthorizationSignature();
   const callbacksSign = useRef(generateAuthorizationSignature);
@@ -384,6 +441,7 @@ const PrivyBridge = ({
     login,
     logout,
     removeSigners,
+    signTypedData: privySignTypedData,
   });
   useEffect(() => {
     callbacks.current = {
@@ -394,6 +452,7 @@ const PrivyBridge = ({
       login,
       logout,
       removeSigners,
+      signTypedData: privySignTypedData,
     };
   });
 
@@ -500,6 +559,47 @@ const PrivyBridge = ({
     []
   );
 
+  const signTypedData = useCallback(
+    async ({
+      typedData,
+      address: wallet,
+      words,
+    }: {
+      readonly typedData: ExactEvmTypedData;
+      readonly address: string;
+      readonly words: {
+        readonly title: string;
+        readonly description: string;
+        readonly buttonText: string;
+      };
+    }): Promise<SignOutcome> => {
+      try {
+        const { signature } = await callbacks.current.signTypedData(
+          {
+            domain: typedData.domain,
+            types: typedData.types,
+            primaryType: typedData.primaryType,
+            message: typedData.message,
+          },
+          // The address pins the embedded wallet even if the person has
+          // linked another; the words are used only when the dashboard
+          // enforces Privy's confirmation despite `showWalletUIs: false`.
+          { address: wallet, uiOptions: { showWalletUIs: false, ...words } }
+        );
+        return { kind: "signed", signature };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        // Dismissing a prompt is a choice, not a failure. Privy's deposit
+        // flow says USER_EXITED; a wallet RPC says the user rejected.
+        return reason.includes("USER_EXITED") ||
+          reason.toLowerCase().includes("rejected")
+          ? { kind: "closed" }
+          : { kind: "refused", reason };
+      }
+    },
+    []
+  );
+
   const address =
     user?.linkedAccounts.find(
       (account) =>
@@ -518,6 +618,7 @@ const PrivyBridge = ({
       authenticated,
       grantAgentSigner,
       signPrivyRequest,
+      signTypedData,
       login: doLogin,
       logout: doLogout,
       ready,
@@ -537,6 +638,7 @@ const PrivyBridge = ({
     doLogin,
     grantAgentSigner,
     signPrivyRequest,
+    signTypedData,
     doLogout,
     onChange,
     ready,
@@ -606,8 +708,8 @@ class Quarantine extends Component<QuarantineProps, QuarantineState> {
 const loadPrivy = async (): Promise<PrivyModule | null> => {
   try {
     const loaded: unknown = await import("@privy-io/react-auth");
-    // SAFETY: `PrivyModule` names the three exports this file calls, all of
-    // which are part of the package's documented API. The assertion exists
+    // SAFETY: `PrivyModule` names the exports this file calls, all of which
+    // are part of the package's documented API. The assertion exists
     // because the module is loaded dynamically and so has no static type here.
     return loaded as PrivyModule;
   } catch {
