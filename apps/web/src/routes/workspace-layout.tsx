@@ -32,6 +32,7 @@ import { createBrowserPainter } from "../lib/browser-painter";
 import { ChatContext } from "../lib/chat-context";
 import type { ChatSurface } from "../lib/chat-context";
 import { CHAT_ERROR_ID, chatErrorText } from "../lib/chat-error";
+import { DraftProvider } from "../lib/draft-context";
 import { HistoryContext, useWorkspaceHistory } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { SessionIdsContext } from "../lib/session-ids";
@@ -230,24 +231,26 @@ export const WorkspaceLayout = (): ReactElement => {
       <WorkspaceContext.Provider value={workspace}>
         <HistoryContext.Provider value={history}>
           <ChatContext.Provider value={surface}>
-            <Announcer
-              approvals={app.approvals}
-              mandate={app.mandate}
-              receipts={app.receipts}
-            />
-            {welcome ? (
-              <Outlet />
-            ) : (
-              <AppFrame
-                connected={app.connected}
-                modes={app.modes}
-                waiting={app.approvals.length + pendingPurchases}
-              >
-                <PurchaseApprovals api={purchases} />
-                <TradeNotice api={trades} />
+            <DraftProvider sessionId={app.sessionId}>
+              <Announcer
+                approvals={app.approvals}
+                mandate={app.mandate}
+                receipts={app.receipts}
+              />
+              {welcome ? (
                 <Outlet />
-              </AppFrame>
-            )}
+              ) : (
+                <AppFrame
+                  connected={app.connected}
+                  modes={app.modes}
+                  waiting={app.approvals.length + pendingPurchases}
+                >
+                  <PurchaseApprovals api={purchases} />
+                  <TradeNotice api={trades} />
+                  <Outlet />
+                </AppFrame>
+              )}
+            </DraftProvider>
           </ChatContext.Provider>
         </HistoryContext.Provider>
       </WorkspaceContext.Provider>

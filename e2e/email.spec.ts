@@ -17,7 +17,7 @@ for (const width of [1440, 390]) {
       .getByRole("button", { name: "Claim address", exact: true })
       .click();
     await expect(
-      page.getByText("Demo email · no real delivery").first()
+      page.getByText("Demo address ready", { exact: true })
     ).toBeVisible();
     await page.getByRole("link", { name: /Email ·.*Open/u }).click();
     await expect(
@@ -32,7 +32,7 @@ for (const width of [1440, 390]) {
       .getByLabel("Subject", { exact: true })
       .fill("Please send a quote");
     await page
-      .getByRole("region", { name: "Conversation email" })
+      .getByRole("region", { name: "Email reader" })
       .getByLabel("Message", { exact: true })
       .fill("Could you send me the quote as a PDF?");
     await page.getByRole("button", { name: "Save draft for review" }).click();
@@ -45,7 +45,7 @@ for (const width of [1440, 390]) {
     ).toBeVisible();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page
-      .getByRole("region", { name: "Conversation email" })
+      .getByRole("region", { name: "Email reader" })
       .getByLabel("Message", { exact: true })
       .fill("Please include installation in the quote.");
     await page.getByRole("button", { name: "Save draft for review" }).click();
@@ -56,7 +56,7 @@ for (const width of [1440, 390]) {
     ).toBeVisible();
     await page.getByRole("button", { name: "Approve and send" }).click();
     await expect(
-      page.getByText("Demo · accepted", { exact: true })
+      page.getByText("Demo · Sent to provider", { exact: true })
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Approve and send" })

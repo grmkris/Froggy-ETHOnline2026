@@ -20,7 +20,7 @@ test("boots the workspace with the primary pill and no browser errors", async ({
   // Three destinations plus the two demoted places, and nothing behind a More.
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await expect(
     page
       .getByRole("navigation", { name: "Primary" })
@@ -31,6 +31,7 @@ test("boots the workspace with the primary pill and no browser errors", async ({
 
 test("settings show what the session is connected as", async ({ page }) => {
   await page.goto("/settings");
+  await page.getByText("Technical details", { exact: true }).click();
   await expect(page.getByText("Session", { exact: true })).toBeVisible();
   await expect(page.getByText("Signer", { exact: true })).toBeVisible();
 });

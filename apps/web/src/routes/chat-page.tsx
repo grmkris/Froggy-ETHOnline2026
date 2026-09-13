@@ -19,12 +19,10 @@ import {
   driveModeOf,
   LiveBrowserCard,
 } from "../components/browser/live-browser-card";
-import { ChatToolbar } from "../components/chat/chat-toolbar";
 import { ComposerStack } from "../components/chat/composer-stack";
 import { HomeSummary } from "../components/chat/home-summary";
 import { LiveCardSlot } from "../components/chat/live-card-slot";
 import { ConversationHeader } from "../components/chat/recent-conversations";
-import { EmailHomeLink } from "../components/email/email-account";
 import { EmailThread } from "../components/email/email-thread";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
@@ -33,6 +31,7 @@ import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useMediaQuery } from "../hooks/use-media-query";
 import { useChatSurface } from "../lib/chat-context";
+import { useEmailStatus } from "../lib/email-client";
 import { scrollToLive } from "../lib/scroll-to-live";
 import { applySlash } from "../lib/slash";
 import {
@@ -76,6 +75,14 @@ const historyDisabled = (
   }
   return connectionLock;
 };
+const isEmptyConversation = (
+  mailbox: boolean,
+  messages: number,
+  busy: boolean,
+  requested: boolean,
+  mode: string
+): boolean =>
+  !mailbox && messages === 0 && !busy && !requested && mode === "inline";
 export const ChatPage = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
   const {
@@ -87,7 +94,6 @@ export const ChatPage = (): ReactElement => {
     setWatchlistOpen,
     browser,
     browserRequested,
-    showBrowser,
     busy,
     chat,
     chatNotices,
@@ -138,7 +144,7 @@ export const ChatPage = (): ReactElement => {
     browserRequested ||
     popOut.mode === "window" ||
     hasLivePage(browser.state, liveAfter);
-  const browserSplit = popOut.mode === "split" && showLive;
+  const browserSplit = roomy && popOut.mode === "split" && showLive;
   const watchlistVisible = showWatchlistPane(
     roomy,
     watchlistOpen,
@@ -156,7 +162,7 @@ export const ChatPage = (): ReactElement => {
       popOut={{
         handleDock: popOut.mode === "split" ? popOut.handleDock : null,
         handleSplit:
-          popOut.mode === "inline" && !phone ? popOut.handleSplit : null,
+          popOut.mode === "inline" && roomy ? popOut.handleSplit : null,
         handleToWindow: phone ? null : popOut.handleToWindow,
       }}
       send={browser.send}
@@ -172,34 +178,21 @@ export const ChatPage = (): ReactElement => {
   );
   // Loading earlier receipts or restoring Chrome must not dismiss onboarding.
   // Only work in this conversation or an explicit browser action replaces it.
-  const firstUse =
-    chat.messages.length === 0 &&
-    !busy &&
-    !browserRequested &&
-    popOut.mode === "inline";
+  const emailStatus = useEmailStatus();
+  const mailboxConversation =
+    emailStatus.data?.mailbox?.conversationId === conversationId;
+  const firstUse = isEmptyConversation(
+    mailboxConversation,
+    chat.messages.length,
+    busy,
+    browserRequested,
+    popOut.mode
+  );
 
   return (
     <div className="flex min-h-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {firstUse ? <HomeSummary /> : null}
-        <ChatToolbar
-          drive={drive}
-          onToggleWatchlist={
-            roomy
-              ? () => {
-                  if (browserSplit) {
-                    popOut.handleDock();
-                  }
-                  setWatchlistOpen(!watchlistVisible);
-                }
-              : undefined
-          }
-          watchlistOpen={watchlistVisible}
-          onShowBrowser={() => {
-            showBrowser();
-            scrollToLive();
-          }}
-        />
         {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
           // Over the stream, not in the column: its arrival moves nothing.
           <div className="pointer-events-none absolute inset-x-0 top-12 z-20 px-4">
@@ -214,7 +207,6 @@ export const ChatPage = (): ReactElement => {
           </div>
         ) : null}
         <ConversationHeader />
-        <EmailThread conversationId={conversationId} />
         {historyLoading ? (
           <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-6">
             <Skeleton className="h-20 w-2/3" />
@@ -233,12 +225,12 @@ export const ChatPage = (): ReactElement => {
                     disabled={disabledReason !== null}
                     onSend={send}
                   />
-                  <EmailHomeLink />
                 </div>
               </div>
             ) : (
               <Stream
                 key={conversationId}
+                context={<EmailThread conversationId={conversationId} />}
                 asking={app.approvals.length > 0 || pendingPurchases > 0}
                 busy={busy}
                 items={items}
@@ -246,7 +238,9 @@ export const ChatPage = (): ReactElement => {
                 liveCard={
                   <LiveCardSlot
                     card={card(false)}
-                    mode={popOut.mode}
+                    mode={
+                      popOut.mode === "split" && !roomy ? "inline" : popOut.mode
+                    }
                     onDock={popOut.handleDock}
                     onVisible={setLiveVisible}
                     show={showLive}
@@ -313,6 +307,7 @@ export const ChatPage = (): ReactElement => {
       {browserSplit ? (
         <SplitPane
           onPointerDownHandle={split.handlePointerDown}
+          onKeyDownHandle={split.handleKeyDown}
           width={split.width}
         >
           {card(true)}

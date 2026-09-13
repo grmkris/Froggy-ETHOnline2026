@@ -21,14 +21,14 @@ export const HomeSummary = (): ReactElement => {
       className="bg-card border-border focus-visible:ring-ring mx-4 my-2 flex items-center gap-3 rounded-2xl border px-4 py-3 outline-none focus-visible:ring-2 sm:mx-6"
       to="/wallet"
     >
-      <span className="bg-brand-soft text-brand grid size-9 shrink-0 place-items-center rounded-xl">
+      <span className="bg-brand-soft text-brand hidden size-9 shrink-0 place-items-center rounded-xl sm:grid">
         <WalletIcon aria-hidden className="size-4" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium">Your money</span>
-        <span className="text-muted-foreground text-[11px]">
-          USDC + HBAR funding
+        <span className="text-sm font-medium whitespace-nowrap">
+          Your money
         </span>
+        <span className="text-muted-foreground text-[11px]">USDC + HBAR</span>
       </span>
       <span className="flex flex-col items-end gap-0.5">
         <span className="text-base font-semibold tracking-tight tabular-nums">

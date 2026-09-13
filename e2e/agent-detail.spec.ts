@@ -172,7 +172,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   await capture(1440);
   await capture(390);
   await capture(320);
-  await page.goto("/wallet");
+  await page.goto("/agents");
   await page.getByRole("link", { name: "1 agent connected" }).click();
   await expect(page).toHaveURL(new RegExp(`/agents/${token.id}$`, "u"));
   await page.getByRole("button", { name: "Disconnect Research agent" }).click();
@@ -186,7 +186,7 @@ test("an agent detail keeps each call, links paid tasks and retains history afte
   ).toHaveCount(8);
   const refused = await call("froggy_services");
   expect(refused.status()).toBe(401);
-  await page.goto("/wallet");
+  await page.goto("/agents");
   await expect(
     page.getByRole("button", { name: "Copy for your agent" })
   ).toBeVisible();

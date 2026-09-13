@@ -30,12 +30,34 @@ export const SettingsPage = (): ReactElement => {
       title="Account"
       wide
     >
+      <nav
+        aria-label="Account sections"
+        className="text-muted-foreground flex flex-wrap gap-x-5 gap-y-2 border-b pb-4 text-sm"
+      >
+        {[
+          ["email", "Email"],
+          ["routines", "Routines"],
+          ["spending", "Spending controls"],
+          ["appearance", "Appearance"],
+          ["account", "Your account"],
+        ].map(([id, label]) => (
+          <a
+            className="hover:text-brand focus-visible:outline-ring inline-flex min-h-11 items-center focus-visible:outline-2"
+            key={id}
+            href={`#${id}`}
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-6">
-          <EmailAccount />
-          <Card>
+          <section id="email" className="scroll-mt-6">
+            <EmailAccount />
+          </section>
+          <Card id="routines" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Reminders</CardTitle>
+              <CardTitle>Routines</CardTitle>
               <CardDescription>
                 What Froggy does on its own: the daily digest, and anything you
                 asked it to remind you of or run later. Sent to Telegram when it
@@ -60,9 +82,9 @@ export const SettingsPage = (): ReactElement => {
           </Card>
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <Card>
+          <Card id="spending" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Connection</CardTitle>
+              <CardTitle>Spending controls</CardTitle>
               <CardDescription>
                 The signer, the session, and the rules your agent is held to.
               </CardDescription>
@@ -75,10 +97,12 @@ export const SettingsPage = (): ReactElement => {
               />
             </CardContent>
           </Card>
-          <AppearanceSettings />
-          <Card>
+          <section id="appearance" className="scroll-mt-6">
+            <AppearanceSettings />
+          </section>
+          <Card id="account" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Account</CardTitle>
+              <CardTitle>Your account</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {identity.stubbed ? null : (

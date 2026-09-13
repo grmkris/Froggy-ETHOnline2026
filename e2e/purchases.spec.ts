@@ -31,7 +31,7 @@ const requestDemo = async (
   purchase: PurchaseTicket;
   headers: { authorization: string };
 }> => {
-  await page.goto("/services");
+  await page.goto("/services?view=purchases");
   await page.getByRole("button", { name: "Use demo report" }).click();
   const form = page.getByRole("form", { name: "Request a URL purchase" });
   await form.getByLabel("Purpose", { exact: true }).fill(purpose);
@@ -109,6 +109,7 @@ test.describe("URL purchases", () => {
     await expect(approvalFor(page, purpose)).toBeVisible();
     await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
+      .locator('[data-slot="popover-content"]')
       .getByRole("link", { name: "Your money", exact: true })
       .last()
       .click();
@@ -117,7 +118,7 @@ test.describe("URL purchases", () => {
       .getByRole("button", { name: /^Approve /u })
       .click();
     await expect(approvalFor(page, purpose)).toHaveCount(0);
-    await page.goto("/services");
+    await page.goto("/services?view=purchases");
     const result = page
       .getByRole("region", { name: "URL purchases" })
       .locator('[data-slot="card"]')
@@ -287,7 +288,7 @@ test.describe("URL purchases", () => {
     ).toHaveCount(0);
     await expect(
       log.getByRole("link", { name: "View saved result" })
-    ).toHaveAttribute("href", "/services");
+    ).toHaveAttribute("href", "/services?view=purchases");
     await tool.click();
     await expect(log).toContainText(purchase.id);
     await page.screenshot({ path: testInfo.outputPath("chat-url-result.png") });

@@ -25,6 +25,7 @@ export const ConversationOptions = (): ReactElement => {
       <PopoverTrigger
         render={
           <Button
+            type="button"
             aria-label="Conversation options"
             className="min-h-11"
             variant="ghost"

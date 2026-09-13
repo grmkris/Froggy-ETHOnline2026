@@ -60,21 +60,18 @@ for (const theme of ["passbook", "lilypad"] as const) {
       await expect(root).toHaveAttribute("data-theme", theme);
       await expect(root).toHaveCSS(
         "background-color",
-        theme === "passbook" ? "rgb(239, 241, 236)" : "rgb(13, 18, 15)"
+        theme === "passbook" ? "rgb(245, 246, 242)" : "rgb(13, 18, 15)"
       );
       const wallet = page.getByRole("region", { name: "Wallet", exact: true });
       await expect(wallet).toBeVisible();
-      await expect(wallet).toHaveCSS(
-        "border-radius",
-        theme === "passbook" ? "20px" : "22px"
-      );
+      await expect(wallet).toHaveCSS("border-radius", "16px");
       await expect(wallet.locator(".text-money").first()).toHaveCSS(
         "font-size",
         "32px"
       );
       await expect(wallet.locator(".text-machine").first()).toHaveCSS(
         "font-family",
-        theme === "passbook" ? /IBM Plex Mono/u : /Inter Tight/u
+        /IBM Plex Mono/u
       );
       await captureScreen(page, testInfo, `${theme}-wallet`);
       await page.getByText("Where it is", { exact: true }).click();

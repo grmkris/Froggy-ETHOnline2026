@@ -1,3 +1,5 @@
+import { EmailMessage, EmailDraft } from "@froggy/domain";
+import type { ConversationId, EmailId, EmailDraftId } from "@froggy/domain";
 import { EmailPage, EmailStatus } from "@froggy/protocol";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
@@ -38,7 +40,7 @@ export const useEmailClient = () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    await queries.invalidateQueries({ queryKey: ["email"] });
+    await queries.invalidateQueries({ queryKey: ["email", app.sessionId] });
     await queries.invalidateQueries({ queryKey: ["history"] });
     return Schema.decodeUnknownSync(Schema.Json)(await response.json());
   };
@@ -52,21 +54,56 @@ export const useEmailStatus = () => {
       const resolvedEmail = await client.request("status");
       return Schema.decodeUnknownSync(EmailStatus)(await resolvedEmail.json());
     },
-    enabled: client.canConnect,
+    enabled: client.canConnect && client.owner !== null,
     refetchInterval: 10_000,
     retry: false,
   });
 };
-export const useEmailPage = (conversation: string, query = "", before = "") => {
+export const useEmailPage = (
+  conversation?: ConversationId,
+  query = "",
+  before = ""
+) => {
   const client = useEmailClient();
-  const path = `messages?conversation=${encodeURIComponent(conversation)}&q=${encodeURIComponent(query)}${before ? `&before=${before}` : ""}`;
+  const path = `messages?q=${encodeURIComponent(query)}${conversation ? `&conversation=${encodeURIComponent(conversation)}` : ""}${before ? `&before=${encodeURIComponent(before)}` : ""}`;
   return useQuery({
     queryKey: ["email", client.owner, path],
     queryFn: async () => {
       const resolvedEmail = await client.request(path);
       return Schema.decodeUnknownSync(EmailPage)(await resolvedEmail.json());
     },
-    enabled: client.canConnect,
+    enabled: client.canConnect && client.owner !== null,
+    refetchInterval: 5000,
+    retry: false,
+  });
+};
+
+export const useEmailMessage = (id?: EmailId) => {
+  const client = useEmailClient();
+  return useQuery({
+    queryKey: ["email", client.owner, "message", id],
+    queryFn: async () => {
+      const response = await client.request(`messages/${id}`);
+      return Schema.decodeUnknownSync(
+        Schema.Struct({ v: Schema.Literal(1), message: EmailMessage })
+      )(await response.json()).message;
+    },
+    enabled: id !== undefined && client.canConnect && client.owner !== null,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+};
+export const useEmailDraft = (id?: EmailDraftId) => {
+  const client = useEmailClient();
+  return useQuery({
+    queryKey: ["email", client.owner, "draft", id],
+    queryFn: async () => {
+      const response = await client.request(`drafts/${id}`);
+      return Schema.decodeUnknownSync(
+        Schema.Struct({ v: Schema.Literal(1), draft: EmailDraft })
+      )(await response.json()).draft;
+    },
+    enabled: id !== undefined && client.canConnect && client.owner !== null,
     refetchInterval: 5000,
     retry: false,
   });

@@ -136,7 +136,7 @@ test("a simulated trade is reviewed, approved once and recoverable after reload"
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const desk = page.getByRole("region", { name: "Trading desk", exact: true });
   await desk.getByLabel("Token to spend").fill(`0x${"2".repeat(40)}`);
   await desk.getByLabel("Token to receive").fill(`0x${"3".repeat(40)}`);
@@ -178,7 +178,7 @@ test("a simulated Jupiter native swap uses the Solana wallet and lamport budget"
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const desk = page.getByRole("region", { name: "Trading desk", exact: true });
   await desk
     .getByLabel("Network & route", { exact: true })
@@ -234,7 +234,7 @@ for (const action of ["deposit", "withdraw"] as const) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services");
+    await page.goto("/services?view=trading");
     const desk = page.getByRole("region", {
       name: "Trading desk",
       exact: true,
@@ -290,7 +290,7 @@ test("vault positions fund a separately approved swap only after withdrawal conf
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const desk = page.getByRole("region", { name: "Trading desk", exact: true });
   await desk
     .getByRole("button", { name: "Refresh positions", exact: true })
@@ -361,7 +361,7 @@ for (const buy of [true, false]) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services");
+    await page.goto("/services?view=trading");
     const desk = page.getByRole("region", {
       name: "Trading desk",
       exact: true,
@@ -412,7 +412,7 @@ for (const buy of [true, false]) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services");
+    await page.goto("/services?view=trading");
     const desk = page.getByRole("region", {
       name: "Trading desk",
       exact: true,
@@ -515,7 +515,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
   await expect(
     page.getByRole("region", { name: "Listing watches", exact: true })
   ).toContainText("5-minute listing watch");
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const rules = page.getByRole("region", {
     name: "Trading rules",
     exact: true,
@@ -580,7 +580,7 @@ test("a Uniswap rule can require a holder-concentration cap without launcher pre
   page.on("pageerror", (error) => {
     errors.push(error.message);
   });
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const rules = page.getByRole("region", {
     name: "Trading rules",
     exact: true,
@@ -734,7 +734,7 @@ test("sponsored approval explains gas and delegation, and missing owner authoriz
     }
     await route.fulfill({ response });
   });
-  await page.goto("/services");
+  await page.goto("/services?view=trading");
   const desk = page.getByRole("region", { name: "Trading desk", exact: true });
   await desk.getByLabel("Token to spend").fill(`0x${"2".repeat(40)}`);
   await desk.getByLabel("Token to receive").fill(`0x${"3".repeat(40)}`);

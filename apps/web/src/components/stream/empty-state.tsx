@@ -12,6 +12,7 @@ export const EmptyState = ({
 }): ReactElement => (
   <section
     aria-label="Use Froggy here"
+    data-slot="home-intro"
     className="flex flex-col gap-5 py-2 sm:gap-7"
   >
     <div className="flex items-center gap-3 sm:gap-6">
@@ -20,17 +21,17 @@ export const EmptyState = ({
         alt=""
         width={160}
         height={160}
-        className="size-24 shrink-0 object-contain sm:size-40"
+        className="size-20 shrink-0 object-contain sm:size-28"
       />
       <div>
         <p className="text-brand mb-2 text-[11px] font-semibold tracking-wider uppercase">
           Small frog. Big plans.
         </p>
-        <h1 className="text-3xl leading-none font-extrabold tracking-tight sm:text-5xl">
-          What’s the move?
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight sm:text-4xl">
+          What can I help with?
         </h1>
         <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
-          Find the next rabbit hole. Book the escape. Cop the shoes.
+          A little research. A trip to plan. Something worth finding.
         </p>
       </div>
     </div>

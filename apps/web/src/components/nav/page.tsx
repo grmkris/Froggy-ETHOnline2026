@@ -26,7 +26,7 @@ export const Page = ({
   >
     <div
       className={cn(
-        "mx-auto flex w-full flex-col gap-[18px] px-[26px] py-[26px]",
+        "mx-auto flex w-full flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8",
         wide ? "max-w-6xl" : "max-w-4xl"
       )}
     >

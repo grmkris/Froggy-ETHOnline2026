@@ -132,16 +132,18 @@ export const WatchlistItems = ({
           </EmptyHeader>
         </Empty>
       ) : null}
-      <p className="text-muted-foreground text-xs">
-        Saved for later. Automatic price checks are not running.
-      </p>
-      <ul className="flex flex-col gap-2">
+      {items.length > 0 ? (
+        <p className="text-muted-foreground text-xs">
+          Saved for later. Automatic price checks are not running.
+        </p>
+      ) : null}
+      <ul className="bg-card flex flex-col divide-y rounded-xl border">
         {items.map((item) => {
           const snapshot = snapshotForItem(item, tasks.data?.tasks ?? []);
           return (
             <li key={item.id}>
               <Link
-                className="bg-card border-border hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center gap-3 rounded-2xl border p-3.5 outline-none focus-visible:ring-2"
+                className="hover:bg-accent focus-visible:ring-ring flex min-w-0 items-center gap-3 rounded-lg p-4 outline-none focus-visible:ring-2"
                 params={{ itemId: item.id }}
                 to="/watchlist/$itemId"
               >

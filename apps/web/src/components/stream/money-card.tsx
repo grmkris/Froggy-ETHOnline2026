@@ -41,6 +41,7 @@ export const MoneyBody = ({
         <Link
           className={buttonVariants({ size: "sm", variant: "outline" })}
           to="/services"
+          search={{ view: "purchases" }}
         >
           View saved result
         </Link>

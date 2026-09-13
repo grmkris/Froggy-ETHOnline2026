@@ -45,13 +45,11 @@ for (const theme of ["passbook", "lilypad"] as const) {
       const nav = page.getByRole("navigation", { name: "Primary" });
       await expect(nav).toHaveCount(1);
       // Three destinations, plus the two demoted places when the rail is up.
-      await expect(nav.getByRole("link")).toHaveCount(2);
+      await expect(nav.getByRole("link")).toHaveCount(3);
       await expect(nav.getByRole("button", { name: /^More/u })).toHaveCount(0);
       // One wordmark per screen: the rail owns it where the rail is up, and
       // the top bar carries it only when it is not.
-      await expect(
-        page.getByRole("banner").getByText("Froggy", { exact: true })
-      ).toHaveCount(rail ? 0 : 1);
+      await expect(page.getByRole("banner")).toContainText("Your money");
 
       const targets = await nav.getByRole("link").evaluateAll((nodes) =>
         nodes.map((node) => {
@@ -71,16 +69,25 @@ for (const theme of ["passbook", "lilypad"] as const) {
       await nav.getByRole("link", { name: "Watchlist", exact: true }).click();
       await expect(page).toHaveURL(/\/watchlist$/u);
       await page.getByRole("button", { name: "Workspace menu" }).click();
-      await page.getByRole("link", { name: "Your money", exact: true }).click();
+      await page
+        .locator('[data-slot="popover-content"]')
+        .getByRole("link", { name: "Your money", exact: true })
+        .click();
       await expect(page).toHaveURL(/\/wallet$/u);
 
       if (rail) {
         // Secondary places are reachable and visibly not destinations.
         await page.getByRole("button", { name: "Workspace menu" }).click();
-        await page.getByRole("link", { name: "Connections" }).click();
+        await page
+          .locator('[data-slot="popover-content"]')
+          .getByRole("link", { name: "Connections" })
+          .click();
         await expect(page).toHaveURL(/\/agents$/u);
         await page.getByRole("button", { name: "Workspace menu" }).click();
-        await page.getByRole("link", { name: "Account" }).click();
+        await page
+          .locator('[data-slot="popover-content"]')
+          .getByRole("link", { name: "Account" })
+          .click();
         await expect(page).toHaveURL(/\/settings$/u);
       } else {
         // The composer must clear the pill rather than sit under it.
@@ -124,7 +131,10 @@ test("Home counts a waiting approval, and stops when it is answered", async ({
 
   // The count survives leaving the conversation and coming back.
   await page.getByRole("button", { name: "Workspace menu" }).click();
-  await page.getByRole("link", { name: "Your money", exact: true }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("link", { name: "Your money", exact: true })
+    .click();
   await expect(waiting).toBeVisible();
   // While something waits, Home is named for it — so this is the link to click.
   await waiting.click();

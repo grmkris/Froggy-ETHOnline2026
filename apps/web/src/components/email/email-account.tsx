@@ -21,7 +21,7 @@ import { useState } from "react";
 
 import { useEmailClient, useEmailStatus } from "../../lib/email-client";
 
-export const EmailHomeLink = () => {
+const EmailHomeLink = () => {
   const status = useEmailStatus();
   const box = status.data?.mailbox;
   if (!box) {
@@ -42,8 +42,7 @@ export const EmailHomeLink = () => {
   return (
     <Link
       className="text-muted-foreground hover:text-foreground flex items-center justify-between rounded-lg border px-4 py-3 text-sm"
-      to="/chat/$conversationId"
-      params={{ conversationId: box.conversationId }}
+      to="/inbox"
     >
       <span>Email · {status.data?.address}</span>
       <span>

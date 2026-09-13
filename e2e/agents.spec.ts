@@ -10,15 +10,14 @@ import { expect, test } from "@playwright/test";
 test("connect an agent, read the skill once, disconnect it", async ({
   page,
 }) => {
-  let listAttempts = 0;
+  let failList = true;
   let disconnectAttempts = 0;
   await page.route("**/api/agents", async (route) => {
     if (route.request().method() !== "GET") {
       await route.continue();
       return;
     }
-    listAttempts += 1;
-    if (listAttempts === 1) {
+    if (failList) {
       await route.fulfill({ status: 503 });
       return;
     }
@@ -38,6 +37,7 @@ test("connect an agent, read the skill once, disconnect it", async ({
   });
   await page.goto("/agents");
   await expect(page.getByRole("alert")).toContainText("Couldn’t load");
+  failList = false;
   await page.getByRole("button", { name: "Retry loading agents" }).click();
   await expect(page.getByText("No connections yet.")).toBeVisible();
 
@@ -60,13 +60,19 @@ test("connect an agent, read the skill once, disconnect it", async ({
     .getByRole("textbox", { name: "Connection token" })
     .inputValue();
   await page.getByRole("button", { name: "Workspace menu" }).click();
-  await page.getByRole("link", { name: "Your money" }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("link", { name: "Your money" })
+    .click();
   await expect(page).toHaveURL(/\/wallet$/u);
   await expect(
     page.getByRole("heading", { name: "Wallet", exact: true })
   ).toBeVisible();
   await page.getByRole("button", { name: "Workspace menu" }).click();
-  await page.getByRole("link", { name: "Connections" }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("link", { name: "Connections" })
+    .click();
   await expect(page).toHaveURL(/\/agents$/u);
   await expect(
     page.getByRole("heading", { name: "Connections", exact: true })

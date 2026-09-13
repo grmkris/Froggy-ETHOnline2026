@@ -2,7 +2,6 @@
 
 import type { ReactElement } from "react";
 
-import { MotionItem } from "../components/motion-item";
 import { Page } from "../components/nav/page";
 import { WalletActivity } from "../components/wallet/wallet-activity";
 import { WalletHome } from "../components/wallet/wallet-home";
@@ -12,12 +11,8 @@ export const WalletPage = (): ReactElement => {
   const { app, receiptHistory } = useWorkspace();
   return (
     <Page slot="wallet-home-scroll" title="Wallet" titleHidden>
-      <MotionItem>
-        <WalletHome modes={app.modes} wallet={app.wallet} />
-      </MotionItem>
-      <MotionItem delay={0.07}>
-        <WalletActivity history={receiptHistory} receipts={app.receipts} />
-      </MotionItem>
+      <WalletHome modes={app.modes} wallet={app.wallet} />
+      <WalletActivity history={receiptHistory} receipts={app.receipts} />
     </Page>
   );
 };

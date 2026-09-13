@@ -24,7 +24,7 @@ const layoutOf = (node: Element) => {
   };
 };
 
-for (const path of ["/wallet", "/agents"]) {
+for (const path of ["/agents"]) {
   test(`copy agent instructions and recover clipboard denial on ${path}`, async ({
     page,
     context,
@@ -96,7 +96,7 @@ test("connection counts update without removing the copy action", async ({
     page.getByRole("button", { name: "Copy for your agent" })
   ).toBeVisible();
   active = 1;
-  await page.goto("/wallet");
+  await page.reload();
   await expect(
     page.getByRole("link", { name: "1 agent connected" })
   ).toHaveAttribute("href", `/agents/${token.id}`);
@@ -152,7 +152,9 @@ test("Home keeps its position when earlier receipts arrive", async ({
   try {
     await page.goto("/chat");
     const welcome = page.getByRole("region", { name: "Use Froggy here" });
-    const heading = page.getByRole("heading", { name: "What’s the move?" });
+    const heading = page.getByRole("heading", {
+      name: "What can I help with?",
+    });
     await expect(heading).toBeVisible();
     await page.evaluate(async () => {
       await document.fonts.ready;
@@ -165,6 +167,7 @@ test("Home keeps its position when earlier receipts arrive", async ({
     expect(await heading.evaluate(layoutOf)).toEqual(before);
     await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
+      .locator('[data-slot="popover-content"]')
       .getByRole("link", { name: "Your money", exact: true })
       .last()
       .click();

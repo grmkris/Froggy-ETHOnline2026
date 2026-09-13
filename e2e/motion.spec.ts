@@ -120,6 +120,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");
     // Measure the theme change after the asynchronous settings layout has settled.
+    await page.getByText("Technical details", { exact: true }).click();
     await expect(
       page.getByText("the agent has no signer", { exact: true })
     ).toBeVisible();
@@ -235,14 +236,14 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
   });
 }
 
-test("primary presses in place and Add funds springs from 0.94", async ({
+test("primary presses in place and Add funds springs from 0.98", async ({
   page,
 }) => {
   await observeMotion(page);
   await page.goto("/wallet");
   const add = page.getByRole("button", { name: "Add funds", exact: true });
   await add.hover();
-  await expect(add).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+  await expect(add).toHaveCSS("transform", "none");
   await page.mouse.down();
   await expect(add).toHaveCSS("transform", "matrix(0.97, 0, 0, 0.97, 0, 0)");
   await page.mouse.up();
@@ -255,7 +256,7 @@ test("primary presses in place and Add funds springs from 0.94", async ({
           window.motionSamples.some(
             (sample) =>
               sample.slot === "dialog-content" &&
-              sample.frames.some((frame) => frame.transform.includes("0.94"))
+              sample.frames.some((frame) => frame.transform.includes("0.98"))
           )
         )
     )
@@ -313,7 +314,7 @@ test("wallet values update immediately while the funding target stays still", as
     .toBe(false);
   const add = page.getByRole("button", { name: "Add funds", exact: true });
   await add.hover();
-  await expect(add).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+  await expect(add).toHaveCSS("transform", "none");
   const before = await add.boundingBox();
   await page.evaluate(() => {
     window.motionSamples = [];
@@ -495,93 +496,3 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     ).toBe("none");
   });
 }
-
-test("holding a control pauses its real entrance and release resumes it", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    const selector = '[data-slot="motion-item"]';
-    const capture = (): void => {
-      const entering = document.querySelector(selector);
-      const animation = entering
-        ?.getAnimations()
-        .find(
-          (candidate) =>
-            candidate.effect instanceof KeyframeEffect &&
-            candidate.effect
-              .getKeyframes()
-              .some((frame) => frame["transform"] !== undefined)
-        );
-      if (animation === undefined) {
-        requestAnimationFrame(capture);
-        return;
-      }
-      // Slow the real entrance for a repeatable physical press, without changing its path.
-      animation.playbackRate = 0.05;
-      animation.currentTime = 100;
-    };
-    requestAnimationFrame(capture);
-  });
-  await page.goto("/wallet");
-  const add = page.getByRole("button", { name: "Add funds", exact: true });
-  await expect(add).toBeVisible();
-  const bounds = await add.boundingBox();
-  expect(bounds).not.toBeNull();
-  await page.mouse.move(
-    (bounds?.x ?? 0) + (bounds?.width ?? 0) / 2,
-    (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2
-  );
-  await page.mouse.down();
-  const entrance = page.locator('[data-slot="motion-item"]').first();
-  const held = await entrance.evaluate(async (node) => {
-    const animation = node
-      .getAnimations()
-      .find(
-        (candidate) =>
-          candidate.effect instanceof KeyframeEffect &&
-          candidate.effect
-            .getKeyframes()
-            .some((frame) => frame["transform"] !== undefined)
-      );
-    const before = node.getBoundingClientRect().y;
-    const started = animation?.currentTime;
-    const frames = Promise.withResolvers<null>();
-    let count = 0;
-    const tick = (): void => {
-      count += 1;
-      if (count === 8) {
-        frames.resolve(null);
-      } else {
-        requestAnimationFrame(tick);
-      }
-    };
-    requestAnimationFrame(tick);
-    await frames.promise;
-    return {
-      before,
-      after: node.getBoundingClientRect().y,
-      started,
-      ended: animation?.currentTime,
-      state: animation?.playState,
-    };
-  });
-  expect(held.state).toBe("paused");
-  expect(held.ended).toBe(held.started);
-  expect(held.after).toBe(held.before);
-  // Releasing away cancels the button's click while still resuming the entrance.
-  await page.mouse.move(1, 1);
-  await page.mouse.up();
-  await expect
-    .poll(
-      async () =>
-        await entrance.evaluate((node) =>
-          node
-            .getAnimations()
-            .some((animation) => animation.playState === "running")
-        )
-    )
-    .toBe(true);
-  await add.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "Add funds" })).toBeVisible();
-});

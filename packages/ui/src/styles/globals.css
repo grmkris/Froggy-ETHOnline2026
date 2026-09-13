@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/inter-tight";
+@import "@fontsource-variable/manrope";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 /* ejected from shadcn@4.21.0 */
@@ -657,17 +657,15 @@
 
 /* Passbook (light) and Lilypad (dark): one structure, the FABLE51 tokens. */
 @theme inline {
-  --font-display:
-    "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
-  --font-sans:
-    "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
+  --font-display: "Manrope Variable", "Manrope", sans-serif;
+  --font-sans: "Manrope Variable", "Manrope", sans-serif;
   --font-mono: var(--machine);
-  --text-xs: 0.78125rem;
-  --text-xs--line-height: 1rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
   --text-sm: 0.9375rem;
-  --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;
-  --text-base--line-height: 1.25rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
   --text-lg: 1.1875rem;
   --text-lg--line-height: 1.5rem;
   --text-xl: 1.375rem;
@@ -712,12 +710,12 @@
   /* Streamdown frames code blocks and tables in shadcn's sidebar colour. Our
      rail uses the deeper paper too, so the two agree on the same step back. */
   --color-sidebar: var(--paper-deep);
-  --radius-sm: var(--radius-row);
-  --radius-md: var(--radius-row);
-  --radius-lg: var(--radius-row);
-  --radius-xl: var(--radius);
+  --radius-sm: 0.625rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
   --radius-2xl: var(--radius);
-  --radius-3xl: var(--radius);
+  --radius-3xl: 1.25rem;
   --radius-cta: var(--r-cta);
   --color-knob: var(--knob);
   --color-chart-1: var(--r0);
@@ -748,33 +746,24 @@
   --accent-foreground: var(--primary);
   --input: var(--border);
   --ring: var(--primary);
-  --shadow-card:
-    inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 12px 28px -16px var(--sh2),
-    0 0 0 1px var(--surface-ring);
-  --shadow-float:
-    inset 0 1px 0 var(--hl), 0 1px 2px var(--sh1), 0 24px 48px -16px var(--sh2),
-    0 0 0 1px var(--surface-ring);
-  --shadow-inset: inset 0 1px 0 var(--hl);
-  --shadow-control:
-    inset 0 1px 0 var(--hl), inset 0 -6px 10px -8px var(--sh2),
-    0 1px 2px var(--sh1), 0 8px 18px -10px var(--sh2),
-    0 0 0 1px var(--surface-ring);
-  --shadow-primary:
-    inset 0 1px 0 rgb(255 255 255 / 28%), 0 1px 2px rgb(0 0 0 / 18%),
-    0 10px 22px -10px var(--primary);
+  --shadow-card: 0 1px 2px var(--sh1), 0 0 0 1px var(--surface-ring);
+  --shadow-float: 0 12px 40px -12px var(--sh2), 0 0 0 1px var(--surface-ring);
+  --shadow-inset: none;
+  --shadow-control: none;
+  --shadow-primary: none;
 }
 
 :root {
   color-scheme: light;
   --overlay: rgb(13 18 15 / 18%);
-  --background: #eff1ec;
+  --background: #f5f6f2;
   --card: #fcfdfb;
   --muted: #f3f5f0;
-  --border: #e2e6df;
-  --paper-deep: #f7f8f5;
+  --border: #dce2d8;
+  --paper-deep: #edf0e9;
   --bezel: #131916;
   --foreground: #15201a;
-  --muted-foreground: #6b776f;
+  --muted-foreground: #57645b;
   --secondary-foreground: #2b3b31;
   --primary: #2f7a4c;
   --primary-hi: #348452;
@@ -797,9 +786,9 @@
   --surface-ring: rgba(21, 32, 26, 0.055);
   --sh1: rgba(21, 32, 26, 0.05);
   --sh2: rgba(21, 32, 26, 0.18);
-  --radius: 20px;
+  --radius: 16px;
   --radius-row: 12px;
-  --r-cta: 14px;
+  --r-cta: 10px;
   --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   /*
    * The lime accent. An accent only: never text, never a surface, and never the
@@ -837,7 +826,7 @@
   --paper-deep: #121814;
   --bezel: #050706;
   --foreground: #e9f0ea;
-  --muted-foreground: #8e9d92;
+  --muted-foreground: #a4b2a6;
   --secondary-foreground: #c8d5cb;
   --primary: #4fb87a;
   --primary-hi: #5ecb8b;
@@ -860,11 +849,10 @@
   --surface-ring: rgba(255, 255, 255, 0.05);
   --sh1: rgba(0, 0, 0, 0.4);
   --sh2: rgba(0, 0, 0, 0.7);
-  --radius: 22px;
-  --radius-row: 14px;
-  --r-cta: 999px;
-  --machine:
-    "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
+  --radius: 16px;
+  --radius-row: 12px;
+  --r-cta: 10px;
+  --machine: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --lime: #c7ec63;
   --lime-ink: #16250a;
   --frog-skin: #5cb473;
@@ -894,9 +882,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  line-height: 1.25rem;
-  letter-spacing: -0.2px;
-  font-feature-settings: "ss01", "cv11";
+  line-height: 1.375rem;
+  letter-spacing: 0;
+  font-optical-sizing: auto;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -1011,10 +999,10 @@ button:not(:disabled),
 
 @utility text-title {
   font-family: var(--font-display);
-  font-size: 1.375rem;
-  line-height: 1.75rem;
-  font-weight: 600;
-  letter-spacing: -0.7px;
+  font-size: 1.75rem;
+  line-height: 2.125rem;
+  font-weight: 650;
+  letter-spacing: -0.035em;
 }
 @utility text-section {
   font-family: var(--font-display);
@@ -1031,21 +1019,12 @@ button:not(:disabled),
   letter-spacing: -0.9px;
 }
 @utility action-primary {
-  background-image: linear-gradient(
-    180deg,
-    var(--primary-hi),
-    var(--primary-lo)
-  );
-  box-shadow: var(--shadow-primary);
+  background: var(--primary);
   &:hover {
-    background-image: linear-gradient(
-      180deg,
-      var(--primary-lo),
-      var(--primary-hi)
-    );
+    background: var(--primary-lo);
   }
   &:active {
-    background-image: none;
+    background: var(--primary-lo);
   }
 }
 /* Compact readouts and markdown tables use the same track-colour dividers. */
@@ -1156,7 +1135,7 @@ button:not(:disabled),
     opacity 200ms var(--ease-out);
   &[data-starting-style],
   &[data-ending-style] {
-    transform: scale(0.94);
+    transform: scale(0.98);
   }
   &[data-ending-style] {
     transition-duration: 125ms;
@@ -1224,29 +1203,6 @@ button:not(:disabled),
     transition-duration: 0ms;
   }
 }
-@media (hover: hover) and (pointer: fine) {
-  .press-feedback.action-primary {
-    &::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      box-shadow: var(--shadow-float);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 160ms var(--ease-out);
-    }
-    &:hover:not(:active):not(:disabled) {
-      transform: translateY(-1px);
-    }
-    &:hover::after {
-      opacity: 0.45;
-    }
-    &:active::after {
-      opacity: 0;
-    }
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .browse-progress[data-live="true"]::before {
     animation: none;
@@ -1310,11 +1266,54 @@ button:not(:disabled),
   }
 }
 @media (max-width: 767px) {
-  .workspace-frame:has([data-slot="composer"]:focus-within) {
-    padding-bottom: 0;
-  }
   .workspace-frame:has([data-slot="composer"]:focus-within)
     [data-slot="mobile-navigation"] {
     display: none;
+  }
+}
+
+/* Materials belong to chrome; reading surfaces stay solid. */
+.workspace-toolbar {
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  backdrop-filter: blur(16px);
+}
+.email-reader {
+  overflow-wrap: anywhere;
+}
+.email-reader [data-slot="card"] {
+  flex-shrink: 0;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .workspace-toolbar,
+  [data-slot="mobile-navigation"] {
+    background: var(--background);
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --border: var(--muted-foreground);
+  }
+}
+
+/* Keep the first useful actions in view on short phones. */
+@media (max-width: 767px) and (max-height: 700px) {
+  [data-slot="chat-welcome-scroll"] > div {
+    padding-block: 8px;
+  }
+  [data-slot="home-intro"] {
+    gap: 8px;
+    padding-block: 0;
+  }
+  [data-slot="home-intro"] img {
+    width: 48px;
+    height: 48px;
+  }
+  [data-slot="home-intro"] p {
+    display: none;
+  }
+  [data-slot="home-intro"] h1 {
+    font-size: 20px;
+    line-height: 24px;
   }
 }

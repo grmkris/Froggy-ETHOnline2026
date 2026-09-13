@@ -16,9 +16,9 @@ export const ChatToolbar = ({
   readonly watchlistOpen: boolean;
   readonly drive: DriveMode;
   readonly onShowBrowser: () => void;
-}): ReactElement | null =>
-  drive === "idle" && onToggleWatchlist === undefined ? null : (
-    <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-1 sm:px-6">
+}): ReactElement | null => (
+  <div className="flex shrink-0 items-center gap-1">
+    {drive === "idle" ? null : (
       <span
         aria-live="polite"
         className="flex items-center gap-1.5 text-xs whitespace-nowrap"
@@ -26,25 +26,28 @@ export const ChatToolbar = ({
         <DrivingDot mode={drive} />
         <span className="sr-only sm:not-sr-only">{DRIVE_LABEL[drive]}</span>
       </span>
-      {onToggleWatchlist === undefined ? null : (
-        <Button
-          aria-label="Toggle watchlist pane"
-          aria-pressed={watchlistOpen}
-          onClick={onToggleWatchlist}
-          size="icon"
-          variant="ghost"
-        >
-          <BookmarkIcon />
-        </Button>
-      )}
+    )}
+    {onToggleWatchlist === undefined ? null : (
       <Button
-        aria-label="Show the browser"
-        className="size-11"
-        onClick={onShowBrowser}
+        aria-label="Toggle watchlist pane"
+        title="Watchlist pane"
+        aria-pressed={watchlistOpen}
+        onClick={onToggleWatchlist}
         size="icon"
         variant="ghost"
       >
-        <GlobeIcon />
+        <BookmarkIcon />
       </Button>
-    </div>
-  );
+    )}
+    <Button
+      aria-label="Show the browser"
+      title="Open browser"
+      className="size-11"
+      onClick={onShowBrowser}
+      size="icon"
+      variant="ghost"
+    >
+      <GlobeIcon />
+    </Button>
+  </div>
+);

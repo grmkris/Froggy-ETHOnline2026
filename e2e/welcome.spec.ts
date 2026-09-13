@@ -38,11 +38,14 @@ test("Home keeps a local identity, and offers the welcome from its foot", async 
   });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "What’s the move?" })
+    page.getByRole("heading", { name: "What can I help with?" })
   ).toBeVisible();
   await expect(page.locator('[data-pose="idle"]').first()).toBeVisible();
   await page.getByRole("button", { name: "Workspace menu" }).click();
-  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("link", { name: "Account", exact: true })
+    .click();
   await page.getByRole("link", { name: "Show the welcome again" }).click();
   await expect(page).toHaveURL(/\/welcome$/u);
   await expect(
@@ -137,7 +140,7 @@ test("the welcome runs through its four steps and lands on Home", async ({
 
   await expect(page).toHaveURL(/\/$/u);
   await expect(
-    page.getByRole("heading", { name: "What’s the move?" })
+    page.getByRole("heading", { name: "What can I help with?" })
   ).toBeVisible();
   await expect.poll(async () => await seenAt(page, request)).not.toBeNull();
   expect(errors).toEqual([]);
@@ -194,7 +197,7 @@ test("Skip setup is a way out too, and counts as welcomed", async ({
   await page.getByRole("button", { name: "Skip setup" }).click();
   await expect(page).toHaveURL(/\/$/u);
   await expect(
-    page.getByRole("heading", { name: "What’s the move?" })
+    page.getByRole("heading", { name: "What can I help with?" })
   ).toBeVisible();
   await expect.poll(async () => await seenAt(page, request)).not.toBeNull();
 });
@@ -320,14 +323,15 @@ test("email onboarding previews the real domain, handles a taken name, and remem
   expect(errors).toEqual([]);
 });
 
-test("skipping email leaves a Home reminder and can be completed in Account", async ({
-  page,
-}) => {
+test("skipping email can be completed from Inbox", async ({ page }) => {
   await openEmailStep(page);
   await page.getByRole("button", { name: "Do this later" }).click();
   await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await page.getByRole("link", { name: /Claim your Froggy email/u }).click();
-  await expect(page).toHaveURL(/\/settings$/u);
+  await page
+    .getByRole("navigation", { name: "Primary", exact: true })
+    .getByRole("link", { name: "Inbox", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/inbox$/u);
   await page
     .getByLabel("Choose your permanent address")
     .fill(`later-${Date.now()}`);
@@ -335,7 +339,7 @@ test("skipping email leaves a Home reminder and can be completed in Account", as
     .getByRole("button", { name: "Claim address", exact: true })
     .click();
   await expect(
-    page.getByText("Demo address ready", { exact: true })
+    page.getByRole("button", { name: "New email", exact: true })
   ).toBeVisible();
 });
 

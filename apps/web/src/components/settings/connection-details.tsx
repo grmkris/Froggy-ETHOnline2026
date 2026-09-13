@@ -59,24 +59,31 @@ export const ConnectionDetails = ({
   readonly webMcp: WebMcpStatus;
 }): ReactElement => (
   <div className="flex flex-col gap-4 text-sm">
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 wrap-anywhere">
-      <dt className="text-muted-foreground">Signer</dt>
-      <dd className="text-machine">
-        {shortAddress(wallet?.signerAddress ?? null)}
-      </dd>
-      <dt className="text-muted-foreground">Agent</dt>
-      <dd>
-        {wallet === null ? "—" : (SIGNER_WORDS.get(wallet.agentSigner) ?? "—")}
-      </dd>
-      <dt className="text-muted-foreground">Session</dt>
-      <dd className="text-machine">{sessionId ?? "—"}</dd>
-      <dt className="text-muted-foreground">WebMCP</dt>
-      <dd>
-        {webMcp.kind === "registered"
-          ? `${webMcp.tools} tools offered to this browser's agent`
-          : "unavailable in this browser (needs Web Model Context)"}
-      </dd>
-    </dl>
+    <details className="rounded-lg border p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Technical details
+      </summary>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 wrap-anywhere">
+        <dt className="text-muted-foreground">Signer</dt>
+        <dd className="text-machine">
+          {shortAddress(wallet?.signerAddress ?? null)}
+        </dd>
+        <dt className="text-muted-foreground">Agent</dt>
+        <dd>
+          {wallet === null
+            ? "—"
+            : (SIGNER_WORDS.get(wallet.agentSigner) ?? "—")}
+        </dd>
+        <dt className="text-muted-foreground">Session</dt>
+        <dd className="text-machine">{sessionId ?? "—"}</dd>
+        <dt className="text-muted-foreground">WebMCP</dt>
+        <dd>
+          {webMcp.kind === "registered"
+            ? `${webMcp.tools} tools offered to this browser's agent`
+            : "unavailable in this browser (needs Web Model Context)"}
+        </dd>
+      </dl>
+    </details>
     {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
       <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
     )}

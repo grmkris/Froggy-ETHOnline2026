@@ -80,3 +80,39 @@ test("the page can go to its own window, and the tab knows", async ({
     page.getByText("The page is open in another window.")
   ).toHaveCount(0);
 });
+
+test("browser resize is keyboard accessible and keeps chat readable across breakpoints", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/chat");
+  await page
+    .getByRole("button", { name: "Show the browser", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Show the page beside the conversation" })
+    .click();
+  const pane = page.getByRole("complementary", {
+    name: "The shared browser, beside the conversation",
+  });
+  const resize = page.getByRole("button", { name: "Resize the browser pane" });
+  await resize.focus();
+  await page.keyboard.press("Home");
+  await expect(pane).toHaveCSS("width", "380px");
+  await page.keyboard.press("ArrowLeft");
+  await expect(pane).toHaveCSS("width", "396px");
+  await page.keyboard.press("End");
+  await expect(pane).toHaveCSS("width", "736px");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(pane).toHaveCSS("width", "576px");
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(pane).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", { name: "Message", exact: true })
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(pane).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Message", exact: true })
+  ).toBeVisible();
+});

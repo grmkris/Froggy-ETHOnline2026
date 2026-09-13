@@ -25,7 +25,7 @@ for (const viewport of [
       wallet.getByRole("heading", { name: "Your wallet" })
     ).toBeInViewport();
     await expect(
-      wallet.getByRole("button", { name: "Copy for your agent" })
+      wallet.getByRole("button", { name: "Add funds", exact: true })
     ).toBeInViewport();
     // The stub knows no USDC balance: the total is unavailable, not zero.
     await expect(wallet.getByText("Total unavailable")).toBeVisible();

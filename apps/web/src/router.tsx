@@ -1,4 +1,4 @@
-import { HistoryId, TaskId } from "@froggy/domain";
+import { HistoryId, TaskId, EmailId, EmailDraftId } from "@froggy/domain";
 import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
@@ -94,6 +94,44 @@ const watchlistDetailRoute = page(
   async () => await import("./routes/watchlist-page"),
   "WatchlistPage"
 );
+const InboxSearch = Schema.Struct({
+  message: Schema.optional(EmailId),
+  draft: Schema.optional(EmailDraftId),
+  compose: Schema.optional(Schema.Literals(["new", "reply"])),
+  view: Schema.optional(Schema.Literal("outgoing")),
+});
+const inboxRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/inbox-page"),
+    "InboxPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/inbox",
+  validateSearch: (raw: {
+    readonly message?: unknown;
+    readonly draft?: unknown;
+    readonly compose?: unknown;
+    readonly view?: unknown;
+  }): typeof InboxSearch.Type => {
+    const result = Schema.decodeUnknownResult(InboxSearch)(raw);
+    if (result._tag !== "Success") {
+      return {};
+    }
+    const { message, draft, compose, view } = result.success;
+    if (draft) {
+      return compose
+        ? { draft, view: "outgoing", compose: "new" }
+        : { draft, view: "outgoing" };
+    }
+    if (compose === "new") {
+      return { compose };
+    }
+    if (message) {
+      return compose === "reply" ? { message, compose } : { message };
+    }
+    return view ? { view } : {};
+  },
+});
 const exploreRoute = page(
   "/explore",
   async () => await import("./routes/explore-page"),
@@ -106,6 +144,7 @@ const walletRoute = page(
 );
 /** The chosen service, when the URL names one; anything else is no choice. */
 const ServicesSearch = Schema.Struct({
+  view: Schema.optional(Schema.Literals(["trading", "purchases", "scheduled"])),
   dropped: Schema.optional(Schema.Literal("1")),
   service: Schema.optional(ServiceName),
   task: Schema.optional(TaskId),
@@ -115,6 +154,7 @@ type ServicesSearch = typeof ServicesSearch.Type;
 
 /** What the router hands over: whatever the URL held under that key. */
 interface ServicesSearchInput {
+  readonly view?: unknown;
   readonly dropped?: unknown;
   readonly service?: unknown;
   readonly task?: unknown;
@@ -190,6 +230,7 @@ const routeTree = rootRoute.addChildren([
     welcomeRoute,
     chatRoute,
     conversationRoute,
+    inboxRoute,
     watchlistRoute,
     watchlistDetailRoute,
     exploreRoute,

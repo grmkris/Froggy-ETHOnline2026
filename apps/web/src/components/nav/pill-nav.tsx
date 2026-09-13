@@ -15,7 +15,7 @@ export const PillNav = ({
   >
     <div
       data-slot="navigation-pill"
-      className="grid w-full max-w-sm grid-cols-2 gap-2"
+      className="grid w-full max-w-sm grid-cols-3 gap-2"
     >
       {NAV_ITEMS.map((item) => (
         <NavLink

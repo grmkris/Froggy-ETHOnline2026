@@ -41,7 +41,7 @@ for (const place of PLACES) {
       // Three destinations, plus the two demoted places once the rail is up.
       await expect(
         page.getByRole("navigation", { name: "Primary" }).getByRole("link")
-      ).toHaveCount(2);
+      ).toHaveCount(3);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
       if (place === "/") {
         await expect(page.locator('[data-pose="idle"]').first()).toBeVisible();

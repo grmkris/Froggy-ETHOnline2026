@@ -43,7 +43,7 @@ const ItemDetail = ({
   const navigate = useNavigate();
   return (
     <article className="flex flex-col gap-6">
-      <div className="bg-brand-soft/50 border-border flex flex-col gap-5 rounded-3xl border p-6 sm:p-8">
+      <div className="bg-card border-border flex flex-col gap-5 rounded-3xl border p-6 sm:p-8">
         <ItemIcon item={item} />
         <div>
           <p className="text-muted-foreground mb-2 text-sm">
@@ -190,14 +190,11 @@ export const WatchlistPage = (): ReactElement => {
           <>
             <header className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-brand mb-1 text-xs font-medium tracking-wider uppercase">
-                  Your corner of the internet
-                </p>
                 <h1 className="text-3xl font-semibold tracking-tight">
                   Watchlist
                 </h1>
                 <p className="text-muted-foreground mt-2 text-sm">
-                  A token. A trip. Something you’ve had your eye on.
+                  Good things to come back to.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

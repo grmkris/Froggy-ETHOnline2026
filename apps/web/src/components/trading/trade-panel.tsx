@@ -535,7 +535,7 @@ export const TradeNotice = ({
       </span>
       <Link
         className={buttonVariants({ variant: "outline", size: "sm" })}
-        hash="trading"
+        search={{ view: "trading" }}
         to="/services"
       >
         Review trades

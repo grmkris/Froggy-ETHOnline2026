@@ -86,7 +86,7 @@ const archiveLabel = (archived: boolean, pending: boolean): string => {
   return pending ? "Archiving…" : "Archive";
 };
 
-const ConversationActions = ({
+export const ConversationActions = ({
   conversation,
 }: {
   readonly conversation: Conversation;
@@ -372,9 +372,9 @@ export const RecentConversations = ({
 };
 
 export const ConversationHeader = (): ReactElement => {
+  const [loadedOlder, setLoadedOlder] = useState(false);
   const stale = useHistoryStale();
   const {
-    conversation,
     historyRecords,
     hasOlder,
     loadingOlder,
@@ -382,38 +382,10 @@ export const ConversationHeader = (): ReactElement => {
     historyError,
     retryHistory,
   } = useChatSurface();
+  const olderLabel = hasOlder ? "Load older messages" : "All messages loaded";
   return (
     <>
-      <div
-        className={
-          conversation === null
-            ? "hidden"
-            : "mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6"
-        }
-      >
-        {conversation === null ? null : (
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-medium">
-                {conversation.title}
-              </h1>
-              <p className="text-muted-foreground text-xs">
-                {conversation.source} ·{" "}
-                {new Date(conversation.updatedAt).toLocaleDateString()}
-                {conversation.archived ? " · archived" : ""}
-              </p>
-            </div>
-            <ConversationActions conversation={conversation} />
-          </div>
-        )}
-        <Button
-          nativeButton={false}
-          render={<Link to="/activity" />}
-          size="sm"
-          variant="ghost"
-        >
-          Activity
-        </Button>
+      <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-wrap items-center gap-2 px-4 empty:hidden sm:px-6">
         {historyRecords.some((record) => record.status === "interrupted") ? (
           <Badge variant="outline">Interrupted · saved output</Badge>
         ) : null}
@@ -426,16 +398,17 @@ export const ConversationHeader = (): ReactElement => {
         {stale ? (
           <Badge variant="outline">Updates delayed · saved snapshot</Badge>
         ) : null}
-        {hasOlder ? (
+        {hasOlder || loadedOlder ? (
           <Button
-            disabled={loadingOlder}
+            disabled={loadingOlder || !hasOlder}
             onClick={() => {
+              setLoadedOlder(true);
               void loadOlder();
             }}
             size="sm"
             variant="ghost"
           >
-            {loadingOlder ? "Loading…" : "Load older messages"}
+            {loadingOlder ? "Loading…" : olderLabel}
           </Button>
         ) : null}
       </div>

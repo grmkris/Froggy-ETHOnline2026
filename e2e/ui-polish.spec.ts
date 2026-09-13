@@ -27,10 +27,12 @@ for (const width of [320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: "What’s the move?" })
+      page.getByRole("heading", { name: "What can I help with?" })
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Your money", exact: true })
+      page
+        .getByRole("main")
+        .getByRole("link", { name: "Your money", exact: true })
     ).toBeVisible();
     await expect(
       page.getByRole("complementary", { name: "Watchlist pane" })
@@ -51,16 +53,20 @@ for (const width of [320, 390, 1440]) {
       timeout: 20_000,
     });
     await expect(
-      page.getByRole("heading", { name: "What’s the move?" })
+      page.getByRole("heading", { name: "What can I help with?" })
     ).toHaveCount(0);
     await expect(
-      page.getByRole("link", { name: "Your money", exact: true })
+      page
+        .getByRole("main")
+        .getByRole("link", { name: "Your money", exact: true })
     ).toHaveCount(0);
     await page.getByRole("log").click();
     await captureScreen(page, testInfo, `chat-${width}`);
     await page.getByRole("button", { name: "Workspace menu" }).click();
     await expect(
-      page.getByRole("link", { name: "Your money", exact: true })
+      page
+        .locator('[data-slot="popover-content"]')
+        .getByRole("link", { name: "Your money", exact: true })
     ).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Conversation options" }).click();
@@ -205,4 +211,27 @@ test("opening discovery is free and new listings are an explicit request", async
     discovery.getByRole("region", { name: "Token results" })
   ).toBeVisible();
   expect(requests).toBe(1);
+});
+
+test("short phone Home keeps its starter actions and composer reachable", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "What can I help with?" })
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("link", { name: "Find tokens", exact: true })
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Plan a trip", exact: true })
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Find something good", exact: true })
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("textbox", { name: "Message", exact: true })
+  ).toBeInViewport();
+  await captureScreen(page, testInfo, "home-short-phone");
 });

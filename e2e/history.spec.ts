@@ -50,6 +50,7 @@ for (const width of [1440, 390]) {
     ).toHaveCount(1);
     await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
+      .locator('[data-slot="popover-content"]')
       .getByRole("link", { name: "Your money", exact: true })
       .last()
       .click();

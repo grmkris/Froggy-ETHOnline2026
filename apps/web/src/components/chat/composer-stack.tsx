@@ -64,7 +64,7 @@ export const ComposerStack = ({
     document.querySelector<HTMLTextAreaElement>("#composer-message")?.focus();
   }, [approvalCount]);
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-3 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <NoticeList
         notices={[...chatNotices, ...app.notices]}
         onDismiss={(id) => {
@@ -109,11 +109,13 @@ export const ComposerStack = ({
           stopRun.clear();
         }}
       />
-      <div className="flex items-center gap-2">
-        <ConversationOptions />
-        <AttachedItem />
-      </div>
       <Composer
+        tools={
+          <>
+            <ConversationOptions />
+            <AttachedItem />
+          </>
+        }
         asking={app.approvals.length > 0}
         busy={busy}
         disabledReason={disabledReason}
