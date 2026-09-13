@@ -55,6 +55,7 @@ import { serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
 import { recordTurn, sseOf, startTurn } from "./turn";
 import type { UnlockTokens } from "./unlock";
+import type { Updates } from "./updates";
 import type { Workspaces } from "./workspaces";
 
 /** Fixed service prices; one USD micro is one internal credit unit. */
@@ -98,6 +99,7 @@ const decodeTaskRequest = async (request: Request) => {
 };
 
 export interface TaskDeps {
+  readonly updates?: Updates;
   readonly unattended?: boolean;
   readonly enrichmentItemId?: WatchlistItemId;
   readonly monitorCheckId?: MonitorCheckId;

@@ -5,7 +5,6 @@ import { Schema } from "effect";
 import { WatchlistItem } from "../packages/domain/src/watchlist";
 import { ServiceCatalog } from "../packages/protocol/src/services";
 import {
-  WatchlistCapture,
   WatchlistCaptured,
   WatchlistDetails,
 } from "../packages/protocol/src/watchlist";
@@ -26,7 +25,7 @@ const ownerHeaders = async (page: Page) => {
 };
 
 for (const width of [1440, 390]) {
-  test(`paste resolves both chains without a purchase and saves without a modal at ${width}px`, async ({
+  test(`paste tracks an address at once without a purchase at ${width}px`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
@@ -34,77 +33,53 @@ for (const width of [1440, 390]) {
     page.on("pageerror", (error) => {
       errors.push(error.message);
     });
-    page.on("console", (message) => {
-      if (message.type() === "error") {
-        errors.push(message.text());
-      }
-    });
+    let tracks = 0;
     let purchases = 0;
     page.on("request", (request) => {
-      if (
-        request.method() === "POST" &&
-        /\/api\/(?:services\/run|tasks)$/u.test(new URL(request.url()).pathname)
-      ) {
-        purchases += 1;
+      if (request.method() !== "POST") {
+        return;
       }
-      if (
-        request.method() === "POST" &&
-        new URL(request.url()).pathname === "/api/watchlist/capture"
-      ) {
-        const input = Schema.decodeUnknownSync(WatchlistCapture)(
-          request.postDataJSON()
-        );
-        if (input.enrich) {
-          purchases += 1;
-        }
+      const path = new URL(request.url()).pathname;
+      if (path === "/api/watchlist/track") {
+        tracks += 1;
+      }
+      if (path === "/api/services/run" || path === "/api/tasks") {
+        purchases += 1;
       }
     });
     await page.goto("/watchlist");
-    const capture = page.getByRole("region", {
-      name: "Save an address or link",
+    const input = page.getByRole("textbox", {
+      name: "Address, link or token name",
     });
-    await capture
-      .getByRole("textbox", { name: "Something caught your eye?" })
-      .fill("0x1111111111111111111111111111111111111111");
-    await capture
-      .getByRole("button", { name: "Preview address or link" })
-      .click();
+    await input.focus();
+    await input.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text",
+        "0x1111111111111111111111111111111111111111"
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", { bubbles: true, clipboardData })
+      );
+    });
+    await expect(input).toHaveValue("");
+    await expect(input).toBeFocused();
+    const items = page.getByRole("region", { name: "Saved items" });
+    await expect(items.getByRole("link")).toHaveCount(1);
+    await expect(items).toContainText("Not seen on any chain we checked", {
+      timeout: 20_000,
+    });
     await expect(
-      capture.getByRole("button", { name: / · (?:Token|Address)$/u })
-    ).toHaveCount(2);
-    await expect(capture).toContainText("Base");
-    await expect(capture).toContainText("Robinhood");
-    await capture
-      .getByRole("button", { name: / · (?:Token|Address)$/u })
-      .first()
-      .click();
-    await expect(capture.getByLabel("Name", { exact: true })).toBeVisible();
-    await capture
-      .getByRole("button", { name: "Preview address or link" })
-      .click();
-    await expect(capture.getByLabel("Name", { exact: true })).toHaveCount(0);
-    await capture
-      .getByRole("button", { name: / · (?:Token|Address)$/u })
-      .first()
-      .click();
-    await expect(capture.getByText("Saved", { exact: true })).toHaveCount(0);
-    await capture
-      .getByLabel("Name", { exact: true })
-      .fill("My watched address");
-    await capture.getByLabel("Save as", { exact: true }).selectOption("token");
-    await expect(
-      capture.getByRole("button", { name: /Save & enrich/u })
+      items.getByRole("button", { name: "Check again" })
     ).toBeVisible();
-    await capture.getByLabel("Name", { exact: true }).press("Enter");
-    await expect(capture.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(items).toContainText("Simulated");
+    await expect(
+      items.getByRole("switch", { name: "Notify me" })
+    ).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(tracks).toBe(1);
     expect(purchases).toBe(0);
-    await expect(
-      page
-        .getByRole("region", { name: "Saved items" })
-        .getByRole("link", { name: "My watched address" })
-    ).toBeVisible();
-    await captureScreen(page, testInfo, `paste-saved-${width}`);
+    await captureScreen(page, testInfo, `paste-tracked-${width}`);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth
@@ -113,6 +88,35 @@ for (const width of [1440, 390]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("typing filters saved items for free and Enter searches tokens", async ({
+  page,
+}) => {
+  await page.goto("/watchlist");
+  await fundCredits(page);
+  let purchases = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().endsWith("/api/services/run")
+    ) {
+      purchases += 1;
+    }
+  });
+  const input = page.getByRole("textbox", {
+    name: "Address, link or token name",
+  });
+  await input.fill("froggy");
+  await expect(page.getByRole("region", { name: "Saved items" })).toContainText(
+    "Nothing matches yet"
+  );
+  expect(purchases).toBe(0);
+  await input.press("Enter");
+  await expect(
+    page.getByRole("region", { name: "Token results" })
+  ).toBeVisible();
+  expect(purchases).toBe(1);
+});
 
 test("a changed enrichment price saves the item without buying work", async ({
   page,
@@ -245,7 +249,7 @@ test("historical charts and comparison use stored snapshots without purchasing",
   expect(purchases).toBe(0);
 });
 
-test("duplicate enrichment and refresh requests purchase one task per explicit request", async ({
+test("duplicate enrichment requests cannot purchase a token absent on supported chains", async ({
   page,
 }) => {
   await page.goto("/watchlist");
@@ -306,7 +310,7 @@ test("duplicate enrichment and refresh requests purchase one task per explicit r
     const result = await details();
     return result.data.enrichment?.status;
   };
-  await expect.poll(status).toBe("done");
+  await expect.poll(status).toBe("failed");
   const tasks = async () => {
     const response = await page.request.get("/api/tasks", { headers });
     const result = Schema.decodeUnknownSync(
@@ -325,7 +329,7 @@ test("duplicate enrichment and refresh requests purchase one task per explicit r
         task.kind === "service" && task.input["service"] === "token_snapshot"
     );
   };
-  expect(await tasks()).toHaveLength(1);
+  expect(await tasks()).toHaveLength(0);
   const refresh = {
     v: 1,
     revision: item.revision,
@@ -341,12 +345,12 @@ test("duplicate enrichment and refresh requests purchase one task per explicit r
         })
     )
   );
-  expect(refreshed.map((response) => response.status())).toEqual([200, 200]);
-  await expect.poll(status).toBe("done");
-  expect(await tasks()).toHaveLength(2);
+  expect(refreshed.map((response) => response.status())).toEqual([409, 409]);
+  await expect.poll(status).toBe("failed");
+  expect(await tasks()).toHaveLength(0);
 });
 
-test("insufficient credits keep the saved item and do not retry enrichment automatically", async ({
+test("an unavailable token stays saved and enrichment is not retried automatically", async ({
   page,
 }) => {
   await page.goto("/watchlist");
@@ -409,4 +413,50 @@ test("insufficient credits keep the saved item and do not retry enrichment autom
   await expect(
     page.getByRole("link", { name: "Saved without credits" })
   ).toBeVisible();
+});
+
+test("check again repeats free discovery without a purchase", async ({
+  page,
+}) => {
+  await page.goto("/watchlist");
+  const input = page.getByRole("textbox", {
+    name: "Address, link or token name",
+  });
+  await input.fill("0x1111111111111111111111111111111111111111");
+  await input.press("Enter");
+  const items = page.getByRole("region", { name: "Saved items" });
+  await expect(items).toContainText("Not seen on any chain we checked");
+  let purchases = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().endsWith("/api/services/run")
+    ) {
+      purchases += 1;
+    }
+  });
+  const checked = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/discover") &&
+      response.request().method() === "POST"
+  );
+  await items.getByRole("button", { name: "Check again" }).click();
+  const response = await checked;
+  expect(response.ok()).toBe(true);
+  await expect(items).toContainText("Not seen on any chain we checked");
+  expect(purchases).toBe(0);
+});
+
+test("chat address lookup offers one Track this action", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("0x1111111111111111111111111111111111111111");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const log = page.getByRole("log");
+  await expect(
+    log.getByRole("button", { name: "Track this", exact: true })
+  ).toHaveCount(1);
+  await log.getByRole("button", { name: "Track this", exact: true }).click();
+  await expect(log.getByRole("link", { name: "Tracked · Open" })).toBeVisible();
 });

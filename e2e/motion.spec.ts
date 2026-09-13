@@ -496,3 +496,50 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     ).toBe("none");
   });
 }
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`pasting springs the tracked card from the bar with ${reducedMotion} motion`, async ({
+    page,
+  }) => {
+    await observeMotion(page);
+    await page.emulateMedia({ reducedMotion });
+    await page.goto("/watchlist");
+    const input = page.getByRole("textbox", {
+      name: "Address, link or token name",
+    });
+    await input.focus();
+    await input.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text",
+        "0x1111111111111111111111111111111111111111"
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", { bubbles: true, clipboardData })
+      );
+    });
+    await expect(input).toBeFocused();
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            (reduced) =>
+              window.motionSamples.some(
+                (sample) =>
+                  sample.slot === "motion-item" &&
+                  (reduced
+                    ? sample.duration === 125 &&
+                      sample.frames.every(
+                        (frame) => !frame.transform.includes("0.97")
+                      )
+                    : sample.duration === 300 &&
+                      sample.frames.some((frame) =>
+                        frame.transform.includes("0.97")
+                      ))
+              ),
+            reducedMotion === "reduce"
+          )
+      )
+      .toBe(true);
+  });
+}

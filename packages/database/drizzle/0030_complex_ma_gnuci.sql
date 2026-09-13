@@ -1,0 +1,2 @@
+DROP INDEX "wallet_activities_item_transaction";--> statement-breakpoint
+CREATE UNIQUE INDEX "wallet_activities_item_transaction" ON "wallet_activities" USING btree ("user_id","item_id","network","transaction_hash");

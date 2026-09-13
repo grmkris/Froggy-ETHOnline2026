@@ -98,8 +98,7 @@ export const handleWatchlist = async (
         return reply(
           {
             v: 1,
-            error:
-              "Use a title and a valid public URL or token address with its chain.",
+            error: "Use a title and a valid public URL or onchain address.",
           },
           400
         );

@@ -42,7 +42,12 @@ export const CAPABILITIES: readonly Capability[] = [
     writes: true,
   },
   {
-    names: ["watchlist_get", "watchlist_list", "wallet_monitor_status"],
+    names: [
+      "watchlist_get",
+      "watchlist_list",
+      "wallet_monitor_status",
+      "updates_list",
+    ],
     surfaces: ["chat", "browse", "schedule", "monitor"],
     scope: "watchlist:read",
     writes: false,

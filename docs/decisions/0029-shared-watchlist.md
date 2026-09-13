@@ -1,5 +1,7 @@
 # 0029 — Saved items are separate from monitoring
 
+Address identity and per-chain saving are superseded by [decision 0039](0039-address-identity-and-discovered-presence.md).
+
 Status: accepted, 12 September 2026.
 
 Froggy’s daily workspace is Home plus a mixed Watchlist. Home reuses the live conversation and exposes funding balances through “Your money” on the empty Home and in the workspace menu; it does not describe USDC/HBAR funding as complete holdings or buying power. Existing conversation, wallet, tools and account URLs remain valid.

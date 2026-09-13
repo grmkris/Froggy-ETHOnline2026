@@ -20,9 +20,8 @@ export const snapshotForItem = (
   for (const task of tasks) {
     const result = task.data;
     if (
-      (result?.operation !== "market_search" &&
-        result?.operation !== "token_inspect") ||
-      result.network !== source.network
+      result?.operation !== "market_search" &&
+      result?.operation !== "token_inspect"
     ) {
       continue;
     }

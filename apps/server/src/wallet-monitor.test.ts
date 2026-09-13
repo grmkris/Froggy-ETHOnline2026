@@ -53,9 +53,14 @@ const hash = (digit: string) => `0x${digit.repeat(64)}`;
 const input: WatchlistInput = {
   title: "My external wallet",
   notes: "Keep these notes",
-  source: { _tag: "wallet", network: "eip155:8453", address: wallet },
+  source: { _tag: "wallet", address: wallet },
 };
-const options = { swaps: true, transfers: true, telegram: true };
+const options = {
+  swaps: true,
+  transfers: true,
+  telegram: true,
+  networks: ["eip155:8453"] as const,
+};
 const transaction = (
   changes: Partial<WalletStreamTransaction> = {}
 ): WalletStreamTransaction => ({
@@ -227,7 +232,6 @@ describe("wallet monitoring persistence and authority", () => {
               ...input,
               source: {
                 _tag: "wallet",
-                network: "eip155:8453",
                 address: address(digit),
               },
             },
@@ -242,7 +246,6 @@ describe("wallet monitoring persistence and authority", () => {
         ...input,
         source: {
           _tag: "wallet",
-          network: "eip155:8453",
           address: address("4"),
         },
       },
@@ -408,6 +411,7 @@ describe("wallet trade attribution", () => {
       },
     };
     const item = await configureOnchainMonitor(deps, owner, input, {
+      networks: [deps.network],
       telegram: true,
       conditions: [
         { _tag: "swap", side: "bought", token: quote },
@@ -543,15 +547,15 @@ describe("wallet alert delivery integration", () => {
     const store = memoryStore();
     const base = setup("eip155:8453", store);
     const robinhood = setup("eip155:4663", store);
-    const baseItem = await trackWallet(base.deps, owner, input, options);
-    const hoodItem = await trackWallet(
-      robinhood.deps,
-      owner,
+    const baseItem = await trackWallet(
       {
-        ...input,
-        source: { _tag: "wallet", network: "eip155:4663", address: wallet },
+        ...base.deps,
+        forNetwork: (network) =>
+          network === "eip155:8453" ? base.deps : robinhood.deps,
       },
-      options
+      owner,
+      input,
+      { ...options, networks: ["eip155:8453", "eip155:4663"] }
     );
     const baseFence = await base.fence();
     const hoodFence = await robinhood.fence();
@@ -588,10 +592,7 @@ describe("wallet alert delivery integration", () => {
     );
     expect(summaries).toHaveLength(1);
     expect(summaries[0]?.text).toContain("7 more onchain alerts");
-    const rows = [
-      ...(await store.walletActivity.list(owner, baseItem.id)),
-      ...(await store.walletActivity.list(owner, hoodItem.id)),
-    ];
+    const rows = await store.walletActivity.list(owner, baseItem.id);
     expect(rows.filter((row) => row.delivery === "delivered")).toHaveLength(5);
     expect(rows.filter((row) => row.delivery === "summarized")).toHaveLength(7);
     await Promise.all([
@@ -896,6 +897,7 @@ describe("observed onchain stream health", () => {
 });
 
 describe("watch coverage", () => {
+  const coverageOptions = { swaps: true, transfers: true, telegram: true };
   const seedPresence = async (
     store: ReturnType<typeof memoryStore>,
     itemId: WatchlistItemId,
@@ -945,7 +947,7 @@ describe("watch coverage", () => {
       "eip155:4663",
       "eip155:1",
     ]);
-    const item = await trackWallet(deps, owner, input, options);
+    const item = await trackWallet(deps, owner, input, coverageOptions);
     expect(item.walletMonitor?.networks).toEqual([
       { network: "eip155:8453", startBlock: 1001 },
       { network: "eip155:4663", startBlock: 1001 },
@@ -975,10 +977,10 @@ describe("watch coverage", () => {
     ]);
     expect(status.coverage).toContain("Base and Robinhood");
     expect(status.state).toBe("watching");
-    const again = await trackWallet(deps, owner, input, options);
+    const again = await trackWallet(deps, owner, input, coverageOptions);
     expect(again).toEqual(item);
     const restricted = await trackWallet(deps, owner, input, {
-      ...options,
+      ...coverageOptions,
       networks: ["eip155:4663"],
     });
     expect(restricted.walletMonitor?.networks).toEqual([
@@ -989,7 +991,7 @@ describe("watch coverage", () => {
     const s = setup();
     const saved = await saveWatchlistItem(s.store, owner, input);
     await seedPresence(s.store, saved.id, ["eip155:1"]);
-    const error = await trackWallet(s.deps, owner, input, options).then(
+    const error = await trackWallet(s.deps, owner, input, coverageOptions).then(
       () => null,
       String
     );
@@ -1006,7 +1008,7 @@ describe("watch coverage", () => {
     const s = setup();
     const saved = await saveWatchlistItem(s.store, owner, input);
     await seedPresence(s.store, saved.id, [], "queued");
-    const error = await trackWallet(s.deps, owner, input, options).then(
+    const error = await trackWallet(s.deps, owner, input, coverageOptions).then(
       () => null,
       String
     );
@@ -1027,9 +1029,9 @@ describe("watch coverage", () => {
             userId(`did:privy:capacity-${index}`),
             {
               ...input,
-              source: { _tag: "wallet", network: "eip155:8453", address: each },
+              source: { _tag: "wallet", address: each },
             },
-            options
+            { ...coverageOptions, networks: ["eip155:8453"] }
           )
       )
     );
@@ -1042,9 +1044,9 @@ describe("watch coverage", () => {
       userId("did:privy:capacity-21"),
       {
         ...input,
-        source: { _tag: "wallet", network: "eip155:8453", address: last },
+        source: { _tag: "wallet", address: last },
       },
-      options
+      { ...coverageOptions, networks: ["eip155:8453"] }
     ).then(() => null, String);
     expect(refused).toContain("on Base is at capacity");
     const elsewhere = await trackWallet(
@@ -1052,9 +1054,9 @@ describe("watch coverage", () => {
       userId("did:privy:capacity-21"),
       {
         ...input,
-        source: { _tag: "wallet", network: "eip155:4663", address: last },
+        source: { _tag: "wallet", address: last },
       },
-      options
+      { ...coverageOptions, networks: ["eip155:4663"] }
     );
     expect(elsewhere.walletMonitor?.networks).toEqual([
       { network: "eip155:4663", startBlock: 1001 },
@@ -1063,4 +1065,85 @@ describe("watch coverage", () => {
       await base.store.watchlist.transact(owner, (book) => book.size)
     ).toBe(0);
   });
+});
+
+test("Inbox files after two successors without Telegram, patches confirmation, and preserves read state", async () => {
+  const s = setup();
+  const item = await trackWallet(s.deps, owner, input, {
+    ...options,
+    telegram: false,
+  });
+  const fence = await s.fence();
+  await commitWalletBlock(s.deps, fence, s.block(1001, [transaction()]));
+  expect(await s.store.updates.unread(owner)).toBe(0);
+  await commitWalletBlock(s.deps, fence, s.block(1002));
+  expect(await s.store.updates.unread(owner)).toBe(0);
+  await commitWalletBlock(s.deps, fence, s.block(1003));
+  const page = await s.store.updates.list(owner);
+  const [first] = page.updates;
+  expect(first?.itemId).toBe(item.id);
+  expect(first?.body).toContain("Received 1 TEST");
+  expect(first?.stubbed).toBe(true);
+  expect(await s.store.updates.unread(owner)).toBe(1);
+  if (!first) {
+    throw new Error("Missing update");
+  }
+  await s.store.updates.markRead(owner, first.id, 100);
+  await commitWalletBlock(s.deps, fence, s.block(1004, [], 1001));
+  const confirmed = await s.store.updates.byId(owner, first.id);
+  expect(confirmed?.body).toContain("Base · confirmed");
+  expect(confirmed?.readAt).toBe(100);
+  expect(await s.store.updates.unread(owner)).toBe(0);
+});
+test("Inbox appends one correction on undo, but files nothing for an early revert", async () => {
+  const s = setup();
+  await trackWallet(s.deps, owner, input, { ...options, telegram: false });
+  const fence = await s.fence();
+  await commitWalletBlock(s.deps, fence, s.block(1001, [transaction()]));
+  await commitWalletBlock(s.deps, fence, s.block(1003));
+  const undo = {
+    kind: "undo",
+    cursor: "undo:1000",
+    lastValidBlock: 1000,
+    lastValidHash: hash("0"),
+  } as const;
+  await undoWalletBlock(s.deps, fence, undo);
+  await undoWalletBlock(s.deps, fence, undo);
+  const corrected = await s.store.updates.list(owner);
+  expect(corrected.updates).toHaveLength(2);
+  expect(
+    corrected.updates.some((row) => row.title.startsWith("Correction"))
+  ).toBe(true);
+  const early = setup();
+  await trackWallet(early.deps, owner, input, { ...options, telegram: false });
+  const earlyFence = await early.fence();
+  await commitWalletBlock(
+    early.deps,
+    earlyFence,
+    early.block(1001, [transaction()])
+  );
+  await undoWalletBlock(early.deps, earlyFence, undo);
+  expect(await early.store.updates.unread(owner)).toBe(0);
+});
+
+test("a filed Inbox update confirms after its watch is paused", async () => {
+  const s = setup();
+  const item = await trackWallet(s.deps, owner, input, {
+    ...options,
+    telegram: false,
+  });
+  const fence = await s.fence();
+  await commitWalletBlock(s.deps, fence, s.block(1001, [transaction()]));
+  await commitWalletBlock(s.deps, fence, s.block(1003));
+  const page = await s.store.updates.list(owner);
+  const [filed] = page.updates;
+  if (!filed) {
+    throw new Error("Missing update");
+  }
+  await updateWalletMonitor(s.deps, owner, item.id, "pause");
+  const pausedFence = await s.fence();
+  await commitWalletBlock(s.deps, pausedFence, s.block(1004, [], 1001));
+  const confirmed = await s.store.updates.byId(owner, filed.id);
+  expect(confirmed?.body).toContain("confirmed");
+  expect(await s.store.updates.unread(owner)).toBe(1);
 });

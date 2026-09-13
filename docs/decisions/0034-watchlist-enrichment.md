@@ -1,5 +1,7 @@
 # 0034 — Saved facts and one-time enrichment
 
+Address identity and per-chain saving are superseded by [decision 0039](0039-address-identity-and-discovered-presence.md).
+
 Status: accepted, 13 September 2026.
 
 Froggy remains a broad assistant. Tokens, wallets, shopping, travel, links and selected email facts share the Watchlist. The primary capture interaction is a pasted address or URL, a free preview, and a save with an explicitly priced optional one-time enrichment. Alerts remain a separate choice after saving.

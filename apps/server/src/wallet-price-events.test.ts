@@ -129,13 +129,14 @@ const setup = (network: OnchainNetwork = "eip155:8453") => {
   const input: WatchlistInput = {
     title: "My token",
     notes: "Price watch",
-    source: { _tag: "token", network, address: token },
+    source: { _tag: "token", address: token },
   };
   const configure = async (
     threshold = "10",
     comparison: "above" | "below" = "above"
   ) =>
     await configureOnchainMonitor(deps, owner, input, {
+      networks: [network],
       telegram: true,
       conditions: [
         { _tag: "price", comparison, threshold, quoteCurrency: "USD" },

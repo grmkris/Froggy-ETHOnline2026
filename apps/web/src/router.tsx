@@ -1,4 +1,10 @@
-import { HistoryId, TaskId, EmailId, EmailDraftId } from "@froggy/domain";
+import {
+  HistoryId,
+  TaskId,
+  EmailId,
+  EmailDraftId,
+  UpdateId,
+} from "@froggy/domain";
 import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
@@ -111,7 +117,7 @@ const activityRoute = createRoute({
   },
 });
 interface WatchlistSearch {
-  readonly discover?: boolean;
+  readonly track?: boolean;
 }
 const watchlistRoute = createRoute({
   component: lazyRouteComponent(
@@ -120,8 +126,16 @@ const watchlistRoute = createRoute({
   ),
   getParentRoute: () => workspaceRoute,
   path: "/watchlist",
-  validateSearch: (raw: { readonly discover?: unknown }): WatchlistSearch =>
-    raw.discover === true || raw.discover === "true" ? { discover: true } : {},
+  validateSearch: (raw: {
+    readonly discover?: unknown;
+    readonly track?: unknown;
+  }): WatchlistSearch =>
+    raw.track === true ||
+    raw.track === "true" ||
+    raw.discover === true ||
+    raw.discover === "true"
+      ? { track: true }
+      : {},
 });
 const watchlistDetailRoute = page(
   "/watchlist/$itemId",
@@ -129,6 +143,8 @@ const watchlistDetailRoute = page(
   "WatchlistPage"
 );
 const InboxSearch = Schema.Struct({
+  feed: Schema.optional(Schema.Literal("updates")),
+  update: Schema.optional(UpdateId),
   message: Schema.optional(EmailId),
   draft: Schema.optional(EmailDraftId),
   compose: Schema.optional(Schema.Literals(["new", "reply"])),
@@ -142,6 +158,8 @@ const inboxRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/inbox",
   validateSearch: (raw: {
+    readonly feed?: unknown;
+    readonly update?: unknown;
     readonly message?: unknown;
     readonly draft?: unknown;
     readonly compose?: unknown;
@@ -151,7 +169,10 @@ const inboxRoute = createRoute({
     if (result._tag !== "Success") {
       return {};
     }
-    const { message, draft, compose, view } = result.success;
+    const { message, draft, compose, view, feed, update } = result.success;
+    if (feed === "updates") {
+      return update ? { feed, update } : { feed };
+    }
     if (draft) {
       return compose
         ? { draft, view: "outgoing", compose: "new" }

@@ -51,6 +51,7 @@ import {
   tradeToolResult,
 } from "./trading/tools";
 import { walletMonitorDependencies } from "./wallet-monitor";
+import { discoveryDependencies } from "./watchlist-discovery";
 import {
   workspaceToolDefinitions,
   invokeWorkspaceTool,
@@ -758,7 +759,8 @@ const invokeWorkspaceMcp = async (
           Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
           notices,
           walletMonitorDependencies(services),
-          walletInventory?.ethereum?.address
+          walletInventory?.ethereum?.address,
+          discoveryDependencies(services, undefined, notices?.updates)
         );
         invocation.outcome = "completed";
         const text = JSON.stringify(result);

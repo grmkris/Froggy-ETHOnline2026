@@ -58,6 +58,7 @@ import type { TelegramPager } from "./telegram/pager";
 import { LaunchReactor } from "./trading/reactions";
 import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
+import { createUpdates } from "./updates";
 import { walletVenueVerifier } from "./wallet-activity";
 import { chainIdHex } from "./wallet-call";
 import { walletMonitorDependencies } from "./wallet-monitor";
@@ -414,7 +415,12 @@ class FroggyServer extends Context.Service<
       // One-time links to the pages payments unlock, opened by the shared Chrome.
       const unlocks = new UnlockTokens();
 
+      const updates = createUpdates({
+        store: services.store,
+        publishApp: (owner, message) => sinks.publishApp?.(owner, message),
+      });
       const notices = createNotices({
+        updates,
         notify: async (userId, text) =>
           (await sinks.pager?.notify(userId, text)) ?? false,
         publishApp: (userId, message) => {
@@ -429,6 +435,7 @@ class FroggyServer extends Context.Service<
               budget,
               interactions,
               notices,
+              updates,
               oracleUrl,
               runs,
               services,
@@ -506,6 +513,7 @@ class FroggyServer extends Context.Service<
           verifier: walletVenueVerifier(services.trading.rpc, network),
           appUrl: environment.appOrigin,
           deliver: pager.deliverWalletAlert,
+          filed: updates.announce,
           invalidate: (owner: UserId) => {
             sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
           },
@@ -619,6 +627,7 @@ class FroggyServer extends Context.Service<
                   budget,
                   interactions,
                   notices,
+                  updates,
                   oracleUrl,
                   runs,
                   services,
@@ -632,9 +641,13 @@ class FroggyServer extends Context.Service<
           );
           // Every person with a saved address, not only those with facts: a
           // migrated or agent-saved row gets its first chain check from here.
-          const discovery = discoveryDependencies(services, (owner) => {
-            sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
-          });
+          const discovery = discoveryDependencies(
+            services,
+            (owner) => {
+              sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
+            },
+            updates
+          );
           const discoveryOwners = await services.store.watchlist.owners();
           await Promise.all(
             discoveryOwners.map(async (owner) => {

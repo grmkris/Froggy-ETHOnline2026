@@ -34,6 +34,23 @@ const save = async (store: Store, body: Schema.Json) => {
 };
 
 describe("saved items", () => {
+  test("wallet and token saves at one address share one item", async () => {
+    const store = memoryStore();
+    const address = "0xabcdef1111111111111111111111111111111111";
+    const wallet = await save(store, {
+      ...input,
+      source: { _tag: "wallet", address },
+    });
+    const token = await save(store, {
+      ...input,
+      source: {
+        _tag: "token",
+        address: address.toUpperCase().replace("0X", "0x"),
+      },
+    });
+    expect(token.id).toBe(wallet.id);
+    expect(await store.watchlist.transact(ALICE, (book) => book.size)).toBe(1);
+  });
   test("onchain saves preserve notes and restore an archived watch inactive", async () => {
     const store = memoryStore();
     const tokenInput = {
@@ -114,7 +131,7 @@ describe("saved items", () => {
           })
       )
     );
-    // Synthetic address, shared deliberately to exercise CAIP-2 identity.
+    // Synthetic address, shared deliberately to exercise legacy decoding into address identity.
     const address = "0x1111111111111111111111111111111111111111";
     const tokens = await Promise.all(
       ["eip155:4663", "eip155:8453", "eip155:1"].map(
@@ -125,7 +142,7 @@ describe("saved items", () => {
           })
       )
     );
-    expect(new Set(tokens.map((token) => token.id)).size).toBe(3);
+    expect(new Set(tokens.map((token) => token.id)).size).toBe(1);
     const foreign = await handleWatchlist(
       store,
       new Request(`https://froggy.test/api/watchlist/${flight.id}`),
@@ -141,12 +158,12 @@ describe("saved items", () => {
     );
     expect(
       Schema.decodeUnknownSync(WatchlistList)(await list?.json()).items
-    ).toHaveLength(7);
+    ).toHaveLength(5);
     await store.forget(ALICE);
     expect(await store.watchlist.transact(ALICE, (book) => book.size)).toBe(0);
   });
 
-  test("rejects unsafe URLs, missing chain identity and invalid versions", async () => {
+  test("rejects unsafe URLs, malformed addresses and invalid versions", async () => {
     const store = memoryStore();
     const unsafe = ["javascript", "alert(1)"].join(":");
     const urls = [
@@ -162,7 +179,7 @@ describe("saved items", () => {
         ...input,
         source: {
           _tag: "token",
-          address: "0x1111111111111111111111111111111111111111",
+          address: "0x123",
         },
       },
     ];

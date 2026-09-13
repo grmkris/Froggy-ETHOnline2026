@@ -87,6 +87,7 @@ import type {
   Store,
 } from "./store";
 import { postgresTradingStore } from "./trading-store-postgres";
+import { postgresUpdateStore } from "./update-store-postgres";
 import { postgresWalletActivityStore } from "./wallet-activity-store-postgres";
 import { postgresWatchlistDataStore } from "./watchlist-data-store-postgres";
 import { postgresWatchlistStore } from "./watchlist-store-postgres";
@@ -313,6 +314,7 @@ export const postgresStore = (sql: Sql): Store => {
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
   const history = postgresHistoryStore(sql);
+  const updates = postgresUpdateStore(sql);
   const watchlistData = postgresWatchlistDataStore(sql);
   const monitoring = postgresMonitoringStore(sql);
   const watchlist = postgresWatchlistStore(sql);
@@ -345,6 +347,7 @@ export const postgresStore = (sql: Sql): Store => {
     history,
     watchlist,
     watchlistData,
+    updates,
     walletActivity,
     monitoring,
     cards: postgresCardStore(sql),
@@ -1472,6 +1475,7 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await updates.forget(userId);
       await watchlistData.forget(userId);
       await watchlist.forget(userId);
       await walletActivity.forget(userId);

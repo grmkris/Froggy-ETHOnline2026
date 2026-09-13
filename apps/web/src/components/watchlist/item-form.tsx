@@ -26,10 +26,8 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { useServiceApi } from "../../hooks/use-service-api";
-import { networkWords } from "../../lib/mandate-words";
 import { useWatchlist } from "../../lib/watchlist-client";
-import { SavedItemActions } from "./paste-item";
+import { SavedItemActions } from "./saved-item-actions";
 
 const ItemForm = ({
   item,
@@ -39,14 +37,8 @@ const ItemForm = ({
   readonly onSaved: (saved: WatchlistItem) => void;
 }): ReactElement => {
   const { save, patch } = useWatchlist();
-  const { catalog } = useServiceApi();
   const [kind, setKind] = useState(item?.source._tag ?? "link");
   const [failure, setFailure] = useState<string | null>(null);
-  const networks =
-    catalog.data?.services
-      .find((card) => card.name === "token_inspect")
-      ?.networks?.filter((network) => network.startsWith("eip155:")) ?? [];
-  const addressSource = kind === "token" || kind === "wallet";
   const sourceLabel = {
     email: "Email",
     token: "Token address",
@@ -67,19 +59,11 @@ const ItemForm = ({
         const decoded = Schema.decodeUnknownResult(WatchlistInput)({
           title: read("title"),
           notes: read("notes"),
-          source:
-            item?.source ??
-            (addressSource
-              ? {
-                  _tag: kind,
-                  network: data.get("network"),
-                  address: read("source"),
-                }
-              : { _tag: kind, url: read("source") }),
+          source: item?.source ?? { _tag: kind, url: read("source") },
         });
         if (decoded._tag === "Failure") {
           setFailure(
-            "Add a title and a valid public URL, or an EVM token address and its chain."
+            "Add a title and a valid public URL. Addresses go in the track bar."
           );
           return;
         }
@@ -117,13 +101,7 @@ const ItemForm = ({
                 onChange={(event) => {
                   setKind(
                     Schema.decodeUnknownSync(
-                      Schema.Literals([
-                        "link",
-                        "token",
-                        "wallet",
-                        "product",
-                        "flight",
-                      ])
+                      Schema.Literals(["link", "product", "flight"])
                     )(event.target.value)
                   );
                 }}
@@ -131,32 +109,10 @@ const ItemForm = ({
                 <NativeSelectOption value="link">
                   Website or link
                 </NativeSelectOption>
-                <NativeSelectOption value="token">Token</NativeSelectOption>
-                <NativeSelectOption value="wallet">Wallet</NativeSelectOption>
                 <NativeSelectOption value="product">Product</NativeSelectOption>
                 <NativeSelectOption value="flight">Flight</NativeSelectOption>
               </NativeSelect>
             </Field>
-            {addressSource ? (
-              <Field>
-                <FieldLabel htmlFor="saved-network">Chain</FieldLabel>
-                <NativeSelect id="saved-network" name="network" required>
-                  <NativeSelectOption value="">
-                    Choose a chain
-                  </NativeSelectOption>
-                  {networks.map((network) => (
-                    <NativeSelectOption key={network} value={network}>
-                      {networkWords(network)}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                {catalog.isError ? (
-                  <FieldDescription>
-                    Chains could not be loaded. Close and retry.
-                  </FieldDescription>
-                ) : null}
-              </Field>
-            ) : null}
             <Field>
               <FieldLabel htmlFor="saved-source">{sourceLabel}</FieldLabel>
               <Input
@@ -164,9 +120,9 @@ const ItemForm = ({
                 id="saved-source"
                 maxLength={2048}
                 name="source"
-                placeholder={addressSource ? "0x…" : "https://…"}
+                placeholder="https://…"
                 required
-                type={addressSource ? "text" : "url"}
+                type="url"
               />
             </Field>
           </>
@@ -221,10 +177,16 @@ const ItemForm = ({
 
 export const SaveItem = ({
   item,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   readonly item?: WatchlistItem;
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
 }): ReactElement => {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onOpenChange ?? setLocalOpen;
   const [saved, setSaved] = useState<WatchlistItem | null>(null);
   const [formItem, setFormItem] = useState(item);
   return (
@@ -238,27 +200,29 @@ export const SaveItem = ({
         setOpen(next);
       }}
     >
-      <DialogTrigger
-        render={<Button variant={item === undefined ? "default" : "outline"} />}
-      >
-        {item === undefined ? (
-          <>
-            <PlusIcon data-icon="inline-start" />
-            Add item
-          </>
-        ) : (
-          "Edit details"
-        )}
-      </DialogTrigger>
+      {controlledOpen === undefined ? (
+        <DialogTrigger
+          render={
+            <Button variant={item === undefined ? "default" : "outline"} />
+          }
+        >
+          {item === undefined ? (
+            <>
+              <PlusIcon data-icon="inline-start" />
+              Add something by hand
+            </>
+          ) : (
+            "Edit details"
+          )}
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {item === undefined
-              ? "Keep an eye on something"
-              : "Edit saved item"}
+            {item === undefined ? "Add something by hand" : "Edit saved item"}
           </DialogTitle>
           <DialogDescription>
-            Tokens, trips, things you want. All in one place.
+            A link, a product page or a trip. Addresses go in the bar.
           </DialogDescription>
         </DialogHeader>
         {saved ? (

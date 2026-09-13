@@ -105,6 +105,8 @@ import { handleToolCatalog } from "./tool-catalog";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
+import { createUpdates } from "./updates";
+import { handleUpdates } from "./updates-routes";
 import {
   walletMonitorDependencies,
   walletStreamHealth,
@@ -420,7 +422,11 @@ const handleWatchlistDiscovery = async (
   }
   if (pathname === "/api/watchlist/track") {
     return await handleWatchlistTrack(
-      discoveryDependencies(deps.services, watchlistChanged(deps)),
+      discoveryDependencies(
+        deps.services,
+        watchlistChanged(deps),
+        deps.notices.updates
+      ),
       request,
       userId
     );
@@ -432,7 +438,11 @@ const handleWatchlistDiscovery = async (
     return null;
   }
   return await handleWatchlistDiscover(
-    discoveryDependencies(deps.services, watchlistChanged(deps)),
+    discoveryDependencies(
+      deps.services,
+      watchlistChanged(deps),
+      deps.notices.updates
+    ),
     request,
     userId,
     discoverItem
@@ -442,6 +452,10 @@ const handleWatchlistDiscovery = async (
 const taskDependencies = (deps: RouterDeps): TaskDeps => ({
   budget: deps.budget,
   interactions: deps.interactions,
+  updates: createUpdates({
+    store: deps.services.store,
+    publishApp: deps.publishApp,
+  }),
   notices: deps.notices,
   oracleUrl: deps.oracleUrl,
   runs: deps.runs,
@@ -458,6 +472,15 @@ const handleScheduling = async (
   userId: UserId,
   pathname: string
 ): Promise<Response | null> => {
+  const updatesResponse = await handleUpdates(
+    deps.services.store,
+    request,
+    userId,
+    deps.publishApp
+  );
+  if (updatesResponse) {
+    return updatesResponse;
+  }
   if (
     request.method === "GET" &&
     pathname.startsWith("/api/watchlist/images/")

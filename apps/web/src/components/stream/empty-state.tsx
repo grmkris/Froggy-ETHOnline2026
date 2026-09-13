@@ -39,10 +39,10 @@ export const EmptyState = ({
       <Link
         className={buttonVariants({ variant: "outline" })}
         to="/watchlist"
-        search={{ discover: true }}
+        search={{ track: true }}
       >
         <CoinsIcon aria-hidden />
-        Find tokens
+        Track a token
       </Link>
       <Button
         disabled={disabled}

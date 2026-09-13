@@ -11,7 +11,12 @@
  * transport is introduced. It is chain state only, never a screen or a quote.
  */
 
-import { EvmAddress, EvmTradingNetwork, KNOWN_ASSETS } from "@froggy/domain";
+import {
+  EvmAddress,
+  EvmTradingNetwork,
+  KNOWN_ASSETS,
+  isTestnet,
+} from "@froggy/domain";
 import { AddressLookupInput, AddressLookupResult } from "@froggy/protocol";
 import type { AddressLookupNetwork } from "@froggy/protocol";
 import { Schema } from "effect";
@@ -282,7 +287,33 @@ export const lookupAddress = async (
       "DEMO fixture. Nothing here describes the requested address."
     );
   }
+  const seen = rows.filter(
+    (row) =>
+      row.status === "observed" &&
+      (row.kind === "contract" ||
+        row.nativeBalance !== "0" ||
+        (row.usdc !== null && row.usdc.units !== "0"))
+  );
+  const tokenRows = seen.filter(
+    (row) =>
+      row.kind === "contract" &&
+      (row.token?.symbol ?? row.token?.decimals ?? null) !== null
+  );
+  const visible = seen.some((row) => !isTestnet(row.network))
+    ? tokenRows.filter((row) => !isTestnet(row.network))
+    : tokenRows;
+  const named = visible.find(
+    (row) => (row.token?.name ?? row.token?.symbol ?? "") !== ""
+  );
+  let kind: "token" | "wallet" | "unknown" = "unknown";
+  if (tokenRows.length > 0) {
+    kind = "token";
+  } else if (seen.length > 0) {
+    kind = "wallet";
+  }
   return Schema.decodeUnknownSync(AddressLookupResult)({
+    kind,
+    suggestedTitle: named?.token?.name ?? named?.token?.symbol ?? null,
     v: 1,
     operation: "address_lookup",
     provider: "froggy",

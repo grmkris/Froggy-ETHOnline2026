@@ -32,7 +32,7 @@ import { ConversationHeader } from "../components/chat/recent-conversations";
 import { EmailThread } from "../components/email/email-thread";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
-import { SaveItem } from "../components/watchlist/item-form";
+import { TrackBar } from "../components/watchlist/track-bar";
 import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useConnectionLock } from "../hooks/use-connection-lock";
 import { useMediaQuery } from "../hooks/use-media-query";
@@ -378,7 +378,7 @@ export const ChatPage = (): ReactElement => {
             Good things to come back to.
           </p>
           <WatchlistItems compact />
-          <SaveItem />
+          <TrackBar compact />
         </aside>
       ) : null}
       {browserSplit ? (

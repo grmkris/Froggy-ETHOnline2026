@@ -51,7 +51,7 @@ export const monitorIsActive = (item: WatchlistItem, now: number): boolean =>
   item.walletMonitor.expiresAt > now;
 export const monitorNetworkName = (network: string): string =>
   network === "eip155:4663" ? "Robinhood" : "Base";
-/** Whether a saved watch streams on this chain; rows written before decision 0037 name one chain on their source. */
+/** Whether a saved watch streams on this chain. Migration 0029 supplies legacy coverage. */
 export const watchCovers = (
   item: WatchlistItem,
   network: OnchainNetwork
@@ -60,14 +60,7 @@ export const watchCovers = (
   if (!monitor) {
     return false;
   }
-  const coverage = monitorCoverage(monitor);
-  if (coverage.length > 0) {
-    return coverage.some((entry) => entry.network === network);
-  }
-  return (
-    (item.source._tag === "wallet" || item.source._tag === "token") &&
-    item.source.network === network
-  );
+  return monitorCoverage(monitor).some((entry) => entry.network === network);
 };
 /** The block this chain's stream starts reading from, null when the watch does not cover it. */
 export const watchStartBlock = (
@@ -78,22 +71,14 @@ export const watchStartBlock = (
   if (!monitor || !watchCovers(item, network)) {
     return null;
   }
-  return monitorStartBlock(monitor, network) ?? monitor.startBlock;
+  return monitorStartBlock(monitor, network);
 };
 const coveredNetworks = (item: WatchlistItem): readonly OnchainNetwork[] => {
   const monitor = item.walletMonitor;
   if (!monitor) {
     return [];
   }
-  const coverage = monitorCoverage(monitor);
-  if (coverage.length > 0) {
-    return coverage.map((entry) => entry.network);
-  }
-  const named =
-    item.source._tag === "wallet" || item.source._tag === "token"
-      ? item.source.network
-      : null;
-  return named !== null && Schema.is(OnchainNetwork)(named) ? [named] : [];
+  return monitorCoverage(monitor).map((entry) => entry.network);
 };
 const selectMonitorNetwork = (
   deps: WalletMonitorDeps,
@@ -346,10 +331,7 @@ const coverageFor = async (
       "Still checking which chains this address is on. Try again in a moment."
     );
   }
-  // Nothing known yet: the one chain the source names, until the identity commit of 0037.
-  return Schema.is(OnchainNetwork)(input.source.network)
-    ? [input.source.network]
-    : [];
+  return [];
 };
 interface ChainHead {
   readonly deps: WalletMonitorDeps;
@@ -840,14 +822,11 @@ export const walletMonitorStatus = async (
     throw new Error("Saved onchain item not found.");
   }
   const covered = coveredNetworks(found);
-  const networks: readonly OnchainNetwork[] =
-    covered.length > 0
-      ? covered
-      : [
-          Schema.is(OnchainNetwork)(found.source.network)
-            ? found.source.network
-            : initial.network,
-        ];
+  const data = await initial.store.watchlistData.transact(owner, (book) =>
+    book.get(itemId)
+  );
+  const networks =
+    covered.length > 0 ? covered : supportedPresence(data?.presence ?? []);
   const paired = await initial.store.telegram.forUser(owner);
   const entries: ChainStatus[] = [];
   for (const network of networks) {
@@ -864,7 +843,10 @@ export const walletMonitorStatus = async (
     latestBlockAt: first?.latestBlockAt ?? null,
     telegramPaired: paired !== null,
     gapSince: first?.gapSince ?? null,
-    coverage: `${listChainNames(networks)}: ETH and ERC20 transfers; verified Uniswap v2/v3/v4 swaps, Aerodrome classic on Base and registered Pons on Robinhood. Price source and units are shown per rule. Alerts are provisional until finalized.`,
+    coverage:
+      networks.length === 0
+        ? "No supported chain has been found for this address yet."
+        : `${listChainNames(networks)}: ETH and ERC20 transfers; verified Uniswap v2/v3/v4 swaps, Aerodrome classic on Base and registered Pons on Robinhood. Price source and units are shown per rule. Alerts are provisional until finalized.`,
     stubbed: entries.some((entry) => entry.stubbed),
     networks: entries.map(({ gapSince: _gap, ...entry }) => entry),
   };

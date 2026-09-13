@@ -18,7 +18,8 @@ for (const width of [390, 1440]) {
     await expect(
       budget.getByLabel("Monthly monitoring limit (credits)")
     ).toHaveValue("200");
-    await page.getByRole("button", { name: "Add item", exact: true }).click();
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Add something by hand" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("What are you saving?").selectOption("product");
     await dialog

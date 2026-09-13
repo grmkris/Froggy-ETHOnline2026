@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { Schema } from "effect";
 
+import { ServiceTicket } from "../packages/protocol/src/services";
 import { captureScreen } from "./capture";
 import { fundCredits } from "./fund-credits";
 
@@ -18,7 +20,8 @@ for (const width of [1440, 390, 320]) {
     });
     await page.setViewportSize({ width, height: width === 320 ? 700 : 900 });
     await page.goto("/watchlist");
-    await page.getByRole("button", { name: "Add item", exact: true }).click();
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Add something by hand" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("What are you saving?").selectOption("product");
     await dialog.getByLabel("Website URL").fill("https://example.com/shoes");
@@ -60,7 +63,7 @@ for (const width of [1440, 390, 320]) {
       .getByRole("link", { name: "Watchlist", exact: true })
       .click();
     await page
-      .getByRole("textbox", { name: "Search saved items" })
+      .getByRole("textbox", { name: "Address, link or token name" })
       .fill("olive");
     await page.getByRole("link", { name: /Olive weekend shoes/u }).click();
     await page.getByRole("button", { name: "Archive", exact: true }).click();
@@ -105,48 +108,99 @@ for (const [network, name] of [
   ["eip155:8453", "Base"],
   ["eip155:1", "Ethereum"],
 ] as const) {
-  test(`token lookup and save preserve ${name} identity`, async ({ page }) => {
-    await page.goto("/watchlist?discover=true");
+  test(`token search uses ${name} and tracking keeps one address`, async ({
+    page,
+  }) => {
+    // The provider stub intentionally returns no tokens. This marked UI
+    // fixture supplies a result card while purchase and tracking use app flows.
+    await page.route("**/api/services/tasks", async (route) => {
+      const response = await route.fetch();
+      const result = Schema.decodeUnknownSync(
+        Schema.Struct({
+          v: Schema.Literal(1),
+          tasks: Schema.Array(ServiceTicket),
+        })
+      )(await response.json());
+      await route.fulfill({
+        json: {
+          ...result,
+          tasks: result.tasks.map((task) =>
+            task.data?.operation === "market_search"
+              ? {
+                  ...task,
+                  data: {
+                    ...task.data,
+                    stubbed: true,
+                    limitations: [
+                      "Simulated search result for browser verification. No market prices are supplied.",
+                    ],
+                    tokens: [
+                      {
+                        address: "0x1111111111111111111111111111111111111111",
+                        name: "Simulated search token",
+                        symbol: "FIXTURE",
+                        decimals: null,
+                        priceUsd: null,
+                        liquidityUsd: null,
+                        volume24hUsd: null,
+                        priceChange24hPercent: null,
+                        lastTradeAt: null,
+                        listedAt: null,
+                        listingSource: null,
+                      },
+                    ],
+                  },
+                }
+              : task
+          ),
+        },
+      });
+    });
+    await page.goto("/watchlist?track=true");
     await fundCredits(page);
-    const discover = page.getByRole("region", { name: "Discover tokens" });
-    await discover.getByLabel("Chain", { exact: true }).selectOption(network);
-    await discover
-      .getByLabel("Name, symbol or address")
-      .fill("0x1111111111111111111111111111111111111111");
-    await discover.getByRole("button", { name: "Look up" }).click();
-    const result = discover.getByRole("region", { name: "Token results" });
+    const input = page.getByRole("textbox", {
+      name: "Address, link or token name",
+    });
+    await input.fill("froggy");
+    await page
+      .getByRole("group", { name: "Search on" })
+      .getByRole("button", { name, exact: true })
+      .click();
+    const request = page.waitForRequest(
+      (entry) =>
+        entry.url().endsWith("/api/services/run") && entry.method() === "POST"
+    );
+    await input.press("Enter");
+    const sent = await request;
+    expect(sent.postDataJSON()).toMatchObject({
+      input: { network },
+    });
+    const result = page.getByRole("region", { name: "Token results" });
     await expect(result.getByText(name, { exact: true })).toBeVisible({
       timeout: 20_000,
     });
+    await result
+      .getByRole("button", { name: /^Track /u })
+      .first()
+      .click();
     await expect(
-      result.getByText("Simulated data", { exact: true })
+      result.getByRole("link", { name: /^Open saved /u }).first()
     ).toBeVisible();
-    await result.getByRole("button", { name: /^Save /u }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(
-      result.getByRole("link", { name: /^Open saved /u })
-    ).toBeVisible();
+      page.getByRole("region", { name: "Saved items" }).getByRole("link")
+    ).toHaveCount(1);
     await page.reload();
-    const items = page.getByRole("region", { name: "Saved items" });
-    await expect(items.getByRole("link")).toHaveCount(1);
-    await expect(items).toContainText(name);
-    await discover.getByLabel("Chain", { exact: true }).selectOption(network);
-    await discover
-      .getByLabel("Name, symbol or address")
-      .fill("0x1111111111111111111111111111111111111111");
-    await discover.getByRole("button", { name: "Look up" }).click();
-    const saved = result.getByRole("link", { name: /^Open saved /u });
-    await expect(saved).toBeVisible({ timeout: 20_000 });
-    await saved.click();
     await expect(
-      page.getByRole("region", { name: "Token snapshot" })
-    ).toContainText("Simulated");
+      page.getByRole("region", { name: "Saved items" }).getByRole("link")
+    ).toHaveCount(1);
   });
 }
 
 test("creates a real scheduled reminder and cancels it", async ({ page }) => {
   await page.goto("/watchlist");
-  await page.getByRole("button", { name: "Reminder", exact: true }).click();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Set a reminder" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Remind me to…").fill("Check my travel dates");
   const tomorrow = new Date(Date.now() + 86_400_000);

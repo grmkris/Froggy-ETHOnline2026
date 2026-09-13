@@ -4,7 +4,7 @@
 
 Froggy interrupts a person in exactly three ways, and it is worth saying up front how few they are: **the waiting badge**, which follows them around the workspace when an approval is open; **Telegram**, which is the only way anything reaches a person who is not looking at the app; and **the digest and schedules**, which are the clock's way of starting a conversation nobody asked for.
 
-There are no browser notifications, no push, no email and no sound. Everything else Froggy has to say is filed where the person will find it later rather than pushed at them: markers in the margin of the conversation, notices above the composer, receipts in the Wallet.
+There are no browser notifications, no push, no email and no sound. Everything else Froggy has to say is filed where the person will find it later rather than pushed at them: a durable Updates feed in Inbox, notices above the composer, and receipts in the Wallet.
 
 This document owns where a person meets each of those. [Approvals](../workspace/conversation/approvals.md) owns the ticket itself and the four answers; [the conversation](../foundations/the-conversation.md) owns what is kept.
 
@@ -145,3 +145,11 @@ None of it survives a reload. See [history and persistence](history-and-persiste
 - No verification of any of this can be done on a stubbed build, because a stubbed pager posts nothing.
 
 Verified against the Froggy tree at commit `5caed50`.
+
+## Inbox Updates
+
+Inbox has Mail and Updates feeds. Mail stays selected by default. Updates records watch activity, discoveries, finished checks and non-email notices, even without Telegram. Opening a record marks it read; Mark all read clears the count without deleting the record. Simulated results carry a visible Simulated badge.
+
+Two counts live on the navigation: approvals on Home and unread updates on Inbox; only the first interrupts. The Inbox accessible name includes its unread count, and the mobile dot uses the brand color so it is distinct from the amber approval dot.
+
+Onchain updates wait for two successor blocks. Confirmation updates the existing record; a chain reorganization adds a correction. The original record survives activity retention and states what Froggy filed. Telegram still reaches the phone; Inbox keeps the record.

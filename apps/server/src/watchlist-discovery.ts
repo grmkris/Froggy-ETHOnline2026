@@ -1,17 +1,3 @@
-/**
- * Where a saved address lives, found in the background.
- *
- * A pasted address is saved at once with its short form as the title, and
- * only then does Froggy read every configured RPC to learn which chains hold
- * it, whether it is a contract, and what the contract calls itself. That read
- * is free (decision 0025) and bounded: one pinned block per network, at most
- * six networks, one running check per person, ten starts a minute per person.
- * The answer lives beside the item's other facts, so a chain check never
- * bumps the revision a person's own edit is fenced on. It runs again only
- * when someone asks ("Check again"), never on a schedule and never because
- * the item was opened.
- */
-
 import {
   AddressPresence,
   chainName,
@@ -30,6 +16,19 @@ import type {
   WatchlistItem,
   WatchlistItemId,
 } from "@froggy/domain";
+/**
+ * Where a saved address lives, found in the background.
+ *
+ * A pasted address is saved at once with its short form as the title, and
+ * only then does Froggy read every configured RPC to learn which chains hold
+ * it, whether it is a contract, and what the contract calls itself. That read
+ * is free (decision 0025) and bounded: one pinned block per network, at most
+ * six networks, one running check per person, ten starts a minute per person.
+ * The answer lives beside the item's other facts, so a chain check never
+ * bumps the revision a person's own edit is fenced on. It runs again only
+ * when someone asks ("Check again"), never on a schedule and never because
+ * the item was opened.
+ */
 import { WatchlistDiscover, WatchlistTrack } from "@froggy/protocol";
 import type { AddressLookupResult } from "@froggy/protocol";
 import type { Store } from "@froggy/wallet";
@@ -40,6 +39,8 @@ import { detached } from "./detached";
 import type { Services } from "./services";
 import { lookupAddress, lookupNetworks } from "./trading/address-lookup";
 import type { TradingRpc } from "./trading/rpc";
+import type { Updates } from "./updates";
+import { createUpdates, foundUpdate } from "./updates";
 import { recordItemObservation } from "./watchlist-data";
 import { watchlistPreviewFor } from "./watchlist-resolve";
 import { saveWatchlistItem } from "./watchlist-routes";
@@ -47,6 +48,7 @@ import { saveWatchlistItem } from "./watchlist-routes";
 type WatchlistTrack = typeof WatchlistTrack.Type;
 
 export interface DiscoveryDeps {
+  readonly updates?: Updates | undefined;
   readonly store: Store;
   readonly rpc: TradingRpc;
   /** Every configured EVM network when live, the demo trio when stubbed. */
@@ -58,10 +60,12 @@ export interface DiscoveryDeps {
 
 export const discoveryDependencies = (
   services: Services,
-  changed?: (owner: UserId) => void
+  changed?: (owner: UserId) => void,
+  updates?: Updates
 ): DiscoveryDeps => {
   const deps: DiscoveryDeps = {
     store: services.store,
+    updates,
     rpc: services.trading.rpc,
     networks: lookupNetworks(
       Object.keys(services.environment.trading.rpcEndpoints),
@@ -70,13 +74,6 @@ export const discoveryDependencies = (
   };
   return changed ? { ...deps, changed } : deps;
 };
-
-/**
- * Until the identity commit of decision 0037 lands, a saved address still
- * carries one chain; Base is the placeholder because it is where the existing
- * rows were merged. Never shown, never chosen by anyone.
- */
-const PLACEHOLDER_NETWORK = "eip155:8453";
 
 const STALE_RUNNING_MS = 15 * 60_000;
 const OWNER_STARTS_PER_MINUTE = 10;
@@ -270,30 +267,34 @@ const recordPresence = async (
       .map((row) => row.network);
     note = `Found on ${listChainNames(found)}.${unreachable.length > 0 ? ` ${listChainNames(unreachable)} could not be checked.` : ""}`;
   }
-  await store.watchlistData.transact(owner, (book) => {
+  const accepted = await store.watchlistData.transact(owner, (book) => {
     const data = book.get(item.id) ?? emptyWatchlistData(item.id);
     if (data.discovery?.key !== key) {
-      return;
+      return false;
     }
     book.set(item.id, {
       ...data,
       presence: rows,
       discovery: { ...data.discovery, status, note },
     });
+    return true;
   });
+  if (!accepted) {
+    return;
+  }
   if (item.source._tag !== "wallet" && item.source._tag !== "token") {
     return;
   }
-  const { address, network } = item.source;
+  const { address } = item.source;
   const tag = presenceTag(rows);
   const title = presenceTitle(rows);
-  await store.watchlist.transact(owner, (book) => {
+  const revision = await store.watchlist.transact(owner, (book) => {
     const current = book.get(item.id);
     if (
       current === undefined ||
       (current.source._tag !== "wallet" && current.source._tag !== "token")
     ) {
-      return;
+      return null;
     }
     const placeholder =
       current.title === shortEvmAddress(address) ||
@@ -304,22 +305,48 @@ const recordPresence = async (
         ...next,
         source:
           tag === "token"
-            ? { _tag: "token", network, address }
-            : { _tag: "wallet", network, address },
+            ? { _tag: "token", address }
+            : { _tag: "wallet", address },
       };
     }
     if (title !== null && placeholder && title !== current.title) {
       next = { ...next, title };
     }
-    if (next !== current) {
-      book.set(item.id, {
-        ...next,
-        revision: current.revision + 1,
-        updatedAt: now,
-      });
+    if (next === current) {
+      return null;
     }
+    book.set(item.id, {
+      ...next,
+      revision: current.revision + 1,
+      updatedAt: now,
+    });
+    return { before: current.revision, after: current.revision + 1 };
   });
+  if (revision) {
+    await store.watchlistData.transact(owner, (book) => {
+      const data = book.get(item.id);
+      // Identifying the item is not a human edit to the already accepted check.
+      if (
+        data?.enrichment?.status === "queued" &&
+        data.enrichment.itemRevision === revision.before
+      ) {
+        book.set(item.id, {
+          ...data,
+          enrichment: { ...data.enrichment, itemRevision: revision.after },
+        });
+      }
+    });
+  }
   if (observed.length > 0) {
+    const current = await store.watchlist.transact(owner, (book) =>
+      book.get(item.id)
+    );
+    if (current) {
+      await (deps.updates ?? createUpdates({ store })).file(
+        owner,
+        foundUpdate(current, key, rows, now)
+      );
+    }
     await recordItemObservation(store, owner, item.id, {
       at: now,
       source: "Chain lookup",
@@ -507,27 +534,16 @@ export const ensureDiscovered = async (
   if (existing !== null) {
     return existing;
   }
-  const key = `discover:${item.id}:${now}`;
-  const { queued } = await queueDiscovery(
+  await queueDiscovery(
     store,
     owner,
     item.id,
-    key,
+    `discover:${item.id}:first`,
     "Checking which chains this address is on.",
     now
   );
-  if (queued) {
-    await store.watchlistData.transact(owner, (book) => {
-      const data = book.get(item.id);
-      if (data?.discovery?.key === key) {
-        book.set(item.id, {
-          ...data,
-          discovery: { ...data.discovery, status: "running", startedAt: now },
-        });
-      }
-    });
-    await runDiscovery(deps, owner, item, key);
-  }
+  await discoverSavedItems(deps, owner);
+
   return await store.watchlistData.transact(
     owner,
     (book) => book.get(item.id)?.presence ?? []
@@ -636,12 +652,10 @@ const saveTracked = async (
     existing?.source._tag === "token"
       ? {
           _tag: "token",
-          network: existing.source.network,
           address: existing.source.address,
         }
       : {
           _tag: "wallet",
-          network: PLACEHOLDER_NETWORK,
           address: input.address,
         };
   return await saveWatchlistItem(store, owner, {

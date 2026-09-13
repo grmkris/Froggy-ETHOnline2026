@@ -1,3 +1,5 @@
+import { NoticeId } from "@froggy/domain";
+import type { RunId, ScheduleId, UserId } from "@froggy/domain";
 /**
  * What the agent says to the person without being asked.
  *
@@ -12,10 +14,10 @@
  * produced it has already done its work, and a failed post is a warning in
  * the log, not a reason to unwind anything.
  */
-
-import { NoticeId } from "@froggy/domain";
-import type { RunId, ScheduleId, UserId } from "@froggy/domain";
 import type { AppServerMessage, Notice, NoticeSource } from "@froggy/protocol";
+
+import { noticeUpdate } from "./updates";
+import type { Updates } from "./updates";
 
 /** What a notice may say. Capped like a tool output: it reaches every later prompt via Telegram history. */
 const NOTICE_CAP = 1000;
@@ -28,6 +30,7 @@ interface NoticeInput {
 }
 
 export interface NoticesDeps {
+  readonly updates?: Updates;
   readonly now?: () => number;
   /**
    * Post to the person's paired Telegram thread. Resolves true when it was
@@ -39,6 +42,7 @@ export interface NoticesDeps {
 }
 
 export interface Notices {
+  readonly updates?: Updates | undefined;
   /** Deliver, then answer the notice as filed, with `telegram` truthful. */
   readonly post: (userId: UserId, input: NoticeInput) => Promise<Notice>;
 }
@@ -49,6 +53,7 @@ const capped = (text: string): string =>
 export const createNotices = (deps: NoticesDeps): Notices => {
   const now = deps.now ?? Date.now;
   return {
+    updates: deps.updates,
     post: async (userId, input) => {
       const text = capped(input.text);
       let telegram = false;
@@ -80,6 +85,13 @@ export const createNotices = (deps: NoticesDeps): Notices => {
           `notice to ${userId} did not reach the web stream:`,
           error instanceof Error ? error.message : error
         );
+      }
+      if (input.source !== "email") {
+        try {
+          await deps.updates?.file(userId, noticeUpdate(notice));
+        } catch (error) {
+          console.warn("Notice could not be filed in Inbox:", error);
+        }
       }
       return notice;
     },

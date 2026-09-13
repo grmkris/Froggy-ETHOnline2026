@@ -64,6 +64,7 @@ import { memoryMonitoringStore } from "./monitoring-store";
 import type { MonitoringStore } from "./monitoring-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
+import type { UpdateStore } from "./update-store";
 import type { WalletActivityStore } from "./wallet-activity-store";
 import { memoryWalletActivityStores } from "./wallet-activity-store-memory";
 import type { WatchlistDataStore } from "./watchlist-data-store";
@@ -314,6 +315,7 @@ export interface Store {
     ) => Promise<void>;
   };
   readonly watchlist: WatchlistStore;
+  readonly updates: UpdateStore;
   readonly watchlistData: WatchlistDataStore;
   readonly walletActivity: WalletActivityStore;
   readonly monitoring: MonitoringStore;
@@ -791,7 +793,7 @@ export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
   const watchlistData = memoryWatchlistDataStore();
-  const { watchlist, walletActivity } = memoryWalletActivityStores();
+  const { watchlist, walletActivity, updates } = memoryWalletActivityStores();
   const monitoring = memoryMonitoringStore();
   const purchases = new Map<
     PurchaseId,
@@ -850,6 +852,7 @@ export const memoryStore = (): Store => {
     history,
     watchlist,
     watchlistData,
+    updates,
     walletActivity,
     monitoring,
     cards: memoryCardStore(),
@@ -1555,6 +1558,7 @@ export const memoryStore = (): Store => {
       },
     },
     forget: async (userId) => {
+      await updates.forget(userId);
       await watchlistData.forget(userId);
       await watchlist.forget(userId);
       await walletActivity.forget(userId);

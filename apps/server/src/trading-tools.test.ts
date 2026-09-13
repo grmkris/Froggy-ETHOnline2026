@@ -18,11 +18,13 @@ import {
 import type { OAuthScope } from "@froggy/domain";
 import {
   WatchlistDetails,
+  WatchlistCaptured,
   ServiceRequest,
   ServiceResult,
   ServiceTicket,
   SwapQuoteInput,
 } from "@froggy/protocol";
+import type { WatchlistCapture, WatchlistRefresh } from "@froggy/protocol";
 import { asSchema } from "ai";
 import type { ToolSet } from "ai";
 import { ConfigProvider, Effect, Schema } from "effect";
@@ -47,12 +49,20 @@ import { createMonitoringRunner } from "./monitoring-runner";
 import { createNotices } from "./notices";
 import { createQuotes } from "./quotes";
 import { ChatRun, ChatRunRegistry } from "./runs";
+import { serviceCatalog } from "./service-providers";
 import { purchaseService } from "./service-tasks";
 import { createServices } from "./services";
 import { WorkspaceSession } from "./session";
+import type { TaskDeps } from "./tasks";
 import { buildTools } from "./tools";
 import { UnlockTokens } from "./unlock";
 import { recordItemObservation } from "./watchlist-data";
+import { discoveryDependencies, ensureDiscovered } from "./watchlist-discovery";
+import {
+  enrichSavedItems,
+  handleWatchlistCapture,
+  handleWatchlistRefresh,
+} from "./watchlist-enrichment";
 import { saveWatchlistItem } from "./watchlist-routes";
 import { Workspaces } from "./workspaces";
 
@@ -608,8 +618,32 @@ it("runs a structured token monitor through purchase, task reconciliation and ba
   const item = await saveWatchlistItem(services.store, owner, {
     title: "Synthetic token",
     notes: "Exact Base token",
-    source: { _tag: "token", network: BASE, address: TOKEN },
+    source: { _tag: "token", address: TOKEN },
   });
+  const discovery = discoveryDependencies(services);
+  await ensureDiscovered(
+    {
+      ...discovery,
+      rpc: {
+        ...discovery.rpc,
+        read: async (request) => {
+          const result = await discovery.rpc.read(request);
+          if (
+            request.call.method === "eth_getBalance" ||
+            request.call.method === "eth_getCode"
+          ) {
+            return { ...result, result: "0x01" };
+          }
+          if (request.call.method === "eth_call") {
+            return { ...result, result: `0x${"1".padStart(64, "0")}` };
+          }
+          return result;
+        },
+      },
+    },
+    owner,
+    item
+  );
   await setMonitoringBudget(services.store, owner, 2_000_000, "UTC");
   const monitor = await configureMonitor(
     services.store,
@@ -690,8 +724,32 @@ const monitoringFixture = async (
   const item = await saveWatchlistItem(services.store, owner, {
     title: "Accounting fixture",
     notes: "Exact synthetic Base token",
-    source: { _tag: "token", network: BASE, address: TOKEN },
+    source: { _tag: "token", address: TOKEN },
   });
+  const discovery = discoveryDependencies(services);
+  await ensureDiscovered(
+    {
+      ...discovery,
+      rpc: {
+        ...discovery.rpc,
+        read: async (request) => {
+          const result = await discovery.rpc.read(request);
+          if (
+            request.call.method === "eth_getBalance" ||
+            request.call.method === "eth_getCode"
+          ) {
+            return { ...result, result: "0x01" };
+          }
+          if (request.call.method === "eth_call") {
+            return { ...result, result: `0x${"1".padStart(64, "0")}` };
+          }
+          return result;
+        },
+      },
+    },
+    owner,
+    item
+  );
   await setMonitoringBudget(services.store, owner, 2_000_000, "UTC");
   await configureMonitor(
     services.store,
@@ -959,4 +1017,204 @@ it("reads saved facts through the agent without purchasing and refuses another o
     v: 1,
     error: "Saved item not found.",
   });
+});
+
+const enrichmentFixture = async (supported: boolean) => {
+  const context = await fixture();
+  let calls = 0;
+  const services = {
+    ...context.services,
+    trading: {
+      ...context.services.trading,
+      market: {
+        ...context.services.trading.market,
+        snapshot: async (
+          input: Parameters<typeof context.services.trading.market.snapshot>[0]
+        ) => {
+          calls += 1;
+          return await context.services.trading.market.snapshot(input);
+        },
+      },
+    },
+  };
+  const owner = context.session.userId;
+  const input = {
+    title: "Synthetic capture token",
+    notes: "Local RPC fixture",
+    source: { _tag: "token", address: TOKEN },
+  } as const;
+  const item = await saveWatchlistItem(services.store, owner, input);
+  const discovery = discoveryDependencies(services);
+  await ensureDiscovered(
+    {
+      ...discovery,
+      networks: [supported ? "eip155:8453" : "eip155:1"],
+      rpc: {
+        ...discovery.rpc,
+        read: async (request) => {
+          const result = await discovery.rpc.read(request);
+          if (
+            request.call.method === "eth_getBalance" ||
+            request.call.method === "eth_getCode"
+          ) {
+            return { ...result, result: "0x01" };
+          }
+          if (request.call.method === "eth_call") {
+            return { ...result, result: `0x${"1".padStart(64, "0")}` };
+          }
+          return result;
+        },
+      },
+    },
+    owner,
+    item
+  );
+  const deps: TaskDeps = {
+    services,
+    workspaces: context.workspaces,
+    budget: new ModelBudget({ exempt: null, runsPerDay: 5, stepsPerDay: 50 }),
+    interactions: new InteractionRegistry({
+      onRequest: noop,
+      onResolved: noop,
+    }),
+    notices: createNotices({
+      notify: async () => await Promise.resolve(false),
+      publishApp: noop,
+    }),
+    oracleUrl: `${environment.appOrigin}/oracle/snapshot`,
+    tasksUrl: `${environment.appOrigin}/api/tasks`,
+    runs: new ChatRunRegistry(),
+    unlocks: new UnlockTokens(),
+  };
+  const card = serviceCatalog(services).find(
+    (entry) => entry.name === "token_snapshot"
+  );
+  if (!card) {
+    throw new Error("Missing snapshot catalog entry");
+  }
+  return { deps, owner, input, item, card, calls: () => calls };
+};
+type CaptureRequest = typeof WatchlistCapture.Type;
+type RefreshRequest = typeof WatchlistRefresh.Type;
+const enrichmentRequest = (
+  path: string,
+  body: CaptureRequest | RefreshRequest
+): Request =>
+  new Request(`https://froggy.example/api/watchlist/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+const captureSettled = async (
+  context: Awaited<ReturnType<typeof enrichmentFixture>>,
+  attempts = 50
+): Promise<void> => {
+  await enrichSavedItems(context.deps, context.owner);
+  const data = await context.deps.services.store.watchlistData.transact(
+    context.owner,
+    (book) => book.get(context.item.id)
+  );
+  if (data?.enrichment && ["done", "failed"].includes(data.enrichment.status)) {
+    return;
+  }
+  if (attempts === 0) {
+    throw new Error("Enrichment did not settle");
+  }
+  await Bun.sleep(10);
+  await captureSettled(context, attempts - 1);
+};
+it("an explicitly accepted discovered-token snapshot is purchased once per capture and refresh intent", async () => {
+  const context = await enrichmentFixture(true);
+  const { deps, owner, input, item, card } = context;
+  const { store } = deps.services;
+  const body: CaptureRequest = {
+    v: 2,
+    ...input,
+    enrich: true,
+    acceptedPrice: card.priceUsdMicros,
+  };
+  const before = await store.credits.summary(owner);
+  const responses = await Promise.all([
+    handleWatchlistCapture(deps, enrichmentRequest("capture", body), owner),
+    handleWatchlistCapture(deps, enrichmentRequest("capture", body), owner),
+  ]);
+  expect(responses.every((response) => response.status === 201)).toBe(true);
+  await captureSettled(context);
+  expect(context.calls()).toBe(1);
+  const detail = await store.watchlistData.transact(owner, (book) =>
+    book.get(item.id)
+  );
+  expect(detail?.enrichment?.status).toBe("done");
+  const firstTask = detail?.enrichment?.taskId;
+  if (!firstTask) {
+    throw new Error("Missing snapshot task");
+  }
+  const charge = await store.credits.findCharge(owner, firstTask);
+  expect(charge?.status).toBe("captured");
+  expect(charge?.stubbed).toBe(true);
+  const current = await store.watchlist.transact(owner, (book) =>
+    book.get(item.id)
+  );
+  if (!current) {
+    throw new Error("Missing saved token");
+  }
+  const refresh: RefreshRequest = {
+    v: 1,
+    revision: current.revision,
+    acceptedPrice: card.priceUsdMicros,
+    idempotencyKey: "fixture-refresh",
+  };
+  const refreshed = await Promise.all([
+    handleWatchlistRefresh(
+      deps,
+      enrichmentRequest(`${item.id}/enrich`, refresh),
+      owner,
+      item.id
+    ),
+    handleWatchlistRefresh(
+      deps,
+      enrichmentRequest(`${item.id}/enrich`, refresh),
+      owner,
+      item.id
+    ),
+  ]);
+  expect(refreshed.every((response) => response.ok)).toBe(true);
+  await captureSettled(context);
+  expect(context.calls()).toBe(2);
+  const after = await store.credits.summary(owner);
+  expect(before.availableUnits - after.availableUnits).toBe(
+    2 * (charge?.units ?? 0)
+  );
+  const updates = await store.updates.list(owner);
+  expect(
+    updates.updates.filter((update) => update.kind === "enriched")
+  ).toHaveLength(2);
+  expect(
+    updates.updates
+      .filter((update) => update.kind === "enriched")
+      .every((update) => update.stubbed)
+  ).toBe(true);
+});
+it("an address found only on an unsupported snapshot chain refuses enrichment without purchase", async () => {
+  const context = await enrichmentFixture(false);
+  const { deps, owner, input, card } = context;
+  const before = await deps.services.store.credits.summary(owner);
+  const response = await handleWatchlistCapture(
+    deps,
+    enrichmentRequest("capture", {
+      v: 2,
+      ...input,
+      enrich: true,
+      acceptedPrice: card.priceUsdMicros,
+    }),
+    owner
+  );
+  const captured = Schema.decodeUnknownSync(WatchlistCaptured)(
+    await response.json()
+  );
+  expect(captured.data.enrichment?.status).toBe("failed");
+  await enrichSavedItems(deps, owner);
+  expect(context.calls()).toBe(0);
+  expect(await deps.services.store.tasks.list(owner, 20)).toHaveLength(0);
+  expect(await deps.services.store.credits.summary(owner)).toEqual(before);
 });

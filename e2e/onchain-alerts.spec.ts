@@ -16,7 +16,6 @@ import type {
 import {
   OnchainMonitorConfigure,
   WalletMonitorUpdate,
-  WalletMonitorView,
 } from "../packages/protocol/src/wallet-monitor";
 import { captureScreen } from "./capture";
 
@@ -42,7 +41,7 @@ const saveFixture = async (
 ) => {
   await page.goto("/watchlist");
   await expect(
-    page.getByRole("button", { name: "Add item", exact: true })
+    page.getByRole("button", { name: "More actions", exact: true })
   ).toBeVisible();
   const body = await page.evaluate(
     async (input) => {
@@ -70,156 +69,192 @@ const saveFixture = async (
   );
   return Schema.decodeUnknownSync(WatchlistItem)(body);
 };
-for (const [network, width] of [
-  ["eip155:8453", 1440],
-  ["eip155:4663", 390],
-] as const) {
-  test(`wallet conditions persist and pause on ${network} at ${width}px`, async ({
+const simulatedPresence = async (page: Page, item: WatchlistItem) => {
+  await page.route(`**/api/watchlist/${item.id}/details`, async (route) => {
+    await route.fulfill({
+      json: {
+        v: 1,
+        item,
+        snapshot: null,
+        data: {
+          v: 1,
+          itemId: item.id,
+          latest: null,
+          observations: [],
+          snapshotTaskId: null,
+          enrichment: null,
+          discovery: {
+            key: "explicit-ui-fixture",
+            requestedAt: 1,
+            startedAt: 1,
+            status: "done",
+            note: "Simulated presence for browser verification",
+          },
+          presence: [
+            {
+              network: "eip155:8453",
+              status: "observed",
+              kind: item.source._tag === "token" ? "contract" : "eoa",
+              block: "0x64",
+              nativeBalance: "0",
+              usdc: null,
+              token:
+                item.source._tag === "token"
+                  ? {
+                      name: "Demo token",
+                      symbol: "DEMO",
+                      decimals: 18,
+                      totalSupply: "0",
+                    }
+                  : null,
+              observedAt: 1,
+              stubbed: true,
+              note: "Explicit simulated UI fixture",
+            },
+          ],
+        },
+      },
+    });
+  });
+};
+
+for (const kind of ["wallet", "token"] as const) {
+  test(`Notify me ${kind} flow uses a marked browser fixture and pauses`, async ({
     page,
-  }, testInfo) => {
-    const errors = browserErrors(page);
-    await page.setViewportSize({ width, height: 900 });
-    const saved = await saveFixture(page, "wallet", network);
-    await page.goto(`/watchlist/${saved.id}`);
-    const panel = page.getByRole("region", { name: "Wallet activity monitor" });
-    await panel.getByRole("button", { name: "Remove condition 2" }).click();
-    await panel
-      .getByLabel("Direction 1")
-      .getByRole("button", { name: "Receives", exact: true })
-      .click();
-    await panel.getByLabel("Token filter").fill("native");
-    const configured = page.waitForResponse(
-      (response) =>
-        response.url().endsWith(`/api/watchlist/${saved.id}/alerts`) &&
-        response.request().method() === "POST"
-    );
-    await panel.getByRole("button", { name: "Track this wallet" }).click();
-    const response = await configured;
-    expect(response.status()).toBe(200);
+  }) => {
+    const item = await saveFixture(page, kind, "eip155:8453");
+    await simulatedPresence(page, item);
+    const now = Date.now();
+    let status: WalletMonitorStatus = {
+      v: 1,
+      itemId: item.id,
+      monitor: null,
+      state: "saved",
+      latestBlock: 100,
+      latestBlockAt: now,
+      telegramPaired: false,
+      gapSince: null,
+      coverage: "Explicit simulated browser fixture",
+      stubbed: true,
+    };
+    let starts = 0;
+    await page.route(`**/api/watchlist/${item.id}/alerts*`, async (route) => {
+      const request = route.request();
+      if (request.method() === "POST") {
+        starts += 1;
+        const input = Schema.decodeUnknownSync(OnchainMonitorConfigure)(
+          request.postDataJSON()
+        );
+        expect(input.telegram).toBe(false);
+        expect(input.conditions).toEqual(
+          kind === "wallet"
+            ? [
+                { _tag: "transfer", direction: "both", token: null },
+                { _tag: "swap", side: "both", token: null },
+              ]
+            : [
+                {
+                  _tag: "price",
+                  comparison: "below",
+                  threshold: "0.5",
+                  quoteCurrency: "USD",
+                },
+              ]
+        );
+        status = {
+          ...status,
+          state: "watching",
+          monitor: {
+            v: 1,
+            id: WalletMonitorId.generate(),
+            revision: 1,
+            enabled: true,
+            startedAt: now,
+            expiresAt: now + 86_400_000,
+            startBlock: 100,
+            telegram: false,
+            swaps: kind === "wallet",
+            transfers: kind === "wallet",
+            rules: input.conditions.map((condition) => ({
+              id: OnchainAlertRuleId.generate(),
+              condition,
+              source: null,
+              latest: null,
+              triggeredBlock: null,
+            })),
+          },
+        };
+      }
+      if (request.method() === "PATCH") {
+        expect(request.postDataJSON()).toMatchObject({ action: "pause" });
+        status = {
+          ...status,
+          state: "paused",
+          monitor:
+            status.monitor === null
+              ? null
+              : { ...status.monitor, enabled: false },
+        };
+      }
+      await route.fulfill({ json: { v: 1, status, activities: [] } });
+    });
+    await page.goto(`/watchlist/${item.id}`);
     await expect(
-      panel.getByText("Receives ETH", { exact: true })
+      page.getByRole("article").getByText("Simulated", { exact: true })
     ).toBeVisible();
-    await expect(
-      panel.getByText("Simulated stream · local demo", { exact: true })
-    ).toBeVisible();
-    await expect(
-      panel.getByRole("button", { name: "Pause watch", exact: true })
-    ).toBeVisible();
-    await panel
-      .getByRole("button", { name: "Pause watch", exact: true })
-      .click();
-    await expect(
-      panel.getByRole("button", { name: "Resume watch", exact: true })
-    ).toBeVisible();
-    await page.reload();
-    await expect(
-      panel.getByRole("button", { name: "Resume watch", exact: true })
-    ).toBeVisible();
-    await panel
-      .getByRole("button", { name: "Resume watch", exact: true })
-      .click();
-    await expect(
-      panel.getByRole("button", { name: "Pause watch", exact: true })
-    ).toBeVisible();
-    await expect(panel.getByText("Watching", { exact: true })).toBeVisible();
-    await captureScreen(page, testInfo, `onchain-wallet-${width}`);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth
-      )
-    ).toBe(true);
-    expect(errors).toEqual([]);
+    const toggle = page.getByRole("switch", { name: "Notify me" });
+    await expect(toggle).toHaveAttribute("aria-disabled", "false");
+    await toggle.click();
+    if (kind === "token") {
+      expect(starts).toBe(0);
+      await page.getByLabel("Price in USD").fill("0.5");
+      await page.getByRole("button", { name: "Start", exact: true }).click();
+    }
+    await expect(toggle).toBeChecked();
+    await expect(page.getByText(/Watching until/u)).toBeVisible();
+    expect(starts).toBe(1);
+    await toggle.click();
+    await expect(toggle).not.toBeChecked();
   });
 }
-for (const network of ["eip155:8453", "eip155:4663"] as const) {
-  test(`local demo price triggers and rearms without extending expiry on ${network}`, async ({
-    page,
-  }, testInfo) => {
-    const errors = browserErrors(page);
-    await page.setViewportSize({ width: 390, height: 900 });
-    const saved = await saveFixture(page, "token", network);
-    await page.goto(`/watchlist/${saved.id}`);
-    const panel = page.getByRole("region", { name: "Token price alerts" });
-    await panel
-      .getByLabel("Price comparison 1")
-      .getByRole("button", { name: "Above", exact: true })
-      .click();
-    await panel.getByLabel("Price per token").fill("0.5");
-    const configured = page.waitForResponse(
-      (response) =>
-        response.url().endsWith(`/api/watchlist/${saved.id}/alerts`) &&
-        response.request().method() === "POST"
-    );
-    await panel
-      .getByRole("button", { name: "Start price alert", exact: true })
-      .click();
-    const response = await configured;
-    expect(response.status()).toBe(200);
-    const initial = Schema.decodeUnknownSync(WalletMonitorView)(
-      await response.json()
-    );
-    const expiresAt = initial.status.monitor?.expiresAt;
-    expect(expiresAt).toBeDefined();
-    await expect(
-      panel.getByText("Price matched", { exact: true })
-    ).toBeVisible();
-    await expect(
-      panel.getByRole("heading", { name: "Price alert", exact: true })
-    ).toHaveCount(1);
-    await expect(
-      panel.getByText("Demo token price · USD per token", { exact: true })
-    ).toBeVisible();
-    await expect(
-      panel.getByText("Demo price; no live oracle or pool was read.", {
-        exact: true,
-      })
-    ).toBeVisible();
-    await expect(
-      panel.getByText("Observed 1 USD · Demo token price", { exact: true })
-    ).toBeVisible();
-    await expect(
-      panel.getByText("Simulated stream · local demo", { exact: true })
-    ).toBeVisible();
-    await expect(panel.getByText("Simulated", { exact: true })).toHaveCount(1);
-    const rearmed = page.waitForResponse(
-      (result) =>
-        result.url().endsWith(`/api/watchlist/${saved.id}/alerts`) &&
-        result.request().method() === "PATCH"
-    );
-    await panel
-      .getByRole("button", { name: "Rearm price alert", exact: true })
-      .click();
-    const rearmResponse = await rearmed;
-    expect(rearmResponse.status()).toBe(200);
-    const after = Schema.decodeUnknownSync(WalletMonitorView)(
-      await rearmResponse.json()
-    );
-    expect(after.status.monitor?.expiresAt).toBe(expiresAt);
-    await expect(
-      panel.getByRole("heading", { name: "Price alert", exact: true })
-    ).toHaveCount(2);
-    await expect(
-      panel.getByText("Price matched", { exact: true })
-    ).toBeVisible();
-    await captureScreen(
-      page,
-      testInfo,
-      `onchain-local-price-${network.replace(":", "-")}`
-    );
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth
-      )
-    ).toBe(true);
-    expect(errors).toEqual([]);
+
+test("an unchecked address cannot start a watch on an invented chain", async ({
+  page,
+}) => {
+  await page.goto("/watchlist");
+  const input = page.getByRole("textbox", {
+    name: "Address, link or token name",
   });
-}
+  await input.fill(address);
+  await input.press("Enter");
+  const toggle = page.getByRole("switch", { name: "Notify me" });
+  await expect(toggle).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("region", { name: "Saved items" })).toContainText(
+    "Not seen on any chain we checked"
+  );
+  await expect(toggle).toBeDisabled();
+  await expect(page.getByRole("region", { name: "Saved items" })).toContainText(
+    "No supported chain was found. Alerts work on Base and Robinhood."
+  );
+  const monitorRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/alerts")) {
+      monitorRequests.push(request.url());
+    }
+  });
+  await toggle.focus();
+  await toggle.press("Space");
+  await expect(toggle).not.toBeChecked();
+  expect(monitorRequests).toEqual([]);
+});
+
 test("price editor keeps quote units and renders a marked fixture with rearm and pagination", async ({
   page,
 }, testInfo) => {
   const errors = browserErrors(page);
   await page.setViewportSize({ width: 320, height: 800 });
   const saved = await saveFixture(page, "token", "eip155:8453");
+  await simulatedPresence(page, saved);
   const now = Date.now();
   const monitorId = WalletMonitorId.generate();
   const ruleId = OnchainAlertRuleId.generate();
@@ -364,6 +399,7 @@ test("price editor keeps quote units and renders a marked fixture with rearm and
     });
   });
   await page.goto(`/watchlist/${saved.id}`);
+  await page.getByText("Alert details and activity", { exact: true }).click();
   const panel = page.getByRole("region", { name: "Token price alerts" });
   await panel.getByLabel("Price per token").fill("0.01");
   await panel

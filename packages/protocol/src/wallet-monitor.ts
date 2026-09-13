@@ -6,6 +6,7 @@ import {
   WalletActivityId,
   WalletMonitorStatus,
   WatchlistItemId,
+  WatchlistItem,
 } from "@froggy/domain";
 import { Schema } from "effect";
 
@@ -44,3 +45,10 @@ export const OnchainMonitorConfigure = Schema.Struct({
   ),
 });
 export type OnchainMonitorConfigure = typeof OnchainMonitorConfigure.Type;
+
+export const WalletTracked = Schema.Struct({
+  v: Schema.Literal(1),
+  item: WatchlistItem,
+  status: WalletMonitorStatus,
+  url: Schema.String.check(Schema.isMaxLength(200)),
+});

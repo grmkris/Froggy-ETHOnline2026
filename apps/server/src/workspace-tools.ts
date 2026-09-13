@@ -1,5 +1,7 @@
 import {
+  UpdateId,
   EvmAddress,
+  supportedPresence,
   MonitorConfig,
   MonitorId,
   ScheduleId,
@@ -19,6 +21,7 @@ import { tool } from "ai";
 import { Schema } from "effect";
 
 import { connectionScopes } from "./capabilities";
+import { detached } from "./detached";
 import { changeMonitor, configureMonitor, monitoringState } from "./monitoring";
 import type { Notices } from "./notices";
 import { createSchedule } from "./schedule-routes";
@@ -32,6 +35,8 @@ import {
 } from "./wallet-monitor";
 import type { WalletMonitorDeps } from "./wallet-monitor";
 import { readItemDetails } from "./watchlist-data";
+import { discoverSavedItems, ensureDiscovered } from "./watchlist-discovery";
+import type { DiscoveryDeps } from "./watchlist-discovery";
 import { handleWatchlist, saveWatchlistItem } from "./watchlist-routes";
 
 const itemInput = Schema.Struct({ id: WatchlistItemId });
@@ -41,7 +46,16 @@ const alertInput = Schema.Struct({
   item: WatchlistInput,
   ...OnchainMonitorConfigure.fields,
 });
+const updatesInput = Schema.Struct({ before: Schema.optional(UpdateId) });
 export const workspaceToolDefinitions = [
+  {
+    name: "updates_list",
+    scope: "watchlist:read",
+    writes: false,
+    schema: updatesInput,
+    description:
+      "Read up to 30 of your Inbox updates, newest first, with a cursor and unread count. Does not mark anything read.",
+  },
   {
     name: "onchain_alert_configure",
     scope: "automation",
@@ -56,7 +70,7 @@ export const workspaceToolDefinitions = [
     writes: true,
     schema: TrackWalletInput,
     description:
-      "When asked, watch a Base or Robinhood wallet for 24 hours using live Substreams. Saves it in the existing Watchlist and sends requested alerts only to the owner’s paired Telegram. Supports swaps and ETH/ERC20 transfers. Use my_froggy_wallet only for their Froggy embedded EOA; ask for an address when their personal/external wallet is unspecified. No signing or spending authority. Return the watch status briefly; do not claim Watching or Telegram delivery before verified.",
+      "When asked, find the address across configured chains for free, then watch every supported chain where it was found for 24 hours using live Substreams. Name a network only to restrict coverage; never guess one. Saves it in the existing Watchlist and sends requested alerts only to the owner’s paired Telegram. Supports swaps and ETH/ERC20 transfers. Use my_froggy_wallet only for their Froggy embedded EOA; ask for an address when their personal/external wallet is unspecified. No signing or spending authority. Return the watch status briefly; do not claim Watching or Telegram delivery before verified.",
   },
   {
     name: "wallet_monitor_status",
@@ -94,7 +108,7 @@ export const workspaceToolDefinitions = [
     writes: true,
     schema: WatchlistInput,
     description:
-      "Save an item when asked. Saving alone does not configure a check. Use monitor_configure with an explicit cadence and condition to enable monitoring within the human's budget.",
+      "Save one item per address or link when asked. Supply an address without a chain; Froggy finds its chains for free. Saving alone does not configure a check. Use monitor_configure with an explicit cadence and condition to enable monitoring within the human's budget.",
   },
   {
     name: "watchlist_get",
@@ -200,14 +214,19 @@ const invokeWalletWorkspaceTool = async (
   raw: Schema.Json,
   wallet: WalletMonitorDeps | undefined,
   embeddedWallet: string | undefined,
-  connectionId: AgentConnectionId | null
+  connectionId: AgentConnectionId | null,
+  discovery: DiscoveryDeps | undefined
 ) => {
   if (!wallet) {
     throw new Error("Wallet streaming is not configured.");
   }
   if (key === "onchain_alert_configure") {
     const input = Schema.decodeUnknownSync(alertInput)(raw);
-    const item = await configureOnchainMonitor(wallet, owner, input.item, {
+    const saved = await saveWatchlistItem(store, owner, input.item);
+    if (discovery) {
+      await ensureDiscovered(discovery, owner, saved);
+    }
+    const item = await configureOnchainMonitor(wallet, owner, saved, {
       ...input,
       connectionId,
     });
@@ -227,24 +246,38 @@ const invokeWalletWorkspaceTool = async (
         "No Froggy embedded wallet is attached. Supply the external wallet address to watch."
       );
     }
-    const item = await trackWallet(
-      wallet,
-      owner,
-      {
-        title: input.title,
-        notes: "",
-        source: {
-          _tag: "wallet",
-          network: input.network ?? "eip155:8453",
-          address: Schema.decodeUnknownSync(EvmAddress)(address),
-        },
+    const saved = await saveWatchlistItem(store, owner, {
+      title: input.title,
+      notes: "",
+      source: {
+        _tag: "wallet",
+        address: Schema.decodeUnknownSync(EvmAddress)(address),
       },
-      { ...input, connectionId }
+    });
+    const presence = discovery
+      ? await ensureDiscovered(discovery, owner, saved)
+      : await store.watchlistData.transact(
+          owner,
+          (book) => book.get(saved.id)?.presence ?? []
+        );
+    const networks = supportedPresence(presence).filter(
+      (network) => input.network === undefined || network === input.network
     );
+    if (input.network !== undefined && networks.length === 0) {
+      throw new Error(
+        "This address was not found on the requested chain. It is saved; no watch started."
+      );
+    }
+    const item = await trackWallet(wallet, owner, saved, {
+      ...input,
+      connectionId,
+      networks,
+    });
     return {
       v: 1,
       item,
       status: await walletMonitorStatus(wallet, owner, item.id),
+      url: `/watchlist/${item.id}`,
     };
   }
   const { itemId } = Schema.decodeUnknownSync(
@@ -302,6 +335,28 @@ const authorizeOnchainTool = async (
   }
 };
 
+const saveFromAgent = async (
+  store: Store,
+  owner: UserId,
+  raw: Schema.Json,
+  discovery?: DiscoveryDeps
+) => {
+  const item = await saveWatchlistItem(
+    store,
+    owner,
+    Schema.decodeUnknownSync(WatchlistInput)(raw)
+  );
+  if (
+    discovery &&
+    (item.source._tag === "wallet" || item.source._tag === "token")
+  ) {
+    detached("agent saved address discovery", async () => {
+      await discoverSavedItems(discovery, owner);
+    });
+  }
+  return item;
+};
+
 export const invokeWorkspaceTool = async (
   store: Store,
   owner: UserId,
@@ -310,7 +365,8 @@ export const invokeWorkspaceTool = async (
   raw: Schema.Json,
   notices?: Notices,
   wallet?: WalletMonitorDeps,
-  embeddedWallet?: string
+  embeddedWallet?: string,
+  discovery?: DiscoveryDeps
 ) => {
   const key = name.replace(/^froggy_/u, "");
   if (
@@ -327,7 +383,8 @@ export const invokeWorkspaceTool = async (
       raw,
       wallet,
       embeddedWallet,
-      connectionId
+      connectionId,
+      discovery
     );
   }
 
@@ -346,10 +403,12 @@ export const invokeWorkspaceTool = async (
     return await notices.post(owner, { source: "notify", text });
   }
   if (key === "watchlist_save") {
-    return await saveWatchlistItem(
-      store,
+    return await saveFromAgent(store, owner, raw, discovery);
+  }
+  if (key === "updates_list") {
+    return await store.updates.list(
       owner,
-      Schema.decodeUnknownSync(WatchlistInput)(raw)
+      Schema.decodeUnknownSync(updatesInput)(raw).before
     );
   }
   if (key === "monitor_configure") {
@@ -471,7 +530,8 @@ export const buildWorkspaceTools = (
   owner: UserId,
   connectionId: AgentConnectionId | null,
   wallet?: WalletMonitorDeps,
-  embeddedWallet?: string
+  embeddedWallet?: string,
+  discovery?: DiscoveryDeps
 ) =>
   Object.fromEntries(
     workspaceToolDefinitions.map((definition) => [
@@ -488,7 +548,8 @@ export const buildWorkspaceTools = (
             Schema.decodeUnknownSync(Schema.Json)(input),
             undefined,
             wallet,
-            embeddedWallet
+            embeddedWallet,
+            discovery
           );
           const text = JSON.stringify(result);
           return text.length <= 50_000

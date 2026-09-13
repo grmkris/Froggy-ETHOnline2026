@@ -12,6 +12,7 @@ import type {
 import type { WalletStreamBlock, WalletStreamMessage } from "@froggy/graph";
 import type { WalletActivityTransaction, WalletAlert } from "@froggy/wallet";
 
+import { activityUpdate, correctionUpdate } from "./updates";
 import {
   describeWalletActivity,
   walletActivityMatches,
@@ -39,6 +40,7 @@ export type WalletAlertDelivery =
     }
   | { readonly kind: "uncertain" };
 export interface WalletWorkerDeps extends WalletMonitorDeps {
+  readonly filed?: (owner: UserId) => Promise<void>;
   readonly verifier: WalletVenueVerifier;
   readonly appUrl: string;
   readonly deliver: (alert: WalletAlert) => Promise<WalletAlertDelivery>;
@@ -66,6 +68,23 @@ const hasPendingReconciliation = async (
   const waiting = await tx.awaitingDelivery();
   return waiting.length > 0;
 };
+const finalizeUpdate = async (
+  tx: WalletActivityTransaction,
+  owner: UserId,
+  activity: WalletActivity,
+  watches: readonly { readonly owner: UserId; readonly item: WatchlistItem }[]
+): Promise<void> => {
+  const finalized = { ...activity, finality: "finalized" } as const;
+  await tx.saveActivity(owner, finalized);
+  const filed = await tx.update(owner, `activity:${activity.id}`);
+  const item =
+    watches.find(
+      (watch) => watch.owner === owner && watch.item.id === activity.itemId
+    )?.item ?? (await ownedMonitorItem(tx, owner, activity.itemId));
+  if (filed && item) {
+    await tx.saveUpdate(owner, activityUpdate(item, finalized));
+  }
+};
 const advanceActivities = async (
   tx: WalletActivityTransaction,
   watches: readonly { readonly owner: UserId; readonly item: WatchlistItem }[],
@@ -89,9 +108,13 @@ const advanceActivities = async (
         !monitor ||
         !active(item, now) ||
         monitor.revision !== activity.monitorRevision ||
-        !monitor.telegram ||
         !walletActivityMatches(monitor, activity)
       ) {
+        await tx.saveActivity(owner, { ...activity, delivery: "cancelled" });
+        continue;
+      }
+      await tx.saveUpdate(owner, activityUpdate(item, activity));
+      if (!monitor.telegram) {
         await tx.saveActivity(owner, { ...activity, delivery: "cancelled" });
         continue;
       }
@@ -121,7 +144,7 @@ const advanceActivities = async (
     const page = await tx.provisional(after);
     for (const { owner, activity } of page) {
       if (activity.blockNumber <= block.finalizedBlock) {
-        await tx.saveActivity(owner, { ...activity, finality: "finalized" });
+        await finalizeUpdate(tx, owner, activity, watches);
       }
     }
     if (page.length < 200) {
@@ -135,12 +158,10 @@ const started = (
   item: WatchlistItem,
   block: WalletStreamBlock,
   deps: WalletWorkerDeps
-): boolean =>
-  active(item, deps.now()) &&
-  block.number >=
-    (watchStartBlock(item, deps.network) ??
-      item.walletMonitor?.startBlock ??
-      0);
+): boolean => {
+  const start = watchStartBlock(item, deps.network);
+  return active(item, deps.now()) && start !== null && block.number >= start;
+};
 const commitWatchActivity = async (
   tx: WalletActivityTransaction,
   owner: UserId,
@@ -355,6 +376,7 @@ export const commitWalletBlock = async (
   if (committed) {
     for (const owner of owners) {
       deps.invalidate(owner);
+      await deps.filed?.(owner);
     }
   }
   return committed && keepStreaming;
@@ -451,6 +473,9 @@ const recoverMonitoringGap = async (
       };
       await tx.saveActivity(owner, unverified);
       await cancelActivityAlerts(tx, unverified);
+      if (await tx.update(owner, `activity:${activity.id}`)) {
+        await tx.saveUpdate(owner, correctionUpdate(unverified, now));
+      }
       if (
         activity.delivery === "delivered" ||
         activity.delivery === "summarized"
@@ -516,6 +541,9 @@ export const undoWalletBlock = async (
             activity.delivery === "waiting" ? "cancelled" : activity.delivery,
         });
         await cancelActivityAlerts(tx, activity);
+        if (await tx.update(owner, `activity:${activity.id}`)) {
+          await tx.saveUpdate(owner, correctionUpdate(activity, now));
+        }
         if (
           activity.delivery === "delivered" ||
           activity.delivery === "summarized"
@@ -543,6 +571,7 @@ export const undoWalletBlock = async (
   if (committed) {
     for (const owner of owners) {
       deps.invalidate(owner);
+      await deps.filed?.(owner);
     }
   }
   return committed;
@@ -617,6 +646,7 @@ const runStream = async (
   }
   for (const owner of claim.gapOwners) {
     deps.invalidate(owner);
+    await deps.filed?.(owner);
   }
   const controller = new AbortController();
   const cancel = (): void => {

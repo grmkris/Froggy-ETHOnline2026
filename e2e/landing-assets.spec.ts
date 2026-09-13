@@ -36,6 +36,98 @@ const capture = async (page: Page, info: TestInfo, name: string) => {
   await session.detach();
 };
 
+const captureWatchlist = async (page: Page, info: TestInfo) => {
+  const snapshot =
+    Schema.decodeUnknownSync(TokenSnapshotResult)(recordedSnapshot);
+  await page.goto("/watchlist");
+  const bar = page.getByRole("textbox", {
+    name: "Address, link or token name",
+    exact: true,
+  });
+  const tracked = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/watchlist/track") &&
+      response.request().method() === "POST"
+  );
+  await bar.evaluate((element, address) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", address);
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+  }, snapshot.address);
+  const trackingResponse = await tracked;
+  expect(trackingResponse.status()).toBe(201);
+  const saved = Schema.decodeUnknownSync(WatchlistCaptured)(
+    await trackingResponse.json()
+  );
+  const token = await page.evaluate(() =>
+    localStorage.getItem("froggy.local-identity")
+  );
+  const headers = { authorization: `Bearer ${token}` };
+  await expect(
+    page.getByText("Finding where it lives…", { exact: true })
+  ).toHaveCount(0);
+  const currentResponse = await page.request.get(
+    `/api/watchlist/${saved.item.id}/details`,
+    { headers }
+  );
+  const current = Schema.decodeUnknownSync(WatchlistDetails)(
+    await currentResponse.json()
+  );
+  const renamed = await page.request.patch(`/api/watchlist/${saved.item.id}`, {
+    headers,
+    data: {
+      v: 1,
+      revision: current.item.revision,
+      title: "USDC · saved market research",
+      notes:
+        "Recorded Birdeye history on Base. Saved for research, not a live quote.",
+    },
+  });
+  expect(renamed.ok()).toBe(true);
+  // Replay recorded provider output, as in watchlist-capture.spec.ts. The saved
+  // item and its metadata still come from the app; no market values are invented.
+  await page.route(
+    `**/api/watchlist/${saved.item.id}/details`,
+    async (route) => {
+      const response = await route.fetch();
+      const details = Schema.decodeUnknownSync(WatchlistDetails)(
+        await response.json()
+      );
+      await route.fulfill({ json: { ...details, snapshot } });
+    }
+  );
+  await page.goto("/watchlist");
+  await page
+    .getByRole("link", { name: "USDC · saved market research", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Price history", exact: true })
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Price history", exact: true })
+      .locator("svg.recharts-surface")
+  ).toBeVisible();
+  await page
+    .getByRole("region", { name: "Price history", exact: true })
+    .scrollIntoViewIfNeeded();
+  await capture(page, info, "watchlist");
+};
+
+test("Watchlist landing screen follows address tracking", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await captureWatchlist(page, info);
+});
+
 test("landing screens come from local app flows", async ({ page }, info) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
@@ -53,10 +145,6 @@ test("landing screens come from local app flows", async ({ page }, info) => {
     .fill("Find the cheapest USDC borrowing options and help me compare them.");
   await capture(page, info, "home");
   await fundCredits(page);
-  const token = await page.evaluate(() =>
-    localStorage.getItem("froggy.local-identity")
-  );
-  const headers = { authorization: `Bearer ${token}` };
 
   const merchant = await startMerchant();
   try {
@@ -122,53 +210,7 @@ test("landing screens come from local app flows", async ({ page }, info) => {
     .getByRole("button", { name: "Stop the run", exact: true })
     .click();
 
-  const snapshot =
-    Schema.decodeUnknownSync(TokenSnapshotResult)(recordedSnapshot);
-  const savedResponse = await page.request.post("/api/watchlist/capture", {
-    headers,
-    data: {
-      v: 2,
-      title: "USDC · saved market research",
-      notes:
-        "Recorded Birdeye history on Base. Saved for research, not a live quote.",
-      source: {
-        _tag: "token",
-        network: "eip155:8453",
-        address: snapshot.address,
-      },
-      enrich: false,
-      acceptedPrice: 0,
-    },
-  });
-  expect(savedResponse.ok()).toBe(true);
-  const saved = Schema.decodeUnknownSync(WatchlistCaptured)(
-    await savedResponse.json()
-  );
-  // Replay recorded provider output, as in watchlist-capture.spec.ts. The saved
-  // item and its metadata still come from the app; no market values are invented.
-  await page.route(
-    `**/api/watchlist/${saved.item.id}/details`,
-    async (route) => {
-      const response = await route.fetch();
-      const details = Schema.decodeUnknownSync(WatchlistDetails)(
-        await response.json()
-      );
-      await route.fulfill({ json: { ...details, snapshot } });
-    }
-  );
-  await page.goto("/watchlist");
-  await page
-    .getByRole("link", { name: "USDC · saved market research", exact: true })
-    .click();
-  await expect(
-    page.getByRole("region", { name: "Price history", exact: true })
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole("region", { name: "Price history", exact: true })
-      .locator("svg.recharts-surface")
-  ).toBeVisible();
-  await capture(page, info, "watchlist");
+  await captureWatchlist(page, info);
 
   await page.goto("/browser");
   await expect(

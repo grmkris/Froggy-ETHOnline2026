@@ -14,6 +14,7 @@ import {
   AddressLookupResult,
   WatchlistList,
   WatchlistDetails,
+  WalletTracked,
   GraphQueryOutput,
   ServiceCatalog,
   ServiceTicket,
@@ -64,6 +65,7 @@ const ToolCallSchema = Schema.Struct({
       WatchlistItem,
       WatchlistList,
       WatchlistDetails,
+      WalletTracked,
       AddressLookupResult,
       Schema.Struct({ v: Schema.Literals([1]), error: Schema.String }),
     ])
@@ -135,6 +137,7 @@ const RichToolResult = Schema.Union([
   WatchlistItem,
   WatchlistList,
   WatchlistDetails,
+  WalletTracked,
   AddressLookupResult,
 ]);
 export const richResultOf = (

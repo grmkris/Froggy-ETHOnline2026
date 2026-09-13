@@ -1,3 +1,4 @@
+import { supportedPresence, listChainNames } from "@froggy/domain";
 import type {
   OnchainAlertCondition,
   OnchainAlertRule,
@@ -43,10 +44,11 @@ import { useId, useState } from "react";
 
 import { networkWords } from "../../lib/mandate-words";
 import { useWalletMonitor } from "../../lib/wallet-monitor-client";
+import { useWatchlistDetails } from "../../lib/watchlist-client";
 import { useWorkspace } from "../../lib/workspace-context";
 import { TelegramSettings } from "../agents/telegram-settings";
 
-const states = {
+export const states = {
   saved: "Saved",
   starting: "Starting",
   watching: "Watching",
@@ -484,7 +486,11 @@ const PriceRuleEvidence = ({ rule }: { readonly rule: OnchainAlertRule }) => {
     </div>
   );
 };
-const ActivityCard = ({ activity }: { readonly activity: WalletActivity }) => {
+export const ActivityCard = ({
+  activity,
+}: {
+  readonly activity: WalletActivity;
+}) => {
   const quote = activity.price?.quoteCurrency ?? "";
   return (
     <article className="motion-safe:animate-in motion-safe:fade-in flex min-w-0 flex-col gap-2 rounded-xl border p-4 duration-300">
@@ -579,22 +585,31 @@ export const WalletMonitorBadge = ({
 }: {
   readonly item: WatchlistItem;
 }) => {
-  const { view } = useWalletMonitor(
-    item.id,
-    !!item.walletMonitor && !item.archived
-  );
   if (item.archived) {
     return <span>Archived</span>;
   }
-  if (view.data) {
-    return <span>{states[view.data.status.state]}</span>;
+  const monitor = item.walletMonitor;
+  if (!monitor) {
+    return <span>Saved</span>;
   }
-  return <span>{item.walletMonitor ? "Loading watch…" : "Saved"}</span>;
+  if (!monitor.enabled) {
+    return <span>Paused</span>;
+  }
+  return (
+    <span>
+      Watching · until{" "}
+      {new Date(monitor.expiresAt).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+    </span>
+  );
 };
+
 type MonitorClient = ReturnType<typeof useWalletMonitor>;
-const activeState = (state: WalletMonitorStatus["state"]): boolean =>
+export const activeState = (state: WalletMonitorStatus["state"]): boolean =>
   ["starting", "watching", "waiting_price", "delayed"].includes(state);
-const primaryAction = (
+export const primaryAction = (
   state: WalletMonitorStatus["state"]
 ): "pause" | "resume" | "extend" | "rearm" => {
   if (activeState(state)) {
@@ -826,11 +841,10 @@ const MonitorActivityList = ({
     </div>
   );
 };
-const supportedItem = (item: WatchlistItem): boolean =>
-  (item.source._tag === "wallet" || item.source._tag === "token") &&
-  ["eip155:8453", "eip155:4663"].includes(item.source.network);
 const WalletMonitorDetails = ({ item }: { readonly item: WatchlistItem }) => {
-  const supported = supportedItem(item);
+  const details = useWatchlistDetails(item.id);
+  const networks = supportedPresence(details.data?.data.presence ?? []);
+  const supported = networks.length > 0;
   const client = useWalletMonitor(item.id, supported);
   const [editing, setEditing] = useState(false);
   const status = client.view.data?.status ?? null;
@@ -838,10 +852,7 @@ const WalletMonitorDetails = ({ item }: { readonly item: WatchlistItem }) => {
   const price = item.source._tag === "token";
   const failure =
     client.configure.error ?? client.change.error ?? client.view.error;
-  const network =
-    item.source._tag === "wallet" || item.source._tag === "token"
-      ? networkWords(item.source.network)
-      : "your chain";
+  const network = listChainNames(networks);
   if (!supported) {
     return (
       <section

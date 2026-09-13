@@ -1,4 +1,4 @@
-import { WatchlistInput } from "@froggy/domain";
+import { EvmAddress } from "@froggy/domain";
 import type { MarketSearchResult, TokenInspectResult } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
@@ -21,24 +21,17 @@ export const marketPrice = (price: number | null): string =>
 
 const SaveToken = ({
   token,
-  network,
 }: {
   readonly token: TokenInspectResult["token"];
-  readonly network: string;
 }): ReactElement | null => {
-  const { save, list } = useWatchlist();
+  const { track, list } = useWatchlist();
   const saved = list.data?.items.find(
     (item) =>
       !item.archived &&
-      item.source._tag === "token" &&
-      item.source.network === network &&
+      (item.source._tag === "token" || item.source._tag === "wallet") &&
       item.source.address.toLowerCase() === token.address.toLowerCase()
   );
-  const decoded = Schema.decodeUnknownResult(WatchlistInput)({
-    title: token.name ?? token.symbol ?? token.address,
-    notes: "",
-    source: { _tag: "token", network, address: token.address },
-  });
+  const decoded = Schema.decodeUnknownResult(EvmAddress)(token.address);
   if (decoded._tag === "Failure") {
     return null;
   }
@@ -58,22 +51,22 @@ const SaveToken = ({
     <div className="flex flex-col items-end gap-1">
       {savedLink ?? (
         <Button
-          aria-label={`Save ${token.symbol ?? token.name ?? "token"}`}
-          disabled={save.isPending || list.isPending || list.isError}
+          aria-label={`Track ${token.symbol ?? token.name ?? "token"}`}
+          disabled={track.isPending || list.isPending || list.isError}
           onClick={() => {
-            save.mutate(decoded.success);
+            track.mutate({ v: 1, address: decoded.success });
           }}
           className="min-h-11 min-w-24"
           size="sm"
           variant="outline"
         >
           <BookmarkIcon data-icon="inline-start" />
-          {save.isPending ? "Saving…" : "Save"}
+          {track.isPending ? "Tracking…" : "Track"}
         </Button>
       )}
-      {save.isError ? (
+      {track.isError ? (
         <p className="text-destructive text-xs" role="alert">
-          {save.error.message}
+          {track.error.message}
         </p>
       ) : null}
     </div>
@@ -135,7 +128,7 @@ export const MarketResults = ({
                   )}
                 </p>
               </div>
-              <SaveToken network={result.network} token={token} />
+              <SaveToken token={token} />
             </li>
           ))}
         </ul>

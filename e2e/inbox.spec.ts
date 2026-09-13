@@ -13,6 +13,9 @@ import { captureScreen } from "./capture";
 
 const mailbox = async (page: Page) => {
   await page.goto("/inbox");
+  await expect(
+    page.getByRole("tab", { name: "Mail", exact: true })
+  ).toHaveAttribute("aria-selected", "true");
   await page
     .getByLabel("Choose your permanent address")
     .fill(`inbox-${Date.now()}`);

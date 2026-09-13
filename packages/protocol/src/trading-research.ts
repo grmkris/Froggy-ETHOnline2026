@@ -57,6 +57,10 @@ export const AddressLookupNetwork = Schema.Struct({
 export type AddressLookupNetwork = typeof AddressLookupNetwork.Type;
 
 export const AddressLookupResult = Schema.Struct({
+  kind: Schema.optional(Schema.Literals(["token", "wallet", "unknown"])),
+  suggestedTitle: Schema.optional(
+    Schema.NullOr(Schema.String.check(Schema.isMaxLength(64)))
+  ),
   v: Schema.Literals([1]),
   operation: Schema.Literals(["address_lookup"]),
   provider: Schema.Literals(["froggy"]),

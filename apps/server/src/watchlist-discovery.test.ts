@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 
-import { EvmAddress, userId, WatchlistItemId } from "@froggy/domain";
+import {
+  EvmAddress,
+  userId,
+  WatchlistItemId,
+  emptyWatchlistData,
+} from "@froggy/domain";
 import type { UserId, WatchlistItem } from "@froggy/domain";
 import { memoryStore } from "@froggy/wallet";
 import { Schema } from "effect";
@@ -188,7 +193,6 @@ const saveWallet = async (
     notes: "",
     source: {
       _tag: "wallet",
-      network: "eip155:8453",
       address: Schema.decodeUnknownSync(EvmAddress)(address),
     },
   });
@@ -503,4 +507,38 @@ test("presenceFromLookup marks an empty EOA absent and keeps the lookup's stub f
   expect(rows.map((row) => row.status)).toEqual(["absent", "unavailable"]);
   expect(rows[0]?.note).toContain("No code, no ETH and no USDC");
   expect(rows.every((row) => row.stubbed)).toBe(true);
+});
+
+test("discovery metadata advances a queued enrichment revision without replacing a human edit", async () => {
+  const owner = userId("did:privy:discovery-enrichment-revision");
+  const { store, deps } = setup();
+  const saved = await saveWatchlistItem(store, owner, {
+    title: "0x2222…2222",
+    notes: "",
+    source: { _tag: "token", address: TOKEN },
+  });
+  await store.watchlistData.transact(owner, (book) => {
+    book.set(saved.id, {
+      ...emptyWatchlistData(saved.id),
+      enrichment: {
+        key: `enrich:${saved.id}`,
+        requestedAt: NOW,
+        acceptedPrice: 1,
+        itemRevision: saved.revision,
+        status: "queued",
+        taskId: null,
+        note: "Accepted check",
+      },
+    });
+  });
+  await ensureDiscovered(deps, owner, saved);
+  const item = await store.watchlist.transact(owner, (book) =>
+    book.get(saved.id)
+  );
+  const data = await store.watchlistData.transact(owner, (book) =>
+    book.get(saved.id)
+  );
+  expect(item?.title).toBe("Demo Coin");
+  expect(data?.enrichment?.itemRevision).toBe(item?.revision);
+  expect(data?.enrichment?.status).toBe("queued");
 });

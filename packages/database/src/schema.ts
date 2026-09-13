@@ -21,6 +21,7 @@
  */
 
 import {
+  UpdateId,
   WalletActivityId,
   CardCheckoutId,
   PaymentMethodId,
@@ -1028,6 +1029,7 @@ export const walletActivities = pgTable(
     uniqueIndex("wallet_activities_item_transaction").on(
       table.userId,
       table.itemId,
+      table.network,
       table.transactionHash
     ),
     index("wallet_activities_owner_item").on(
@@ -1110,5 +1112,31 @@ export const walletPriceEvaluations = pgTable(
       table.blockNumber,
       table.id
     ),
+  ]
+);
+
+export const updates = pgTable(
+  "updates",
+  {
+    id: typeIdPrimaryKey(UpdateId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    itemId: typeIdColumn(WatchlistItemId, "item_id").references(
+      () => savedItems.id,
+      { onDelete: "cascade" }
+    ),
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    at: bigint("at", { mode: "number" }).notNull(),
+    readAt: bigint("read_at", { mode: "number" }),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("updates_owner_key").on(table.userId, table.key),
+    index("updates_owner_id").on(table.userId, table.id),
+    index("updates_unread")
+      .on(table.userId)
+      .where(sql`${table.readAt} is null`),
   ]
 );

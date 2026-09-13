@@ -108,3 +108,5 @@ export {
   walletAlertWindows,
   walletPriceEvaluations,
 } from "./schema";
+
+export { updates } from "./schema";

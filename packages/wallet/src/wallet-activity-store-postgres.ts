@@ -32,6 +32,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { Schema } from "effect";
 import type { Sql } from "postgres";
 
+import { transactionalUpdates } from "./update-store-postgres";
 import {
   emptyWalletStreamCheckpoint,
   WALLET_STORE_PAGE_SIZE,
@@ -160,6 +161,10 @@ export const postgresWalletActivityStore = (
           }));
         };
         return await operation({
+          update: transactionalUpdates(tx).byKey,
+          saveUpdate: async (owner, update) => {
+            await transactionalUpdates(tx).save(owner, update);
+          },
           network,
           checkpoint,
           saveCheckpoint: async (next) => {
@@ -225,7 +230,8 @@ export const postgresWalletActivityStore = (
                 and(
                   eq(walletActivities.userId, owner),
                   eq(walletActivities.itemId, itemId),
-                  eq(walletActivities.transactionHash, transactionHash)
+                  eq(walletActivities.transactionHash, transactionHash),
+                  eq(walletActivities.network, network)
                 )
               );
             return activity

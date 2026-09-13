@@ -12,6 +12,12 @@ import type {
 import { Schema } from "effect";
 
 import {
+  memoryUpdateStore,
+  removeItemUpdates,
+  saveUpdate,
+} from "./update-store";
+import type { UpdateBook, UpdateStore } from "./update-store";
+import {
   emptyWalletStreamCheckpoint,
   WALLET_STORE_PAGE_SIZE,
   WalletAlert,
@@ -34,6 +40,7 @@ interface AlertWindow {
 }
 
 interface WalletActivityMemoryStores {
+  readonly updates: UpdateStore;
   readonly watchlist: WatchlistStore;
   readonly walletActivity: WalletActivityStore;
 }
@@ -47,6 +54,7 @@ const bump = (book: Map<WalletStreamNetwork, WalletStreamCheckpoint>): void => {
 };
 
 export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
+  let updateBook: UpdateBook = new Map();
   let items = new Map<UserId, WatchlistBook>();
   let activities = new Map<WalletActivityId, StoredWalletActivity>();
   let alerts = new Map<string, WalletAlert>();
@@ -65,7 +73,13 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
       release.resolve(null);
     }
   };
+  const updates = memoryUpdateStore(
+    () => updateBook,
+    lock,
+    (owner, id) => items.get(owner)?.has(id) === true
+  );
   const forget = (owner: UserId): void => {
+    updateBook.delete(owner);
     for (const [key, row] of activities) {
       if (row.owner === owner) {
         activities.delete(key);
@@ -89,6 +103,7 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
     bump(checkpoints);
   };
   const removeItem = (owner: UserId, id: WatchlistItemId): void => {
+    removeItemUpdates(updateBook, owner, id);
     for (const [key, row] of activities) {
       if (row.owner === owner && row.activity.itemId === id) {
         activities.delete(key);
@@ -177,6 +192,7 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
   const walletActivity: WalletActivityStore = {
     transact: async (operation, network = "eip155:8453") =>
       await lock(async () => {
+        const nextUpdates = structuredClone(updateBook);
         const nextItems = structuredClone(items);
         const nextActivities = structuredClone(activities);
         const nextAlerts = structuredClone(alerts);
@@ -229,6 +245,20 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
             .toSorted((a, b) => a.id.localeCompare(b.id))
             .slice(0, WALLET_STORE_PAGE_SIZE);
         const result = await operation({
+          update: async (owner, key) =>
+            await Promise.resolve(
+              structuredClone(nextUpdates.get(owner)?.get(key) ?? null)
+            ),
+          saveUpdate: async (owner, update) => {
+            if (
+              update.itemId &&
+              nextItems.get(owner)?.has(update.itemId) !== true
+            ) {
+              throw new Error("Saved item not found.");
+            }
+            saveUpdate(nextUpdates, owner, update);
+            await Promise.resolve();
+          },
           network,
           checkpoint: structuredClone(checkpoint),
           saveCheckpoint: async (value) => {
@@ -270,7 +300,8 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
                 (row) =>
                   row.owner === owner &&
                   row.activity.itemId === itemId &&
-                  row.activity.transactionHash === transactionHash
+                  row.activity.transactionHash === transactionHash &&
+                  row.activity.network === network
               )?.activity ?? null
             ),
           saveActivity: async (owner, activity) => {
@@ -287,6 +318,7 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
                 row.activity.itemId === activity.itemId &&
                 activity.transactionHash !== null &&
                 row.activity.transactionHash === activity.transactionHash &&
+                row.activity.network === activity.network &&
                 row.activity.id !== activity.id
             );
             if (duplicate) {
@@ -482,6 +514,7 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
         checkpoints = nextCheckpoints;
         windows = nextWindows;
         evaluations = nextEvaluations;
+        updateBook = nextUpdates;
         return structuredClone(result);
       }),
     list: async (owner, itemId, before) =>
@@ -542,5 +575,5 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
       });
     },
   };
-  return { watchlist, walletActivity };
+  return { watchlist, walletActivity, updates };
 };

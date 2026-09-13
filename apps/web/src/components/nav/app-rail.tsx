@@ -14,6 +14,7 @@ import type { ReactElement } from "react";
 
 import { useHistoryPage } from "../../lib/history-client";
 import { NAV_ITEMS, SECONDARY_ITEMS } from "../../lib/nav";
+import { useUpdatesPage } from "../../lib/updates-client";
 import { RecentConversations } from "../chat/recent-conversations";
 
 const ROW =
@@ -25,6 +26,8 @@ export const AppRail = ({
   /** Approvals open, shown as a count on Home rather than a bare dot. */
   readonly waiting: number;
 }): ReactElement => {
+  const updates = useUpdatesPage();
+  const unread = updates.data?.unread ?? 0;
   const history = useHistoryPage("/api/conversations?limit=6&q=");
   const recent = history.records.filter(
     (record): record is Conversation => record.kind === "conversation"
@@ -52,10 +55,14 @@ export const AppRail = ({
           // The count belongs in the accessible name, not only in the badge:
           // "Home" and "Home, 1 approval waiting" are different places to a
           // screen reader, and the same place to a glance.
+          const unreadLabel =
+            item.to === "/inbox" && unread > 0
+              ? `Inbox, ${unread} updates unread`
+              : item.label;
           const name =
             item.to === "/" && waiting > 0
               ? `${item.label}, ${waiting} approval${waiting === 1 ? "" : "s"} waiting`
-              : item.label;
+              : unreadLabel;
           return (
             <Link
               activeOptions={{ exact: item.to === "/" }}
@@ -67,6 +74,14 @@ export const AppRail = ({
             >
               <Icon aria-hidden className="size-[18px]" />
               {item.label}
+              {item.to === "/inbox" && unread > 0 ? (
+                <span
+                  aria-hidden
+                  className="bg-brand-soft text-brand ml-auto rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
+                >
+                  {unread}
+                </span>
+              ) : null}
               {item.to === "/" && waiting > 0 ? (
                 <span className="bg-lime text-lime-ink ml-auto rounded-full px-1.5 py-0.5 text-[11px] font-semibold">
                   {waiting}

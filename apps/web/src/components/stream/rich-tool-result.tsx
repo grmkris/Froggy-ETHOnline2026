@@ -1,20 +1,21 @@
-import { WatchlistInput } from "@froggy/domain";
+import { listChainNames } from "@froggy/domain";
 import type { AddressLookupResult } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
-import { Schema } from "effect";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { useServiceApi } from "../../hooks/use-service-api";
-import { networkWords } from "../../lib/mandate-words";
 import { richResultOf } from "../../lib/tool-call";
 import type { ToolCall } from "../../lib/tool-call";
 import { summarize } from "../../lib/tool-summary";
 import type { ToolSummary } from "../../lib/tool-summary";
 import { useWatchlist } from "../../lib/watchlist-client";
 import { ServiceTaskResult } from "../services/service-task-result";
+import { PresenceChips } from "../watchlist/item-identity";
 import { PriceHistory } from "../watchlist/price-history";
 import { SavedItemCard } from "../watchlist/saved-item-card";
+import { states } from "../watchlist/wallet-monitor-panel";
 
 const AddressResult = ({
   result,
@@ -23,7 +24,16 @@ const AddressResult = ({
   readonly result: AddressLookupResult;
   readonly summary: ToolSummary | null;
 }): ReactElement => {
-  const { save } = useWatchlist();
+  const { track, list } = useWatchlist();
+  const saved = list.data?.items.find(
+    (item) =>
+      !item.archived &&
+      (item.source._tag === "token" || item.source._tag === "wallet") &&
+      item.source.address.toLowerCase() === result.address.toLowerCase()
+  );
+  const unavailable = result.networks.filter(
+    (row) => row.status === "unavailable"
+  );
   return (
     <div className="flex flex-col gap-3">
       <p className="font-mono text-xs break-all">{result.address}</p>
@@ -33,53 +43,52 @@ const AddressResult = ({
           <p className="text-muted-foreground text-xs">{summary.detail}</p>
         </div>
       ) : null}
+      <PresenceChips
+        rows={result.networks.map((row) => ({
+          ...row,
+          token:
+            row.token === null
+              ? null
+              : { ...row.token, name: row.token.name ?? null },
+          observedAt: result.observedAt,
+          stubbed: result.stubbed,
+        }))}
+      />
       <p className="text-muted-foreground text-xs">
         {result.stubbed ? "Simulated lookup · " : ""}
         {new Date(result.observedAt).toLocaleString()}
       </p>
-      {result.networks.map((row) => (
-        <div
-          key={row.network}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+      {unavailable.length > 0 ? (
+        <p className="text-muted-foreground text-xs">
+          {listChainNames(unavailable.map((row) => row.network))} could not be
+          checked.
+        </p>
+      ) : null}
+      {saved ? (
+        <Link
+          className="saved-feedback text-brand min-h-11 content-center text-sm underline"
+          to="/watchlist/$itemId"
+          params={{ itemId: saved.id }}
         >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">
-              {networkWords(row.network)} ·{" "}
-              {row.token?.name ??
-                row.token?.symbol ??
-                (row.status === "unavailable" ? "Unavailable" : "Address")}
-            </p>
-            <p className="text-muted-foreground text-xs">{row.note}</p>
-          </div>
-          {row.status === "observed" ? (
-            <Button
-              variant="outline"
-              className="min-h-11"
-              disabled={save.isPending}
-              onClick={() => {
-                const input = Schema.decodeUnknownSync(WatchlistInput)({
-                  title: row.token?.name ?? row.token?.symbol ?? result.address,
-                  notes: "",
-                  source: {
-                    _tag:
-                      (row.token?.symbol ?? null) !== null ||
-                      (row.token?.decimals ?? null) !== null
-                        ? "token"
-                        : "wallet",
-                    network: row.network,
-                    address: result.address,
-                  },
-                });
-                save.mutate(input);
-              }}
-            >
-              Save on {networkWords(row.network)}
-            </Button>
-          ) : null}
-        </div>
-      ))}
-      {save.data ? <SavedItemCard item={save.data} /> : null}
-      {save.isError ? <p role="alert">{save.error.message}</p> : null}
+          Tracked · Open
+        </Link>
+      ) : (
+        <Button
+          variant="outline"
+          className="min-h-11 self-start"
+          disabled={track.isPending}
+          onClick={() => {
+            track.mutate({ v: 1, address: result.address });
+          }}
+        >
+          {track.isPending ? "Tracking…" : "Track this"}
+        </Button>
+      )}
+      {track.isError ? (
+        <p role="alert" className="text-destructive text-sm">
+          {track.error.message}
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -107,6 +116,28 @@ export const RichToolResult = ({
       <div className="p-3">
         <AddressResult result={result} summary={summarize(call)} />
       </div>
+    );
+  }
+  if ("status" in result && "item" in result) {
+    return (
+      <SavedItemCard item={result.item}>
+        <p className="text-muted-foreground text-xs">
+          {states[result.status.state]}
+        </p>
+        {result.status.monitor ? (
+          <p className="text-muted-foreground text-xs">
+            Watch ends{" "}
+            {new Date(result.status.monitor.expiresAt).toLocaleString()}
+          </p>
+        ) : null}
+        <Link
+          to="/watchlist/$itemId"
+          params={{ itemId: result.item.id }}
+          className="text-brand min-h-11 content-center text-sm underline"
+        >
+          Open in Watchlist
+        </Link>
+      </SavedItemCard>
     );
   }
   if ("item" in result) {

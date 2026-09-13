@@ -11,6 +11,7 @@ import type {
   WatchlistPatch,
   WatchlistResolve,
   WatchlistCapture,
+  WatchlistTrack,
 } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
@@ -18,6 +19,19 @@ import { useCallback, useEffect } from "react";
 
 import { useSessionToken } from "./session-token";
 import { useWorkspace } from "./workspace-context";
+
+interface WatchlistView {
+  readonly justTracked: readonly WatchlistItemId[];
+  readonly query: string;
+  readonly archived: boolean;
+  readonly attention: boolean;
+}
+const INITIAL_VIEW: WatchlistView = {
+  justTracked: [],
+  query: "",
+  archived: false,
+  attention: false,
+};
 
 export const useWatchlist = () => {
   const { app } = useWorkspace();
@@ -82,6 +96,56 @@ export const useWatchlist = () => {
     refetchInterval: 10_000,
     retry: false,
   });
+  const remember = async (result: typeof WatchlistCaptured.Type) => {
+    queries.setQueryData<typeof WatchlistList.Type>(key, (current) => ({
+      v: 1,
+      items: [
+        result.item,
+        ...(current?.items ?? []).filter((item) => item.id !== result.item.id),
+      ],
+    }));
+    queries.setQueryData(["watchlist-details", app.sessionId, result.item.id], {
+      v: 1,
+      item: result.item,
+      data: result.data,
+      snapshot: null,
+    });
+    queries.setQueryData<WatchlistView>(
+      ["watchlist-view", app.sessionId],
+      (current) => ({
+        ...INITIAL_VIEW,
+        ...current,
+        query: "",
+        archived: false,
+        justTracked: [
+          ...new Set([...(current?.justTracked ?? []), result.item.id]),
+        ],
+      })
+    );
+    await refresh();
+  };
+  const track = useMutation({
+    mutationFn: async (input: typeof WatchlistTrack.Type) =>
+      Schema.decodeUnknownSync(WatchlistCaptured)(
+        await request("/api/watchlist/track", {
+          method: "POST",
+          body: JSON.stringify(input),
+        })
+      ),
+    onSuccess: remember,
+    retry: false,
+  });
+  const discover = useMutation({
+    mutationFn: async (id: WatchlistItemId) =>
+      Schema.decodeUnknownSync(WatchlistCaptured)(
+        await request(`/api/watchlist/${id}/discover`, {
+          method: "POST",
+          body: JSON.stringify({ v: 1 }),
+        })
+      ),
+    onSuccess: remember,
+    retry: false,
+  });
   const capture = useMutation({
     mutationFn: async (input: typeof WatchlistCapture.Type) =>
       Schema.decodeUnknownSync(WatchlistCaptured)(
@@ -90,7 +154,7 @@ export const useWatchlist = () => {
           body: JSON.stringify(input),
         })
       ),
-    onSuccess: refresh,
+    onSuccess: remember,
     retry: false,
   });
   const save = useMutation({
@@ -142,7 +206,18 @@ export const useWatchlist = () => {
       ),
     [request]
   );
-  return { list, save, patch, remove, resolve, capture, details, request };
+  return {
+    list,
+    save,
+    patch,
+    remove,
+    resolve,
+    capture,
+    track,
+    discover,
+    details,
+    request,
+  };
 };
 
 export const useWatchlistDetails = (id: WatchlistItemId) => {
@@ -157,6 +232,9 @@ export const useWatchlistDetails = (id: WatchlistItemId) => {
     enabled: app.sessionId !== null,
     refetchInterval: (query) =>
       ["queued", "running"].includes(
+        query.state.data?.data.discovery?.status ?? ""
+      ) ||
+      ["queued", "running"].includes(
         query.state.data?.data.enrichment?.status ?? ""
       )
         ? 3000
@@ -165,20 +243,6 @@ export const useWatchlistDetails = (id: WatchlistItemId) => {
   });
 };
 
-interface WatchlistView {
-  readonly query: string;
-  readonly category: string;
-  readonly sort: string;
-  readonly archived: boolean;
-  readonly attention: boolean;
-}
-const INITIAL_VIEW: WatchlistView = {
-  query: "",
-  category: "all",
-  sort: "newest",
-  archived: false,
-  attention: false,
-};
 /** Keep navigation preferences in this owner's query cache, without persisting personal searches. */
 export const useWatchlistView = () => {
   const { app } = useWorkspace();

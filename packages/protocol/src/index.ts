@@ -258,6 +258,7 @@ export {
   TrackWalletInput,
   WalletMonitorUpdate,
   WalletMonitorStart,
+  WalletTracked,
   WalletMonitorView,
 } from "./wallet-monitor";
 

@@ -10,6 +10,7 @@ const PLACES = [
   { path: "/", name: "chat" },
   { path: "/watchlist", name: "watchlist" },
   { path: "/wallet", name: "wallet" },
+  { path: "/inbox?feed=updates", name: "updates" },
   { path: "/activity", name: "activity" },
   { path: "/activity?tab=agents", name: "connections" },
   { path: "/activity?tab=tools", name: "tools" },

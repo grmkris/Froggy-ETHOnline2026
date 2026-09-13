@@ -24,9 +24,17 @@ import type { ReactElement } from "react";
 import { useSessionToken } from "../../lib/session-token";
 import { useWorkspace } from "../../lib/workspace-context";
 
-export const ReminderForm = (): ReactElement => {
+export const ReminderForm = ({
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
+}): ReactElement => {
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onOpenChange ?? setLocalOpen;
   const { getToken, canConnect } = useSessionToken();
   const { app } = useWorkspace();
   const queries = useQueryClient();
@@ -81,10 +89,12 @@ export const ReminderForm = (): ReactElement => {
           create.reset();
         }}
       >
-        <DialogTrigger render={<Button variant="outline" />}>
-          <BellPlusIcon data-icon="inline-start" />
-          Reminder
-        </DialogTrigger>
+        {controlledOpen === undefined ? (
+          <DialogTrigger render={<Button variant="outline" />}>
+            <BellPlusIcon data-icon="inline-start" />
+            Reminder
+          </DialogTrigger>
+        ) : null}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>A little nudge, later</DialogTitle>

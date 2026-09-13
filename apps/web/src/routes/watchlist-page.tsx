@@ -19,7 +19,12 @@ import type { ReactElement } from "react";
 
 import { ScheduleList } from "../components/settings/schedule-list";
 import { SaveItem } from "../components/watchlist/item-form";
-import { ItemIcon, sourceWords } from "../components/watchlist/item-identity";
+import {
+  ItemIcon,
+  sourceWords,
+  displayTitle,
+  ItemPresence,
+} from "../components/watchlist/item-identity";
 import { ItemImage } from "../components/watchlist/item-image";
 import { marketPrice } from "../components/watchlist/market-results";
 import {
@@ -27,12 +32,11 @@ import {
   ExistingMonitoring,
   ItemMonitoring,
 } from "../components/watchlist/monitoring-panel";
-import { PasteItem } from "../components/watchlist/paste-item";
+import { NotifyToggle } from "../components/watchlist/notify-toggle";
 import { PriceHistory } from "../components/watchlist/price-history";
 import { RecentUpdates } from "../components/watchlist/recent-updates";
 import { RefreshItem } from "../components/watchlist/refresh-item";
-import { ReminderForm } from "../components/watchlist/reminder-form";
-import { TokenDiscovery } from "../components/watchlist/token-discovery";
+import { TrackBar } from "../components/watchlist/track-bar";
 import { WalletMonitorPanel } from "../components/watchlist/wallet-monitor-panel";
 import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useServiceApi } from "../hooks/use-service-api";
@@ -148,34 +152,46 @@ const ItemFacts = ({
   );
 };
 
+const DetailIdentity = ({
+  item,
+}: {
+  readonly item: WatchlistItem;
+}): ReactElement => {
+  const details = useWatchlistDetails(item.id);
+  return (
+    <div className="bg-card border-border flex flex-col gap-3 rounded-2xl border p-5">
+      <ItemIcon item={item} />
+      <div>
+        <ItemPresence item={item} data={details.data?.data} />
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          {displayTitle(item, details.data?.data.presence)}
+        </h1>
+      </div>
+      <div>
+        <Badge variant="outline">
+          {item.archived ? "Archived" : "Saved for later"}
+        </Badge>
+      </div>
+    </div>
+  );
+};
+
 const ItemDetail = ({
   item,
 }: {
   readonly item: WatchlistItem;
 }): ReactElement => {
   const { patch, remove } = useWatchlist();
+  const details = useWatchlistDetails(item.id);
   const { tasks } = useServiceApi();
   const snapshot = snapshotForItem(item, tasks.data?.tasks ?? []);
+  const address = "address" in item.source;
   const { attachItem } = useChatSurface();
   const navigate = useNavigate();
   return (
     <article className="flex flex-col gap-6">
-      <div className="bg-card border-border flex flex-col gap-3 rounded-2xl border p-5">
-        <ItemIcon item={item} />
-        <div>
-          <p className="text-muted-foreground mb-2 text-sm">
-            {sourceWords(item)}
-          </p>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {item.title}
-          </h1>
-        </div>
-        <div>
-          <Badge variant="outline">
-            {item.archived ? "Archived" : "Saved for later"}
-          </Badge>
-        </div>
-      </div>
+      <DetailIdentity item={item} />
+      <NotifyToggle item={item} data={details.data?.data} />
       <ItemFacts item={item} />
       <RefreshItem item={item} />
       <div className="flex flex-col gap-3">
@@ -194,7 +210,14 @@ const ItemDetail = ({
           Ask Froggy about this
         </Button>
       </div>
-      <WalletMonitorPanel item={item} />
+      {address ? (
+        <details>
+          <summary className="text-muted-foreground min-h-11 cursor-pointer py-3 text-sm">
+            Alert details and activity
+          </summary>
+          <WalletMonitorPanel item={item} />
+        </details>
+      ) : null}
       {snapshot === null ? null : (
         <section
           aria-label="Token snapshot"
@@ -222,9 +245,7 @@ const ItemDetail = ({
           </p>
         )}
         <p className="text-muted-foreground font-mono text-xs break-all">
-          {item.source._tag === "token" || item.source._tag === "wallet"
-            ? item.source.address
-            : sourceWords(item)}
+          {"address" in item.source ? item.source.address : sourceWords(item)}
         </p>
         <p className="text-muted-foreground text-xs">
           Saved {new Date(item.createdAt).toLocaleDateString()}.
@@ -303,8 +324,7 @@ const ItemDetail = ({
 
 export const WatchlistPage = (): ReactElement => {
   const search = useSearch({ strict: false });
-  const navigate = useNavigate();
-  const discoveryOpen = search.discover === true;
+
   const path = useLocation({ select: (location) => location.pathname });
   const id = path.startsWith("/watchlist/")
     ? path.slice("/watchlist/".length)
@@ -336,25 +356,8 @@ export const WatchlistPage = (): ReactElement => {
                   Good things to come back to.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  aria-expanded={discoveryOpen}
-                  onClick={() => {
-                    void navigate({
-                      to: "/watchlist",
-                      search: discoveryOpen ? {} : { discover: true },
-                    });
-                  }}
-                >
-                  {discoveryOpen ? "Close discovery" : "Find tokens"}
-                </Button>
-                <ReminderForm />
-                <SaveItem />
-              </div>
             </header>
-            <PasteItem />
-            {discoveryOpen ? <TokenDiscovery /> : null}
+            <TrackBar autoFocus={search.track === true} />
             <WatchlistItems />
             <RecentUpdates />
             <details>

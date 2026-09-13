@@ -1,3 +1,4 @@
+import { supportedPresence } from "@froggy/domain";
 import type {
   Monitor,
   MonitorCheck,
@@ -37,6 +38,15 @@ export const beginDataCheck = async (
   if (!card || card.status === "unavailable") {
     return false;
   }
+  const data = await deps.services.store.watchlistData.transact(owner, (book) =>
+    book.get(item.id)
+  );
+  const network = supportedPresence(data?.presence ?? []).find(
+    (entry) => card.networks?.includes(entry) === true
+  );
+  if (!network) {
+    return false;
+  }
   if (card.priceUsdMicros > MONITOR_CHECK_USD_MICROS) {
     throw new Error(
       "The current data-service price exceeds this check's $1 maximum."
@@ -66,7 +76,7 @@ export const beginDataCheck = async (
       v: 2,
       service: "token_inspect",
       idempotencyKey: `monitor:${check.id}`,
-      input: { network: item.source.network, address: item.source.address },
+      input: { network, address: item.source.address },
     })
   );
   await updateMonitorCheck(deps.services.store, owner, check.id, {

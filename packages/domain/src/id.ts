@@ -297,3 +297,6 @@ export type WalletActivityId = typeof WalletActivityId.Type;
 
 export const OnchainAlertRuleId = makeIdSchema("oar", "OnchainAlertRuleId");
 export type OnchainAlertRuleId = typeof OnchainAlertRuleId.Type;
+
+export const UpdateId = makeIdSchema("upd", "UpdateId");
+export type UpdateId = typeof UpdateId.Type;

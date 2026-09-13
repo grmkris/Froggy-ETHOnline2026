@@ -103,6 +103,7 @@ import type { UnlockTokens } from "./unlock";
 import { sendUsdc } from "./usdc-transfer";
 import { walletMonitorDependencies } from "./wallet-monitor";
 import { readItemDetails } from "./watchlist-data";
+import { discoveryDependencies } from "./watchlist-discovery";
 import { saveWatchlistItem } from "./watchlist-routes";
 import { buildWorkspaceTools } from "./workspace-tools";
 import type { Workspaces } from "./workspaces";
@@ -455,7 +456,8 @@ const buildRawTools = (deps: ToolDeps) => {
       session.userId,
       deps.connectionId ?? null,
       walletMonitorDependencies(services),
-      session.embeddedWallet?.address
+      session.embeddedWallet?.address,
+      discoveryDependencies(services, undefined, deps.notices.updates)
     ),
     task_report: tool({
       description:

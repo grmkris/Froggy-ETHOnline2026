@@ -2784,3 +2784,28 @@ button:not(:disabled),
     height: 28px;
   }
 }
+
+.arrive-from-bar {
+  transform-origin: 50% 0;
+}
+.presence-text {
+  transition: opacity var(--motion-feedback) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+[data-motion-input="keyboard"] .presence-text {
+  transition: none;
+}
+[data-motion-input="keyboard"] [data-slot="dropdown-menu-content"] {
+  animation-duration: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dropdown-menu-content"] {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-exit-scale: 1;
+    animation-duration: 125ms;
+  }
+}

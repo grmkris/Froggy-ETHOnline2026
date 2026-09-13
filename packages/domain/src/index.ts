@@ -401,3 +401,6 @@ export {
   priceRatioDecimal,
 } from "./onchain-price";
 export type { PriceRatio } from "./onchain-price";
+
+export { UpdateId } from "./id";
+export { Update, UpdatesPage } from "./update";

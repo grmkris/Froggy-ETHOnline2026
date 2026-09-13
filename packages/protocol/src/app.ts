@@ -310,6 +310,11 @@ export const AppServerMessage = Schema.Union([
   Schema.Struct({ ...Envelope, type: Schema.Literal("watchlist.changed") }),
   Schema.Struct({
     ...Envelope,
+    type: Schema.Literal("updates.changed"),
+    unread: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  }),
+  Schema.Struct({
+    ...Envelope,
     type: Schema.Literal("browse.task.updated"),
     task: BrowseTaskView,
   }),

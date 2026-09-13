@@ -30,6 +30,7 @@ import { useEffect, useState, useRef } from "react";
 
 import { EmailAccount } from "../components/email/email-account";
 import { DraftEditor, FileButton } from "../components/email/email-editor";
+import { UpdatesFeed } from "../components/inbox/updates-feed";
 import { SaveEmail } from "../components/watchlist/save-email";
 import { useDrafts } from "../lib/draft-context";
 import {
@@ -39,6 +40,7 @@ import {
   useEmailPage,
   useEmailStatus,
 } from "../lib/email-client";
+import { useUpdatesPage } from "../lib/updates-client";
 
 const DELIVERY: Readonly<Record<EmailDraft["status"], string>> = {
   draft: "Draft",
@@ -104,9 +106,9 @@ const MessageReader = ({ message }: { readonly message: EmailMessage }) => {
             <Badge variant="outline">Demo email · no real delivery</Badge>
           ) : null}
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {message.subject}
-        </h1>
+        </h2>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">From</dt>
           <dd>{message.from}</dd>
@@ -266,9 +268,9 @@ const DraftReader = ({
           {draft.stubbed ? "Demo · " : ""}
           {DELIVERY[draft.status]}
         </Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h2 className="text-2xl font-semibold tracking-tight">
           {draft.subject}
-        </h1>
+        </h2>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">From</dt>
           <dd>{status.data?.address}</dd>
@@ -493,7 +495,7 @@ const InboxList = () => {
       <header className="flex shrink-0 flex-col gap-4 border-b p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold">Inbox</h1>
+            <h2 className="text-lg font-semibold">Mail</h2>
             <p
               className="text-muted-foreground truncate text-xs"
               title={status.data?.address ?? ""}
@@ -684,7 +686,7 @@ const InboxContent = ({
   return null;
 };
 
-export const InboxPage = () => {
+const MailFeed = () => {
   const status = useEmailStatus();
   const search = useInboxSearch();
   const reader = useRef<HTMLElement | null>(null);
@@ -708,7 +710,7 @@ export const InboxPage = () => {
   if (status.isError) {
     return (
       <div className="flex flex-col items-start gap-4 p-6" role="alert">
-        <h1 className="text-title">Inbox unavailable</h1>
+        <h2 className="text-title">Inbox unavailable</h2>
         <p>{status.error.message}</p>
         <Button
           variant="outline"
@@ -757,6 +759,39 @@ export const InboxPage = () => {
           <InboxContent conversationId={box.conversationId} />
         </div>
       </section>
+    </div>
+  );
+};
+
+export const InboxPage = () => {
+  const search = useInboxSearch();
+  const navigate = useNavigate();
+  const updates = useUpdatesPage();
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <h1 className="text-lg font-semibold">Inbox</h1>
+        <Tabs
+          value={search.feed ?? "mail"}
+          onValueChange={(value) => {
+            void navigate({
+              to: "/inbox",
+              search: value === "updates" ? { feed: "updates" } : {},
+            });
+          }}
+        >
+          <TabsList aria-label="Inbox feeds">
+            <TabsTrigger value="mail">Mail</TabsTrigger>
+            <TabsTrigger value="updates">
+              Updates
+              {(updates.data?.unread ?? 0) > 0
+                ? ` · ${updates.data?.unread}`
+                : ""}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </header>
+      {search.feed === "updates" ? <UpdatesFeed /> : <MailFeed />}
     </div>
   );
 };

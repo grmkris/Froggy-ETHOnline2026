@@ -72,7 +72,7 @@ const tokenFacts = (
   );
 };
 
-const marketResult = (task: Task, network: string, after: number) => {
+const marketResult = (task: Task, after: number) => {
   if (task.kind !== "service" || task.status !== "done") {
     return null;
   }
@@ -81,7 +81,6 @@ const marketResult = (task: Task, network: string, after: number) => {
     (result?.operation !== "token_snapshot" &&
       result?.operation !== "token_inspect" &&
       result?.operation !== "market_search") ||
-    result.network !== network ||
     after >= result.observedAt
   ) {
     return null;
@@ -105,11 +104,7 @@ export const ingestItemTasks = async (
   const tasks = await store.tasks.list(owner, 100);
   await Promise.all(
     tasks.map(async (task) => {
-      const result = marketResult(
-        task,
-        source.network,
-        existing?.latest?.at ?? -1
-      );
+      const result = marketResult(task, existing?.latest?.at ?? -1);
       if (!result) {
         return;
       }
@@ -139,7 +134,7 @@ export const ingestItemTasks = async (
           sourceUrl: null,
           price: token?.priceUsd ?? null,
           currency: "USD",
-          basis: `${source.network}:${source.address.toLowerCase()}`,
+          basis: `${result.network}:${source.address.toLowerCase()}`,
           stubbed: result.stubbed || serviceTicket(task).stubbed,
           facts: tokenFacts(token),
         },

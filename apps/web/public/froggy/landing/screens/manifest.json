@@ -47,9 +47,9 @@
       "width": 1440,
       "height": 900,
       "route": "/watchlist",
-      "seed": "Saved real Base USDC through /api/watchlist/capture without enrichment. Replayed the recorded TokenSnapshotResult into the saved item details using the existing watchlist-capture.spec.ts route-replay pattern. The app renders all chart points; no invented prices or DOM replacement.",
+      "seed": "Pasted the recorded Base USDC address into the real Track bar, saved through /api/watchlist/track and renamed through the normal item PATCH flow. Local RPC discovery remains visibly simulated and reports no supported chain. Replayed the existing recorded Birdeye TokenSnapshotResult into item details using the e2e route-replay pattern; the app renders all chart points without invented prices or DOM replacement.",
       "status": "captured",
-      "sha256": "19cd0863093417386f05786ccb487394bdbcfe28daf20973e100cd85df9ce0df"
+      "sha256": "eada3f4c0b00a955a5ad521fb10894c95ccfc3671ea23b364bdf00fdc17f8261"
     },
     {
       "name": "browser",

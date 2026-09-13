@@ -2,7 +2,6 @@ import { Schema } from "effect";
 
 import { EvmAddress } from "./address";
 import { EmailId, WatchlistItemId } from "./id";
-import { EvmTradingNetwork } from "./trading";
 import { publicHttpUrl } from "./url";
 import { WalletMonitor } from "./wallet-monitor";
 
@@ -13,15 +12,15 @@ const SourceUrl = Schema.String.check(
     message: "Use a public http or https URL without credentials.",
   })
 );
+/**
+ * A saved wallet or token is one address. The chains it lives on are facts
+ * Froggy discovers (decision 0039), never part of what identifies it, and the
+ * tag itself is corrected by that check. Rows written before 0039 carry a
+ * `network` key that the decoder drops.
+ */
 export const WatchlistSource = Schema.Union([
-  Schema.TaggedStruct("wallet", {
-    network: EvmTradingNetwork,
-    address: EvmAddress,
-  }),
-  Schema.TaggedStruct("token", {
-    network: EvmTradingNetwork,
-    address: EvmAddress,
-  }),
+  Schema.TaggedStruct("wallet", { address: EvmAddress }),
+  Schema.TaggedStruct("token", { address: EvmAddress }),
   Schema.TaggedStruct("email", {
     emailId: EmailId,
     kind: Schema.Literals(["flight", "product", "link"]),
@@ -55,12 +54,10 @@ export type WatchlistItem = typeof WatchlistItem.Type;
 export const shortEvmAddress = (address: string): string =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;
 
+/** One saved item per EVM address: a wallet and a token at the same address are the same item. */
 export const watchlistSourceKey = (source: WatchlistSource): string => {
-  if (source._tag === "wallet") {
-    return `wallet:${source.network}:${source.address.toLowerCase()}`;
-  }
-  if (source._tag === "token") {
-    return `${source.network}:${source.address.toLowerCase()}`;
+  if (source._tag === "wallet" || source._tag === "token") {
+    return `address:${source.address.toLowerCase()}`;
   }
   if (source._tag === "email") {
     return `email:${source.kind}:${source.emailId}`;

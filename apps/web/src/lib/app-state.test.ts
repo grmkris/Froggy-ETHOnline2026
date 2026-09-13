@@ -60,6 +60,17 @@ const server = (
 ): AppState => reduceApp(state, { at, message, type: "server" });
 
 describe("reduceApp", () => {
+  it("replays absolute unread counts without incrementing them", () => {
+    let state = server(initialAppState, {
+      v: 1,
+      type: "updates.changed",
+      unread: 3,
+    });
+    state = server(state, { v: 1, type: "updates.changed", unread: 3 });
+    expect(state.updatesUnread).toBe(3);
+    state = server(state, { v: 1, type: "updates.changed", unread: 0 });
+    expect(state.updatesUnread).toBe(0);
+  });
   it("keeps one copy of a receipt, newest first, whichever way it arrived", () => {
     const older = receipt(100);
     const newer = receipt(200);

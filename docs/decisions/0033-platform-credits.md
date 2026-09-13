@@ -6,7 +6,7 @@ Status: Accepted for implementation. Live verification is recorded separately.
 
 ## Decision
 
-Froggy tools consume an internal, nontransferable credit balance. The owner buys credits through x402 using USDC on the configured Base network or native HBAR on the configured Hedera network. 100 credits equals $1. One branded `CreditUnits` is one USD micro, or 1/10,000 of a credit; wallet money keeps its separate brands and ledgers.
+Froggy tools consume an internal, nontransferable credit balance. The owner buys credits through x402 using USDC on the configured Base network or native HBAR on the configured Hedera network. A USDC authorization is signed in the owner's browser by the Privy client SDK and verified by the server before the purchase is claimed ([decision 0038](0038-browser-signed-credit-purchases.md)); an HBAR payment is signed by the person's Privy Hedera key under the agent key. 100 credits equals $1. One branded `CreditUnits` is one USD micro, or 1/10,000 of a credit; wallet money keeps its separate brands and ledgers.
 
 Accounts begin at zero. Existing wallet balances and historical sales are preserved as money and history; there is no inferred conversion or starter grant. Numeric existing wallet caps initialize independent credit limits once, otherwise the defaults are $2 per task and $10 over a rolling 24 hours. Credit authority has its own expiry/frozen state and does not inherit wallet signer expiry.
 

@@ -1,4 +1,4 @@
-import { emptyWatchlistData } from "@froggy/domain";
+import { emptyWatchlistData, supportedPresence } from "@froggy/domain";
 import type {
   Task,
   WatchlistItemId,
@@ -18,6 +18,7 @@ import { serviceCatalog } from "./service-providers";
 import { awaitServiceTask, purchaseService } from "./service-tasks";
 import { handleTaskPost } from "./tasks";
 import type { TaskDeps } from "./tasks";
+import { createUpdates, enrichedUpdate } from "./updates";
 import { ingestItemTasks, recordItemObservation } from "./watchlist-data";
 import {
   discoverSavedItems,
@@ -27,7 +28,19 @@ import {
 import { watchlistPreviewFor } from "./watchlist-resolve";
 import { saveWatchlistItem } from "./watchlist-routes";
 
-const priceFor = (deps: TaskDeps, item: WatchlistItem): number | null => {
+const snapshotNetwork = (deps: TaskDeps, data: WatchlistData) => {
+  const card = serviceCatalog(deps.services).find(
+    (entry) => entry.name === "token_snapshot"
+  );
+  return supportedPresence(data.presence ?? []).find(
+    (network) => card?.networks?.includes(network) === true
+  );
+};
+const priceFor = (
+  deps: TaskDeps,
+  item: WatchlistItem,
+  data: WatchlistData
+): number | null => {
   if (item.source._tag === "wallet" || item.source._tag === "email") {
     return 0;
   }
@@ -39,10 +52,11 @@ const priceFor = (deps: TaskDeps, item: WatchlistItem): number | null => {
   );
   return card &&
     card.status !== "unavailable" &&
-    card.networks?.includes(item.source.network) === true
+    snapshotNetwork(deps, data) !== undefined
     ? card.priceUsdMicros
     : null;
 };
+
 const update = async (
   deps: TaskDeps,
   owner: UserId,
@@ -50,15 +64,54 @@ const update = async (
   key: string,
   patch: Partial<NonNullable<WatchlistData["enrichment"]>>
 ): Promise<void> => {
-  await deps.services.store.watchlistData.transact(owner, (book) => {
-    const data = book.get(itemId);
-    if (data?.enrichment?.key === key) {
-      book.set(itemId, {
-        ...data,
-        enrichment: { ...data.enrichment, ...patch },
-      });
+  const filed = await deps.services.store.watchlistData.transact(
+    owner,
+    (book) => {
+      const data = book.get(itemId);
+      if (data?.enrichment?.key === key) {
+        book.set(itemId, {
+          ...data,
+          enrichment: { ...data.enrichment, ...patch },
+        });
+        return { ...data.enrichment, ...patch };
+      }
+      return null;
     }
-  });
+  );
+  if (
+    filed &&
+    ["done", "failed", "needs_help", "uncertain"].includes(filed.status)
+  ) {
+    const item = await deps.services.store.watchlist.transact(owner, (book) =>
+      book.get(itemId)
+    );
+    const task = filed.taskId
+      ? await deps.services.store.tasks.byId(owner, filed.taskId)
+      : null;
+    const recordedCharge = task
+      ? await deps.services.store.credits.findCharge(owner, task.id)
+      : null;
+    if (item) {
+      await (
+        deps.updates ??
+        deps.notices.updates ??
+        createUpdates({ store: deps.services.store })
+      ).file(
+        owner,
+        enrichedUpdate(
+          item,
+          key,
+          filed.status,
+          filed.note,
+          recordedCharge?.stubbed === true ||
+            Schema.decodeUnknownResult(
+              Schema.Struct({ stubbed: Schema.Literal(true) })
+            )(task?.result)._tag === "Success",
+          (deps.now ?? Date.now)()
+        )
+      );
+    }
+  }
 };
 
 const enrichmentStatus = (
@@ -168,6 +221,46 @@ const reconcileSettled = async (
   }
 };
 
+const readyForEnrichment = async (
+  deps: TaskDeps,
+  owner: UserId,
+  item: WatchlistItem,
+  entry: WatchlistData,
+  intent: NonNullable<WatchlistData["enrichment"]>
+): Promise<boolean> => {
+  if (item.revision !== intent.itemRevision) {
+    await update(deps, owner, item.id, intent.key, {
+      status: "failed",
+      note: "The saved details changed before enrichment started. Review before refreshing.",
+    });
+    return false;
+  }
+  if (
+    item.source._tag === "token" &&
+    (entry.discovery === null ||
+      entry.discovery === undefined ||
+      ["queued", "running"].includes(entry.discovery.status))
+  ) {
+    return false;
+  }
+  const network = snapshotNetwork(deps, entry);
+  if (item.source._tag === "token" && network === undefined) {
+    await update(deps, owner, item.id, intent.key, {
+      status: "failed",
+      note: "This token was not found on Base or Robinhood, where snapshots are sold. Nothing purchased.",
+    });
+    return false;
+  }
+  if (priceFor(deps, item, entry) !== intent.acceptedPrice) {
+    await update(deps, owner, item.id, intent.key, {
+      status: "failed",
+      note: "The enrichment price or source changed. Item saved; nothing purchased.",
+    });
+    return false;
+  }
+  return true;
+};
+
 export const enrichSavedItems = async (
   deps: TaskDeps,
   owner: UserId
@@ -209,20 +302,10 @@ export const enrichSavedItems = async (
           await reconcileInterrupted(deps, owner, item.id, intent);
           return;
         }
-        if (item.revision !== intent.itemRevision) {
-          await update(deps, owner, item.id, intent.key, {
-            status: "failed",
-            note: "The saved details changed before enrichment started. Review before refreshing.",
-          });
+        if (!(await readyForEnrichment(deps, owner, item, entry, intent))) {
           return;
         }
-        if (priceFor(deps, item) !== intent.acceptedPrice) {
-          await update(deps, owner, item.id, intent.key, {
-            status: "failed",
-            note: "The enrichment price or source changed. Item saved; nothing purchased.",
-          });
-          return;
-        }
+        const network = snapshotNetwork(deps, entry);
         if (item.source._tag === "wallet" || item.source._tag === "email") {
           await update(deps, owner, item.id, intent.key, {
             status: "done",
@@ -259,6 +342,9 @@ export const enrichSavedItems = async (
         try {
           const workspace = await deps.workspaces.hydrate(owner);
           if (item.source._tag === "token") {
+            if (network === undefined) {
+              throw new Error("No supported snapshot chain was found.");
+            }
             const ticket = await purchaseService(
               {
                 services: deps.services,
@@ -272,7 +358,7 @@ export const enrichSavedItems = async (
                 v: 2,
                 service: "token_snapshot",
                 input: {
-                  network: item.source.network,
+                  network,
                   address: item.source.address,
                 },
                 idempotencyKey: intent.key,
@@ -400,7 +486,12 @@ export const handleWatchlistCapture = async (
       if (!input.enrich || current.enrichment !== null) {
         return current;
       }
-      const price = priceFor(deps, item);
+      const price = priceFor(deps, item, current);
+      const waiting =
+        item.source._tag === "token" &&
+        (current.discovery === null ||
+          current.discovery === undefined ||
+          ["queued", "running"].includes(current.discovery.status));
       const queued: WatchlistData = {
         ...current,
         enrichment: {
@@ -408,10 +499,11 @@ export const handleWatchlistCapture = async (
           itemRevision: item.revision,
           requestedAt: Date.now(),
           acceptedPrice: input.acceptedPrice,
-          status: price === input.acceptedPrice ? "queued" : "failed",
+          status:
+            waiting || price === input.acceptedPrice ? "queued" : "failed",
           taskId: null,
           note:
-            price === input.acceptedPrice
+            waiting || price === input.acceptedPrice
               ? "Saved. Enrichment will start when the source is available."
               : "Price or source changed. Saved without purchasing enrichment.",
         },
@@ -440,6 +532,7 @@ export const handleWatchlistCapture = async (
     if (queued) {
       detached("saved item discovery", async () => {
         await discoverSavedItems(discovery, owner);
+        await enrichSavedItems(deps, owner);
       });
     }
   }
@@ -471,9 +564,13 @@ export const handleWatchlistRefresh = async (
   if (!item || item.archived) {
     return Response.json({ v: 1, error: "Item not found." }, { status: 404 });
   }
+  const existingData = await deps.services.store.watchlistData.transact(
+    owner,
+    (book) => book.get(id) ?? emptyWatchlistData(id)
+  );
   if (
     item.revision !== input.revision ||
-    priceFor(deps, item) !== input.acceptedPrice
+    priceFor(deps, item, existingData) !== input.acceptedPrice
   ) {
     return Response.json(
       {

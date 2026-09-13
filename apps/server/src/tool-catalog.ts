@@ -154,6 +154,11 @@ const TOOL_COPY = {
     title: "Read a saved item",
     description: "One saved item and what Froggy has learned about it.",
   },
+  updates_list: {
+    title: "Read Inbox updates",
+    description:
+      "Read recorded watch events and notices without marking them read.",
+  },
   watchlist_list: {
     title: "List saved items",
     description: "Up to thirty saved items by title or notes.",
@@ -373,6 +378,7 @@ export const TOOL_GROUPS: readonly GroupDefinition[] = [
       "watchlist_save",
       "watchlist_get",
       "watchlist_list",
+      "updates_list",
       "watchlist_update",
       "watchlist_archive",
       "monitor_configure",

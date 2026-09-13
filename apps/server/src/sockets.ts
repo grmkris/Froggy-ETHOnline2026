@@ -416,6 +416,13 @@ export const createSocketHandlers = (deps: SocketDeps) => {
           type: "mandate.state",
           v: 1,
         });
+        detached("updates welcome", async () => {
+          sendApp(ws, {
+            v: 1,
+            type: "updates.changed",
+            unread: await deps.services.store.updates.unread(ws.data.userId),
+          });
+        });
         detached("wallet welcome", async () => {
           const wallet = await workspace.session.walletSummary();
           sendApp(ws, { type: "wallet.state", v: 1, wallet });

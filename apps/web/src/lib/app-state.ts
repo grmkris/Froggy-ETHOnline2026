@@ -92,6 +92,7 @@ export interface AppState {
   readonly browseRecoveryError: boolean;
   readonly historySequence: number;
   readonly watchlistSequence: number;
+  readonly updatesUnread: number;
   readonly approvals: readonly ApprovalRequest[];
   readonly connected: boolean;
   /** Oldest first. */
@@ -140,6 +141,7 @@ export const initialAppState: AppState = {
   browseRecoveryError: false,
   historySequence: 0,
   watchlistSequence: 0,
+  updatesUnread: 0,
   approvals: [],
   connected: false,
   events: [],
@@ -364,6 +366,24 @@ const browseUpdate = (
   };
 };
 
+const welcomeState = (
+  state: AppState,
+  message: Extract<AppServerMessage, { readonly type: "session.welcome" }>
+): AppState => ({
+  ...state,
+  browseTasks: state.sessionId === message.sessionId ? state.browseTasks : [],
+  browseRecoveryError: false,
+  notices: state.sessionId === message.sessionId ? state.notices : [],
+  agentSignerId: message.agentSignerId,
+  hcsTopicId: message.hcsTopicId,
+  mcpUrl: message.mcpUrl,
+  modes: message.modes,
+  policyId: message.policyId,
+  sessionId: message.sessionId,
+  updatesUnread:
+    state.sessionId === message.sessionId ? state.updatesUnread : 0,
+});
+
 const onServer = (
   state: AppState,
   message: AppServerMessage,
@@ -372,6 +392,9 @@ const onServer = (
   switch (message.type) {
     case "browse.task.updated": {
       return browseUpdate(state, message.task, at);
+    }
+    case "updates.changed": {
+      return { ...state, updatesUnread: message.unread };
     }
     case "watchlist.changed": {
       return { ...state, watchlistSequence: state.watchlistSequence + 1 };
@@ -383,19 +406,7 @@ const onServer = (
       };
     }
     case "session.welcome": {
-      return {
-        ...state,
-        browseTasks:
-          state.sessionId === message.sessionId ? state.browseTasks : [],
-        browseRecoveryError: false,
-        notices: state.sessionId === message.sessionId ? state.notices : [],
-        agentSignerId: message.agentSignerId,
-        hcsTopicId: message.hcsTopicId,
-        mcpUrl: message.mcpUrl,
-        modes: message.modes,
-        policyId: message.policyId,
-        sessionId: message.sessionId,
-      };
+      return welcomeState(state, message);
     }
     case "mandate.state": {
       return {
@@ -460,11 +471,7 @@ const onServer = (
         notices: [notice, ...state.notices].slice(0, MAX_NOTICES),
       };
     }
-    case "run.started": {
-      // A marker in the conversation, where the turn will appear, rather
-      // than a notice above the composer.
-      return { ...state, events: withEvents(state, message, at) };
-    }
+    case "run.started":
     case "notice": {
       return { ...state, events: withEvents(state, message, at) };
     }

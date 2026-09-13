@@ -38,6 +38,7 @@ Written Sat 5 Sep 2026, 18:30 CEST; updated 20:55 CEST against commit `92aacab` 
 | 18 | Directory and 402 probe | A paste-a-402 box that probes before it pays; a server-issued directory seeded with our brief and peer sellers | Same (2.8) | Landed `8bf511f`: probe, per-user directory, host and payee onto the allowlists; e2e `068113d` | No |
 | 19 | Daily digest job | Day 5, cut first | Same (2.11) | Landed `7b1cb1d`: per-user schedule, minute scheduler, bounded run, digest to a sink | No. In the video, recorded the day before (grill) |
 | 20 | Freeze | One function: flag, abort, remove the signer, wipe the pocket, notify | Same (2.10) | Flag, abort, deny parked approvals, freeze the browser, revoke the signer landed `362d920`; unfreeze re-grants; zeroing the pocket balance and the policy-owner key open | No |
+| new | Owner signing | The person's Privy wallet signs server-side with their access token (decision 0014) | **No server-side owner signing; the person signs in their browser. One click, Privy's own prompt hidden** (13 Sep) | Credits: the browser builds and signs the x402 authorization from the 402 quote and the server verifies the signature before claiming, `3088ab4`..`dfad192`; the owner signers and the unused revoke path are deleted `3bd4165`, `fbe6507`; bound-URL Base/Solana purchases and Solana or single-transaction trade approvals refuse with an honest sentence until they are rebuilt on browser signing ([ADR 0038](../decisions/0038-browser-signed-credit-purchases.md)) | Follow-up lane for the other two flows |
 
 ## Surface
 

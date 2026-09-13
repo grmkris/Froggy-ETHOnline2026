@@ -131,3 +131,5 @@ export type {
   StoredWalletActivity,
   WalletStreamNetwork,
 } from "./wallet-activity-store";
+
+export type { UpdateStore } from "./update-store";

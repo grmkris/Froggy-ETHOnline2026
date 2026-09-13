@@ -110,3 +110,23 @@ describe("approval.request decoding", () => {
     expect(decoded._tag).toBe("Failure");
   });
 });
+
+it("decodes absolute Inbox unread counts and refuses malformed versions/counts", () => {
+  expect(
+    decodeAppServerMessage(
+      JSON.stringify({ v: 1, type: "updates.changed", unread: 3 })
+    )._tag
+  ).toBe("Success");
+  for (const unread of [-1, 0.5, "3"]) {
+    expect(
+      decodeAppServerMessage(
+        JSON.stringify({ v: 1, type: "updates.changed", unread })
+      )._tag
+    ).toBe("Failure");
+  }
+  expect(
+    decodeAppServerMessage(
+      JSON.stringify({ v: 2, type: "updates.changed", unread: 3 })
+    )._tag
+  ).toBe("Failure");
+});

@@ -1,11 +1,11 @@
-import type { WatchlistItem } from "@froggy/domain";
+import type { WatchlistData, WatchlistItem } from "@froggy/domain";
 import { Button } from "@froggy/ui/components/button";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { MessageCircleIcon } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
 import { useChatSurface } from "../../lib/chat-context";
-import { ItemIcon, sourceWords } from "./item-identity";
+import { ItemIcon, ItemPresence, displayTitle } from "./item-identity";
 import { ItemImage } from "./item-image";
 
 /** Recorded identity can be reused in chat; live controls do not rewrite its facts. */
@@ -13,10 +13,12 @@ export const SavedItemCard = ({
   item,
   children,
   hasImage = false,
+  data,
 }: {
   readonly item: WatchlistItem;
   readonly children?: ReactNode;
   readonly hasImage?: boolean;
+  readonly data?: WatchlistData | undefined;
 }): ReactElement => {
   const { attachItem } = useChatSurface();
   const navigate = useNavigate();
@@ -33,12 +35,14 @@ export const SavedItemCard = ({
           to="/watchlist/$itemId"
           params={{ itemId: item.id }}
         >
-          {item.title}
+          <span
+            key={displayTitle(item, data?.presence)}
+            className="presence-text"
+          >
+            {displayTitle(item, data?.presence)}
+          </span>
         </Link>
-        <p className="text-muted-foreground truncate text-xs">
-          {sourceWords(item)}
-          {item.notes ? ` · ${item.notes}` : ""}
-        </p>
+        <ItemPresence item={item} data={data} />
         {children}
       </div>
       <Button

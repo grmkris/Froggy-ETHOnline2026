@@ -1,4 +1,9 @@
-import { WatchlistPreviewId, EvmAddress, publicHttpUrl } from "@froggy/domain";
+import {
+  WatchlistPreviewId,
+  EvmAddress,
+  publicHttpUrl,
+  shortEvmAddress,
+} from "@froggy/domain";
 import type { UserId, WatchlistInput } from "@froggy/domain";
 import { WatchlistPreview, WatchlistResolve } from "@froggy/protocol";
 import { Schema } from "effect";
@@ -128,8 +133,6 @@ const resolve = async (
     const networks = lookupNetworks(
       Object.keys(services.environment.trading.rpcEndpoints),
       services.environment.modes.quicknode === "live"
-    ).filter(
-      (network) => network === "eip155:8453" || network === "eip155:4663"
     );
     const lookup = await lookupAddress(
       { rpc: services.trading.rpc, networks },
@@ -139,31 +142,23 @@ const resolve = async (
       },
       []
     );
-    const candidates: WatchlistInput[] = lookup.networks
-      .filter((row) => row.status === "observed")
-      .map((row) => ({
-        title:
-          row.token?.name ??
-          row.token?.symbol ??
-          `${input.input.slice(0, 6)}…${input.input.slice(-4)}`,
+    const candidates: WatchlistInput[] = [
+      {
+        title: lookup.suggestedTitle ?? shortEvmAddress(input.input),
         notes: "",
         source: {
-          _tag:
-            (row.token?.symbol ?? null) !== null ||
-            (row.token?.decimals ?? null) !== null
-              ? "token"
-              : "wallet",
+          _tag: lookup.kind === "token" ? "token" : "wallet",
           address: lookup.address,
-          network: row.network,
         },
-      }));
+      },
+    ];
     return {
       v: 1,
       candidates,
       lookup,
       notice: lookup.stubbed
         ? "Simulated lookup. These examples do not describe this address."
-        : "Contract metadata is self-reported. Choose the chain you want to save.",
+        : "Contract metadata is self-reported. Chains are found automatically.",
     };
   }
   const checked = publicHttpUrl(input.input);
@@ -199,16 +194,6 @@ export const handleWatchlistResolve = async (
     );
   }
   const input = { ...parsed.success, input: parsed.success.input.trim() };
-  if (
-    input.network !== undefined &&
-    input.network !== "eip155:8453" &&
-    input.network !== "eip155:4663"
-  ) {
-    return Response.json(
-      { v: 1, error: "Preview supports Base and Robinhood." },
-      { status: 400 }
-    );
-  }
   const now = Date.now();
   for (const [key, entry] of previews) {
     if (now - entry.at > CACHE_MS) {

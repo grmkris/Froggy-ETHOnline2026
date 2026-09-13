@@ -26,7 +26,16 @@ export const RecentUpdates = ({
       aria-label="Recent Watchlist updates"
       className="flex min-w-0 flex-col gap-3"
     >
-      <h2 className="text-sm font-semibold">Recent updates</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Recent updates</h2>
+        <Link
+          to="/inbox"
+          search={{ feed: "updates" }}
+          className="text-brand min-h-11 content-center text-sm underline"
+        >
+          All updates
+        </Link>
+      </div>
       <ul className="flex flex-col gap-3">
         {updates.map(({ item, observation }) => (
           <li

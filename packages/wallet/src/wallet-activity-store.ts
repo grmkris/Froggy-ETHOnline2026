@@ -6,6 +6,7 @@ import {
   WatchlistItemId,
 } from "@froggy/domain";
 import type {
+  Update,
   WalletActivityId,
   WalletPriceEvaluation,
   WatchlistItem,
@@ -89,6 +90,8 @@ export interface StoredWalletActivity {
 }
 /** One transaction serializes config, cursors and outbox claims. No network I/O. */
 export interface WalletActivityTransaction {
+  readonly update: (owner: UserId, key: string) => Promise<Update | null>;
+  readonly saveUpdate: (owner: UserId, update: Update) => Promise<void>;
   readonly network: WalletStreamNetwork;
   readonly checkpoint: WalletStreamCheckpoint;
   readonly saveCheckpoint: (

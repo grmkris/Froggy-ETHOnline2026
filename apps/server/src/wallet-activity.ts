@@ -453,6 +453,23 @@ export const describeWalletActivity = async (
     complete: !tx.truncated,
   };
 };
+export const flowLine = (flow: WalletActivity["flows"][number]): string => {
+  const raw = flow.amount.padStart((flow.decimals ?? 0) + 1, "0");
+  const amount =
+    flow.decimals !== null && flow.decimals > 0
+      ? `${raw.slice(0, -flow.decimals)}.${raw.slice(-flow.decimals)}`.replace(
+          /\.?0+$/u,
+          ""
+        )
+      : raw;
+  const label =
+    flow.symbol ??
+    (flow.asset === "native"
+      ? "ETH"
+      : `${flow.asset.slice(0, 8)}…${flow.asset.slice(-4)}`);
+  return `${flow.direction === "sent" ? "Sent" : "Received"} ${amount} ${label}${flow.decimals === null ? " (raw units)" : ""}`;
+};
+
 export const walletActivityText = (
   activity: WalletActivity,
   appUrl: string
@@ -468,22 +485,7 @@ export const walletActivityText = (
     price: "Price alert",
   };
   const title = titles[activity.kind];
-  const lines = activity.flows.slice(0, 6).map((flow) => {
-    const raw = flow.amount.padStart((flow.decimals ?? 0) + 1, "0");
-    const amount =
-      flow.decimals !== null && flow.decimals > 0
-        ? `${raw.slice(0, -flow.decimals)}.${raw.slice(-flow.decimals)}`.replace(
-            /\.?0+$/u,
-            ""
-          )
-        : raw;
-    const label =
-      flow.symbol ??
-      (flow.asset === "native"
-        ? "ETH"
-        : `${flow.asset.slice(0, 8)}…${flow.asset.slice(-4)}`);
-    return `${flow.direction === "sent" ? "Sent" : "Received"} ${amount} ${label}${flow.decimals === null ? " (raw units)" : ""}`;
-  });
+  const lines = activity.flows.slice(0, 6).map(flowLine);
   return `${title} · ${activity.network === "eip155:4663" ? "Robinhood" : "Base"} · provisional\n${lines.join("\n")}${activity.flows.length > 6 ? `\n+${activity.flows.length - 6} more movements` : ""}\nhttps://${activity.network === "eip155:4663" ? "robinhoodchain.blockscout.com" : "basescan.org"}/tx/${activity.transactionHash}\n${appUrl}/watchlist/${activity.itemId}`;
 };
 

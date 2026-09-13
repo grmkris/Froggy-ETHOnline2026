@@ -158,12 +158,15 @@ test("a new session removes cached reminders before the next response arrives", 
 
 test("keyboard button activation has no press transform", async ({ page }) => {
   await page.goto("/watchlist");
-  const button = page.getByRole("button", { name: "Add item", exact: true });
+  const button = page.getByRole("button", {
+    name: "More actions",
+    exact: true,
+  });
   await button.focus();
   await page.keyboard.down("Space");
   await expect(button).toHaveCSS("transform", "none");
   await page.keyboard.up("Space");
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("menu")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(button).toBeFocused();
   await expect(button).toHaveCSS("transform", "none");
@@ -195,22 +198,18 @@ test("opening discovery is free and new listings are an explicit request", async
     await route.continue();
   });
   await page.goto("/");
-  await page.getByRole("link", { name: "Find tokens", exact: true }).click();
-  await expect(page).toHaveURL(/discover=true/u);
-  const discovery = page.getByRole("region", { name: "Discover tokens" });
-  await expect(discovery).toBeVisible();
-  expect(requests).toBe(0);
-  await discovery
-    .getByRole("button", { name: "New listings", exact: true })
-    .click();
-  await discovery
-    .getByLabel("Chain", { exact: true })
-    .selectOption("eip155:8453");
+  await page.getByRole("link", { name: "Track a token", exact: true }).click();
+  await expect(page).toHaveURL(/track=true/u);
+  await expect(
+    page.getByRole("textbox", { name: "Address, link or token name" })
+  ).toBeFocused();
   expect(requests).toBe(0);
   await fundCredits(page);
-  await discovery.getByRole("button", { name: "Load new listings" }).click();
+  await page.getByRole("button", { name: "More actions" }).click();
+  expect(requests).toBe(0);
+  await page.getByRole("menuitem", { name: /New listings/u }).click();
   await expect(
-    discovery.getByRole("region", { name: "Token results" })
+    page.getByRole("region", { name: "Token results" })
   ).toBeVisible();
   expect(requests).toBe(1);
 });
@@ -224,7 +223,7 @@ test("short phone Home keeps its starter actions and composer reachable", async 
     page.getByRole("heading", { name: "What can I help with?" })
   ).toBeInViewport();
   await expect(
-    page.getByRole("link", { name: "Find tokens", exact: true })
+    page.getByRole("link", { name: "Track a token", exact: true })
   ).toBeInViewport();
   await expect(
     page.getByRole("button", { name: "Plan a trip", exact: true })

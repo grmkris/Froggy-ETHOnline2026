@@ -20,6 +20,8 @@ Base and Solana purchases use the authenticated person's Privy wallet after appr
 
 The EVM signer accepts one typed-data signing call. The Solana signer accepts exactly one transaction in exactly one signing call. Both consume their local signing capability before awaiting the provider, including a refused attempt. This is a single-use server adapter, **not a cryptographically purchase-bound or single-use Privy JWT**. The coordinator's durable claim, exact grant, pinned offer and policy checks provide the purchase binding. The access token is retained only by the active server operation and is absent from stored purchases, tool output and browser IPC. Redeemable payment proofs are not stored; the purchase keeps a proof hash for audit.
 
+**Correction, 13 September 2026.** The `user_jwts` adapter described above never signed a payment on production: Privy refuses that exchange on this app for every user (`docs/evidence/PRIVY.md`). It is deleted in [decision 0038](0038-browser-signed-credit-purchases.md). Until this flow asks the browser to sign the way credit purchases do, a Base or Solana purchase fails after approval with a sentence saying the signature has to come from the person's browser; Hedera purchases are unaffected.
+
 Only an authenticated owner route can create the missing Solana embedded wallet. Connected agents with `pay` scope may request purchases and read their own connection's results, but cannot approve, create wallets or change spending authority. The coordinator rechecks connection revocation before signing and before sending. Cancellation checks the purchase owner before touching the active operation.
 
 ## Explicit adapters and assets

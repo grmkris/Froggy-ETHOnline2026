@@ -1,4 +1,9 @@
-import type { Monitor, WatchlistItem, WatchlistItemId } from "@froggy/domain";
+import type {
+  Monitor,
+  WatchlistItem,
+  WatchlistItemId,
+  WatchlistObservation,
+} from "@froggy/domain";
 import { Button } from "@froggy/ui/components/button";
 import { Checkbox } from "@froggy/ui/components/checkbox";
 import {
@@ -8,16 +13,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@froggy/ui/components/empty";
-import { Input } from "@froggy/ui/components/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@froggy/ui/components/native-select";
 import { Skeleton } from "@froggy/ui/components/skeleton";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@froggy/ui/components/toggle-group";
 import { BookmarkIcon } from "lucide-react";
 import { useState } from "react";
 import type { ReactElement } from "react";
@@ -25,10 +21,16 @@ import type { ReactElement } from "react";
 import { useServiceApi } from "../../hooks/use-service-api";
 import { snapshotForItem } from "../../lib/market-snapshots";
 import { useMonitoring } from "../../lib/monitoring-client";
-import { useWatchlist, useWatchlistView } from "../../lib/watchlist-client";
+import {
+  useWatchlist,
+  useWatchlistView,
+  useWatchlistDetails,
+} from "../../lib/watchlist-client";
+import { MotionItem } from "../motion-item";
 import { CompareItems } from "./compare-items";
 import { sourceWords, sourceSearch } from "./item-identity";
 import { marketPrice } from "./market-results";
+import { NotifyToggle } from "./notify-toggle";
 import { SavedItemCard } from "./saved-item-card";
 import { WalletMonitorBadge } from "./wallet-monitor-panel";
 
@@ -80,6 +82,40 @@ const ItemStatus = ({
     </>
   );
 
+const observationValue = (
+  latest: WatchlistObservation | null | undefined
+): string | undefined => {
+  if (!latest) {
+    return undefined;
+  }
+  return latest.price === null
+    ? latest.facts[0]?.value
+    : `${latest.currency ?? ""} ${latest.price.toLocaleString()}`;
+};
+const Comparison = ({
+  chosen,
+  onClose,
+}: {
+  readonly chosen: readonly WatchlistItem[];
+  readonly onClose: () => void;
+}): ReactElement | null =>
+  chosen.length > 1 ? <CompareItems items={chosen} onClose={onClose} /> : null;
+const JustTrackedRow = ({
+  item,
+}: {
+  readonly item: WatchlistItem;
+}): ReactElement => {
+  const details = useWatchlistDetails(item.id);
+  const current = details.data?.item ?? item;
+  return (
+    <MotionItem spring className="arrive-from-bar flex min-w-0 flex-1">
+      <SavedItemCard item={current} data={details.data?.data}>
+        <NotifyToggle item={current} data={details.data?.data} />
+      </SavedItemCard>
+    </MotionItem>
+  );
+};
+
 export const WatchlistItems = ({
   compact = false,
 }: {
@@ -88,11 +124,16 @@ export const WatchlistItems = ({
   const { list, details } = useWatchlist();
   const { state: monitoring } = useMonitoring();
   const { tasks } = useServiceApi();
-  const { query, category, sort, archived, attention, update } =
+  const { query, archived, attention, justTracked, update } =
     useWatchlistView();
   const [comparing, setComparing] = useState(false);
   const [selected, setSelected] = useState<readonly WatchlistItemId[]>([]);
-  const chosen = (list.data?.items ?? []).filter(
+  const allItems = list.data === undefined ? [] : list.data.items;
+  const allDetails = details.data === undefined ? [] : details.data.items;
+  const allTasks = tasks.data === undefined ? [] : tasks.data.tasks;
+  const allMonitors =
+    monitoring.data === undefined ? [] : monitoring.data.monitors;
+  const chosen = allItems.filter(
     (item) => selected.includes(item.id) && !item.archived
   );
 
@@ -110,91 +151,24 @@ export const WatchlistItems = ({
         ["needs_help", "failed", "budget_exhausted"].includes(monitor.status)
     ) === true;
 
-  const items = (list.data?.items ?? [])
+  const items = allItems
     .filter(
       (item) =>
         item.archived === archived &&
-        (category === "all" ||
-          (item.source._tag === "email"
-            ? item.source.kind
-            : item.source._tag) === category) &&
         (!attention || needsAttention(item)) &&
         `${item.title} ${item.notes} ${sourceWords(item)} ${sourceSearch(item)}`
           .toLowerCase()
           .includes(query.toLowerCase())
     )
-    .toSorted((a, b) => {
-      if (sort === "name") {
-        return a.title.localeCompare(b.title);
-      }
-      return sort === "updated"
-        ? Math.max(
-            b.updatedAt,
-            details.data?.items.find((entry) => entry.itemId === b.id)?.latest
-              ?.at ?? 0
-          ) -
-            Math.max(
-              a.updatedAt,
-              details.data?.items.find((entry) => entry.itemId === a.id)?.latest
-                ?.at ?? 0
-            )
-        : b.createdAt - a.createdAt;
-    });
+    .toSorted((a, b) => b.createdAt - a.createdAt);
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-label="Saved items">
-      <ToggleGroup
-        aria-label="Item category"
-        value={[category]}
-        onValueChange={(values) => {
-          update({ category: values[0] ?? "all" });
-        }}
-        className="max-w-full flex-wrap"
-        variant="outline"
-      >
-        {[
-          ["all", "All"],
-          ["token", "Tokens"],
-          ["wallet", "Wallets"],
-          ["product", "Shopping"],
-          ["flight", "Travel"],
-          ["link", "Links"],
-        ].map(([value, label]) => (
-          <ToggleGroupItem
-            key={value}
-            value={value ?? "all"}
-            className="min-h-11"
-          >
-            {label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="min-w-40 flex-1"
-          aria-label="Search saved items"
-          placeholder="Search saved items…"
-          value={query}
-          onChange={(event) => {
-            update({ query: event.target.value });
-          }}
-        />
-        <NativeSelect
-          aria-label="Sort saved items"
-          value={sort}
-          onChange={(event) => {
-            update({ sort: event.target.value });
-          }}
-        >
-          <NativeSelectOption value="newest">Newest saved</NativeSelectOption>
-          <NativeSelectOption value="updated">
-            Recently updated
-          </NativeSelectOption>
-          <NativeSelectOption value="name">Name</NativeSelectOption>
-        </NativeSelect>
-      </div>
-      <div className="flex flex-wrap gap-2">
+        <p className="text-muted-foreground mr-auto text-xs">
+          {items.length} {archived ? "archived" : "saved"} items
+        </p>
         <Button
-          variant="outline"
+          variant="ghost"
           aria-pressed={comparing}
           onClick={() => {
             setComparing(!comparing);
@@ -203,33 +177,28 @@ export const WatchlistItems = ({
         >
           Compare{comparing ? " · Select up to 3" : ""}
         </Button>
-        <Button
-          variant="ghost"
-          aria-pressed={attention}
-          onClick={() => {
-            update({ attention: !attention });
-          }}
-        >
-          Needs attention{attention ? " · On" : ""}
-        </Button>
-      </div>
-      {compact ? null : (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-xs">
-            {items.length} {archived ? "archived" : "saved"}{" "}
-            {items.length === 1 ? "item" : "items"}
-          </p>
+        {compact ? null : (
           <Button
             variant="ghost"
-            size="sm"
             onClick={() => {
               update({ archived: !archived });
             }}
           >
             {archived ? "Back to saved" : "Archived"}
           </Button>
-        </div>
-      )}
+        )}
+        {allItems.some(needsAttention) ? (
+          <Button
+            variant="ghost"
+            aria-pressed={attention}
+            onClick={() => {
+              update({ attention: !attention });
+            }}
+          >
+            Needs attention · {allItems.filter(needsAttention).length}
+          </Button>
+        ) : null}
+      </div>
       {list.isPending ? <Skeleton className="h-32 w-full rounded-2xl" /> : null}
       {list.isError ? (
         <div role="alert" className="text-sm">
@@ -259,27 +228,19 @@ export const WatchlistItems = ({
           </EmptyHeader>
         </Empty>
       ) : null}
-      {items.length > 0 ? (
-        <p className="text-muted-foreground text-xs">
-          Open an item to review its monitoring settings and latest result.
-        </p>
-      ) : null}
-      {chosen.length > 1 ? (
-        <CompareItems
-          items={chosen}
-          onClose={() => {
-            setComparing(false);
-            setSelected([]);
-          }}
-        />
-      ) : null}
+      <Comparison
+        chosen={chosen}
+        onClose={() => {
+          setComparing(false);
+          setSelected([]);
+        }}
+      />
       <ul className="bg-card flex flex-col divide-y rounded-xl border">
         {items.map((item) => {
-          const snapshot = snapshotForItem(item, tasks.data?.tasks ?? []);
-          const data = details.data?.items.find(
-            (entry) => entry.itemId === item.id
-          );
+          const snapshot = snapshotForItem(item, allTasks);
+          const data = allDetails.find((entry) => entry.itemId === item.id);
           const latest = data?.latest;
+          const latestValue = observationValue(latest);
           return (
             <li key={item.id} className="flex min-w-0 items-start">
               {comparing ? (
@@ -303,34 +264,37 @@ export const WatchlistItems = ({
                   />
                 </div>
               ) : null}
-              <SavedItemCard item={item} hasImage={Boolean(data?.imageUrl)}>
-                {latest ? (
-                  <p className="text-sm tabular-nums">
-                    {latest.price === null
-                      ? latest.facts[0]?.value
-                      : `${latest.currency ?? ""} ${latest.price.toLocaleString()}`}
-                    <span className="text-muted-foreground ml-2 text-xs">
-                      {latest.stubbed ? "Simulated · " : ""}
-                      {new Date(latest.at).toLocaleDateString()}
-                    </span>
-                  </p>
-                ) : null}
-                {!latest && snapshot !== null ? (
-                  <p className="text-sm tabular-nums">
-                    {marketPrice(snapshot.token.priceUsd)}{" "}
-                    <span className="text-muted-foreground text-xs">
-                      {snapshot.stubbed ? "Simulated · " : ""}
-                      {new Date(snapshot.observedAt).toLocaleString()}
-                    </span>
-                  </p>
-                ) : null}
-                <div className="text-muted-foreground text-xs">
-                  <ItemStatus
-                    item={item}
-                    monitors={monitoring.data?.monitors ?? []}
-                  />
-                </div>
-              </SavedItemCard>
+              {justTracked.includes(item.id) ? (
+                <JustTrackedRow item={item} />
+              ) : (
+                <SavedItemCard
+                  item={item}
+                  data={data}
+                  hasImage={Boolean(data?.imageUrl)}
+                >
+                  {latest ? (
+                    <p className="text-sm tabular-nums">
+                      {latestValue}
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        {latest.stubbed ? "Simulated · " : ""}
+                        {new Date(latest.at).toLocaleDateString()}
+                      </span>
+                    </p>
+                  ) : null}
+                  {!latest && snapshot !== null ? (
+                    <p className="text-sm tabular-nums">
+                      {marketPrice(snapshot.token.priceUsd)}{" "}
+                      <span className="text-muted-foreground text-xs">
+                        {snapshot.stubbed ? "Simulated · " : ""}
+                        {new Date(snapshot.observedAt).toLocaleString()}
+                      </span>
+                    </p>
+                  ) : null}
+                  <div className="text-muted-foreground text-xs">
+                    <ItemStatus item={item} monitors={allMonitors} />
+                  </div>
+                </SavedItemCard>
+              )}
             </li>
           );
         })}
