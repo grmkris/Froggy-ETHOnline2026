@@ -8,4 +8,6 @@ Stop asks the server to cancel a run. An acknowledged request is not proof that 
 
 Screencast frames never touch React state; the painter owns the canvas directly. The canvas uses a ring and never a border, because `getBoundingClientRect()` includes borders and would offset every click by their width.
 
+The Watchlist route's column is Playground scope always (`watch-page playground` on `data-slot="watchlist-page"`), list and detail; its rules are the `watch-*` block in `packages/ui/src/styles/globals.css` and its words come from `lib/watch-words.ts`, so the list and the detail cannot disagree about what an item is doing.
+
 Privy is imported dynamically, so a build with no app id neither loads it nor fails on it. That is why `lib/privy.tsx` carries a scoped lint exception rather than a hard import.

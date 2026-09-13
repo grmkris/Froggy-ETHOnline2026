@@ -1,6 +1,6 @@
 # Watchlist as the Playground — plan
 
-Written 13 September 2026 against `397af42`, after the owner asked the agent to track a wallet's transfers, got the Telegram alerts, opened the Watchlist and could not tell what was going on. The four decisions below were taken with the owner the same evening. This is the implementation brief; the decision record is `docs/decisions/0042-watchlist-is-the-playground.md` once the work lands.
+Written 13 September 2026 against `397af42`, after the owner asked the agent to track a wallet's transfers, got the Telegram alerts, opened the Watchlist and could not tell what was going on. The four decisions below were taken with the owner the same evening. This is the implementation brief; the decision record is `docs/decisions/0045-watchlist-is-the-playground.md` once the work lands.
 
 ## What the owner saw is not what is on main
 
@@ -161,7 +161,7 @@ One optional server change, open question 3: the track tool's description in `wo
 6. `apps/web/src/components/watchlist/wallet-monitor-panel.tsx` — split into `WatchRules` and `WatchTimeline`, the time bar, the delivery line, "Stream details", the `ActivityCard` sentence form; `notify-toggle.tsx` mounted in the rules header.
 7. `apps/web/index.html`, `apps/web/public/manifest.webmanifest`, the icon PNGs and their script, one sentence in `apps/web/AGENTS.md`.
 8. Specs: `onchain-alerts.spec.ts` drops the disclosure click; `ui-polish.spec.ts` gains `watchlist-{1440,768,390}` captures in both themes; `watchlist.spec.ts` captures regenerate.
-9. `docs/decisions/0042-watchlist-is-the-playground.md` and a `docs/plan/STATUS.md` entry; captures under `docs/evidence/ui-review-2026-09-13/watchlist/`.
+9. `docs/decisions/0045-watchlist-is-the-playground.md` and a `docs/plan/STATUS.md` entry; captures under `docs/evidence/ui-review-2026-09-13/watchlist/`.
 
 Commits land in that order, one per coherent piece: styles; the words with their tests; the rows and filters; the bar; the page and the detail order; the monitor split and the timeline; the installed-app assets; specs and captures; docs.
 
