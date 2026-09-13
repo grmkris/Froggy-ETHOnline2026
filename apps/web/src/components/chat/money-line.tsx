@@ -29,7 +29,7 @@ export const MoneyLine = (): ReactElement => {
         <Skeleton aria-hidden className="h-7 w-20 rounded-md" />
       ) : (
         <span
-          className="money-figure"
+          className="money-figure min-w-0 truncate"
           data-unavailable={balance.unavailable ? "" : undefined}
         >
           {balance.figure}
@@ -38,7 +38,7 @@ export const MoneyLine = (): ReactElement => {
       {balance === null || balance.unavailable ? null : (
         <span className="money-label">Balance</span>
       )}
-      <span aria-hidden className="ml-auto flex items-center gap-2.5">
+      <span aria-hidden className="ml-auto flex shrink-0 items-center gap-2.5">
         {gauge === null ? (
           <Skeleton className="h-3 w-28 rounded-full" />
         ) : (
