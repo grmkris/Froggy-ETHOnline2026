@@ -27,7 +27,7 @@ import { landingAsset } from "../lib/landing";
 
 const LandingHeader = () => (
   <header className="landing-header landing-container">
-    <Link to="/landing" className="landing-wordmark" aria-label="Froggy home">
+    <Link to="/" className="landing-wordmark" aria-label="Froggy home">
       <FrogMark compact />
       froggy.
     </Link>
@@ -478,7 +478,7 @@ const LandingFooter = () => (
       <CheckIcon className="landing-closing-check" aria-hidden />
     </section>
     <footer className="landing-footer landing-container">
-      <Link to="/landing" className="landing-wordmark">
+      <Link to="/" className="landing-wordmark">
         <FrogMark compact />
         froggy.
       </Link>
@@ -498,7 +498,7 @@ const LandingFooter = () => (
 );
 
 export const LandingIndexPage = () => (
-  <div className="landing" data-landing="playground">
+  <div className="landing playground" data-landing="playground">
     <a className="landing-skip" href="#landing-main">
       Skip to content
     </a>

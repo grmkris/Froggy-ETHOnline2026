@@ -1336,8 +1336,14 @@ button:not(:disabled),
   }
 }
 
-/* The public Playground owns its palette; workspace and portal tokens stay intact. */
-.landing {
+/*
+ * The Playground palette: the public landing and the signed-in Home's first
+ * screen share these twelve variables, so the room a person walks into is the
+ * one the door promised. Workspace and portal tokens stay intact outside it.
+ * Lilypad gets its own values: the landing is light-only, but a signed-in
+ * person on the dark theme still reaches Home.
+ */
+.playground {
   --background: #f9f6e9;
   --foreground: #173e30;
   --card: #fffdf7;
@@ -1350,7 +1356,37 @@ button:not(:disabled),
   --muted-foreground: #506658;
   --border: #254230;
   --ring: #46744a;
-  --landing-accent: #d7f975;
+  --accent: #e8edca;
+  --accent-foreground: #173e30;
+  --brand: #173e30;
+  --brand-soft: #e8edca;
+  --input: #254230;
+  --playground-accent: #d7f975;
+  --playground-accent-ink: #173e30;
+  --landing-accent: var(--playground-accent);
+  --surface-ring: rgba(23, 62, 48, 0.12);
+}
+.dark .playground {
+  --background: #0f2419;
+  --foreground: #f3f0e2;
+  --card: #163021;
+  --card-foreground: #f3f0e2;
+  --primary: #f3f0e2;
+  --primary-foreground: #0f2419;
+  --secondary: #1d3a2a;
+  --secondary-foreground: #f3f0e2;
+  --muted: #1d3a2a;
+  --muted-foreground: #b3c2b5;
+  --border: #f3f0e2;
+  --ring: #d7f975;
+  --accent: #1d3a2a;
+  --accent-foreground: #f3f0e2;
+  --brand: #d7f975;
+  --brand-soft: #1d3a2a;
+  --input: #f3f0e2;
+  --surface-ring: rgba(243, 240, 226, 0.12);
+}
+.landing {
   min-height: 100svh;
   background: var(--background);
   color: var(--foreground);
@@ -2807,5 +2843,264 @@ button:not(:disabled),
     --tw-enter-scale: 1;
     --tw-exit-scale: 1;
     animation-duration: 125ms;
+  }
+}
+
+/*
+ * Home's first screen, in the Playground. One money line above a hero that
+ * borrows the landing's gestures: the mono eyebrow, the 800-weight headline
+ * with the lime mark, chips with a hard shadow, the sticker. The column
+ * fades back into the workspace on the first send.
+ */
+.home-playground {
+  background: var(--background);
+  color: var(--foreground);
+  transition:
+    background-color var(--motion-panel) var(--ease-out),
+    color var(--motion-panel) var(--ease-out);
+}
+.money-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.money-line:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+  border-radius: 6px;
+}
+.money-figure {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.money-figure[data-unavailable] {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--muted-foreground);
+}
+.money-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.money-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.credit-gauge {
+  display: flex;
+  height: 12px;
+  width: 112px;
+  flex: 0 1 112px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+}
+.credit-gauge-left {
+  height: 100%;
+  background: var(--playground-accent);
+}
+.credit-gauge-held {
+  height: 100%;
+  background: var(--secondary);
+}
+@media (max-width: 479px) {
+  .money-label,
+  .money-line-more {
+    display: none;
+  }
+  .credit-gauge {
+    flex: 1 1 auto;
+  }
+}
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+}
+.playground-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: inherit;
+}
+.playground-eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.home-headline {
+  margin-top: 16px;
+  font-family: var(--font-display);
+  font-size: clamp(44px, 5.2vw, 72px);
+  line-height: 0.96;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  text-wrap: balance;
+}
+.playground-mark {
+  display: inline-block;
+  padding: 0 10px 6px;
+  margin-top: 6px;
+  color: var(--playground-accent-ink);
+  background: var(--playground-accent);
+  transform: rotate(-3deg);
+}
+.home-subtitle {
+  margin-top: 20px;
+  max-width: 24rem;
+  font-size: 19px;
+  line-height: 1.5;
+  letter-spacing: -0.025em;
+  color: var(--muted-foreground);
+}
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+}
+.playground-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 3px 3px 0 var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform var(--motion-feedback) var(--ease-out),
+    box-shadow var(--motion-feedback) var(--ease-out),
+    background-color var(--motion-feedback) var(--ease-out);
+}
+.playground-chip svg {
+  width: 15px;
+  height: 15px;
+}
+.playground-chip:hover:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--border);
+}
+.playground-chip:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--border);
+}
+.playground-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.playground-chip:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+.home-art {
+  position: relative;
+  justify-self: end;
+  width: min(100%, 300px);
+}
+.home-art > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.playground-sticker {
+  position: absolute;
+  left: -8%;
+  bottom: -6%;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: var(--playground-accent-ink);
+  background: var(--playground-accent);
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  transform: rotate(-14deg);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+.playground-sticker:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 4px;
+}
+.home-nudge {
+  margin-top: 22px;
+  min-height: 44px;
+  text-decoration: none;
+}
+@media (max-width: 1023px) {
+  .home-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 16px;
+  }
+  .home-art {
+    width: 120px;
+    margin-top: 8px;
+  }
+  .home-headline {
+    font-size: clamp(40px, 9vw, 56px);
+  }
+  .home-subtitle {
+    font-size: 17px;
+  }
+}
+@media (max-width: 639px) {
+  .playground-sticker {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-playground,
+  .playground-chip {
+    transition: none;
+  }
+  .playground-chip:hover:not(:disabled),
+  .playground-chip:active:not(:disabled) {
+    transform: none;
   }
 }
