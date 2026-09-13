@@ -1,4 +1,4 @@
-# 0043 — The Playground is the app
+# 0044 — The Playground is the app
 
 13 September 2026. Decided with the owner on the afternoon of submission day, after the landing (`80ef801`), Home's first screen (decision 0041) and the Watchlist (brief `docs/design/WATCHLIST_PLAYGROUND_2026-09-13.md`, in flight) had been redrawn in the Playground while Chat, Inbox, Activity, Your money, Account, Welcome, the sign-in gate, the OAuth pages and the shell were still Passbook. Half the app in one voice and half in another was the problem; the owner asked for the rest, straight to `main`, with typecheck and lint as the gate.
 
