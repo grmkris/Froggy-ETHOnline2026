@@ -975,7 +975,7 @@ test("card routes are available to the owner without an opt-in configuration", a
       expect(response?.status).toBe(200);
       expect(await response?.json()).toEqual(
         path === "/api/payment-methods"
-          ? { v: 1, enabled: true, liveCardEntry: false, methods: [] }
+          ? { v: 1, enabled: true, liveCardEntry: true, methods: [] }
           : { v: 1, checkouts: [] }
       );
     })
@@ -983,7 +983,7 @@ test("card routes are available to the owner without an opt-in configuration", a
   expect(f.provider.calls).toHaveLength(0);
 });
 
-test("card configuration defaults to local stubs while live card entry stays unverified", async () => {
+test("card configuration defaults to local stubs", async () => {
   const environment = await Effect.runPromise(
     loadEnvironment().pipe(
       Effect.provideService(
@@ -993,7 +993,6 @@ test("card configuration defaults to local stubs while live card entry stays unv
     )
   );
   expect(environment.cards?.mode).toBe("stub");
-  expect(environment.cards?.liveCardEntry).toBe(false);
 });
 
 test("missing live funding configuration keeps card metadata available without synthetic funding", async () => {
@@ -1015,7 +1014,7 @@ test("missing live funding configuration keeps card metadata available without s
   ).toEqual({
     v: 1,
     enabled: true,
-    liveCardEntry: false,
+    liveCardEntry: true,
     methods: [],
   });
   expect(services.cards.options.linea.stubbed).toBe(false);

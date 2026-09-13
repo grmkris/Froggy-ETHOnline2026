@@ -97,7 +97,6 @@ export const cardProviders = (
 };
 
 export const cardCheckoutConfiguration = (environment: Environment) => ({
-  liveCardEntry: environment.cards?.liveCardEntry === true,
   vault: new CardVault(
     environment.cards?.vaultKey ?? Redacted.make("unconfigured")
   ),

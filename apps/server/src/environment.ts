@@ -287,7 +287,6 @@ export interface Environment {
     readonly vaultKey: Redacted.Redacted;
     readonly lineaRpc: Redacted.Redacted;
     readonly confirmations: number;
-    readonly liveCardEntry: boolean;
   };
   readonly email?:
     | {
@@ -869,9 +868,6 @@ const loadCardConfiguration = Effect.fn("loadCardConfiguration")(
       "LINEA_RPC_URL",
       "replace-linea-read-only-rpc"
     );
-    const cardFramesVerified = yield* Config.boolean(
-      "CARD_CHECKOUT_IFRAMES_VERIFIED"
-    ).pipe(Config.withDefault(false));
     const cardConfirmations = yield* Config.number("LINEA_CONFIRMATIONS").pipe(
       Config.withDefault(2)
     );
@@ -903,7 +899,6 @@ const loadCardConfiguration = Effect.fn("loadCardConfiguration")(
       vaultKey: cardStub ? Redacted.make("e".repeat(64)) : cardVaultKey,
       lineaRpc,
       confirmations: cardConfirmations,
-      liveCardEntry: cardFramesVerified,
     };
   }
 );

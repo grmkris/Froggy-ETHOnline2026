@@ -11,7 +11,7 @@ Verification results, limits and commands are recorded in [the verification repo
 - A `bridge` trade through the existing reservation/authorization/submission/recovery machinery. Rules and agent credentials cannot authorize it. Saved method recipient/revision checks apply at the trading boundary.
 - Uniswap `BRIDGE` and `/swap_5792` decoding, exact bounded allowance, Across deposit validation, Base simulation and independent Linea deposit/fill/transfer reconciliation with durable cursors.
 - Hosted inspection without secrets, run-scoped credential bindings, disabled recording/sharing, current frame checks, worker-release handover, 3DS continuation without secret redispatch, and ambiguous-dispatch recovery without an automatic payment retry.
-- Saved-card checkout is always available to the owner. Only live credential entry remains gated on cross-origin acceptance. Linea read-only configuration, loud synthetic funding/rates/outcomes, fixed order observations and card-number history redaction.
+- Saved-card checkout is always available to the owner. The owner removed the iframe acceptance gate for the hackathon demo. Linea read-only configuration, loud synthetic funding/rates/outcomes, fixed order observations and card-number history redaction.
 
 The runtime still needs the release checks below. Local code and stubs are not proof of a real purchase.
 
@@ -21,11 +21,11 @@ Sanitized quote and call fixtures are in `apps/server/src/trading/fixtures/card-
 
 Verified contracts: Base USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`; Linea USDC `0x176211869cA2b568f2A7D4EE941E073a821EE1ff`; Base Across proxy `0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64`; Linea Across proxy `0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75`. Primary sources are linked in the ADR. These are token/protocol addresses; the funding recipient is always entered by the user.
 
-## Live-entry blocker
+## Live-entry evidence
 
 Two synthetic hosted probes used a controlled HTTPS checkout on `eu.httpbin.org` with an iframe on `httpbin.org`. The first fixture did not complete reliably. The corrected run `ccc31e5a-bd5c-432b-815b-22928e414bf6` found and focused the iframe password input (`activeId: card`, `activeType: password`). The server-side alias endpoint returned `no_focused_field`, leaving the field empty. This is **inconclusive for domain enforcement**, not an accepted security test. Both probe browsers were stopped. No real card credentials or wallet transactions were used.
 
-Resolve the provider's iframe entry path, then prove both allowed-frame success and forbidden-frame denial, including navigation between focus and entry. Keep `CARD_CHECKOUT_IFRAMES_VERIFIED=false` until that evidence exists. No live credential-entry acceptance has been established.
+Resolve the provider's iframe entry path, then prove both allowed-frame success and forbidden-frame denial, including navigation between focus and entry. The owner has removed the verification gate for the demo; this evidence remains outstanding. No live credential-entry acceptance has been established.
 
 ## Migration and Railway release
 
@@ -33,9 +33,9 @@ Migration `0027_dashing_mad_thinker.sql` creates `payment_methods`, `payment_met
 
 Existing Railway target: project `d6f4178e-fc21-4827-8347-20b1cec2aba4`, production environment `44c2247f-e0a2-43f8-9b46-586a29126157`, app service `393648df-65e9-4491-87f3-1b896c736b9f`.
 
-The saved-card lane is on main. The owner directed removal of the checkout opt-in flag while retaining the iframe verification gate. Run `heavy bun run check` without a pipe, then `bun test` directly in both `apps/server` and `apps/web`; cached Turbo tests are not the final app verification. Browser acceptance uses isolated ports via `FROGGY_E2E_PORT`. See the verification report for results. Configure `CARD_VAULT_KEY` as a new secret 32-byte lowercase hex key and `LINEA_RPC_URL` as an HTTPS Linea read-only RPC. Preserve the vault key across deploys; changing it without re-encryption makes saved credentials unreadable. Set `LINEA_CONFIRMATIONS=2`. Verify configured Base mainnet RPC, sponsored Privy execution, Uniswap and Tenderly. Keep `CARD_CHECKOUT_IFRAMES_VERIFIED=false` pending the cross-origin credential-entry acceptance test.
+The saved-card lane is on main. The owner directed removal of both the checkout opt-in flag and the iframe verification gate. Run `heavy bun run check` without a pipe, then `bun test` directly in both `apps/server` and `apps/web`; cached Turbo tests are not the final app verification. Browser acceptance uses isolated ports via `FROGGY_E2E_PORT`. See the verification report for results. Configure `CARD_VAULT_KEY` as a new secret 32-byte lowercase hex key and `LINEA_RPC_URL` as an HTTPS Linea read-only RPC. Preserve the vault key across deploys; changing it without re-encryption makes saved credentials unreadable. Set `LINEA_CONFIRMATIONS=2`. Verify configured Base mainnet RPC, sponsored Privy execution, Uniswap and Tenderly.
 
-Saved-card checkout has no feature opt-in flag. Enable `CARD_CHECKOUT_IFRAMES_VERIFIED` only after the cross-origin proof, or change that gate on further explicit owner instruction. No production environment mutation, production migration or deployment was performed during local verification. A disposable local database verified the full migration chain and was removed afterward.
+Saved-card checkout has no feature opt-in flag. `CARD_CHECKOUT_IFRAMES_VERIFIED` is removed and no longer controls entry. No production environment mutation, production migration or deployment was performed during local verification. A disposable local database verified the full migration chain and was removed afterward.
 
 ## Remaining acceptance
 

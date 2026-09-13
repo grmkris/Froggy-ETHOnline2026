@@ -93,7 +93,6 @@ const fixture = (
   );
   const lineaState = { outage: false };
   const cards = new CardCheckouts({
-    liveCardEntry: false,
     store: store.cards,
     trades,
     privy,
@@ -401,22 +400,35 @@ test("bridge fee requoting covers the shortfall and stops after three deficient 
   expect(paused.checkout.approvedAt).toBeNull();
 });
 
-test("unverified cross-origin entry refuses real credentials before decryption or dispatch", async () => {
+test("approved live checkout releases credentials once without an iframe verification flag", async () => {
   const f = fixture("100000000", "none", false);
   const { checkout } = await prepare(f);
   await f.cards.approve(f.context, checkout.id, answer(checkout.fingerprint));
   const decrypt = spyOn(f.cards.options.vault, "open");
+  const frames = { merchant: "shop.example", hosts: ["pay.example"] };
   try {
-    const refusal = await f.cards
+    const wrongFrame = await f.cards
       .dispatchCredentials(owner, checkout.id, {
-        merchant: "shop.example",
-        hosts: ["pay.example"],
+        ...frames,
+        hosts: ["unapproved.example"],
       })
       .then(() => null, String);
-    expect(refusal).toContain("card.frame_verification");
+    expect(wrongFrame).toContain("card.dispatch");
     expect(decrypt).not.toHaveBeenCalled();
+    const released = await f.cards.dispatchCredentials(
+      owner,
+      checkout.id,
+      frames
+    );
+    expect(released).toEqual(credentials);
+    expect(decrypt).toHaveBeenCalledTimes(1);
     const current = await f.cards.get(owner, checkout.id);
-    expect(current.paymentDispatchedAt).toBeNull();
+    expect(current.paymentDispatchedAt).not.toBeNull();
+    const duplicate = await f.cards
+      .dispatchCredentials(owner, checkout.id, frames)
+      .then(() => null, String);
+    expect(duplicate).toContain("card.dispatch");
+    expect(decrypt).toHaveBeenCalledTimes(1);
   } finally {
     decrypt.mockRestore();
   }

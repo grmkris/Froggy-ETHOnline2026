@@ -69,7 +69,6 @@ const checkoutIn = (book: CardBook, id: CardCheckoutId): CardCheckout => {
   return checkout;
 };
 export interface CardCheckoutOptions {
-  readonly liveCardEntry: boolean;
   readonly store: CardStore;
   readonly trades: TradeCoordinator;
   readonly privy: PrivyServer;
@@ -90,7 +89,7 @@ export class CardCheckouts {
     return {
       v: 1 as const,
       enabled: true,
-      liveCardEntry: this.options.liveCardEntry,
+      liveCardEntry: true,
       methods: await Promise.all(
         methods.map(async (method) => {
           const observed =
@@ -827,11 +826,6 @@ export class CardCheckouts {
     frames: { readonly merchant: string; readonly hosts: readonly string[] }
   ): Promise<CardCredentials> {
     const checkout = await this.refresh(owner, id);
-    if (!checkout.stubbed && !this.options.liveCardEntry) {
-      throw new Error(
-        "card.frame_verification: live entry requires the controlled cross-origin acceptance check."
-      );
-    }
     const balance = checkout.stubbed
       ? null
       : await this.options.linea.balance(checkout.fundingAddress);

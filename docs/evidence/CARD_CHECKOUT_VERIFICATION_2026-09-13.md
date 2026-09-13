@@ -1,6 +1,6 @@
 # Saved-card checkout verification — 13 September 2026
 
-Status: **saved-card checkout is always available; live credential entry awaits cross-origin acceptance**. No real card purchase, Base debit, production migration or Railway deployment was performed.
+Status: **the owner subsequently removed the iframe gate for the hackathon demo; cross-origin acceptance remains unverified**. The gate descriptions below record the earlier verification state; see ADR 0036 for the override. No real card purchase, Base debit, production migration or Railway deployment was performed.
 
 ## Initial implementation evidence
 

@@ -86,9 +86,7 @@ test("payment-method entry fits a narrow screen and remains keyboard accessible"
   expect(errors).toEqual([]);
 });
 
-test("checkout is available in Account while live card entry remains unverified", async ({
-  page,
-}) => {
+test("checkout and card entry are available in Account", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const methods = page.waitForResponse("**/api/payment-methods");
@@ -97,7 +95,7 @@ test("checkout is available in Account while live card entry remains unverified"
   expect(await response.json()).toMatchObject({
     v: 1,
     enabled: true,
-    liveCardEntry: false,
+    liveCardEntry: true,
   });
   await expect(page.locator("#payment-methods")).toBeVisible();
   await expect(

@@ -1,6 +1,6 @@
 # 0036 — Saved-card checkout funding and credential release
 
-Date: 13 September 2026. Status: saved-card checkout is always available; live card entry remains gated pending iframe acceptance.
+Date: 13 September 2026. Status: saved-card checkout and live card entry are available; the owner removed the iframe acceptance gate for the hackathon demo.
 
 The owner requested a demo that funds an independently entered Linea address using existing Base USDC and pays a merchant with a saved card in the shared Chrome. Swaps, password managers, Linea signing, and issuer APIs are outside this change.
 
@@ -24,7 +24,9 @@ One sponsored Privy batch executes through the existing trade ledger and `spendT
 
 Inspection has no card secrets. Payment uses the existing hosted task, same Chrome/profile, remaining allowance and run-scoped secret aliases. The server checks the current merchant and required frame hosts before decrypting; run recording and sharing are disabled. Purchase summaries are converted to fixed observations before persistence, and PAN-shaped Luhn-valid echoes are redacted at Froggy's tool/history boundary. Merchant pages can still expose entered data through the shared screen.
 
-`CARD_CHECKOUT_IFRAMES_VERIFIED` is deliberately retained and defaults to false. It gates release of real card credentials pending the controlled cross-origin secret-binding acceptance test. The verification report records that this acceptance test has not been completed: a preliminary probe focused a cross-origin password field, but `/secrets/{alias}/type` returned `no_focused_field`. It established neither allowed-frame entry nor forbidden-frame denial. This path handles real card credentials, so the server refuses live credential dispatch before decryption until that evidence exists. The coordinator has informed the owner that this one flag remains; removing it requires the owner’s further instruction. Keeping it does not hide saved-card checkout or disable funding review.
+On 13 September 2026, after reviewing the inconclusive cross-origin probe, the owner explicitly directed removal of the iframe verification gate for the hackathon demo and a push to main. `CARD_CHECKOUT_IFRAMES_VERIFIED` and its pre-decryption refusal are removed. Live credential dispatch proceeds through the existing owner approval, funding, current merchant/frame, credential revision and single-dispatch checks. Provider secret bindings remain restricted to the approved merchant and payment domains.
+
+This override does not establish cross-origin acceptance. The preliminary probe focused a cross-origin password field, but `/secrets/{alias}/type` returned `no_focused_field`; allowed-frame entry, forbidden-frame denial and navigation between focus and entry remain unverified. The removed flag controlled Froggy's refusal, not the provider's iframe implementation.
 
 Funding transfer, merchant order observation and issuer charge remain distinct. The card charge is always independently unverified without an issuer API. Privy controls the funding debit; the issuer controls merchant-side charging.
 
