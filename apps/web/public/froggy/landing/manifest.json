@@ -1,0 +1,81 @@
+[
+  {
+    "name": "pond-hero",
+    "original": "design/landing/originals/pond-hero.png",
+    "web": "/froggy/landing/pond-hero.webp",
+    "provider": "OpenAI image generation",
+    "description": "Original Froggy hero generated for the approved landing concept.",
+    "promptNote": "The exact generation prompt was not retained in this manifest; the original output is preserved."
+  },
+  {
+    "name": "playground-hero",
+    "original": "design/landing/originals/playground-hero.png",
+    "web": "/froggy/landing/playground-hero.webp",
+    "provider": "OpenAI image generation",
+    "description": "Original Froggy hero generated for the approved landing concept.",
+    "promptNote": "The exact generation prompt was not retained in this manifest; the original output is preserved."
+  },
+  {
+    "name": "glasshouse-hero",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Wide 3:2 landing hero. Froggy sitting in a beautiful little curved-glass greenhouse workstation on a lily-pad platform, a laptop, blank wallet and mailbox inside. Deep forest #102e24 surroundings, luminous mint, emerald translucent glass, reflective water and soft volumetric light. Premium toy diorama with Froggy's bold editorial identity preserved. All objects completely inside frame, cinematic negative space. No text.",
+    "original": "design/landing/originals/glasshouse-hero.png",
+    "web": "/froggy/landing/glasshouse-hero.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "balance",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy organizing three blank round tokens beside a forest-green wallet, with a small simple blank gauge marker. Bold forest outlines, lime/mint skin, cream belly and eyes, delicate grain, restrained dimensional shading. Fully visible standalone character and props, generous transparent margin. Genuine alpha transparency, no scene background, no checkerboard, no text or symbols.",
+    "original": "design/landing/originals/balance.png",
+    "web": "/froggy/landing/balance.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "email",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy cheerfully opening a small green mailbox and holding a cream envelope. Match Froggy's broad green head, huge cream eyes, friendly grin, forest outlines and restrained grain. Full character and mailbox fully in frame, generous clear margin. Genuine alpha transparency. No scene background, no checkerboard, no lettering or logos.",
+    "original": "design/landing/originals/email.png",
+    "web": "/froggy/landing/email.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "telegram",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy holding a small dark green phone while a single cream paper airplane arrives above its other hand. Match the same broad green head, huge cream eyes, cream belly, friendly grin, forest outlines and delicate grain. Full character fully in frame. Genuine alpha transparency. No scene background, no checkerboard, no lettering, logos or notification numbers.",
+    "original": "design/landing/originals/telegram.png",
+    "web": "/froggy/landing/telegram.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "coding-agent",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy confidently connecting a chunky cable to a small open laptop, a clean blank green screen. Match the same broad green head, huge cream eyes, cream belly, friendly grin, forest outlines and delicate grain. Full character and props fully in frame, generous margin. Genuine alpha transparency. No scene background, no checkerboard, no lettering, code, numbers or logos.",
+    "original": "design/landing/originals/coding-agent.png",
+    "web": "/froggy/landing/coding-agent.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "chatgpt-mcp",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy linking a large cream speech bubble to a small forest-green workstation using a short friendly curved cable. Broad green head, huge cream eyes, cream belly, friendly grin, forest outlines and delicate grain. Full character and props fully in frame, generous margin. Genuine alpha transparency. No scene background, no checkerboard, no lettering, numbers, trademarks or logos.",
+    "original": "design/landing/originals/chatgpt-mcp.png",
+    "web": "/froggy/landing/chatgpt-mcp.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "card-checkout",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy holding a completely blank cream payment card in one hand beside a small green shopping bag. Friendly confident expression, broad green head, huge cream eyes, cream belly, forest outlines, subtle grain and shading. Full character fully in frame with generous margin. Genuine alpha transparency. No scene background, no checkerboard, no digits, chip details, banking logos or text.",
+    "original": "design/landing/originals/card-checkout.png",
+    "web": "/froggy/landing/card-checkout.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "trading",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Thoughtful Froggy studying a small market display with a modest wavy line moving both up and down, holding a tiny magnifying glass. Broad green head, huge cream eyes, cream belly, friendly grin, forest outlines and delicate grain. No rockets, riches or profit symbolism. Full character and props fully in frame. Genuine alpha transparency. No background, no checkerboard, no numbers, letters or logos.",
+    "original": "design/landing/originals/trading.png",
+    "web": "/froggy/landing/trading.webp",
+    "provider": "OpenAI image generation"
+  },
+  {
+    "name": "watchlist",
+    "prompt": "Create a NEW original image in the Froggy character family. Use the previous illustration as the character identity reference, preserving its recognizable face and proportions. Square transparent-background editorial sticker spot illustration. Froggy peering through a small green telescope, beside two simple blank bookmark-shaped cards and a small shopping bag. Broad green head, huge cream eyes, cream belly, friendly grin, forest outlines and delicate grain. Full character and props fully in frame with generous clear margin. Genuine alpha transparency. No scene background, no checkerboard, no lettering, numbers or logos.",
+    "original": "design/landing/originals/watchlist.png",
+    "web": "/froggy/landing/watchlist.webp",
+    "provider": "OpenAI image generation"
+  }
+]

@@ -10,6 +10,7 @@ export default defineConfig({
   ignorePatterns: [
     ...core.ignorePatterns,
     "tools/spikes/**",
+    "design/landing/videos/*/assets/gsap.min.js",
     ".agents/skills/**",
   ],
   // Package boundaries are declared once in tools/graph.ts. Running them as a

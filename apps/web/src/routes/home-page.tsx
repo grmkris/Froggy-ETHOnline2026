@@ -1,5 +1,6 @@
 import { Skeleton } from "@froggy/ui/components/skeleton";
-import { Navigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type { ReactElement } from "react";
 
 import { useSetup } from "../hooks/use-setup";
@@ -34,8 +35,13 @@ const HomeSkeleton = (): ReactElement => (
 
 export const HomePage = (): ReactElement => {
   const gate = useWelcomeGate();
-  if (gate === "welcome") {
-    return <Navigate replace to="/welcome" />;
-  }
+  const navigate = useNavigate();
+  useEffect(() => {
+    // A stable effect lets the lazy welcome route finish loading. Recreating
+    // Navigate props in its layout effect can restart that pending transition.
+    if (gate === "welcome") {
+      void navigate({ replace: true, to: "/welcome" });
+    }
+  }, [gate, navigate]);
   return gate === "home" ? <ChatPage /> : <HomeSkeleton />;
 };

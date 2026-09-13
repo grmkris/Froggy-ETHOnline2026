@@ -1,0 +1,95 @@
+{
+  "pond": {
+    "ok": true,
+    "checks": {
+      "lint": {
+        "errorCount": 0,
+        "warningCount": 1,
+        "infoCount": 0
+      },
+      "runtime": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "layout": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "motion": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "contrast": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      }
+    },
+    "advisory": "Single composition file size; intentionally kept editable as one short film."
+  },
+  "playground": {
+    "ok": true,
+    "checks": {
+      "lint": {
+        "errorCount": 0,
+        "warningCount": 1,
+        "infoCount": 0
+      },
+      "runtime": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "layout": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "motion": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "contrast": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      }
+    },
+    "advisory": "Single composition file size; intentionally kept editable as one short film."
+  },
+  "glasshouse": {
+    "ok": true,
+    "checks": {
+      "lint": {
+        "errorCount": 0,
+        "warningCount": 1,
+        "infoCount": 0
+      },
+      "runtime": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "layout": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "motion": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      },
+      "contrast": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "infoCount": 0
+      }
+    },
+    "advisory": "Single composition file size; intentionally kept editable as one short film."
+  }
+}

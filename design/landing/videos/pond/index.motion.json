@@ -1,0 +1,25 @@
+{
+  "duration": 20,
+  "assertions": [
+    {
+      "kind": "appearsBy",
+      "selector": "#intro h1",
+      "bySec": 0.9
+    },
+    {
+      "kind": "appearsBy",
+      "selector": "#browse h2",
+      "bySec": 3.9
+    },
+    {
+      "kind": "appearsBy",
+      "selector": "#follow h2",
+      "bySec": 11.9
+    },
+    {
+      "kind": "appearsBy",
+      "selector": "#outro h2",
+      "bySec": 18.9
+    }
+  ]
+}

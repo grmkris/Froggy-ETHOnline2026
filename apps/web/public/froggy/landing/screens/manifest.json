@@ -1,0 +1,11 @@
+{
+  "capture": "Actual app UI, Playwright, all external providers stubbed, local identity. Labels retained.",
+  "sources": {
+    "browser": "e2e/landing-assets.spec.ts: actual Froggy browser controls around explicitly labelled synthetic merchant.",
+    "trading": "/tmp/froggy-feature-review/details/trading.png",
+    "watchlist": "e2e/landing-assets.spec.ts: real local watchlist containing an explicitly labelled demo item.",
+    "connections": "/tmp/froggy-feature-review/screens--agents-holds-together-at-1440px-chromium/agents-1440.png",
+    "wallet": "/tmp/froggy-feature-review/screens--wallet-holds-together-at-1440px-chromium/wallet-1440.png",
+    "inbox": "/tmp/froggy-feature-review/details/inbox.png"
+  }
+}

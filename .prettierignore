@@ -40,3 +40,8 @@ design/preproduction/screens/review-board.html
 design/preproduction/screens/task-workspace.html
 design/preproduction/screens/families.html
 design/preproduction/ds-bundle/brand/mark.html
+
+# Frozen GSAP runtime shipped with the editable landing films.
+design/landing/videos/pond/assets/gsap.min.js
+design/landing/videos/playground/assets/gsap.min.js
+design/landing/videos/glasshouse/assets/gsap.min.js

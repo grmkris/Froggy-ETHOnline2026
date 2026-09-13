@@ -1,0 +1,10 @@
+{
+  "name": "froggy-pond-promo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bunx --bun hyperframes@0.8.36 preview --background",
+    "check": "bunx --bun hyperframes@0.8.36 check --snapshots",
+    "render": "bunx --bun hyperframes@0.8.36 render --fps 30 --quality high --output ../../../../apps/web/public/froggy/landing/pond-promo.mp4"
+  }
+}

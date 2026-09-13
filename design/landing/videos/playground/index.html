@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920,height=1080" />
+    <title>Froggy / playground</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: Manrope;
+        src: url(assets/manrope.woff2) format("woff2");
+        font-weight: 200 800;
+        font-display: block;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+      body {
+        font-family: Manrope, sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      #root {
+        width: 1920px;
+        height: 1080px;
+        position: relative;
+        overflow: hidden;
+        color: var(--ink);
+        --paper: #f7f5eb;
+        --ink: #173e30;
+        --accent: #d5ed94;
+        --panel: #e8eddd;
+        --line: #a7b999;
+      }
+      #root.playground {
+        --paper: #f9f6e9;
+        --ink: #173e30;
+        --accent: #d7f975;
+        --panel: #e8edca;
+        --line: #173e30;
+      }
+      #root.glasshouse {
+        --paper: #0c241c;
+        --ink: #ecf6df;
+        --accent: #d3f4a1;
+        --panel: #1b3c2b;
+        --line: #54734f;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      .scene-bg {
+        position: absolute;
+        inset: 0;
+        background: var(--paper);
+      }
+      .brand {
+        position: absolute;
+        left: 110px;
+        top: 66px;
+        font-weight: 800;
+        font-size: 43px;
+        letter-spacing: -2px;
+        z-index: 3;
+      }
+      .edition {
+        position: absolute;
+        right: 110px;
+        top: 81px;
+        font-size: 15px;
+        letter-spacing: 3px;
+        z-index: 3;
+      }
+      .copy {
+        position: absolute;
+        left: 110px;
+        top: 277px;
+        width: 640px;
+        z-index: 2;
+      }
+      .eyebrow {
+        font-size: 18px;
+        letter-spacing: 3px;
+        font-weight: 700;
+        margin-bottom: 28px;
+        line-height: 1.4;
+      }
+      h1 {
+        font-size: 130px;
+        line-height: 1.01;
+        letter-spacing: -8px;
+        font-weight: 600;
+      }
+      h1 em {
+        font-family: Georgia, serif;
+        font-weight: 500;
+        color: var(--ink);
+      }
+      h2 {
+        font-size: 92px;
+        line-height: 1.04;
+        letter-spacing: -5px;
+        font-weight: 600;
+      }
+      p.subtitle {
+        font-size: 29px;
+        line-height: 1.6;
+        margin-top: 34px;
+        max-width: 590px;
+      }
+      .hero-art {
+        position: absolute;
+        right: 85px;
+        top: 230px;
+        width: 1030px;
+        height: 690px;
+        object-fit: cover;
+        border-radius: 46% 46% 20% 20%;
+      }
+      .pill {
+        position: absolute;
+        background: var(--accent);
+        color: #173e30;
+        border: 1px solid var(--line);
+        border-radius: 60px;
+        padding: 19px 30px;
+        font-size: 25px;
+        font-weight: 650;
+        z-index: 3;
+      }
+      .hero-pill-one {
+        right: 550px;
+        top: 188px;
+      }
+      .hero-pill-two {
+        right: 65px;
+        top: 730px;
+      }
+      .footnote {
+        position: absolute;
+        left: 110px;
+        bottom: 90px;
+        font-size: 20px;
+        letter-spacing: 0.5px;
+      }
+      .screen-stage {
+        position: absolute;
+        left: 820px;
+        top: 238px;
+        width: 990px;
+        height: 688px;
+        perspective: 1800px;
+      }
+      .screen {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        border: 2px solid var(--line);
+        border-radius: 22px;
+        background: #f9fcf7;
+        box-shadow: 0 22px 55px #102b2020;
+      }
+      .screen-top {
+        height: 43px;
+        background: #e5ecdf;
+        color: #173e30;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 20px;
+        letter-spacing: 1px;
+      }
+      .screen-top i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #90a583;
+      }
+      .screen-top div {
+        margin-left: 18px;
+      }
+      .screen img {
+        width: 990px;
+        height: auto;
+        display: block;
+      }
+      .screen-stage .screen-frog {
+        position: absolute;
+        width: 260px;
+        height: 260px;
+        object-fit: contain;
+        right: -42px;
+        bottom: -62px;
+        z-index: 2;
+      }
+      .scene .tag {
+        margin-top: 34px;
+        display: inline-block;
+        border: 1px solid var(--line);
+        padding: 15px 21px;
+        font-size: 21px;
+        border-radius: 40px;
+        line-height: 1.3;
+        background: var(--panel);
+      }
+      .spend .copy {
+        top: 245px;
+      }
+      .spend .copy h2 {
+        font-size: 87px;
+      }
+      .spend .screen-stage {
+        left: 890px;
+        width: 920px;
+        top: 245px;
+      }
+      .spend .screen img {
+        width: 920px;
+      }
+      .spend .screen-stage {
+        height: 645px;
+      }
+      .money-note {
+        position: absolute;
+        left: 110px;
+        bottom: 121px;
+        width: 625px;
+        border-top: 1px solid var(--line);
+        padding-top: 25px;
+        font-size: 20px;
+        line-height: 1.55;
+      }
+      .money-note strong {
+        font-size: 24px;
+        display: block;
+        margin-bottom: 7px;
+      }
+      .follow .copy {
+        top: 250px;
+      }
+      .follow .screen-stage {
+        height: 635px;
+        top: 255px;
+      }
+      .follow .screen-frog {
+        width: 280px;
+        height: 280px;
+        right: 20px;
+        bottom: -80px;
+      }
+      .connect .copy {
+        top: 260px;
+        width: 650px;
+      }
+      .connect-art {
+        position: absolute;
+        width: 590px;
+        height: 590px;
+        left: 905px;
+        top: 215px;
+        object-fit: contain;
+      }
+      .connect-card {
+        position: absolute;
+        right: 95px;
+        top: 308px;
+        width: 400px;
+        padding: 36px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        font-size: 30px;
+        font-weight: 650;
+        line-height: 1.25;
+      }
+      .connect-card small {
+        display: block;
+        font-size: 18px;
+        font-weight: 400;
+        line-height: 1.5;
+        margin-top: 15px;
+      }
+      .connect-card.second {
+        top: 590px;
+        right: 180px;
+      }
+      .connection-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 1px solid var(--line);
+        display: block;
+        margin-bottom: 21px;
+      }
+      .outro .copy {
+        top: 277px;
+        width: 1040px;
+      }
+      .outro h2 {
+        font-size: 117px;
+        line-height: 1.04;
+      }
+      .outro h2 em {
+        font-family: Georgia, serif;
+        font-weight: 500;
+      }
+      .outro-art {
+        position: absolute;
+        right: 175px;
+        top: 200px;
+        width: 625px;
+        height: 710px;
+        object-fit: contain;
+      }
+      .outro .pill {
+        position: static;
+        display: inline-block;
+        margin-top: 48px;
+        font-size: 26px;
+        padding: 21px 33px;
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 1920px;
+        height: 8px;
+        background: var(--accent);
+        z-index: 10;
+        transform-origin: left center;
+      }
+      .playground h1,
+      .playground h2 {
+        font-weight: 800;
+        letter-spacing: -7px;
+      }
+      .playground h1 em {
+        font-family: Manrope, sans-serif;
+        font-style: normal;
+        font-weight: 800;
+        background: var(--accent);
+        padding-inline: 10px;
+      }
+      .playground .hero-art {
+        border-radius: 12px;
+        border: 3px solid var(--ink);
+        box-shadow: 12px 12px 0 var(--ink);
+        width: 970px;
+        right: 110px;
+      }
+      .playground .pill {
+        border: 3px solid var(--ink);
+        border-radius: 8px;
+        box-shadow: 5px 5px 0 var(--ink);
+      }
+      .playground .screen {
+        border: 3px solid var(--ink);
+        border-radius: 12px;
+        box-shadow: 10px 10px 0 var(--ink);
+      }
+      .playground .connect-card {
+        border: 3px solid var(--ink);
+        border-radius: 8px;
+        box-shadow: 8px 8px 0 var(--ink);
+      }
+      .glasshouse .hero-art {
+        border-radius: 35px;
+        border: 1px solid var(--line);
+      }
+      .glasshouse h1 em,
+      .glasshouse .outro h2 em {
+        color: var(--accent);
+      }
+      .glasshouse .hero-pill-one,
+      .glasshouse .hero-pill-two {
+        background: #254b38;
+        color: #ecf6df;
+      }
+      .glasshouse .scene-bg {
+        background: radial-gradient(
+          ellipse at 78% 85%,
+          #284d2e,
+          var(--paper) 62%
+        );
+      }
+      .glasshouse .screen {
+        box-shadow: 0 30px 85px #0006;
+      }
+      .glasshouse .connect-card {
+        background: #234631;
+        border-color: #678b58;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      class="playground"
+      data-composition-id="froggy-playground"
+      data-start="0"
+      data-duration="20"
+      data-width="1920"
+      data-height="1080"
+    >
+      <section
+        id="intro"
+        class="clip"
+        data-start="0"
+        data-duration="3"
+        data-track-index="1"
+      >
+        <div class="scene intro">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">A LITTLE HELP. A LOT OF POSSIBILITY.</p>
+            <h1>A home for<br />your <em>agents.</em></h1>
+            <p class="subtitle">
+              A browser. A balance. An inbox.<br />All for your agents.
+            </p>
+          </div>
+          <img
+            class="hero-art"
+            src="assets/hero.webp"
+            alt="Froggy’s workspace"
+          />
+          <div class="pill hero-pill-one">One happy little workspace.</div>
+          <div class="pill hero-pill-two">Big ideas welcome.</div>
+          <p class="footnote">Your workspace. Your spending controls.</p>
+        </div>
+      </section>
+      <section
+        id="browse"
+        class="clip"
+        data-start="3"
+        data-duration="4"
+        data-track-index="1"
+      >
+        <div class="scene browse">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">01 / BROWSE AND BUY</p>
+            <h2>One browser.<br />Two curious<br />minds.</h2>
+            <p class="subtitle">
+              Research, compare, then take the page whenever you need to.
+            </p>
+            <div class="tag">Shared Chrome · Human handoff</div>
+          </div>
+          <div class="screen-stage">
+            <div class="screen">
+              <div class="screen-top">
+                <i></i><i></i><i></i>
+                <div>FROGGY WORKSPACE · LOCAL DEMONSTRATION</div>
+              </div>
+              <img
+                src="assets/browser.webp"
+                data-layout-allow-overflow
+                alt="Actual Froggy browser interface"
+              />
+            </div>
+            <img class="screen-frog" src="assets/card-checkout.webp" alt="" />
+          </div>
+        </div>
+      </section>
+      <section
+        id="spend"
+        class="clip"
+        data-start="7"
+        data-duration="4"
+        data-track-index="2"
+      >
+        <div class="scene spend">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">02 / RESEARCH AND TRADE</p>
+            <h2>An idea.<br />A quote.<br />Your call.</h2>
+            <p class="subtitle">
+              Explore a trade. Review the terms.<br />Keep the receipt.
+            </p>
+          </div>
+          <div class="money-note">
+            <strong>Credits run the work.</strong>Your wallet funds supported
+            onchain purchases and trades. Card checkout stays separate.
+          </div>
+          <div class="screen-stage">
+            <div class="screen">
+              <div class="screen-top">
+                <i></i><i></i><i></i>
+                <div>FROGGY TRADING · DEMONSTRATION PROVIDERS</div>
+              </div>
+              <img
+                src="assets/trading-screen.webp"
+                data-layout-allow-overflow
+                alt="Actual Froggy trading interface"
+              />
+            </div>
+            <img class="screen-frog" src="assets/trading.webp" alt="" />
+          </div>
+        </div>
+      </section>
+      <section
+        id="follow"
+        class="clip"
+        data-start="11"
+        data-duration="4"
+        data-track-index="2"
+      >
+        <div class="scene follow">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">03 / WATCH AND FOLLOW UP</p>
+            <h2>Less checking.<br />More knowing.</h2>
+            <p class="subtitle">
+              Watchlists, routines and an inbox.<br />A little follow-through
+              goes a long way.
+            </p>
+            <div class="tag">Email · Telegram · Scheduled tasks</div>
+          </div>
+          <div class="screen-stage">
+            <div class="screen">
+              <div class="screen-top">
+                <i></i><i></i><i></i>
+                <div>FROGGY WATCHLIST · LOCAL DEMONSTRATION</div>
+              </div>
+              <img
+                src="assets/watchlist-screen.webp"
+                data-layout-allow-overflow
+                alt="Actual Froggy watchlist interface"
+              />
+            </div>
+            <img class="screen-frog" src="assets/email.webp" alt="" />
+          </div>
+        </div>
+      </section>
+      <section
+        id="connect"
+        class="clip"
+        data-start="15"
+        data-duration="3"
+        data-track-index="3"
+      >
+        <div class="scene connect">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">04 / CONNECT YOUR AGENTS</p>
+            <h2>Bring your<br />favourite<br />brains.</h2>
+            <p class="subtitle">
+              The same workspace.<br />More ways to get things done.
+            </p>
+          </div>
+          <img
+            class="connect-art"
+            src="assets/coding-agent.webp"
+            alt="Froggy connecting a laptop"
+          />
+          <div class="connect-card">
+            <div class="connection-dot"></div>
+            Coding agents<small
+              >A browser and tools for your development workflow.</small
+            >
+          </div>
+          <div class="connect-card second">
+            <div class="connection-dot"></div>
+            Chat + MCP<small
+              >Connect compatible clients with your approval.</small
+            >
+          </div>
+        </div>
+      </section>
+      <section
+        id="outro"
+        class="clip"
+        data-start="18"
+        data-duration="2"
+        data-track-index="3"
+      >
+        <div class="scene outro">
+          <div class="scene-bg"></div>
+          <div class="copy">
+            <p class="eyebrow">MAKE YOURSELF AT HOME</p>
+            <h2>You’ve got ideas.<br /><em>Froggy’s got you.</em></h2>
+            <div class="pill">Say hello to Froggy ↗</div>
+          </div>
+          <img
+            class="outro-art"
+            src="assets/telegram.webp"
+            alt="Froggy sending a paper plane"
+          />
+        </div>
+      </section>
+      <div class="brand">froggy.</div>
+      <div class="edition">A HOME FOR YOUR AGENTS</div>
+      <div class="progress"></div>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const theme = "playground";
+      const timing = [
+        { id: "intro", start: 0, duration: 3 },
+        { id: "browse", start: 3, duration: 4 },
+        { id: "spend", start: 7, duration: 4 },
+        { id: "follow", start: 11, duration: 4 },
+        { id: "connect", start: 15, duration: 3 },
+        { id: "outro", start: 18, duration: 2 },
+      ];
+      for (const scene of timing) {
+        const prefix = "#" + scene.id;
+        tl.fromTo(
+          prefix + " .eyebrow",
+          { opacity: 0, y: 15 },
+          { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
+          scene.start + 0.04
+        );
+        tl.fromTo(
+          prefix + " h1, " + prefix + " h2",
+          { opacity: 0, y: 55 },
+          { opacity: 1, y: 0, duration: 0.65, ease: "power3.out" },
+          scene.start + 0.1
+        );
+        if (scene.id !== "outro") {
+          tl.fromTo(
+            prefix +
+              " .subtitle, " +
+              prefix +
+              " .tag, " +
+              prefix +
+              " .money-note",
+            { opacity: 0, y: 25 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.5,
+              stagger: 0.12,
+              ease: "power2.out",
+            },
+            scene.start + 0.35
+          );
+        }
+
+        if (scene.id !== "outro")
+          tl.to(
+            prefix + " .scene",
+            { opacity: 0, y: -28, duration: 0.22, ease: "power2.in" },
+            scene.start + scene.duration - 0.22
+          );
+      }
+      tl.fromTo(
+        ".hero-art",
+        { opacity: 0, scale: 0.91, rotation: theme === "playground" ? -6 : 0 },
+        {
+          opacity: 1,
+          scale: 1,
+          rotation: theme === "playground" ? 2 : 0,
+          duration: 1,
+          ease: "power3.out",
+        },
+        0.04
+      );
+      tl.fromTo(
+        ".hero-pill-one, .hero-pill-two",
+        { opacity: 0, y: 25, scale: 0.9 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.55,
+          stagger: 0.22,
+          ease: "back.out(1.3)",
+        },
+        0.55
+      );
+      for (const scene of timing.filter((s) =>
+        ["browse", "spend", "follow"].includes(s.id)
+      )) {
+        const target = "#" + scene.id;
+        tl.fromTo(
+          target + " .screen",
+          {
+            opacity: 0,
+            y: 80,
+            scale: 0.92,
+            rotationY: theme === "glasshouse" ? -13 : 0,
+            rotation: theme === "playground" ? 4 : 0,
+          },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            rotationY: 0,
+            rotation: 0,
+            duration: 0.9,
+            ease: "power3.out",
+          },
+          scene.start + 0.08
+        );
+        tl.fromTo(
+          target + " .screen-frog",
+          { opacity: 0, y: 55, scale: 0.85 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.65, ease: "back.out(1.3)" },
+          scene.start + 0.6
+        );
+        tl.to(
+          target + " .screen",
+          { scale: 1.035, duration: 2.6, ease: "none" },
+          scene.start + 1
+        );
+      }
+      tl.fromTo(
+        ".connect-art",
+        { opacity: 0, y: 70, scale: 0.9 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" },
+        15.1
+      );
+      tl.fromTo(
+        ".connect-card",
+        { opacity: 0, x: 90, rotation: theme === "playground" ? 7 : 0 },
+        {
+          opacity: 1,
+          x: 0,
+          rotation: 0,
+          duration: 0.65,
+          stagger: 0.24,
+          ease: "power3.out",
+        },
+        15.35
+      );
+      tl.fromTo(
+        ".outro-art",
+        { opacity: 0, y: 80 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" },
+        18.06
+      );
+      tl.fromTo(
+        ".outro .pill",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
+        18.4
+      );
+      tl.fromTo(
+        ".progress",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 20, ease: "none" },
+        0
+      );
+      window.__timelines["froggy-playground"] = tl;
+    </script>
+  </body>
+</html>

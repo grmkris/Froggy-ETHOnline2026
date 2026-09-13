@@ -5,7 +5,8 @@
     ".agents/skills/**",
     ".railway/railway.ts",
     ".design-sync/**",
-    "design/preproduction/**"
+    "design/preproduction/**",
+    "design/landing/videos/*/assets/gsap.min.js"
   ],
   "ignoreDependencies": ["railway"],
   "workspaces": {
