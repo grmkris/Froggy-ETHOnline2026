@@ -11,7 +11,7 @@ interface Capability {
 }
 
 /** The same catalogue selects model tools and checks execution authority. */
-export const CAPABILITIES: readonly Capability[] = [
+const CAPABILITIES: readonly Capability[] = [
   {
     names: [
       "browser_navigate",
@@ -42,7 +42,7 @@ export const CAPABILITIES: readonly Capability[] = [
     writes: true,
   },
   {
-    names: ["watchlist_get", "watchlist_list", "wallet_monitor_status"],
+    names: ["watchlist_get", "watchlist_list"],
     surfaces: ["chat", "browse", "schedule", "monitor"],
     scope: "watchlist:read",
     writes: false,
@@ -55,9 +55,6 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     names: [
-      "onchain_alert_configure",
-      "track_wallet",
-      "wallet_monitor_update",
       "monitor_configure",
       "monitor_list",
       "monitor_pause",
@@ -82,11 +79,15 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     names: [
+      "research_capabilities",
+      "research_guide",
+      "research_read",
+      "graph_schema",
+      "graph_read",
       "services_list",
       "service_status",
       "market_search",
       "token_inspect",
-      "token_snapshot",
       "token_research",
       "rpc_read",
       "graph_discover",
@@ -103,7 +104,7 @@ export const CAPABILITIES: readonly Capability[] = [
     scope: "pay",
     writes: true,
   },
-  { names: ["credits_balance", "history_search"], surfaces: ["chat"], scope: null, writes: false },
+  { names: ["history_search"], surfaces: ["chat"], scope: null, writes: false },
   {
     names: [
       "browse_task",

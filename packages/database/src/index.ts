@@ -85,26 +85,3 @@ export class Database extends Context.Service<
 }
 
 export { monitoringAccounts } from "./schema";
-
-export {
-  walletStreamState,
-  walletActivities,
-  walletAlerts,
-  walletAlertWindows,
-  walletPriceEvaluations,
-} from "./schema";
-
-export {
-  creditAccounts,
-  creditCharges,
-  creditPurchases,
-  creditEntries,
-} from "./schema";
-
-export {
-  paymentMethods,
-  paymentMethodCredentials,
-  cardCheckouts,
-} from "./schema";
-
-export { savedItemData } from "./schema";

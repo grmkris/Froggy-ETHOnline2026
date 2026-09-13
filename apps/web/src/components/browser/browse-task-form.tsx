@@ -1,5 +1,11 @@
-import type { ConversationId } from "@froggy/domain";
-import { BrowseBudget, BrowseTaskResponse } from "@froggy/protocol";
+import type { TaskId, ConversationId } from "@froggy/domain";
+import {
+  BrowseBudget,
+  BrowseTaskResponse,
+  BrowseChallenge,
+  BrowseQuoteResponse,
+} from "@froggy/protocol";
+import type { BrowseQuote } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import {
   Field,
@@ -13,72 +19,217 @@ import {
 } from "@froggy/ui/components/toggle-group";
 import { Link } from "@tanstack/react-router";
 import { Schema } from "effect";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ReactElement } from "react";
 
-import { useCredits } from "../../hooks/use-credits";
 import { useChatSurface } from "../../lib/chat-context";
-import { formatCredits } from "../../lib/credit-view";
 import { useSessionToken } from "../../lib/session-token";
 import { useWorkspace } from "../../lib/workspace-context";
 import { BrowseTaskCard } from "./browse-task-card";
 
 const BUDGETS: readonly BrowseBudget[] = [1, 3, 5];
-type Task = (typeof BrowseTaskResponse.Type)["task"];
-type GetToken = () => Promise<string | null>;
-const ErrorResponse = Schema.Struct({ error: Schema.String });
-const TaskList = Schema.Struct({
-  v: Schema.Literal(1),
-  tasks: Schema.Array(BrowseTaskResponse.fields.task),
+const dollars = (micros: number): string =>
+  `$${(micros / 1_000_000).toFixed(2)}`;
+
+const TaskResponse = BrowseTaskResponse;
+type Task = (typeof TaskResponse.Type)["task"];
+const Signed = Schema.Struct({
+  v: Schema.Literals([1]),
+  header: Schema.String,
 });
+const ErrorResponse = Schema.Struct({ error: Schema.String });
+type GetToken = () => Promise<string | null>;
 interface BrowseRequest {
-  readonly v: 2;
-  readonly conversationId: ConversationId;
+  readonly conversationId?: ConversationId;
   readonly kind: "browse";
   readonly instruction: string;
   readonly budgetUsd: BrowseBudget;
   readonly idempotencyKey: string;
+  readonly quoteTaskId?: TaskId;
+}
+interface PaymentRequest {
+  readonly challenge: BrowseChallenge;
+  readonly quoteTaskId: TaskId;
 }
 const request = async (
   getToken: GetToken,
   path: string,
-  body?: BrowseRequest
-): Promise<Schema.Json> => {
+  body?: BrowseRequest | PaymentRequest,
+  payment?: string
+): Promise<Response> => {
   const token = await getToken();
+  const headers = new Headers({
+    authorization: `Bearer ${token ?? ""}`,
+    "content-type": "application/json",
+  });
+  if (payment !== undefined) {
+    headers.set("payment-signature", payment);
+  }
   const init: RequestInit = {
-    method: body ? "POST" : "GET",
-    headers: {
-      authorization: `Bearer ${token ?? ""}`,
-      "content-type": "application/json",
-    },
+    method: body === undefined ? "GET" : "POST",
+    headers,
     cache: "no-store",
   };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
   }
-  const response = await fetch(path, init);
-  const value: unknown = await response.json();
-  if (!response.ok) {
-    const error = Schema.decodeUnknownResult(ErrorResponse)(value);
-    throw new Error(
-      error._tag === "Success"
-        ? error.success.error
-        : "The task could not be confirmed. Check its status before retrying."
-    );
-  }
-  return Schema.decodeUnknownSync(Schema.Json)(value);
+  return await fetch(path, init);
 };
-const savedTask = async (
+const fail = async (response: Response): Promise<never> => {
+  const parsed = Schema.decodeUnknownResult(ErrorResponse)(
+    await response.json()
+  );
+  throw new Error(
+    parsed._tag === "Success"
+      ? parsed.success.error.slice(0, 1000)
+      : "The task could not be confirmed. Check its status before retrying."
+  );
+};
+const fetchTask = async (
+  getToken: GetToken,
+  id: TaskId
+): Promise<Task | null> => {
+  try {
+    const response = await request(getToken, `/api/tasks/${id}`);
+    if (!response.ok) {
+      return null;
+    }
+    return Schema.decodeUnknownSync(TaskResponse)(await response.json()).task;
+  } catch {
+    return null;
+  }
+};
+const fetchSavedTask = async (
   getToken: GetToken,
   key: string
 ): Promise<Task | null> => {
-  const list = Schema.decodeUnknownSync(TaskList)(
-    await request(
+  try {
+    const response = await request(
       getToken,
       `/api/tasks?idempotencyKey=${encodeURIComponent(key)}`
-    )
-  );
-  return list.tasks[0] ?? null;
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const list = Schema.decodeUnknownSync(
+      Schema.Struct({
+        v: Schema.Literals([1]),
+        tasks: Schema.Array(TaskResponse.fields.task),
+      })
+    )(await response.json());
+    const [task] = list.tasks;
+    return task !== undefined && task.status !== "quoted" ? task : null;
+  } catch {
+    return null;
+  }
+};
+
+type QuoteResult =
+  | {
+      readonly kind: "quote";
+      readonly quote: BrowseQuote;
+      readonly challenge: BrowseChallenge;
+    }
+  | { readonly kind: "task"; readonly task: Task }
+  | { readonly kind: "error"; readonly error: string };
+const fetchQuote = async (
+  getToken: GetToken,
+  input: BrowseRequest
+): Promise<QuoteResult> => {
+  try {
+    const response = await request(getToken, "/api/tasks", input);
+    if (response.status === 402) {
+      const raw: unknown = await response.json();
+      const parsed = Schema.decodeUnknownResult(BrowseQuoteResponse)(raw);
+      if (parsed._tag === "Failure") {
+        const error = Schema.decodeUnknownResult(ErrorResponse)(raw);
+        return {
+          kind: "error",
+          error:
+            error._tag === "Success"
+              ? error.success.error
+              : "Quote unavailable.",
+        };
+      }
+      return {
+        kind: "quote",
+        quote: parsed.success.quote,
+        challenge: Schema.decodeUnknownSync(BrowseChallenge)(raw),
+      };
+    }
+    if (!response.ok) {
+      return await fail(response);
+    }
+    return {
+      kind: "task",
+      task: Schema.decodeUnknownSync(TaskResponse)(await response.json()).task,
+    };
+  } catch (error) {
+    return {
+      kind: "error",
+      error: error instanceof Error ? error.message : "Quote unavailable.",
+    };
+  }
+};
+interface PurchaseResult {
+  readonly task: Task;
+  readonly error: string | null;
+}
+const purchaseTask = async (
+  getToken: GetToken,
+  quote: BrowseQuote,
+  challenge: BrowseChallenge
+): Promise<PurchaseResult> => {
+  try {
+    const signed = await request(getToken, "/api/wallet/pay", {
+      challenge,
+      quoteTaskId: quote.taskId,
+    });
+    if (!signed.ok) {
+      return await fail(signed);
+    }
+    const { header } = Schema.decodeUnknownSync(Signed)(await signed.json());
+    const response = await request(
+      getToken,
+      "/api/tasks",
+      {
+        kind: "browse",
+        instruction: quote.instruction,
+        budgetUsd: quote.budgetUsd,
+        idempotencyKey: quote.idempotencyKey,
+        quoteTaskId: quote.taskId,
+      },
+      header
+    );
+    if (!response.ok) {
+      return await fail(response);
+    }
+    return {
+      task: Schema.decodeUnknownSync(TaskResponse)(await response.json()).task,
+      error: null,
+    };
+  } catch (error) {
+    const task = await fetchTask(getToken, quote.taskId);
+    return {
+      task: task ?? {
+        id: quote.taskId,
+        kind: "browse",
+        input: { instruction: quote.instruction },
+        priceUsdMicros: quote.priceUsdMicros,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        browse: null,
+        status: "uncertain",
+        error:
+          "Payment outcome is unknown. Retrieve this task before retrying.",
+        result: null,
+      },
+      error:
+        error instanceof Error
+          ? error.message
+          : "Payment could not be confirmed.",
+    };
+  }
 };
 
 export const BrowseTaskForm = ({
@@ -91,68 +242,64 @@ export const BrowseTaskForm = ({
   const { getToken } = useSessionToken();
   const { conversationId } = useChatSurface();
   const { app } = useWorkspace();
-  const credits = useCredits();
   const { sessionId, dispatch } = app;
+  // The leash judges this payment like any other, so a budget over the
+  // person's own per-payment cap is refused the moment they press Pay. Better
+  // to say so here, where the number is chosen, than after a signature.
+  const cap = app.wallet?.agentAllowance?.perSpendUsdMicros ?? null;
+  const payable = (candidate: BrowseBudget): boolean =>
+    cap === null || candidate * 1_000_000 <= cap;
+  const someOverCap = BUDGETS.some((candidate) => !payable(candidate));
+  const capNoteId = useId();
   const [budget, setBudget] = useState<BrowseBudget>(1);
+  const [quote, setQuote] = useState<BrowseQuote | null>(null);
+  const [challenge, setChallenge] = useState<BrowseChallenge | null>(null);
   const [task, setTask] = useState<Task | null>(null);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const cap = credits.summary.data?.limits.perTaskUnits;
-  const available = credits.summary.data?.availableUnits;
-  const payable = (candidate: BrowseBudget) =>
-    cap !== undefined &&
-    available !== undefined &&
-    candidate * 1_000_000 <= Math.min(cap, available);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     void (async () => {
-      try {
-        const saved = await savedTask(getToken, requestKey);
-        if (active && saved !== null) {
-          setTask(saved);
+      const saved = await fetchSavedTask(getToken, requestKey);
+      if (active && saved !== null) {
+        setTask(saved);
+        if (sessionId !== null) {
+          dispatch({ type: "browse.snapshot", sessionId, tasks: [saved] });
         }
-      } catch {
-        /* The same idempotency key remains attached to this task. */
       }
     })();
     return () => {
       active = false;
     };
-  }, [getToken, requestKey]);
-  const current =
+  }, [getToken, requestKey, sessionId, dispatch]);
+  const currentTask =
     app.browseTasks.find(
       (item) => item.id === task?.id || item.requestKey === requestKey
     ) ?? task;
-  const taskId = current?.id;
-  const status = current?.status;
+  const taskId = currentTask?.id;
+  const status = currentTask?.status;
+  const hosted = currentTask?.browse?.executor === "hosted";
   useEffect(() => {
     if (
+      hosted ||
       taskId === undefined ||
-      ["done", "failed", "cancelled"].includes(status ?? "")
+      status === "done" ||
+      status === "cancelled" ||
+      status === "failed"
     ) {
       return () => {
-        /* Finished tasks need no poll cleanup. */
+        // There is no active polling interval for a finished task.
       };
     }
     let active = true;
     const timer = setInterval(() => {
       void (async () => {
-        try {
-          const value = await request(getToken, `/api/tasks/${taskId}`);
-          const updated =
-            Schema.decodeUnknownSync(BrowseTaskResponse)(value).task;
-          if (active) {
-            setTask(updated);
-            if (sessionId !== null) {
-              dispatch({
-                type: "browse.snapshot",
-                sessionId,
-                tasks: [updated],
-              });
-            }
+        const updated = await fetchTask(getToken, taskId);
+        if (updated !== null && active) {
+          setTask(updated);
+          if (sessionId !== null) {
+            dispatch({ type: "browse.snapshot", sessionId, tasks: [updated] });
           }
-        } catch {
-          /* Retain the task while the connection recovers. */
         }
       })();
     }, 2000);
@@ -160,40 +307,52 @@ export const BrowseTaskForm = ({
       active = false;
       clearInterval(timer);
     };
-  }, [dispatch, getToken, sessionId, status, taskId]);
-  const start = async () => {
+  }, [dispatch, getToken, hosted, sessionId, status, taskId]);
+  const requestQuote = async (): Promise<void> => {
     setBusy(true);
-    setFailure(null);
-    try {
-      const value = await request(getToken, "/api/tasks", {
-        v: 2,
-        kind: "browse",
-        conversationId,
-        instruction,
-        budgetUsd: budget,
-        idempotencyKey: requestKey,
-      });
-      const result = Schema.decodeUnknownSync(BrowseTaskResponse)(value).task;
-      setTask(result);
-      if (sessionId !== null) {
-        dispatch({ type: "browse.snapshot", sessionId, tasks: [result] });
-      }
-      await credits.refresh();
-    } catch (error) {
-      setFailure(
-        error instanceof Error
-          ? error.message
-          : "Could not confirm this task. Keep the same request before retrying."
-      );
-      const saved = await savedTask(getToken, requestKey).catch(() => null);
-      if (saved) {
-        setTask(saved);
-      }
+    setError(null);
+    const result = await fetchQuote(getToken, {
+      kind: "browse",
+      conversationId,
+      instruction,
+      budgetUsd: budget,
+      idempotencyKey: requestKey,
+    });
+    if (result.kind === "quote") {
+      setQuote(result.quote);
+      setBudget(result.quote.budgetUsd);
+      setChallenge(result.challenge);
+    }
+    if (result.kind === "task") {
+      setTask(result.task);
+    }
+    if (result.kind === "error") {
+      setError(result.error);
     }
     setBusy(false);
   };
-  if (current) {
-    return <BrowseTaskCard task={current} />;
+  const purchase = async (): Promise<void> => {
+    if (quote === null || challenge === null || Date.now() >= quote.expiresAt) {
+      setError("This quote expired. Request a new browsing task.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const result = await purchaseTask(getToken, quote, challenge);
+    setTask(result.task);
+    setError(result.error);
+    setChallenge(null);
+    setBusy(false);
+    if (app.sessionId !== null) {
+      app.dispatch({
+        type: "browse.snapshot",
+        sessionId: app.sessionId,
+        tasks: [result.task],
+      });
+    }
+  };
+  if (currentTask !== null) {
+    return <BrowseTaskCard task={currentTask} />;
   }
   return (
     <FieldGroup className="border-border bg-card rounded-2xl border p-4">
@@ -201,8 +360,9 @@ export const BrowseTaskForm = ({
       <Field>
         <FieldLabel>Browsing budget</FieldLabel>
         <ToggleGroup
+          aria-describedby={someOverCap ? capNoteId : undefined}
           aria-label="Browsing budget"
-          disabled={busy}
+          disabled={busy || quote !== null}
           value={[String(budget)]}
           onValueChange={(values) => {
             const parsed = Schema.decodeUnknownResult(BrowseBudget)(
@@ -221,37 +381,72 @@ export const BrowseTaskForm = ({
               key={candidate}
               value={String(candidate)}
             >
-              {candidate * 100} credits
+              ${candidate}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        {someOverCap && cap !== null ? (
+          <p className="text-muted-foreground text-xs" id={capNoteId}>
+            Budgets over your {dollars(cap)} per-payment cap are off.{" "}
+            <Link className="underline underline-offset-2" to="/settings">
+              Adjust it in Settings.
+            </Link>
+          </p>
+        ) : null}
         <FieldDescription>
-          Credits are held for this task and used when the result is saved.
-          Failed or canceled work returns credits after its outcome is known.
-          Website purchases use your wallet separately.
+          One fixed-price task. Website purchases cost extra. Unused allowance
+          and failed tasks are not automatically refunded.
         </FieldDescription>
       </Field>
-      <p className="text-muted-foreground text-xs">
-        {available === undefined
-          ? "Loading credits…"
-          : `${formatCredits(available)} available.`}{" "}
-        {cap === undefined ? "" : `${formatCredits(cap)} per-task limit.`}{" "}
-        <Link className="underline underline-offset-2" to="/wallet">
-          Buy credits or adjust limits.
-        </Link>
-      </p>
-      <Button
-        disabled={busy || !payable(budget)}
-        onClick={() => {
-          void start();
-        }}
-        size="sm"
-      >
-        {busy ? "Starting task…" : `Browse · ${budget * 100} credits`}
-      </Button>
-      {failure === null ? null : (
+      {quote === null ? (
+        <Button
+          disabled={busy || !payable(budget)}
+          onClick={() => {
+            void requestQuote();
+          }}
+          size="sm"
+        >
+          {busy ? "Getting quote…" : "Get quote"}
+        </Button>
+      ) : (
+        <>
+          <p className="text-sm">
+            ${quote.budgetUsd} · up to {quote.executionMs / 60_000} active
+            minutes · quote expires{" "}
+            {new Date(quote.expiresAt).toLocaleTimeString()}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={busy}
+              onClick={() => {
+                void purchase();
+              }}
+              size="sm"
+            >
+              {busy
+                ? "Waiting for payment confirmation…"
+                : `Pay $${quote.budgetUsd} and browse`}
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                // Nothing is signed until Pay, so a quote can be walked away
+                // from; the next Get quote re-prices the same card.
+                setQuote(null);
+                setChallenge(null);
+                setError(null);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Choose another budget
+            </Button>
+          </div>
+        </>
+      )}
+      {error === null ? null : (
         <p className="text-destructive text-sm" role="alert">
-          {failure}
+          {error}
         </p>
       )}
     </FieldGroup>

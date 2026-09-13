@@ -1,6 +1,7 @@
+import type { OAuthScope } from "@froggy/domain";
 /** Stateless Streamable HTTP MCP. Auth is the same revocable token as the task API. */
 import { PurchaseId, TaskId } from "@froggy/domain";
-import type { CreditSummary, OAuthScope } from "@froggy/domain";
+import { GraphReadInput, GraphSchemaInput } from "@froggy/graph";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import {
   AddressLookupInput,
@@ -22,6 +23,9 @@ import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
 import type { Notices } from "./notices";
 import { boundedBytes } from "./outbound";
 import { PurchaseToolInput, purchaseToolResult } from "./purchase-tool";
+import { ResearchReadInput } from "./research-data";
+import { researchGuide, ResearchGuideInput } from "./research-guides";
+import { discoverResearch, ResearchDiscoverInput } from "./research-tools";
 import { serviceCatalog } from "./service-providers";
 import {
   awaitServiceTask,
@@ -45,7 +49,6 @@ import {
   TradeStatusInput,
   tradeToolResult,
 } from "./trading/tools";
-import { walletMonitorDependencies } from "./wallet-monitor";
 import {
   workspaceToolDefinitions,
   invokeWorkspaceTool,
@@ -82,7 +85,21 @@ const TradingToolEnvelope = Schema.Struct({
   idempotencyKey: PromptServiceRequest.fields.idempotencyKey,
   input: Schema.Unknown,
 });
+const researchSchemas = {
+  graph_discover: ResearchDiscoverInput,
+  research_capabilities: Schema.Struct({}),
+  research_guide: ResearchGuideInput,
+  research_read: ResearchReadInput,
+  graph_schema: GraphSchemaInput,
+  graph_read: GraphReadInput,
+};
 const tools = [
+  ...Object.entries(researchSchemas).map(([name, schema]) => ({
+    name: `froggy_${name}`,
+    description: `Included bounded ${name.replaceAll("_", " ")}. Research only; no spending or execution authority.`,
+    inputSchema: inputSchema(schema),
+    annotations: { readOnlyHint: true },
+  })),
   ...workspaceToolDefinitions.map((entry) => ({
     name: `froggy_${entry.name}`,
     description: entry.description,
@@ -179,7 +196,7 @@ const tools = [
   },
   ...TRADING_TOOL_DEFINITIONS.map((definition) => ({
     name: `froggy_${definition.name}`,
-    description: `${definition.description} Uses the displayed Froggy credits within the owner's credit limits. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
+    description: `${definition.description} Purchases one data operation under the person's spending rules. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
     inputSchema: inputSchema(
       Schema.Struct({
         idempotencyKey: definition.schema.fields.idempotencyKey,
@@ -211,17 +228,6 @@ const tools = [
     annotations: { readOnlyHint: true },
   },
   {
-    name: "froggy_credits",
-    description:
-      "Read available and reserved Froggy credits and current usage limits. Only the owner can buy credits or change limits in Your money.",
-    inputSchema: {
-      additionalProperties: false,
-      properties: {},
-      type: "object",
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
     name: "froggy_services",
     description: "List fixed-price services and availability before buying.",
     // Spelled out: an empty Effect struct renders as `anyOf [object, array]`,
@@ -236,7 +242,7 @@ const tools = [
   {
     name: "froggy_service_run",
     description:
-      "Run a service using prepaid Froggy credits within the owner's credit limits. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
+      "Purchase a service using the person's Froggy wallet under their spending rules. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
     inputSchema: inputSchema(PromptServiceRequest),
     annotations: {
       readOnlyHint: false,
@@ -247,7 +253,7 @@ const tools = [
   {
     name: "froggy_service_status",
     description:
-      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Paid or running means credits are reserved while the provider works. Failed or canceled work returns credits; uncertain work holds them pending recovery. Approval happens in Froggy, never through this tool.",
+      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Status quoted or running means the payment is still settling; paid means the provider is working. Approval happens in Froggy, never through this tool.",
     inputSchema: inputSchema(StatusInput),
     annotations: { readOnlyHint: true },
   },
@@ -289,20 +295,9 @@ const invokeServiceCall = async (
   caller: TaskCaller,
   call: typeof Call.Type,
   onCreated: (id: TaskId) => void
-): Promise<
-  | ServiceTicket
-  | CreditSummary
-  | { v: number; services: readonly ServiceCard[] }
-> => {
-  let result:
-    | ServiceTicket
-    | CreditSummary
-    | { v: number; services: readonly ServiceCard[] };
+): Promise<ServiceTicket | { v: number; services: readonly ServiceCard[] }> => {
+  let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
   switch (call.name) {
-    case "froggy_credits": {
-      result = await services.store.credits.summary(caller.userId);
-      break;
-    }
     case "froggy_services": {
       result = { v: 1, services: serviceCatalog(services) };
       break;
@@ -323,7 +318,6 @@ const invokeServiceCall = async (
     case "froggy_watch_launches":
     case "froggy_market_search":
     case "froggy_token_inspect":
-    case "froggy_token_snapshot":
     case "froggy_rpc_read":
     case "froggy_quote_action":
     case "froggy_token_research": {
@@ -340,7 +334,7 @@ const invokeServiceCall = async (
         },
         Schema.decodeUnknownSync(TradingServiceRequest)({
           ...input,
-          v: 2,
+          v: 1,
           service: call.name.slice("froggy_".length),
         })
       );
@@ -458,6 +452,11 @@ const invokeTradeRead = async (
 
 const capturedInput = (call: typeof Call.Type): Schema.Json => {
   let schema: Schema.Codec<unknown> = Schema.Struct({});
+  for (const [name, input] of Object.entries(researchSchemas)) {
+    if (call.name === `froggy_${name}`) {
+      schema = input;
+    }
+  }
   if (call.name === "froggy_history") {
     schema = ExternalHistoryInput;
   }
@@ -535,6 +534,93 @@ const classifyCall = (name: string) => {
   }
   return { isPurchase, isTrade, scope };
 };
+const invokeResearch = async (
+  services: Services,
+  caller: TaskCaller,
+  call: typeof Call.Type
+): Promise<ToolResult | null> => {
+  const entry = Object.entries(researchSchemas).find(
+    ([name]) => call.name === `froggy_${name}`
+  );
+  if (!entry) {
+    return null;
+  }
+  Schema.decodeUnknownSync(entry[1])(call.arguments ?? {});
+  let value: unknown;
+  if (entry[0] === "graph_discover") {
+    value = await discoverResearch(
+      services,
+      caller.userId,
+      Schema.decodeUnknownSync(ResearchDiscoverInput)(call.arguments)
+    );
+  } else if (entry[0] === "research_capabilities") {
+    value = services.researchData.capabilities();
+  } else if (entry[0] === "research_guide") {
+    value = researchGuide(
+      Schema.decodeUnknownSync(ResearchGuideInput)(call.arguments)
+    );
+  } else if (entry[0] === "research_read") {
+    value = await services.researchData.read(
+      caller.userId,
+      Schema.decodeUnknownSync(ResearchReadInput)(call.arguments)
+    );
+  } else if (entry[0] === "graph_schema") {
+    value = await services.researchData.limit(
+      caller.userId,
+      async () =>
+        await services.graphExplorer.schema(
+          Schema.decodeUnknownSync(GraphSchemaInput)(call.arguments)
+        )
+    );
+  } else {
+    value = await services.researchData.limit(
+      caller.userId,
+      async () =>
+        await services.graphExplorer.read(
+          Schema.decodeUnknownSync(GraphReadInput)(call.arguments)
+        )
+    );
+  }
+  const text = JSON.stringify(value);
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          text.length <= 20_000
+            ? text
+            : JSON.stringify({
+                v: 1,
+                status: "unavailable",
+                note: "Result exceeds the tool budget; request fewer fields.",
+              }),
+      },
+    ],
+    isError: false,
+  };
+};
+const missingScope = (caller: TaskCaller, scope: OAuthScope): boolean =>
+  caller.scopes !== null && !caller.scopes.has(scope);
+const emailMcpScopes = async (
+  services: Services,
+  caller: TaskCaller,
+  name: string
+): Promise<ReadonlySet<OAuthScope> | undefined> => {
+  const definition = emailToolDefinitions.find((entry) => entry.name === name);
+  if (!definition) {
+    throw new Error("Unknown email tool.");
+  }
+  const scopes = await connectionScopes(
+    services.store,
+    caller.userId,
+    caller.grantId ?? caller.agentTokenId
+  );
+  if (scopes !== null && !scopes.has(definition.scope)) {
+    throw new Error(`Explicit ${definition.scope} permission is required.`);
+  }
+  return scopes ?? undefined;
+};
+
 const invokeEmailMcp = async (
   services: Services,
   caller: TaskCaller,
@@ -547,19 +633,22 @@ const invokeEmailMcp = async (
     call.name,
     async (invocation) => {
       try {
+        const scopes = await emailMcpScopes(services, caller, call.name);
         const text = await invokeEmailTool(
           services,
           caller.userId,
           call.name,
           Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
-          caller.scopes
+          scopes
         );
+        await emailMcpScopes(services, caller, call.name);
         if (call.name === "froggy_email_file_read") {
           const attachment = await readEmailAttachment(
             services,
             caller.userId,
             Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {})
           );
+          await emailMcpScopes(services, caller, call.name);
           invocation.outcome = "completed";
           return {
             content: [
@@ -601,8 +690,7 @@ const invokeWorkspaceMcp = async (
   services: Services,
   caller: TaskCaller,
   call: typeof Call.Type,
-  notices?: Notices,
-  embeddedWallet?: string
+  notices?: Notices
 ): Promise<ToolResult> =>
   await trackAgentInvocation(
     services,
@@ -630,9 +718,7 @@ const invokeWorkspaceMcp = async (
           caller.grantId ?? caller.agentTokenId,
           call.name,
           Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
-          notices,
-          walletMonitorDependencies(services),
-          embeddedWallet
+          notices
         );
         invocation.outcome = "completed";
         const text = JSON.stringify(result);
@@ -678,13 +764,7 @@ const invokeTool = async (
       (entry) => `froggy_${entry.name}` === call.name
     )
   ) {
-    return await invokeWorkspaceMcp(
-      services,
-      caller,
-      call,
-      notices,
-      session.embeddedWallet?.address
-    );
+    return await invokeWorkspaceMcp(services, caller, call, notices);
   }
   if (call.name.startsWith("froggy_email_")) {
     return await invokeEmailMcp(services, caller, call);
@@ -696,8 +776,7 @@ const invokeTool = async (
     call.name,
     async (invocation) => {
       const { isPurchase, isTrade, scope } = classifyCall(call.name);
-
-      if (caller.scopes !== null && !caller.scopes.has(scope)) {
+      if (missingScope(caller, scope)) {
         invocation.outcome = "insufficient_scope";
         return {
           content: [
@@ -710,6 +789,11 @@ const invokeTool = async (
         };
       }
       try {
+        const research = await invokeResearch(services, caller, call);
+        if (research !== null) {
+          invocation.outcome = "completed";
+          return research;
+        }
         if (call.name === "froggy_history") {
           const text = await externalHistory(
             services.store.history,
@@ -933,7 +1017,7 @@ export const handleMcp = async (
       capabilities: { tools: {} },
       serverInfo: { name: "froggy", version: "1.0.0" },
       instructions:
-        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Poll the matching status tool, passing waitMs to wait for settlement; never repurchase pending, failed, or uncertain work automatically.",
+        "Use froggy_address_lookup, free, before spending on any bare 0x address: it says wallet or contract, balances and whether it is the person's own wallet. Use froggy_services for the catalog, named froggy_market_search/token_inspect/rpc_read/quote_action tools for trading research, or froggy_x402_request for a GET/JSON POST URL purchase. Human approvals happen in Froggy. Included research_capabilities/research_guide/research_read and graph_discover/graph_schema/graph_read support general indexer and market research. Keep answers concise and cite observed sources. Poll the matching status tool, passing waitMs to wait for settlement; never repurchase pending, failed, or uncertain work automatically.",
     });
   }
   if (message.method === "ping") {

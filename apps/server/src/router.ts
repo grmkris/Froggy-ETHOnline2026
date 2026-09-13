@@ -17,7 +17,6 @@ import {
   AgentTokenId,
   OAuthGrantId,
   TaskId,
-  WatchlistItemId,
 } from "@froggy/domain";
 import type {
   AgentToken,
@@ -48,11 +47,9 @@ import { authenticate, bearerFromRequest } from "./auth";
 import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
-import { handleCardCheckouts } from "./card-routes";
 import type { ChatRequest } from "./chat";
 import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
-import { handleCredits } from "./credit-routes";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import { handleDiscovery } from "./discovery-route";
@@ -104,18 +101,8 @@ import type { TelegramPager } from "./telegram/pager";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
-import { walletMonitorDependencies } from "./wallet-monitor";
-import { handleWalletMonitor } from "./wallet-monitor-routes";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
-import { handleWatchlistData } from "./watchlist-data";
-import { handleWatchlistEmail } from "./watchlist-email";
-import {
-  handleWatchlistCapture,
-  handleWatchlistRefresh,
-} from "./watchlist-enrichment";
-import { handleWatchlistImage } from "./watchlist-image";
-import { handleWatchlistResolve } from "./watchlist-resolve";
 import { handleWatchlist } from "./watchlist-routes";
 import type { Workspace, Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
@@ -154,10 +141,6 @@ type ResponseBody =
       };
       readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
-      readonly onchainAlerts: {
-        readonly base: Environment["walletStream"]["mode"];
-        readonly robinhood: Environment["walletStream"]["robinhood"]["mode"];
-      };
       readonly runtime: string;
       readonly status: string;
       readonly trading: {
@@ -392,18 +375,6 @@ const handleDirectory = async (
   return json({ error: "Not found." }, 404);
 };
 
-const taskDependencies = (deps: RouterDeps): TaskDeps => ({
-  budget: deps.budget,
-  interactions: deps.interactions,
-  notices: deps.notices,
-  oracleUrl: deps.oracleUrl,
-  runs: deps.runs,
-  services: deps.services,
-  tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
-  unlocks: deps.unlocks,
-  workspaces: deps.workspaces,
-});
-
 /** The digest, reminders and scheduled runs: a person's, never an agent token's. */
 const handleScheduling = async (
   deps: RouterDeps,
@@ -411,39 +382,6 @@ const handleScheduling = async (
   userId: UserId,
   pathname: string
 ): Promise<Response | null> => {
-  if (
-    request.method === "GET" &&
-    pathname.startsWith("/api/watchlist/images/")
-  ) {
-    return await handleWatchlistImage(deps.services.store, userId, pathname);
-  }
-  const refreshItem = /^\/api\/watchlist\/(?<id>[^/]+)\/enrich$/u.exec(pathname)
-    ?.groups?.["id"];
-  if (
-    request.method === "POST" &&
-    refreshItem !== undefined &&
-    WatchlistItemId.is(refreshItem)
-  ) {
-    return await handleWatchlistRefresh(
-      taskDependencies(deps),
-      request,
-      userId,
-      refreshItem
-    );
-  }
-  if (pathname === "/api/watchlist/from-email") {
-    return await handleWatchlistEmail(deps.services, request, userId);
-  }
-  if (pathname === "/api/watchlist/capture") {
-    return await handleWatchlistCapture(
-      taskDependencies(deps),
-      request,
-      userId
-    );
-  }
-  if (pathname === "/api/watchlist/resolve") {
-    return await handleWatchlistResolve(deps.services, request, userId);
-  }
   if (pathname === "/api/digest") {
     return await handleDigest(deps.services.store, request, userId);
   }
@@ -464,18 +402,6 @@ const handleScheduling = async (
     });
   }
   return (
-    (await handleWalletMonitor(
-      walletMonitorDependencies(deps.services),
-      request,
-      userId,
-      pathname
-    )) ??
-    (await handleWatchlistData(
-      deps.services.store,
-      request,
-      userId,
-      pathname
-    )) ??
     (await handleWatchlist(deps.services.store, request, userId, pathname)) ??
     (await handleSchedules(deps.services.store, request, userId, pathname))
   );
@@ -613,7 +539,17 @@ const handleTasks = async (
   caller: TaskCaller,
   pathname: string
 ): Promise<Response | null> => {
-  const taskDeps = taskDependencies(deps);
+  const taskDeps: TaskDeps = {
+    budget: deps.budget,
+    interactions: deps.interactions,
+    notices: deps.notices,
+    oracleUrl: deps.oracleUrl,
+    runs: deps.runs,
+    services: deps.services,
+    tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
+    unlocks: deps.unlocks,
+    workspaces: deps.workspaces,
+  };
   const browseResponse = await handleBrowseTaskRoutes(
     taskDeps,
     request,
@@ -946,7 +882,6 @@ const deleteAccount = async (
     );
   }
   deps.runs.abort(workspace.session.id);
-  await deps.services.cards.forget(userId);
   await deps.services.trades.stopAndRevoke(userId);
   await deps.services.launches.cancelAll(userId);
   await deps.services.purchases.cancelAll(userId, workspace.browser);
@@ -954,51 +889,6 @@ const deleteAccount = async (
   await removeAccountEmails(deps.services, userId);
   await deps.services.store.forget(userId);
   return json({ deleted: true });
-};
-
-const handleMoneyRoutes = async (
-  deps: RouterDeps,
-  workspace: Workspace,
-  caller: TaskCaller,
-  request: Request
-): Promise<Response | null> => {
-  const credits = await handleCredits(
-    deps.services,
-    workspace,
-    caller,
-    request
-  );
-  if (credits !== null) {
-    return credits;
-  }
-
-  const card = await handleCardCheckouts(
-    deps.services,
-    workspace,
-    caller,
-    request
-  );
-  if (card !== null) {
-    return card;
-  }
-
-  const trade = await handleTrades(deps.services, workspace, caller, request);
-  if (trade !== null) {
-    return trade;
-  }
-
-  const purchase = await handlePurchases(
-    deps.services,
-    deps.runs,
-    workspace,
-    caller,
-    request
-  );
-  if (purchase !== null) {
-    return purchase;
-  }
-
-  return null;
 };
 
 const handleApi = async (
@@ -1026,9 +916,20 @@ const handleApi = async (
     return await browserViewer(workspace, caller);
   }
 
-  const money = await handleMoneyRoutes(deps, workspace, caller, request);
-  if (money !== null) {
-    return money;
+  const trade = await handleTrades(deps.services, workspace, caller, request);
+  if (trade !== null) {
+    return trade;
+  }
+
+  const purchase = await handlePurchases(
+    deps.services,
+    deps.runs,
+    workspace,
+    caller,
+    request
+  );
+  if (purchase !== null) {
+    return purchase;
   }
 
   const tasks = await handleTasks(deps, request, workspace, caller, pathname);
@@ -1113,7 +1014,7 @@ const handleInstallation = async (
     ["/froggy-mcp.mjs", "/froggy-mcp.js"].includes(pathname) &&
     request.method === "GET"
   ) {
-    return serveAgentDoor(origin);
+    return await serveAgentDoor(origin);
   }
   if (
     ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
@@ -1124,7 +1025,7 @@ const handleInstallation = async (
       headers: { "content-type": "text/markdown; charset=utf-8" },
     });
   }
-  // Historical install links explain the authenticated MCP migration.
+  // The door's own skill, for an agent with no Froggy account at all.
   if (
     ["/door-skill.md", "/froggy-door/SKILL.md"].includes(pathname) &&
     request.method === "GET"
@@ -1156,10 +1057,6 @@ export const handleRequest = async (
       /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
-      onchainAlerts: {
-        base: deps.environment.walletStream.mode,
-        robinhood: deps.environment.walletStream.robinhood.mode,
-      },
       trading: {
         enso: deps.environment.trading.ensoMode,
         jupiter: deps.environment.trading.jupiterMode,
@@ -1215,6 +1112,9 @@ export const handleRequest = async (
   if (pathname === ORACLE_PATH) {
     return await handleOracleRequest(
       {
+        gate: deps.services.oracle,
+        graph: deps.services.graph,
+        hcs: deps.services.hcs,
         publicUrl: deps.oracleUrl,
         store: deps.services.store,
       },

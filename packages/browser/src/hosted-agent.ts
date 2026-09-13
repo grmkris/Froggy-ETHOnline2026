@@ -37,12 +37,6 @@ const Events = Schema.Struct({
   hasMore: Schema.Boolean,
 });
 export interface HostedRunInput {
-  readonly privateSession?: boolean;
-  readonly secretBindings?: readonly {
-    readonly alias: string;
-    readonly source: { readonly type: "inline"; readonly value: string };
-    readonly allowedDomains: readonly string[];
-  }[];
   readonly task: string;
   readonly model: string;
   readonly maxCostUsd: number;
@@ -138,20 +132,6 @@ export const hostedAgentApi = (options: {
   return {
     stubbed: false,
     create: async (input) => {
-      if (input.privateSession === true && input.sessionId !== undefined) {
-        try {
-          await request(
-            Schema.Unknown,
-            `/sessions/${encodeURIComponent(input.sessionId)}/share`,
-            "PUT",
-            { isActive: false }
-          );
-        } catch (error) {
-          if (!(error instanceof HostedAgentError) || error.status !== 404) {
-            throw error;
-          }
-        }
-      }
       const settings = {
         proxyCountryCode: input.country,
         record: false,
@@ -170,14 +150,10 @@ export const hostedAgentApi = (options: {
         agentmail: false,
         browserSettings,
       };
-      const bound =
-        input.secretBindings === undefined
-          ? base
-          : { ...base, secretBindings: input.secretBindings };
       const body =
         input.sessionId === undefined
-          ? bound
-          : { ...bound, sessionId: input.sessionId };
+          ? base
+          : { ...base, sessionId: input.sessionId };
       return await request(Created, "/runs", "POST", body);
     },
     status: async (id) => {

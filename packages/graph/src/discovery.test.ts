@@ -308,7 +308,8 @@ describe("describeDiscovery", () => {
     expect(text).toContain(
       `1. (unnamed), deployment ${HASH_A}, on base, 2 GRT`
     );
-    expect(text).toContain("ipfsHash to graph_query");
+    expect(text).toContain("graph_schema then use graph_read");
+    expect(text).toContain("upstream usage can still be billed");
     expect(text).not.toContain("STUB");
   });
 

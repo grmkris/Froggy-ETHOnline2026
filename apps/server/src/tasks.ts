@@ -1,3 +1,18 @@
+/**
+ * Delegated tasks: the thing an outside agent buys.
+ *
+ * `POST /api/tasks` is an x402 seller like the oracle, and the same book
+ * records every sale before any work starts. What it sells is a task with a
+ * durable id: a paid data brief with no browser, or a browse on the person's
+ * own Chrome under their mandate. The id outlives every socket, so a caller
+ * that hangs up gets the same task back, and a caller that repeats a request
+ * with the same idempotency key gets the same task rather than a second bill.
+ *
+ * Prices are fixed per kind and the quote is the price; nothing is metered
+ * back. Paid work that fails afterwards stays retrievable as a failed task
+ * whose receipt says paid, failed, not refunded.
+ */
+
 import type {
   AgentConnectionId,
   OAuthGrantId,
@@ -10,13 +25,21 @@ import type {
   UsdMicros,
 } from "@froggy/domain";
 import {
-  WatchlistItemId,
+  quotePaymentState,
   MonitorCheckId,
+  RunId,
+  SaleId,
   TaskId,
   usdMicros,
 } from "@froggy/domain";
-/** Delegated work reserves prepaid credits; the server owns execution beyond every socket. */
 import { describeBestSupply, describeCheapestBorrow } from "@froggy/graph";
+import {
+  decodePaymentChallenge,
+  describePayment,
+  encodeChallengeHeader,
+  paymentFrom,
+} from "@froggy/payments";
+import type { PaymentChallenge } from "@froggy/payments";
 import type { BrowseTaskProgress, TaskOutcome } from "@froggy/protocol";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
@@ -32,13 +55,6 @@ import {
 import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { connectionScopes } from "./capabilities";
-import {
-  CreditCommitUncertainError,
-  authorizeCreditTask,
-  creditBillingError,
-  creditLimitsFromMandate,
-  finishCreditTask,
-} from "./credit-task";
 import { detached } from "./detached";
 import {
   controlCurrentHostedBrowse,
@@ -47,17 +63,20 @@ import {
 } from "./hosted-browse";
 import { hostedTask, publicBrowseTask } from "./hosted-browse-state";
 import type { InteractionRegistry } from "./interactions";
-import { monitoringState } from "./monitoring";
+import { assertMonitorCurrent, monitoringState } from "./monitoring";
 import type { Notices } from "./notices";
 import { insufficientScope } from "./oauth";
 import type { ChatRunRegistry } from "./runs";
 import { serviceTicket } from "./service-tasks";
 import type { Services } from "./services";
+import { MalformedSpendError, UnpricedAssetError } from "./session";
+import type { SpendRequest } from "./session";
+import { assetFor } from "./tools-assets";
 import { recordTurn, sseOf, startTurn } from "./turn";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
 
-/** Fixed service prices; one USD micro is one internal credit unit. */
+/** Dollars, fixed per kind. Charged in HBAR at the mirror-node rate. */
 export const TASK_PRICE_USD_MICROS: Record<
   Exclude<TaskKind, "service">,
   UsdMicros
@@ -71,14 +90,12 @@ const BROWSE_STEP_CAP = 40;
 
 const TaskBody = Schema.Union([
   Schema.Struct({
-    v: Schema.Literal(2),
     idempotencyKey: Schema.optional(Schema.String),
     kind: Schema.Literals(["brief"]),
     symbol: Schema.String,
   }),
   QuotedBrowseInput,
   Schema.Struct({
-    v: Schema.Literal(2),
     idempotencyKey: Schema.optional(Schema.String),
     instruction: Schema.String,
     kind: Schema.Literals(["browse"]),
@@ -97,9 +114,14 @@ const decodeTaskRequest = async (request: Request) => {
     : decodeTaskBody(raw);
 };
 
+const PayBody = Schema.Struct({
+  challenge: Schema.Unknown,
+  quoteTaskId: Schema.optional(TaskId),
+});
+const decodePayBody = Schema.decodeUnknownResult(PayBody);
+
 export interface TaskDeps {
   readonly unattended?: boolean;
-  readonly enrichmentItemId?: WatchlistItemId;
   readonly monitorCheckId?: MonitorCheckId;
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
@@ -173,10 +195,6 @@ export interface TaskView {
   readonly result: Task["result"];
   readonly runId: Task["runId"];
   readonly saleId: Task["saleId"];
-  readonly billingError?: ReturnType<typeof creditBillingError>;
-  readonly chargeId?: Task["chargeId"];
-  readonly chargeStatus?: Task["chargeStatus"];
-  readonly priceCreditUnits?: Task["priceCreditUnits"];
   readonly status: TaskStatus;
   readonly updatedAt: number;
 }
@@ -194,6 +212,48 @@ const json = (body: TaskResponse, status = 200): Response =>
     { v: 1, ...body },
     { headers: { "cache-control": "no-store" }, status }
   );
+
+/** The proof's fingerprint, the same way the oracle keys its book. */
+const paymentHash = (paymentHeader: string): string =>
+  new Bun.CryptoHasher("sha256").update(paymentHeader).digest("hex");
+
+/**
+ * Dollars into tinybars at the mirror-node rate, rounded up so the seller is
+ * never short by a tinybar. Null when there is no usable rate: a task cannot
+ * be sold at a guessed price.
+ */
+const tinybarsFor = (
+  services: Services,
+  priceUsdMicros: number,
+  now: number
+): string | null => {
+  const rate = services.rates.current(now);
+  if (rate === null) {
+    return null;
+  }
+  return String(
+    Math.ceil((priceUsdMicros * 100_000_000) / rate.usdMicrosPerHbar)
+  );
+};
+
+const challengeFor = (
+  deps: TaskDeps,
+  kind: Exclude<TaskKind, "service">,
+  now: number
+) => {
+  const units = tinybarsFor(deps.services, TASK_PRICE_USD_MICROS[kind], now);
+  if (units === null) {
+    return null;
+  }
+  return deps.services.oracle.challenge({
+    description:
+      kind === "brief"
+        ? "A lending brief for one token across twelve standardized deployments."
+        : `A browse on the person's shared Chrome, up to ${BROWSE_STEP_CAP} steps, under their mandate.`,
+    units,
+    url: deps.tasksUrl,
+  });
+};
 
 const taskView = (
   task: Task,
@@ -242,10 +302,6 @@ const taskView = (
     result,
     runId: task.runId,
     saleId: task.saleId,
-    billingError: creditBillingError(task),
-    chargeId: task.chargeId,
-    chargeStatus: task.chargeStatus,
-    priceCreditUnits: task.priceCreditUnits,
     status: awaiting ? "awaiting_approval" : task.status,
     updatedAt: task.updatedAt,
   };
@@ -278,13 +334,11 @@ const runBrief = async (
     symbol: symbol.toUpperCase(),
     total: snapshot.deployments.length,
   };
-  await finishCreditTask(
-    deps.services,
-    userId,
-    task,
-    { result, status: "done", updatedAt: now() },
-    "capture"
-  );
+  await deps.services.store.tasks.update(userId, task.id, {
+    result,
+    status: "done",
+    updatedAt: now(),
+  });
 };
 
 const BrowseProgress = Schema.Struct({
@@ -334,10 +388,6 @@ const browseExecution = (deps: TaskDeps, task: Task) => {
   return { allowance, executionMs, stepLimit, stubbed, inputRate, outputRate };
 };
 
-const isReadOnlyBrowse = (task: Task): boolean =>
-  Schema.is(MonitorCheckId)(task.input["monitorCheckId"]) ||
-  Schema.is(WatchlistItemId)(task.input["enrichmentItemId"]);
-
 const runBrowse = async (
   deps: TaskDeps,
   workspace: Workspace,
@@ -349,7 +399,6 @@ const runBrowse = async (
   );
   const monitorCheckId =
     monitorId._tag === "Success" ? monitorId.success : null;
-  const readOnly = isReadOnlyBrowse(task);
   const now = deps.now ?? Date.now;
   const { session } = workspace;
   const { userId } = session;
@@ -406,7 +455,7 @@ const runBrowse = async (
   try {
     const turn = await startTurn(
       {
-        surface: readOnly ? "monitor" : "browse",
+        surface: monitorCheckId === null ? "browse" : "monitor",
         interactive: deps.unattended !== true,
         reportOutcome: (reported) => {
           outcome = reported;
@@ -426,7 +475,7 @@ const runBrowse = async (
           beforeStep: async (promptBytes) => {
             if (
               deps.unattended === true &&
-              readOnly &&
+              monitorCheckId !== null &&
               deps.workspaces.isWatching(userId)
             ) {
               active.paused = true;
@@ -522,29 +571,22 @@ const runBrowse = async (
       await save();
       if (turn.run.signal.aborted && !active.paused) {
         throw new Error(
-          task.chargeId === undefined
-            ? "Browsing stopped. Its paid allowance was not refunded."
-            : "Browsing stopped. Reserved credits were returned."
+          "Browsing stopped. Its paid allowance was not refunded."
         );
       }
       const paused =
-        active.paused || (readOnly && outcome.status === "blocked");
-      const patch = {
+        active.paused ||
+        (monitorCheckId !== null && outcome.status === "blocked");
+      await deps.services.store.tasks.update(userId, task.id, {
         result: { text: progress.summary, progress, stubbed, outcome },
-        status: paused ? ("paused" as const) : ("done" as const),
+        status: paused ? "paused" : "done",
         updatedAt: now(),
-      };
-      await (paused || monitorCheckId !== null
-        ? deps.services.store.tasks.update(userId, task.id, patch)
-        : finishCreditTask(deps.services, userId, task, patch, "capture"));
+      });
       return !paused;
     } finally {
       clearInterval(timer);
     }
   } catch (error) {
-    if (error instanceof CreditCommitUncertainError) {
-      throw error;
-    }
     await save();
     if (active.paused) {
       await deps.services.store.tasks.update(userId, task.id, {
@@ -576,7 +618,6 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
   const { userId } = workspace.session;
   detached(`task ${task.id}`, async () => {
     try {
-      await authorizeCreditTask(deps.services, userId, task);
       if (task.kind === "brief") {
         await runBrief(deps, workspace, task, String(task.input["symbol"]));
       } else if (
@@ -596,19 +637,16 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
         });
       }
     } catch (error) {
-      if (error instanceof CreditCommitUncertainError) {
-        return;
-      }
       const message = failureText(
         error instanceof Error ? error : new Error("the task failed")
       );
-      await finishCreditTask(
-        deps.services,
-        userId,
-        task,
-        { error: message, status: "failed", updatedAt: now() },
-        "release"
-      );
+      // Paid, failed, not refunded: the sale keeps its settlement and the
+      // task says why, which is the whole of what the caller gets.
+      await deps.services.store.tasks.update(userId, task.id, {
+        error: message,
+        status: "failed",
+        updatedAt: now(),
+      });
       if (task.saleId !== null) {
         await deps.services.store.sales.update(task.saleId, {
           error: message,
@@ -626,6 +664,9 @@ export const resumeBrowseTask = async (
 ): Promise<void> => {
   const workspace = await deps.workspaces.hydrate(userId);
   if (hasHostedBrowse(userId)) {
+    if (deps.unattended === true || taskId !== undefined) {
+      return;
+    }
     await controlCurrentHostedBrowse(userId, "continue");
     return;
   }
@@ -642,7 +683,7 @@ export const resumeBrowseTask = async (
     (entry) =>
       entry.kind === "browse" &&
       (taskId === undefined || entry.id === taskId) &&
-      (entry.saleId !== null || entry.chargeId !== undefined) &&
+      entry.saleId !== null &&
       (entry.status === "paused" ||
         entry.status === "running" ||
         entry.status === "paid")
@@ -661,7 +702,51 @@ export const resumeBrowseTask = async (
   execute(deps, workspace, { ...task, status: "paid" });
 };
 
-const postCreditTask = async (
+const inputOf = (body: TaskBody): Task["input"] =>
+  body.kind === "brief"
+    ? { symbol: body.symbol }
+    : { instruction: body.instruction };
+
+const replayTask = (
+  task: Task,
+  body: TaskBody,
+  deps: TaskDeps,
+  workspace: Workspace
+): Response => {
+  if (
+    task.kind !== body.kind ||
+    JSON.stringify(task.input) !== JSON.stringify(inputOf(body))
+  ) {
+    return json(
+      { error: "Idempotency key belongs to different task input." },
+      409
+    );
+  }
+  return json({ task: taskView(task, deps, workspace) });
+};
+
+const claimTask = async (
+  deps: TaskDeps,
+  workspace: Workspace,
+  task: Task,
+  body: TaskBody
+): Promise<Response | null> => {
+  try {
+    await deps.services.store.tasks.create(workspace.session.userId, task);
+    return null;
+  } catch (error) {
+    const winner = await deps.services.store.tasks.byIdempotencyKey(
+      workspace.session.userId,
+      task.idempotencyKey ?? task.id
+    );
+    if (winner !== null) {
+      return replayTask(winner, body, deps, workspace);
+    }
+    throw error;
+  }
+};
+
+const postLegacyTask = async (
   deps: TaskDeps,
   request: Request,
   workspace: Workspace,
@@ -669,68 +754,120 @@ const postCreditTask = async (
   invocation: InvocationSummary,
   body: TaskBody
 ): Promise<Response> => {
-  const now = (deps.now ?? Date.now)();
-  const key = request.headers.get("idempotency-key") ?? body.idempotencyKey;
-  if (key === undefined || key === "" || key.length > 200) {
-    return json(
-      { error: "An idempotency key between 1 and 200 characters is required." },
-      400
-    );
+  const now = deps.now ?? Date.now;
+  const { store } = deps.services;
+  const { userId } = caller;
+  const key =
+    request.headers.get("idempotency-key") ?? body.idempotencyKey ?? null;
+  if (key !== null) {
+    const earlier = await store.tasks.byIdempotencyKey(userId, key);
+    if (earlier !== null) {
+      return replayTask(earlier, body, deps, workspace);
+    }
   }
-  const input =
-    body.kind === "brief"
-      ? { v: 2, symbol: body.symbol }
-      : { v: 2, instruction: body.instruction };
+
+  const payment = paymentFrom(request.headers);
+  const challenge = challengeFor(deps, body.kind, now());
+  if (challenge === null) {
+    return json({ error: "No usable HBAR rate; try again shortly." }, 503);
+  }
+  if (payment === null) {
+    return Response.json(challenge, {
+      headers: {
+        "cache-control": "no-store",
+        "payment-required": encodeChallengeHeader(challenge),
+      },
+      status: 402,
+    });
+  }
+
+  const hash = paymentHash(payment);
+  const seen = await store.sales.byPaymentHash(hash);
+  if (seen !== null) {
+    const bought = await store.tasks.bySaleId(userId, seen.id);
+    if (bought !== null) {
+      return replayTask(bought, body, deps, workspace);
+    }
+    return json({ error: "That payment already bought something else." }, 409);
+  }
+
+  const [requirements] = challenge.accepts;
+  if (requirements === undefined) {
+    return json({ error: "No payment requirements." }, 500);
+  }
   const task: Task = {
     agentTokenId: caller.agentTokenId,
-    connectionId: callerConnection(caller),
-    createdAt: now,
-    updatedAt: now,
+    connectionId: caller.grantId ?? caller.agentTokenId,
+    createdAt: now(),
     error: null,
     id: TaskId.generate(),
-    idempotencyKey: key,
-    input,
+    idempotencyKey: key ?? `proof:${hash}`,
+    input: inputOf(body),
     kind: body.kind,
     priceUsdMicros: TASK_PRICE_USD_MICROS[body.kind],
     result: null,
     runId: null,
     saleId: null,
-    status: "paid",
+    status: "quoted",
+    updatedAt: now(),
   };
-  await authorizeCreditTask(deps.services, caller.userId, task);
-  const reserved = await deps.services.store.credits.reserveTask(
-    caller.userId,
-    task,
-    {
-      initialLimits: creditLimitsFromMandate(workspace.session.currentMandate),
-      stubbed:
-        body.kind === "brief"
-          ? deps.services.environment.modes.graph === "stub"
-          : deps.services.environment.modes.browser === "stub",
-      now,
-    }
-  );
-  invocation.taskId = reserved.task.id;
-  if (reserved.charge.status === "refused") {
-    return Response.json(
-      {
-        v: 1,
-        task: taskView(reserved.task, deps, workspace),
-        error: reserved.charge.reason,
-        code: "credits_refused",
-        fundingUrl: "/wallet?buyCredits=1",
-      },
-      { status: 409 }
-    );
+  const existing = await claimTask(deps, workspace, task, body);
+  if (existing !== null) {
+    return existing;
   }
-  if (!reserved.replayed) {
-    deps.workspaces.touch(caller.userId);
-    execute(deps, workspace, reserved.task);
+
+  invocation.taskId = task.id;
+  let settled: Awaited<ReturnType<Services["oracle"]["settle"]>>;
+  try {
+    settled = await deps.services.oracle.settle(payment, requirements);
+  } catch (error) {
+    await store.tasks.update(userId, task.id, {
+      status: "uncertain",
+      error: "Payment outcome is unknown; do not purchase again.",
+      updatedAt: now(),
+    });
+    throw error;
   }
-  return json(
-    { task: taskView(reserved.task, deps, workspace) },
-    reserved.task.status === "done" ? 200 : 202
-  );
+  if (!settled.ok) {
+    await store.tasks.update(userId, task.id, {
+      status: "uncertain",
+      error: settled.error ?? "Payment was not confirmed.",
+      updatedAt: now(),
+    });
+    return json({ error: settled.error ?? "Payment was not settled." }, 402);
+  }
+
+  const described = describePayment(payment);
+  const recorded = await store.sales.record({
+    amount: requirements.amount,
+    asset: requirements.asset,
+    at: now(),
+    deliveredAt: null,
+    error: null,
+    id: SaleId.generate(),
+    network: requirements.network,
+    payer: described.payer,
+    paymentHash: hash,
+    resource: `${deps.tasksUrl}#${body.kind}`,
+    result: null,
+    status: "settled",
+    stubbed: settled.stubbed,
+    transactionId: settled.transactionId,
+  });
+  const paidTask: Task = {
+    ...task,
+    saleId: recorded.sale.id,
+    status: "paid",
+    updatedAt: now(),
+  };
+  await store.tasks.update(userId, task.id, {
+    saleId: recorded.sale.id,
+    status: "paid",
+    updatedAt: now(),
+  });
+  deps.workspaces.touch(userId);
+  execute(deps, workspace, paidTask);
+  return json({ task: taskView(paidTask, deps, workspace) }, 202);
 };
 
 const performTaskPost = async (
@@ -740,27 +877,6 @@ const performTaskPost = async (
   caller: TaskCaller,
   invocation: InvocationSummary
 ): Promise<Response> => {
-  const version = Schema.decodeUnknownResult(
-    Schema.Struct({ v: Schema.Literal(2) })
-  )(
-    await request
-      .clone()
-      .json()
-      .catch(() => null)
-  );
-  if (
-    version._tag === "Failure" ||
-    request.headers.has("payment-signature") ||
-    request.headers.has("x-payment")
-  ) {
-    return json(
-      {
-        error:
-          "Upgrade to task API v2. Buy Froggy credits in Your money, then submit without a payment proof.",
-      },
-      426
-    );
-  }
   const decoded = await decodeTaskRequest(request);
   if (decoded._tag === "Failure") {
     return json(
@@ -835,7 +951,7 @@ const performTaskPost = async (
           409
         );
       }
-      return await postCreditTask(
+      return await postLegacyTask(
         deps,
         request,
         workspace,
@@ -845,7 +961,7 @@ const performTaskPost = async (
       );
     });
   }
-  return await postCreditTask(
+  return await postLegacyTask(
     deps,
     request,
     workspace,
@@ -940,19 +1056,324 @@ export const handleTaskEvents = async (
   });
 };
 
-/** The old task-signing door is retired before it can touch any wallet. */
-export const handleWalletPay = async (
-  _deps: TaskDeps,
-  _request: Request,
-  _workspace: Workspace,
-  _caller: TaskCaller
-): Promise<Response> =>
-  await Promise.resolve(
-    json(
+/** The Hedera `exact` offer, the one leg a keyless agent can have signed here. */
+const offerFor = (
+  deps: TaskDeps,
+  challenge: PaymentChallenge
+): PaymentChallenge["accepts"][number] | null =>
+  challenge.accepts.find(
+    (requirement) =>
+      requirement.network === deps.services.payer.network &&
+      requirement.scheme === "exact"
+  ) ?? null;
+
+/**
+ * `POST /api/wallet/pay`: sign a payment for a 402 the caller holds, under
+ * the person's mandate, and hand the header back.
+ *
+ * This is how an outside agent that holds no key pays: it is a real x402
+ * client whose signer is the person's Froggy wallet. The spend goes through
+ * the same choke point as every payment — priced, judged, reserved, filed —
+ * and only the header leaves. Money moves when the seller settles it; the
+ * receipt therefore carries no settlement, and the sale does.
+ */
+const trustedTaskOffer = (
+  deps: TaskDeps,
+  requirement: PaymentChallenge["accepts"][number]
+): boolean => {
+  const [trusted] = deps.services.oracle.challenge({
+    description: "Froggy task",
+    units: requirement.amount,
+    url: deps.tasksUrl,
+  }).accepts;
+  return (
+    trusted !== undefined &&
+    requirement.payTo === deps.services.oracle.payTo &&
+    requirement.asset === "0.0.0" &&
+    JSON.stringify(requirement.extra ?? {}) ===
+      JSON.stringify(trusted.extra ?? {}) &&
+    requirement.maxTimeoutSeconds === trusted.maxTimeoutSeconds
+  );
+};
+
+const validateQuotePayment = async (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  quoteTaskId: TaskId | undefined,
+  challenge: Extract<
+    ReturnType<typeof decodePaymentChallenge>,
+    { _tag: "Success" }
+  >
+): Promise<Response | null> => {
+  if (quoteTaskId !== undefined) {
+    const quoted = await deps.services.store.tasks.byId(
+      caller.userId,
+      quoteTaskId
+    );
+    if (quoted === null || quoted.status !== "quoted") {
+      return json({ error: "That quote is not payable." }, 409);
+    }
+    if (quotePaymentState(quoted) === "signing") {
+      return json(
+        {
+          error:
+            "A signing attempt is still unconfirmed. Do not sign or purchase again.",
+        },
+        409
+      );
+    }
+    const activeTasks = await deps.services.store.tasks.activeBrowses();
+    const active = activeTasks.find(
+      (row) => row.userId === caller.userId && row.task.id !== quoted.id
+    );
+    if (active !== undefined) {
+      return json(
+        {
+          error:
+            "Another browser task is active. Open its task card before purchasing again.",
+        },
+        409
+      );
+    }
+    const saved = storedBrowseQuote(quoted);
+    const decodedSaved = decodePaymentChallenge(saved.challenge);
+    if (
+      saved.quote.expiresAt <= (deps.now ?? Date.now)() ||
+      decodedSaved._tag === "Failure" ||
+      JSON.stringify(decodedSaved.success) !== JSON.stringify(challenge.success)
+    ) {
+      return json(
+        { error: "Payment must match the unexpired task quote." },
+        409
+      );
+    }
+  }
+  return null;
+};
+
+/**
+ * The person, in their own session, pressing "Pay $X" on a quote whose amount
+ * the card showed them *is* the answer to the ask line. Putting a second card
+ * in front of them for the same number would be theatre, and this request
+ * carries no signal for one anyway. Only the ask half is satisfied: expiry,
+ * allowlists and every cap still refuse first. An agent calling this route
+ * has answered nothing on anyone's behalf, so it is not approved.
+ */
+const personAnswered = (
+  caller: TaskCaller,
+  quoteTaskId: TaskId | undefined,
+  unattended = false
+): boolean =>
+  !unattended &&
+  caller.agentTokenId === null &&
+  caller.grantId === null &&
+  quoteTaskId !== undefined;
+
+const saveQuoteSigning = async (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined,
+  signing: boolean
+): Promise<void> => {
+  if (id !== undefined) {
+    await deps.services.store.tasks.update(caller.userId, id, {
+      result: signing ? { paymentSigning: true } : null,
+      updatedAt: (deps.now ?? Date.now)(),
+    });
+  }
+};
+
+const paymentApproved = (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined
+): boolean => deps.unattended !== true && personAnswered(caller, id);
+
+const monitorPaymentFailure = async (
+  deps: TaskDeps,
+  caller: TaskCaller
+): Promise<string | null> => {
+  if (deps.monitorCheckId === undefined) {
+    return null;
+  }
+  try {
+    const state = await monitoringState(deps.services.store, caller.userId);
+    const check = state.checks.find(
+      (entry) => entry.id === deps.monitorCheckId
+    );
+    if (check === undefined) {
+      return "This monitoring check no longer exists. Nothing was signed.";
+    }
+    await assertMonitorCurrent(deps.services.store, caller.userId, check);
+    return null;
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : "This monitoring check is no longer active. Nothing was signed.";
+  }
+};
+
+const performWalletPay = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Workspace,
+  caller: TaskCaller
+): Promise<Response> => {
+  const body = decodePayBody(await request.json().catch(() => null));
+  if (body._tag === "Failure") {
+    return json({ error: 'Send {"challenge": <the 402 body>}.' }, 400);
+  }
+  const challenge = decodePaymentChallenge(body.success.challenge);
+  if (challenge._tag === "Failure") {
+    return json({ error: "That is not an x402 challenge." }, 400);
+  }
+  const invalidQuote = await validateQuotePayment(
+    deps,
+    caller,
+    body.success.quoteTaskId,
+    challenge
+  );
+  if (invalidQuote !== null) {
+    return invalidQuote;
+  }
+  const requirement = offerFor(deps, challenge.success);
+  if (requirement === null) {
+    return json(
+      { error: "This wallet cannot pay any of the networks that 402 offers." },
+      422
+    );
+  }
+  if (!trustedTaskOffer(deps, requirement)) {
+    return json({ error: "Payment parameters do not match this server." }, 422);
+  }
+  const amount = assetFor(requirement);
+  if (amount === null) {
+    return json({ error: `Unknown network ${requirement.network}.` }, 422);
+  }
+  const { session } = workspace;
+  let payer: Services["payer"];
+  try {
+    payer = await deps.services.hederaPayerFor({
+      openingUsdMicros: session.pocket ?? 0,
+      userId: caller.userId,
+    });
+  } catch (error) {
+    return json(
       {
-        error:
-          "Per-task payments are retired. Buy Froggy credits in Your money and use task API v2.",
+        error: `Could not open your Hedera account: ${error instanceof Error ? error.message : String(error)}. Nothing was signed.`,
       },
-      410
-    )
+      502
+    );
+  }
+  let header: string | null = null;
+  let unsignedPaymentStatus = 402;
+  const spend: SpendRequest = {
+    amount,
+    host: new URL(deps.tasksUrl).host,
+    kind: "service_payment",
+    idempotencyKey:
+      body.success.quoteTaskId === undefined
+        ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
+        : `pay:quote:${body.success.quoteTaskId}`,
+    approved: paymentApproved(deps, caller, body.success.quoteTaskId),
+    interactive: deps.unattended !== true,
+    payeeId: requirement.payTo,
+    payeeLabel: `${requirement.payTo} (x402, signed for an agent)`,
+    provenance: "server",
+    purpose: `a payment header for ${requirement.amount} ${requirement.asset} on ${requirement.network}`,
+    runId: RunId.generate(),
+    settle: async () => {
+      const stopped = await monitorPaymentFailure(deps, caller);
+      if (stopped !== null) {
+        unsignedPaymentStatus = 403;
+        return {
+          error: stopped,
+          network: requirement.network,
+          ok: false,
+          sent: false,
+          stubbed: deps.services.environment.modes.hedera === "stub",
+          transactionId: null,
+        };
+      }
+      await saveQuoteSigning(deps, caller, body.success.quoteTaskId, true);
+      const attempt = await payer.pay(challenge.success);
+      if (attempt.header === null) {
+        await saveQuoteSigning(deps, caller, body.success.quoteTaskId, false);
+        return {
+          error: attempt.error ?? "no payment could be built",
+          network: requirement.network,
+          ok: false,
+          sent: false,
+          stubbed: attempt.stubbed,
+          transactionId: null,
+        };
+      }
+      ({ header } = attempt);
+      // Signed and handed over, not settled: the seller settles it, and the
+      // receipt says a header left rather than that money moved.
+      return {
+        network: requirement.network,
+        ok: true,
+        sent: true,
+        stubbed: attempt.stubbed,
+        transactionId: null,
+      };
+    },
+  };
+  try {
+    const result = await session.spend(spend);
+    if (result.decision._tag === "deny") {
+      return json(
+        { error: result.decision.message, receipt: result.receipt },
+        403
+      );
+    }
+    if (header === null) {
+      return json(
+        {
+          error: result.receipt.failure ?? "no payment was signed",
+          receipt: result.receipt,
+        },
+        unsignedPaymentStatus
+      );
+    }
+    if (body.success.quoteTaskId !== undefined) {
+      await deps.services.store.tasks.update(
+        caller.userId,
+        body.success.quoteTaskId,
+        {
+          result: { paymentProofHash: paymentHash(header) },
+          updatedAt: (deps.now ?? Date.now)(),
+        }
+      );
+    }
+    return json({ header, receipt: result.receipt });
+  } catch (error) {
+    if (
+      error instanceof MalformedSpendError ||
+      error instanceof UnpricedAssetError
+    ) {
+      return json({ error: error.message }, 422);
+    }
+    throw error;
+  }
+};
+
+export const handleWalletPay = async (
+  deps: TaskDeps,
+  request: Request,
+  workspace: Workspace,
+  caller: TaskCaller
+): Promise<Response> =>
+  await trackAgentRequest(
+    deps.services,
+    caller,
+    "pay",
+    "wallet.pay",
+    "POST",
+    async () =>
+      await serializeBrowsePayment(
+        caller.userId,
+        async () => await performWalletPay(deps, request, workspace, caller)
+      )
   );

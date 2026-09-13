@@ -1,5 +1,3 @@
-import type { WatchlistDataStore } from "./watchlist-data-store";
-import { memoryWatchlistDataStore } from "./watchlist-data-store";
 import {
   AgentInvocation,
   quotePaymentState,
@@ -53,10 +51,6 @@ import type {
  */
 import { Result, Schema } from "effect";
 
-import { memoryCardStore } from "./card-store";
-import type { CardStore } from "./card-store";
-import type { CreditStore } from "./credit-store";
-import { memoryCreditStore } from "./credit-store-memory";
 import type { HistoryStore } from "./history-store";
 import { memoryHistoryStore } from "./history-store";
 import { memoryLaunchStore } from "./launch-store";
@@ -65,8 +59,7 @@ import { memoryMonitoringStore } from "./monitoring-store";
 import type { MonitoringStore } from "./monitoring-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
-import type { WalletActivityStore } from "./wallet-activity-store";
-import { memoryWalletActivityStores } from "./wallet-activity-store-memory";
+import { memoryWatchlistStore } from "./watchlist-store";
 import type { WatchlistStore } from "./watchlist-store";
 
 /** A token row with the one field the domain record leaves out. */
@@ -134,9 +127,6 @@ type TaskPatch = Partial<
     | "result"
     | "runId"
     | "saleId"
-    | "chargeId"
-    | "priceCreditUnits"
-    | "chargeStatus"
     | "status"
   >
 > & { readonly updatedAt: number };
@@ -290,7 +280,6 @@ export const BrowserProfileRecord = Schema.Struct({
 export type BrowserProfileRecord = typeof BrowserProfileRecord.Type;
 
 export interface Store {
-  readonly credits: CreditStore;
   readonly browsers: {
     readonly load: (userId: UserId) => Promise<BrowserProfileRecord | null>;
     readonly save: (
@@ -299,11 +288,8 @@ export interface Store {
     ) => Promise<void>;
   };
   readonly watchlist: WatchlistStore;
-  readonly watchlistData: WatchlistDataStore;
-  readonly walletActivity: WalletActivityStore;
   readonly monitoring: MonitoringStore;
   readonly history: HistoryStore;
-  readonly cards: CardStore;
   readonly trading: TradingStore;
   readonly launches: LaunchStore;
   readonly purchases: {
@@ -750,9 +736,8 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
-  const watchlistData = memoryWatchlistDataStore();
+  const watchlist = memoryWatchlistStore();
   const monitoring = memoryMonitoringStore();
-  const { watchlist, walletActivity } = memoryWalletActivityStores();
   const purchases = new Map<
     PurchaseId,
     { userId: UserId; purchase: Purchase }
@@ -792,10 +777,6 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
-    credits: memoryCreditStore(
-      tasks,
-      (owner) => personPolicies.get(owner)?.allowance ?? null
-    ),
     browsers: {
       load: async (userId) =>
         await Promise.resolve(structuredClone(browsers.get(userId) ?? null)),
@@ -809,10 +790,7 @@ export const memoryStore = (): Store => {
     },
     history,
     watchlist,
-    watchlistData,
-    walletActivity,
     monitoring,
-    cards: memoryCardStore(),
     trading: memoryTradingStore(),
     launches: memoryLaunchStore(),
     purchases: {
@@ -1481,8 +1459,6 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await watchlist.forget(userId);
-      await watchlistData.forget(userId);
-      await walletActivity.forget(userId);
       await monitoring.forget(userId);
       browsers.delete(userId);
       setupSeen.delete(userId);

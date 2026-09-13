@@ -275,26 +275,3 @@ export const MonitorId = makeIdSchema("mon", "MonitorId");
 export type MonitorId = typeof MonitorId.Type;
 export const MonitorCheckId = makeIdSchema("mchk", "MonitorCheckId");
 export type MonitorCheckId = typeof MonitorCheckId.Type;
-
-export const WalletMonitorId = makeIdSchema("wmon", "WalletMonitorId");
-export type WalletMonitorId = typeof WalletMonitorId.Type;
-export const WalletActivityId = makeIdSchema("wact", "WalletActivityId");
-export type WalletActivityId = typeof WalletActivityId.Type;
-
-export const OnchainAlertRuleId = makeIdSchema("oar", "OnchainAlertRuleId");
-export type OnchainAlertRuleId = typeof OnchainAlertRuleId.Type;
-
-export const CreditChargeId = makeIdSchema("ccg", "CreditChargeId");
-export type CreditChargeId = typeof CreditChargeId.Type;
-export const CreditPurchaseId = makeIdSchema("ctp", "CreditPurchaseId");
-export type CreditPurchaseId = typeof CreditPurchaseId.Type;
-export const CreditEntryId = makeIdSchema("cle", "CreditEntryId");
-export type CreditEntryId = typeof CreditEntryId.Type;
-
-export const PaymentMethodId = makeIdSchema("pmt", "PaymentMethodId");
-export type PaymentMethodId = typeof PaymentMethodId.Type;
-export const CardCheckoutId = makeIdSchema("cco", "CardCheckoutId");
-export type CardCheckoutId = typeof CardCheckoutId.Type;
-
-export const WatchlistPreviewId = makeIdSchema("wlp", "WatchlistPreviewId");
-export type WatchlistPreviewId = typeof WatchlistPreviewId.Type;

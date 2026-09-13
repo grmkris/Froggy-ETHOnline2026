@@ -17,7 +17,6 @@ import { ConnectionDetails } from "../components/settings/connection-details";
 import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
-import { PaymentMethodsPanel } from "../components/settings/payment-methods";
 import { ScheduleList } from "../components/settings/schedule-list";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
@@ -37,7 +36,6 @@ export const SettingsPage = (): ReactElement => {
       >
         {[
           ["email", "Email"],
-          ["payment-methods", "Payment methods"],
           ["routines", "Routines"],
           ["spending", "Spending controls"],
           ["appearance", "Appearance"],
@@ -84,7 +82,6 @@ export const SettingsPage = (): ReactElement => {
           </Card>
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <PaymentMethodsPanel />
           <Card id="spending" className="scroll-mt-6">
             <CardHeader>
               <CardTitle>Spending controls</CardTitle>

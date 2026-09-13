@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
 import { captureScreen } from "./capture";
-import { fundCredits } from "./fund-credits";
 
 for (const width of [1440, 390, 320]) {
   test(`save, edit, attach and archive a product at ${width}px`, async ({
@@ -25,8 +24,9 @@ for (const width of [1440, 390, 320]) {
     await dialog.getByLabel("Name", { exact: true }).fill("Weekend shoes");
     await dialog.getByLabel(/Details/u).fill("Size 42 · olive green");
     await dialog.getByRole("button", { name: "Save item" }).click();
-    await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
-    await page.keyboard.press("Escape");
+    await dialog
+      .getByRole("button", { name: "Save without monitoring" })
+      .click();
     await expect(dialog).not.toBeVisible();
     await page.reload();
     await page.getByRole("link", { name: /Weekend shoes/u }).click();
@@ -107,7 +107,6 @@ for (const [network, name] of [
 ] as const) {
   test(`token lookup and save preserve ${name} identity`, async ({ page }) => {
     await page.goto("/watchlist?discover=true");
-    await fundCredits(page);
     const discover = page.getByRole("region", { name: "Discover tokens" });
     await discover.getByLabel("Chain", { exact: true }).selectOption(network);
     await discover
@@ -122,14 +121,18 @@ for (const [network, name] of [
       result.getByText("Simulated data", { exact: true })
     ).toBeVisible();
     await result.getByRole("button", { name: /^Save /u }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const setup = page.getByRole("dialog");
+    await expect(setup.getByLabel("How often?")).toHaveValue("");
+    await setup
+      .getByRole("button", { name: "Save without monitoring" })
+      .click();
     await expect(
       result.getByRole("link", { name: /^Open saved /u })
     ).toBeVisible();
     await page.reload();
     const items = page.getByRole("region", { name: "Saved items" });
     await expect(items.getByRole("link")).toHaveCount(1);
-    await expect(items).toContainText(name);
+    await expect(items.getByRole("link")).toContainText(name);
     await discover.getByLabel("Chain", { exact: true }).selectOption(network);
     await discover
       .getByLabel("Name, symbol or address")

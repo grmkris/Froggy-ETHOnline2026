@@ -7,17 +7,21 @@ for (const width of [390, 1440]) {
     page,
   }, testInfo) => {
     const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
     page.on("pageerror", (error) => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/watchlist");
-    await page.getByText("Manage monitoring", { exact: true }).click();
     const budget = page.getByRole("region", { name: "Monitoring budget" });
-    await budget.getByLabel("Monthly monitoring limit (credits)").fill("200");
+    await budget.getByLabel("Monthly monitoring limit (USD)").fill("2");
     await budget.getByRole("button", { name: "Save budget" }).click();
     await expect(budget.getByText("Monitoring budget saved.")).toBeVisible();
     await expect(
-      budget.getByLabel("Monthly monitoring limit (credits)")
-    ).toHaveValue("200");
+      budget.getByLabel("Monthly monitoring limit (USD)")
+    ).toHaveValue("2");
     await page.getByRole("button", { name: "Add item", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("What are you saving?").selectOption("product");
@@ -29,10 +33,6 @@ for (const width of [390, 1440]) {
     await dialog
       .getByRole("button", { name: "Save item", exact: true })
       .click();
-    await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
-    await dialog
-      .getByRole("button", { name: "Add alert", exact: true })
-      .click();
     await expect(dialog.getByLabel("How often?")).toHaveValue("");
     await dialog.getByLabel("How often?").selectOption("daily");
     await dialog.getByLabel("Notify me when").selectOption("price_below");
@@ -41,7 +41,6 @@ for (const width of [390, 1440]) {
     await dialog
       .getByRole("button", { name: "Enable monitoring", exact: true })
       .click();
-    await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await page.getByRole("link", { name: /Monitoring sample/u }).click();
     const monitor = page.getByRole("region", {

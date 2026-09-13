@@ -7,7 +7,11 @@ import type {
 import { ServiceRequest } from "@froggy/protocol";
 import { Schema } from "effect";
 
-import { MONITOR_CHECK_USD_MICROS, updateMonitorCheck } from "./monitoring";
+import {
+  assertMonitorCurrent,
+  MONITOR_CHECK_USD_MICROS,
+  updateMonitorCheck,
+} from "./monitoring";
 import { serviceCatalog } from "./service-providers";
 import { purchaseService } from "./service-tasks";
 import type { TaskCaller, TaskDeps } from "./tasks";
@@ -44,6 +48,7 @@ export const beginDataCheck = async (
     );
   }
   const workspace = await deps.workspaces.hydrate(owner);
+  await assertMonitorCurrent(deps.services.store, owner, check);
   const ticket = await purchaseService(
     {
       services: deps.services,
@@ -51,11 +56,13 @@ export const beginDataCheck = async (
       agentTokenId: caller.agentTokenId,
       connectionId: monitor.connectionId,
       interactive: false,
-      monitorCheckId: check.id,
+      beforePayment: async () => {
+        await assertMonitorCurrent(deps.services.store, owner, check);
+      },
       budgetUsdMicros: MONITOR_CHECK_USD_MICROS,
     },
     Schema.decodeUnknownSync(ServiceRequest)({
-      v: 2,
+      v: 1,
       service: "token_inspect",
       idempotencyKey: `monitor:${check.id}`,
       input: { network: item.source.network, address: item.source.address },

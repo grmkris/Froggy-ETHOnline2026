@@ -1,9 +1,16 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { fundCredits } from "./fund-credits";
+/**
+ * The person's tiles bind Froggy's engine in the same session.
+ *
+ * Lowering the per-spend cap in Account must refuse a spend that used to fit,
+ * without a reload. A small `wallet_send` always asks. A service payment under
+ * the ask line still runs on its own.
+ */
 
 const PAYEE = "0x0000000000000000000000000000000000000001";
+
 const waitForRules = async (page: Page) => {
   await page.goto("/settings");
   await expect(page.getByText(/Your agent may pay up to/u)).toBeVisible({
@@ -11,41 +18,48 @@ const waitForRules = async (page: Page) => {
   });
 };
 
-const runSearch = async (page: Page, prompt: string) => {
-  await page.goto("/services?service=web_search");
-  await page.getByLabel("Your request").fill(prompt);
-  await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
+const lowerPerSpend = async (page: Page) => {
+  await waitForRules(page);
+  await page.getByRole("button", { name: "Change these" }).click();
+  await page.getByLabel("Most in one payment").fill("0.003");
+  await page.getByLabel("Ask me above").fill("0.001");
+  await page.getByRole("button", { name: "Save these rules" }).click();
+  await expect(
+    page.getByText("Saved. Your agent is held to these from now on.")
+  ).toBeVisible({ timeout: 20_000 });
 };
 
-test("a funded service runs within credit limits without a wallet approval", async ({
+test("a service payment under the ask line runs without asking", async ({
   page,
 }) => {
-  await page.goto("/wallet");
-  await fundCredits(page);
-  await runSearch(page, "A prepaid task");
-  await expect(
-    page.getByText("1 credit used", { exact: true }).first()
-  ).toBeVisible();
+  await waitForRules(page);
+  await page.goto("/chat");
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel(/^Approve .* to /u)).toHaveCount(0);
+  const receipt = page.getByLabel(/^Receipt:/u).first();
+  await expect(receipt).toBeVisible({ timeout: 20_000 });
+  await expect(receipt).not.toContainText("per_tx_cap_exceeded");
 });
 
-test("lowering the credit cap refuses a task that used to fit", async ({
+test("lowering the per-spend cap refuses a spend that used to fit, without reload", async ({
   page,
 }) => {
-  await page.goto("/wallet");
-  await fundCredits(page);
-  await runSearch(page, "Within the original credit cap");
-  await expect(
-    page.getByText("1 credit used", { exact: true }).first()
-  ).toBeVisible();
-  await page.goto("/wallet");
-  await page.getByText("Credit limits", { exact: true }).click();
-  await page.getByLabel("Most per task (credits)").fill("0.5");
-  await page.getByRole("button", { name: "Save credit limits" }).click();
-  await expect(page.getByText("Credit limits saved.")).toBeVisible();
-  await runSearch(page, "Refused by the new credit cap");
-  await expect(page.getByText(/credit_task_cap/u).first()).toBeVisible();
-  await expect(page.getByLabel(/^Approve .* to /u)).toHaveCount(0);
+  test.setTimeout(60_000);
+  await lowerPerSpend(page);
+  // Same live session: `/chat` is not in the primary nav (Home is), and a
+  // full navigation still hits the workspace that `applyAllowance` already
+  // updated — hydrate is once per process.
+  await page.goto("/chat");
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Buy the lending snapshot");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const refused = page.getByLabel(/^Refused:/u).first();
+  await expect(refused).toBeVisible({ timeout: 20_000 });
+  await expect(refused).toContainText("per_tx_cap_exceeded");
 });
 
 test("a small wallet_send asks, and the ticket names the table", async ({

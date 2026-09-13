@@ -3,15 +3,20 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import { StubCloudBrowser } from "@froggy/browser";
 import {
   EvmAddress,
+  EmailId,
+  EmailWaitId,
   OAuthClientId,
   OAuthGrantId,
   SessionId,
+  SaleId,
+  RunId,
+  TaskId,
+  usdMicros,
   userId,
 } from "@froggy/domain";
-import type { OAuthScope, TaskId } from "@froggy/domain";
+import type { OAuthScope } from "@froggy/domain";
 import {
   ServiceRequest,
-  WatchlistDetails,
   ServiceResult,
   ServiceTicket,
   SwapQuoteInput,
@@ -22,12 +27,15 @@ import { ConfigProvider, Effect, Schema } from "effect";
 
 import { ModelBudget } from "./budget";
 import { capabilityFor, canUseTool } from "./capabilities";
-import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
+import { acceptHistory } from "./history";
 import { InteractionRegistry } from "./interactions";
+import { handleMcp } from "./mcp";
 import {
   changeMonitor,
+  claimMonitor,
+  updateMonitorCheck,
   configureMonitor,
   monitoringState,
   setMonitoringBudget,
@@ -41,7 +49,6 @@ import { createServices } from "./services";
 import { WorkspaceSession } from "./session";
 import { buildTools } from "./tools";
 import { UnlockTokens } from "./unlock";
-import { recordItemObservation } from "./watchlist-data";
 import { saveWatchlistItem } from "./watchlist-routes";
 import { Workspaces } from "./workspaces";
 
@@ -103,7 +110,10 @@ beforeAll(async () => {
   );
 });
 
-const fixture = async (scopes?: readonly OAuthScope[]) => {
+const fixture = async (
+  scopes?: readonly OAuthScope[],
+  savedHistory = false
+) => {
   const services = createServices({ environment });
   const { quote } = createQuotes(services.rates);
   const balances = {
@@ -136,7 +146,6 @@ const fixture = async (scopes?: readonly OAuthScope[]) => {
     }
   );
   await session.hydrate();
-  await fundTestCredits(services.store, person, 2_000_000);
   // Trading tools must never reach for a page; a stub refuses loudly if they do.
   const browser = new StubCloudBrowser({});
   const workspaces = new Workspaces({
@@ -161,7 +170,23 @@ const fixture = async (scopes?: readonly OAuthScope[]) => {
     reservedBrowsers: 0,
     store: services.store,
   });
-  const run = new ChatRun(session.id);
+  const accepted = savedHistory
+    ? await acceptHistory(services.store.history, person, {
+        messages: [
+          {
+            id: "email-wait-request",
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "Wait for my requested confirmation email.",
+              },
+            ],
+          },
+        ],
+      })
+    : null;
+  const run = new ChatRun(session.id, accepted?.run.id);
   const connectionId = scopes ? OAuthGrantId.generate() : null;
   if (connectionId && scopes) {
     const clientId = OAuthClientId.generate();
@@ -223,6 +248,24 @@ const completed = async (
 };
 
 describe("named trading chat tools", () => {
+  it("exposes email and research tools together without sending authority", async () => {
+    const { tools } = await fixture();
+    const names = Object.keys(tools);
+    for (const name of [
+      "email_address",
+      "email_search",
+      "email_draft",
+      "email_wait",
+      "research_read",
+      "graph_schema",
+      "watchlist_save",
+    ]) {
+      expect(names).toContain(name);
+    }
+    expect(names).not.toContain("email_send");
+    expect(names).not.toContain("email_approve");
+  });
+
   it("advertises object schemas that accept all four model inputs without a wire version", async () => {
     const { tools } = await fixture();
     await Promise.all(
@@ -257,7 +300,7 @@ describe("named trading chat tools", () => {
   });
 
   it.each(["market_search", "quote_action"] as const)(
-    "executes %s through chat with one durable task and credit charge across coordinator retries",
+    "executes %s through chat with the same durable task, sale, and receipt as the coordinator",
     async (operation) => {
       const context = await fixture();
       const idempotencyKey = `chat-${operation}-${crypto.randomUUID()}`;
@@ -276,6 +319,8 @@ describe("named trading chat tools", () => {
               },
               callOptions
             );
+      expect(output).not.toHaveProperty("email_wait");
+      expect(output).not.toHaveProperty("email_address");
       const ticket = Schema.decodeUnknownSync(ServiceTicket)(output);
       const result = await completed(context, ticket.id);
       expect(result.status).toBe("done");
@@ -284,20 +329,17 @@ describe("named trading chat tools", () => {
       expect(result.stubbed).toBe(true);
       expect(result.data?.operation).toBe(operation);
       expect(result.data?.stubbed).toBe(true);
-      expect(context.session.history).toHaveLength(0);
-      expect(result.saleId).toBeNull();
-      const charge = await context.services.store.credits.findCharge(
-        context.session.userId,
-        ticket.id
-      );
-      expect(charge?.status).toBe("captured");
-      expect(charge?.stubbed).toBe(true);
-      const entries = await context.services.store.credits.entries(
-        context.session.userId
-      );
-      expect(entries.filter((entry) => entry.kind === "capture")).toHaveLength(
-        1
-      );
+      const [receipt] = context.session.history;
+      expect(context.session.history).toHaveLength(1);
+      expect(receipt?.stubbed).toBe(true);
+      expect(receipt?.runId).toBe(context.run.id);
+      expect(receipt?.intent.idempotencyKey).toBe(`service:${ticket.id}`);
+      if (result.saleId === null) {
+        throw new Error("Chat trading task did not retain its sale.");
+      }
+      const sale = await context.services.store.sales.byId(result.saleId);
+      expect(sale?.transactionId).toBe(receipt?.settlement?.transactionId);
+      expect(sale?.stubbed).toBe(true);
       const task = await context.services.store.tasks.byId(
         context.session.userId,
         ticket.id
@@ -306,7 +348,7 @@ describe("named trading chat tools", () => {
         Schema.decodeUnknownSync(ServiceResult)(task?.result).data
       ).toEqual(result.data);
       const request = Schema.decodeUnknownSync(ServiceRequest)({
-        v: 2,
+        v: 1,
         service: operation,
         input: INPUTS[operation],
         idempotencyKey,
@@ -324,7 +366,7 @@ describe("named trading chat tools", () => {
         request
       );
       expect(replay.id).toBe(ticket.id);
-      expect(context.session.history).toHaveLength(0);
+      expect(context.session.history).toHaveLength(1);
     }
   );
 });
@@ -388,6 +430,147 @@ it("enforces a delegated grant again when an already-built tool executes", async
     Date.now()
   );
   expect(read.execute({ query: "" }, callOptions)).rejects.toThrow("revoked");
+});
+
+const emailFixture = async (savedHistory = false) => {
+  const context = await fixture(["email:read"], savedHistory);
+  const { email } = context.services;
+  if (!email || !context.connectionId) {
+    throw new Error("Expected email and an explicit read grant");
+  }
+  const owner = context.session.userId;
+  await email.claim(owner, "scoped-email");
+  const grantId = context.connectionId;
+  const revoke = async () => {
+    await context.services.store.oauth.grants.revoke(
+      owner,
+      grantId,
+      Date.now()
+    );
+  };
+  return { context, email, owner, grantId, revoke };
+};
+const readEmailMcp = async (context: Fixture, fileId: string, owner = false) =>
+  await handleMcp(
+    context.services,
+    context.session,
+    {
+      userId: context.session.userId,
+      agentTokenId: null,
+      grantId: owner ? null : context.connectionId,
+      scopes: owner ? null : new Set(["email:read"]),
+    },
+    new Request(`${environment.appOrigin}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "froggy_email_file_read",
+          arguments: { id: fileId },
+        },
+      }),
+    })
+  );
+
+it("reads the owner's attachment but rejects a revoked MCP grant despite cached caller scopes", async () => {
+  const { context, email, owner, revoke } = await emailFixture();
+  const file = await email.upload(
+    owner,
+    "note.txt",
+    "text/plain",
+    new TextEncoder().encode("Private attachment fixture")
+  );
+  const own = await readEmailMcp(context, file.id, true);
+  expect(await own.text()).toContain("Private attachment fixture");
+  await revoke();
+  const denied = await readEmailMcp(context, file.id);
+  const output = await denied.text();
+  expect(output).toContain("revoked");
+  expect(output).not.toContain("Private attachment fixture");
+});
+
+it("withholds MCP attachment bytes when the grant is revoked during the attachment read", async () => {
+  const { context, email, owner, revoke } = await emailFixture();
+  const file = await email.upload(
+    owner,
+    "note.txt",
+    "text/plain",
+    new TextEncoder().encode("Private delayed attachment")
+  );
+  const read = email.file.bind(email);
+  let reads = 0;
+  email.file = async (...args) => {
+    const result = await read(...args);
+    reads += 1;
+    if (reads === 2) {
+      await revoke();
+    }
+    return result;
+  };
+  const response = await readEmailMcp(context, file.id);
+  const output = await response.text();
+  expect(reads).toBe(2);
+  expect(output).toContain("revoked");
+  expect(output).not.toContain("Private delayed attachment");
+});
+
+it("withholds model attachment output when reading revokes the grant after conversion starts", async () => {
+  const { context, email, owner, revoke } = await emailFixture();
+  const bytes =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5WQAAAAASUVORK5CYII=";
+  const file = await email.upload(
+    owner,
+    "pixel.png",
+    "image/png",
+    new Uint8Array(Buffer.from(bytes, "base64"))
+  );
+  const available: ToolSet = context.tools;
+  const readTool = available["email_file_read"];
+  if (!readTool?.execute || !readTool.toModelOutput) {
+    throw new Error("Expected attachment tool");
+  }
+  const output: unknown = await readTool.execute({ id: file.id }, callOptions);
+  const read = email.file.bind(email);
+  email.file = async (...args) => {
+    const result = await read(...args);
+    await revoke();
+    return result;
+  };
+  expect(
+    readTool.toModelOutput({
+      toolCallId: callOptions.toolCallId,
+      input: { id: file.id },
+      output,
+    })
+  ).rejects.toThrow("revoked");
+});
+
+it("withholds a waited-for email result when its grant is revoked during the wait", async () => {
+  const { context, email, revoke } = await emailFixture(true);
+  const available: ToolSet = context.tools;
+  const wait = available["email_wait"];
+  if (!wait?.execute) {
+    throw new Error("Expected email wait tool");
+  }
+  const first: unknown = await wait.execute(
+    { expectedDomain: "example.com" },
+    callOptions
+  );
+  const { id } = Schema.decodeUnknownSync(Schema.Struct({ id: EmailWaitId }))(
+    JSON.parse(Schema.decodeUnknownSync(Schema.String)(first))
+  );
+  const waitStatus = email.waitStatus.bind(email);
+  email.waitStatus = async (...args) => {
+    const result = await waitStatus(...args);
+    await revoke();
+    return { ...result, status: "received", emailId: EmailId.generate() };
+  };
+  expect(
+    wait.execute({ expectedDomain: "example.com", id }, callOptions)
+  ).rejects.toThrow("revoked");
 });
 
 it("runs a structured token monitor through purchase, task reconciliation and baseline without Chrome", async () => {
@@ -491,48 +674,212 @@ it("runs a structured token monitor through purchase, task reconciliation and ba
   expect(messages).toHaveLength(1);
 });
 
-it("reads saved facts through the agent without purchasing and refuses another owner's item", async () => {
-  const context = await fixture();
-  const { store } = context.services;
+const monitoringFixture = async (
+  context: Fixture,
+  services = context.services
+) => {
   const owner = context.session.userId;
-  const item = await saveWatchlistItem(store, owner, {
-    title: "Saved product facts",
-    notes: "Size 42",
-    source: { _tag: "product", url: "https://example.com/shoe" },
+  const item = await saveWatchlistItem(services.store, owner, {
+    title: "Accounting fixture",
+    notes: "Exact synthetic Base token",
+    source: { _tag: "token", network: BASE, address: TOKEN },
   });
-  await recordItemObservation(store, owner, item.id, {
-    at: Date.now(),
-    source: "Fixture",
-    sourceUrl: null,
-    price: 50,
-    currency: "EUR",
-    basis: "Size 42",
-    stubbed: true,
-    facts: [{ label: "Size", value: "42" }],
-  });
-  const available: ToolSet = context.tools;
-  const read = available["watchlist_get"];
-  if (!read?.execute) {
-    throw new Error("Expected saved-item read tool");
-  }
-  const details = Schema.decodeUnknownSync(WatchlistDetails)(
-    await read.execute({ id: item.id, revision: item.revision }, callOptions)
-  );
-  expect(details.item.id).toBe(item.id);
-  expect(details.data.latest?.price).toBe(50);
-  expect(details.data.observations).toEqual([]);
-  expect(await store.tasks.list(owner, 10)).toHaveLength(0);
-  const foreign = await saveWatchlistItem(
-    store,
-    userId("did:privy:foreign-saved-item"),
+  await setMonitoringBudget(services.store, owner, 2_000_000, "UTC");
+  await configureMonitor(
+    services.store,
+    owner,
     {
-      title: "Private",
-      notes: "",
-      source: { _tag: "link", url: "https://example.com" },
-    }
+      itemId: item.id,
+      cadence: "daily",
+      timezone: "UTC",
+      context: "Exact synthetic Base token",
+      condition: { _tag: "price_below", amount: 1, currency: "USD" },
+    },
+    null
   );
-  expect(read.execute({ id: foreign.id }, callOptions)).resolves.toEqual({
-    v: 1,
-    error: "Saved item not found.",
+  return createMonitoringRunner({
+    services,
+    workspaces: context.workspaces,
+    budget: new ModelBudget({ exempt: null, runsPerDay: 5, stepsPerDay: 50 }),
+    interactions: new InteractionRegistry({
+      onRequest: noop,
+      onResolved: noop,
+    }),
+    notices: createNotices({
+      notify: async () => await Promise.resolve(false),
+      publishApp: noop,
+    }),
+    oracleUrl: `${environment.appOrigin}/oracle/snapshot`,
+    tasksUrl: `${environment.appOrigin}/api/tasks`,
+    runs: new ChatRunRegistry(),
+    unlocks: new UnlockTokens(),
   });
+};
+
+it("charges monitoring from the settled receipt when recording its sale fails", async () => {
+  const context = await fixture();
+  const services = {
+    ...context.services,
+    store: {
+      ...context.services.store,
+      sales: {
+        ...context.services.store.sales,
+        record: async () => {
+          await Promise.resolve();
+          throw new Error("Simulated sale write failure after settlement");
+        },
+      },
+    },
+  };
+  const runner = await monitoringFixture(context, services);
+  const owner = context.session.userId;
+  await runner.tick();
+  const started = await monitoringState(services.store, owner);
+  const taskId = started.checks[0]?.taskId;
+  if (taskId === null || taskId === undefined) {
+    throw new Error("Missing monitor task");
+  }
+  const ticket = await completed(context, taskId);
+  expect(ticket.status).toBe("failed");
+  expect(ticket.saleId).toBeNull();
+  await runner.tick();
+  await runner.tick();
+  const state = await monitoringState(services.store, owner);
+  expect(state.checks[0]?.status).toBe("failed");
+  expect(state.checks[0]?.reservedUsdMicros).toBe(0);
+  expect(state.checks[0]?.spentUsdMicros).toBe(12_000);
+  expect(state.months[0]?.spentUsdMicros).toBe(12_000);
 });
+
+it("releases a monitor reservation when the payment was refused before signing", async () => {
+  const context = await fixture();
+  const services = {
+    ...context.services,
+    // Synthetic payee deliberately outside the fixture's allowlist.
+    oracle: { ...context.services.oracle, payTo: "0.0.999999" },
+  };
+  const runner = await monitoringFixture(context, services);
+  const owner = context.session.userId;
+  await runner.tick();
+  const started = await monitoringState(services.store, owner);
+  const taskId = started.checks[0]?.taskId;
+  if (taskId === null || taskId === undefined) {
+    throw new Error("Missing monitor task");
+  }
+  const ticket = await completed(context, taskId);
+  expect(ticket.status).toBe("failed");
+  await runner.tick();
+  const state = await monitoringState(services.store, owner);
+  expect(state.checks[0]?.status).toBe("failed");
+  expect(state.checks[0]?.reservedUsdMicros).toBe(0);
+  expect(state.checks[0]?.spentUsdMicros).toBe(0);
+  expect(state.months[0]?.spentUsdMicros).toBe(0);
+});
+
+it.each([
+  ["service", "failed"],
+  ["browse", "failed"],
+  ["service", "cancelled"],
+  ["browse", "cancelled"],
+] as const)(
+  "holds the reservation for a %s task ending %s with missing payment evidence",
+  async (kind, status) => {
+    const context = await fixture();
+    const runner = await monitoringFixture(context);
+    const { store } = context.services;
+    const owner = context.session.userId;
+    const check = await claimMonitor(store, owner);
+    if (check === null) {
+      throw new Error("Missing monitoring claim");
+    }
+    const id = TaskId.generate();
+    await store.tasks.create(owner, {
+      id,
+      kind,
+      runId: RunId.generate(),
+      saleId: null,
+      status,
+      error: "Interrupted after payment attempt",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      priceUsdMicros: usdMicros(12_000),
+      input: {},
+      result: null,
+      idempotencyKey: `monitor:${check.id}`,
+      agentTokenId: null,
+      connectionId: null,
+    });
+    await updateMonitorCheck(store, owner, check.id, {
+      taskId: id,
+      status: "running",
+    });
+    await runner.tick();
+    await runner.tick();
+    const state = await monitoringState(store, owner);
+    expect(state.checks).toHaveLength(1);
+    expect(state.checks[0]?.status).toBe("uncertain");
+    expect(state.checks[0]?.reservedUsdMicros).toBe(1_000_000);
+    expect(state.checks[0]?.spentUsdMicros).toBe(0);
+    expect(state.months).toHaveLength(0);
+  }
+);
+
+it.each(["completed", "blocked"] as const)(
+  "reconciles a cancelled paid browser check immediately despite its prior %s report",
+  async (status) => {
+    const context = await fixture();
+    const runner = await monitoringFixture(context);
+    const { store } = context.services;
+    const owner = context.session.userId;
+    const check = await claimMonitor(store, owner);
+    if (check === null) {
+      throw new Error("Missing monitoring claim");
+    }
+    const id = TaskId.generate();
+    await store.tasks.create(owner, {
+      id,
+      kind: "browse",
+      runId: RunId.generate(),
+      saleId: SaleId.generate(),
+      status: "cancelled",
+      error: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      priceUsdMicros: usdMicros(12_000),
+      input: {},
+      result: {
+        outcome: {
+          status,
+          reason: "Prior report",
+          evidence: "Synthetic page",
+          observation: {
+            at: Date.now(),
+            value: "$0.50",
+            price: 0.5,
+            currency: "USD",
+            sourceUrl: "https://example.com/token",
+            evidence: "Synthetic token",
+            stubbed: true,
+          },
+        },
+      },
+      idempotencyKey: `monitor:${check.id}`,
+      agentTokenId: null,
+      connectionId: null,
+    });
+    await updateMonitorCheck(store, owner, check.id, {
+      taskId: id,
+      status: "running",
+    });
+    await runner.tick();
+    await runner.tick();
+    const state = await monitoringState(store, owner);
+    expect(state.checks).toHaveLength(1);
+    expect(state.checks[0]?.status).toBe("failed");
+    expect(state.checks[0]?.error).toBe("The check was cancelled.");
+    expect(state.checks[0]?.reservedUsdMicros).toBe(0);
+    expect(state.months[0]?.spentUsdMicros).toBe(12_000);
+    expect(state.monitors[0]?.baseline).toBeNull();
+    expect(state.monitors[0]?.status).toBe("failed");
+  }
+);

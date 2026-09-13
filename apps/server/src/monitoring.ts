@@ -17,7 +17,7 @@ import { isTimezone, localClock, nextRunAfter } from "./schedules";
 export const MONITOR_CHECK_USD_MICROS = 1_000_000;
 export const monitoringMonth = (now: number, timezone: string): string =>
   localClock(now, timezone).day.slice(0, 7);
-export const monitorNextAt = (config: MonitorConfig, now: number): number => {
+const monitorNextAt = (config: MonitorConfig, now: number): number => {
   if (config.cadence === "hourly") {
     return now + 3_600_000;
   }
@@ -39,6 +39,28 @@ export const monitoringState = async (
   owner: UserId
 ): Promise<MonitoringBook> =>
   await store.monitoring.transact(owner, (book) => ({ book, result: book }));
+
+/** Recheck the saved revision at the payment boundary, after asynchronous quoting. */
+export const assertMonitorCurrent = async (
+  store: Store,
+  owner: UserId,
+  check: MonitorCheck
+): Promise<void> => {
+  const current = await monitoringState(store, owner);
+  const monitor = current.monitors.find(
+    (entry) => entry.id === check.monitorId
+  );
+  if (
+    !monitor ||
+    monitor.status !== "checking" ||
+    monitor.revision !== check.revision ||
+    monitor.checkId !== check.id
+  ) {
+    throw new Error(
+      "The monitor was paused or changed. Nothing was purchased."
+    );
+  }
+};
 
 export const configureMonitor = async (
   store: Store,
@@ -426,6 +448,9 @@ const validatedObservation = (
   observation: MonitorObservation | null,
   error: string | null
 ) => {
+  if (error !== null) {
+    return { observation: null, error, sameMode: true };
+  }
   const { condition } = monitor;
   if (
     observation &&
@@ -454,10 +479,9 @@ export const finishMonitorCheck = async (
   owner: UserId,
   id: MonitorCheckId,
   inputObservation: MonitorObservation | null,
-  inputSpentUsdMicros: number,
+  spentUsdMicros: number,
   inputError: string | null,
-  needsHelp = false,
-  creditBilling = false
+  needsHelp = false
 ) =>
   await store.monitoring.transact(owner, (book) => {
     const check = book.checks.find((entry) => entry.id === id);
@@ -473,8 +497,6 @@ export const finishMonitorCheck = async (
       inputObservation,
       inputError
     );
-    const spentUsdMicros =
-      creditBilling && observation === null ? 0 : inputSpentUsdMicros;
     const current =
       monitor.revision === check.revision && monitor.status !== "paused";
     const matched =

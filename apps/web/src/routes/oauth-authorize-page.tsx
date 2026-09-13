@@ -156,7 +156,7 @@ const requestFromSearch = (search: string): AuthorizeRequest | null => {
   };
 };
 
-/** The scopes the client asked for, in the page's order; all of them when it named none. */
+/** Keep legacy permissions when omitted; extra capabilities require an explicit request. */
 const requestedScopes = (scope: string | undefined): readonly OAuthScope[] => {
   if (scope === undefined || scope.trim() === "") {
     return ["brief", "browse", "pay", "services", "history"];

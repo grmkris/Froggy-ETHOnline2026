@@ -1,26 +1,32 @@
-# Capability and monitoring implementation — local verification
+# Capability and monitoring verification
 
 Date: 2026-09-13
 
-This is local verification with explicitly simulated external providers. It is not evidence of live delivery or a live monitor charge.
+The release is prepared in `/tmp/froggy-monitoring-release` from the deployed workspace and research baseline. The original shared checkout and its ongoing wallet-stream implementation remain preserved.
 
-The CLI now accepts `--all-tools` to request every permission in the supported OAuth catalogue through one human consent screen. A smaller `--scopes` selection is validated against that same catalogue. Existing grants and spending limits are unchanged. The generated agent connection instructions request this simpler flow.
+## Behavior
 
-Email, watchlist and monitoring tools are registered in the real tool collection. Tool execution rechecks the initiating connection, including revocation. Delegated browser, email and unattended monitoring tasks use Froggy's tool-enabled executor. Task goal outcomes are distinct from execution termination.
-
-Saving products, trips, links and discovered tokens opens monitoring setup with an explicit save-only exit. The human chooses a shared monthly budget, cadence and condition. Item edits invalidate old comparisons. The UI reports pending reservations, current-month charges, status, observations and check history; login or CAPTCHA can hand back control without purchasing the check again.
+- One `--all-tools` OAuth flow requests the supported capability catalogue. Existing grants retain their scopes; only the human can consent or change a monitoring budget.
+- Email reads and rendered attachments recheck permissions after asynchronous work, including waits and revocation during rendering. No email sending or approval tool is introduced.
+- Saving a product, trip, link or token offers monitoring setup or an explicit save-only exit. Cadence, exact context and condition are chosen by the owner.
+- Monitoring reserves at most $1 per check under an owner transaction lock. The first observation establishes a baseline; subsequent matching transitions can notify the owner. Currency or provider-mode mismatches cannot produce misleading price alerts.
+- Pause is checked before payment signing. Failed observations cannot become baselines, and ambiguous payment evidence retains its reservation. Confirmed payment receipts still count when secondary sale recording fails.
+- Browser handoff retains the same paid task. Execution status and the reported task goal outcome are shown separately.
 
 ## Verified locally
 
-- 43 targeted backend tests passed across capabilities, monitoring, actual tool registration/execution, scheduling, paid tasks and generated connection instructions.
-- A structured token monitor completed a simulated purchase, stored its baseline, observed a later synthetic price drop, notified once, and reconciled twice without another charge. Unknown currencies and changes between simulated and live markers cannot generate misleading price alerts.
-- Two PostgreSQL connections against an isolated local database claimed one monitoring check and one reservation; owner isolation and durability passed.
-- 23 browser tests passed with two workers, including mobile/desktop monitoring, save-only and token saves, connection clipboard recovery, and theme/navigation checks. Browser error assertions are included in the changed flows.
-- The standalone CLI bundled successfully; an unsupported permission was rejected before contacting an OAuth server.
-- Targeted type-aware lint passed. A broader browser run had 194 passing tests, three failures and two unrun tests; the affected connection-copy and theme cases passed in the subsequent targeted run.
+- `bun run check` passed on the isolated implementation: format, type-aware lint, all project typechecks, boundaries, agent/name checks, 1,328 package tests, and unused-code detection. Tests requiring externally configured databases remain explicitly skipped by that default gate.
+- A separate real PostgreSQL run applied migration 0024 to a fresh local database and passed 28 ledger, persistence and watchlist tests (135 assertions). Two connections claim only one check and reservation. Migration 0024 adds only `monitoring_accounts`.
+- Targeted regressions verify revoked email grants, attachment conversion, no automatic grant expansion, baseline/alert transitions, cap enforcement, quote signing concurrency, pause before signing, and accounting after a sale-write failure.
+- The full isolated browser suite passed: 196 tests, zero failures. Mobile/desktop monitoring scenarios check console/page errors, overflow, exact item context, budget, pause, persistence and archive. The release then merged hosted-browser commit `12de97d`; checks of the combined result are recorded below.
 
-## Release status
+## Live acceptance
 
-The checkout also contains concurrent hosted-browser and wallet-stream integration work. Repository-wide `check` / `check:fast` have not passed; their latest failures involve formatting and changing wallet-stream integration code. Do not treat this document as a deployment approval or a clean full-repository gate.
+A new external-agent email signup needs a human OAuth consent containing email-read permission. A live monitoring check needs the human's chosen monthly budget. Local simulated-provider checks are not evidence of a live signup, real monitor charge, or Telegram delivery.
 
-This implementation has not been deployed, and the monitoring migration has only been applied to an isolated local test database. The live Notion signup retry and a real monitoring observation/alert remain unverified. A live delegated signup needs a fresh OAuth grant containing email-read permission; live monitoring needs the human's chosen monthly budget.
+## Combined release checks
+
+- After merging hosted-browser commit `12de97d`, `bun run check` passed with 1,361 passing package tests and no failures.
+- `bun run build` passed.
+- All 29 browser tests affected by the merge passed, covering hosted progress and task outcomes, browser handoff, purchase flows, monitoring, saved items and agent connection instructions.
+- The separate full 196-test browser run passed before the hosted merge. A local simulated run is not evidence of a live external email signup or a paid monitor observation.

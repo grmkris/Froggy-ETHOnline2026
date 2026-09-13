@@ -1,6 +1,6 @@
 # Hosted browser implementation evidence
 
-2026-09-13. Local implementation with real Browser Use V4 calls. No deployment or production configuration change was performed.
+2026-09-13. Implementation validated with real Browser Use V4 calls. The compatibility tests below did not change production configuration. See the release verification section for the isolated production candidate.
 
 ## Live compatibility
 
@@ -30,7 +30,7 @@ Mobile Watch live surfaces pending approvals through a Review approval action th
 
 Browser tests exercise the task card at 1440 px and 390 px, reduced motion at 320 px, retained history scrolling, stale/reconnect states, cross-route Watch live, expiry/reconnect, deduplicated completion and chat availability. Screenshots were inspected; the duplicate quote-tool Done heading was removed so the card owns the visible lifecycle.
 
-Final verification:
+Initial shared-checkout verification:
 
 - Full browser suite: **199 passed**. Following the final remount/approval changes, the focused browser/budget/purchase suite was rerun: **11 passed**.
 - Focused backend/browser/state regression suite: **120 passed**, 568 assertions, 13 files.
@@ -41,10 +41,22 @@ Final verification:
 - Full package test run: server package reported 701 passing, two database-dependent skips and one OAuth metadata expectation failure due to additional scopes in concurrent work. The other 19 package tasks passed. The focused browser regression suite above passed after the final changes.
 - Knip: remaining unused exports/types are in concurrent capabilities, monitoring, wallet-stream/activity and watchlist code. The browser work has no remaining reported unused exports.
 
-The full repository gate is therefore **not green**, despite passing browser-specific validation. Re-run it after the concurrent work is complete.
+The initial shared-checkout gate was blocked by concurrent work. The isolated release below resolves that blocker while preserving the already deployed features.
 
 Reviewed captures use explicit simulated task data: [desktop](hosted-browser-2026-09-13/task-1440.png), [mobile](hosted-browser-2026-09-13/task-390.png).
 
+## Release verification
+
+The release is based on production commit `0608dbd`, preserving its navigation, Inbox, shared Watchlist and included market research. Hosted browser changes were isolated from unfinished monitoring and wallet-stream work in a separate checkout. The optional monitoring outcome field is excluded from this release; task results retain their summary and error states. No database migration is added.
+
+- `bun run check:fast`: passed.
+- `bun run check`: passed, including type-aware lint, 12 TypeScript workspaces, package boundaries, agent files, naming checks, all 20 package tasks and Knip. Database-dependent tests retain their explicit skips.
+- `bun run build`: passed.
+- Browser suite: 195 passed on the first run; the theme-switching assertion and trading-route teardown scenario both passed on an isolated rerun (2 passed). All 197 scenarios were validated. Hosted browser, budget and purchase scenarios passed on the first run.
+- `git diff --check`: passed.
+
+Production has no `BROWSE_EXECUTOR` override, so this release retains the `legacy` default. The progress UI and hosted implementation can be deployed without activating the hosted financial path.
+
 ## Rollout gate
 
-`BROWSE_EXECUTOR` remains `legacy`. A real Privy financial approval/payment and denial through this new executor, plus successful repository checks, remain prerequisites to enabling hosted browsing in production. The browser compatibility/refusal tests above do not substitute for that financial verification.
+`BROWSE_EXECUTOR` remains `legacy`. A real Privy financial approval/payment and denial through this new executor remains a prerequisite to enabling hosted browsing in production. The browser compatibility/refusal tests above do not substitute for that financial verification.

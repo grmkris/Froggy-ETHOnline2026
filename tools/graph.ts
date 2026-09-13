@@ -152,8 +152,6 @@ export const nodes: readonly Node[] = [
       "@x402/hedera",
       "@x402/svm",
       "@solana/kit",
-      // Credit funding verifies receipts and settles USDC through the Privy relayer.
-      "viem",
       "effect",
     ],
   },
@@ -163,7 +161,7 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "The Graph gateway. The eyes: why a spend was worth making.",
     mayImport: [],
-    mayUse: ["effect", "@substreams/core", "@connectrpc/connect-web"],
+    mayUse: ["effect", "graphql"],
   },
   {
     dir: "packages/ui",

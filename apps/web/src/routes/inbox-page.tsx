@@ -28,7 +28,6 @@ import type { Schema } from "effect";
 import { ArrowLeftIcon, MailIcon, PaperclipIcon, PlusIcon } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
-import { SaveEmail } from "../components/watchlist/save-email";
 import { EmailAccount } from "../components/email/email-account";
 import { DraftEditor, FileButton } from "../components/email/email-editor";
 import { useDrafts } from "../lib/draft-context";
@@ -127,7 +126,6 @@ const MessageReader = ({ message }: { readonly message: EmailMessage }) => {
         </dl>
       </header>
       <div className="flex flex-wrap gap-2 border-y py-3">
-        <SaveEmail emailId={message.id} key={message.id} />
         <Button
           variant="outline"
           onClick={() => {

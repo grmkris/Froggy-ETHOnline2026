@@ -23,11 +23,9 @@ import {
   taskIsStale,
 } from "../../lib/browse-task-state";
 import { useChatSurface } from "../../lib/chat-context";
-import { creditChargeWords, formatCredits } from "../../lib/credit-view";
 import { UI_EASE, keyboardInteraction } from "../../lib/motion";
 import { useWorkspace } from "../../lib/workspace-context";
 import { MarkdownText } from "../stream/markdown-text";
-import { BrowserCardCheckout } from "./card-checkout";
 
 import "./browse-task.css";
 
@@ -291,14 +289,14 @@ const TaskResult = ({
   readonly task: BrowseTaskView;
 }): ReactElement => (
   <>
-    {task.result?.outcome === undefined ? null : (
-      <output className="mt-3 block text-sm">
-        Goal {task.result.outcome.status}: {task.result.outcome.reason}
-      </output>
-    )}
     {task.error === null ? null : (
       <p className="text-destructive mt-3 text-sm" role="alert">
         {task.error}
+      </p>
+    )}
+    {task.result?.outcome === undefined ? null : (
+      <p className="text-muted-foreground mt-3 text-sm">
+        Goal {task.result.outcome.status}: {task.result.outcome.reason}
       </p>
     )}
     {task.result?.text === undefined ? null : (
@@ -396,11 +394,7 @@ export const BrowseTaskCard = ({
         </div>
       </header>
       <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
-        <span>
-          {task.priceCreditUnits === undefined
-            ? `$${(task.priceUsdMicros / 1_000_000).toFixed(2)} approved`
-            : `${formatCredits(task.priceCreditUnits)} ${creditChargeWords(task.chargeStatus)}`}
-        </span>
+        <span>${(task.priceUsdMicros / 1_000_000).toFixed(2)} approved</span>
         {progress === null ? (
           <span>Legacy browser task</span>
         ) : (
@@ -418,7 +412,6 @@ export const BrowseTaskCard = ({
       </div>
       <TaskResult task={task} />
       <TaskControls task={task} onWatch={onWatch} />
-      <BrowserCardCheckout taskId={task.id} />
     </section>
   );
 };

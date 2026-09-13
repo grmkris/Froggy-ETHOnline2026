@@ -30,9 +30,7 @@ export const saveWatchlistItem = async (
     const existing = [...book.values()].find(
       (item) =>
         watchlistSourceKey(item.source) === watchlistSourceKey(input.source) &&
-        (input.source._tag === "wallet" ||
-          input.source._tag === "token" ||
-          item.notes === input.notes)
+        item.notes === input.notes
     );
     if (existing !== undefined && !existing.archived) {
       return existing;
@@ -41,13 +39,8 @@ export const saveWatchlistItem = async (
       throw new WatchlistFullError();
     }
     const now = Date.now();
-    const preserved =
-      existing &&
-      (existing.source._tag === "wallet" || existing.source._tag === "token")
-        ? existing
-        : input;
-    let item: WatchlistItem = {
-      ...preserved,
+    const item: WatchlistItem = {
+      ...input,
       v: 1,
       id: existing?.id ?? WatchlistItemId.generate(),
       createdAt: existing?.createdAt ?? now,
@@ -55,16 +48,6 @@ export const saveWatchlistItem = async (
       revision: (existing?.revision ?? 0) + 1,
       archived: false,
     };
-    if (item.walletMonitor) {
-      item = {
-        ...item,
-        walletMonitor: {
-          ...item.walletMonitor,
-          enabled: false,
-          revision: item.walletMonitor.revision + 1,
-        },
-      };
-    }
     book.set(item.id, item);
     return item;
   });
@@ -137,7 +120,7 @@ export const handleWatchlist = async (
       if (item.revision !== decoded.success.revision) {
         return "conflict";
       }
-      let updated = {
+      const updated = {
         ...item,
         title: decoded.success.title ?? item.title,
         notes: decoded.success.notes ?? item.notes,
@@ -145,16 +128,6 @@ export const handleWatchlist = async (
         updatedAt: Date.now(),
         revision: item.revision + 1,
       };
-      if (decoded.success.archived === true && item.walletMonitor) {
-        updated = {
-          ...updated,
-          walletMonitor: {
-            ...item.walletMonitor,
-            enabled: false,
-            revision: item.walletMonitor.revision + 1,
-          },
-        };
-      }
       book.set(id, updated);
       return updated;
     });
@@ -176,10 +149,6 @@ export const handleWatchlist = async (
     const removed = await store.watchlist.transact(
       owner,
       (book) => book.get(id)?.archived === true && book.delete(id)
-    );
-    await store.watchlistData.transact(
-      owner,
-      (book) => removed && book.delete(id)
     );
     return reply({ v: 1, removed }, removed ? 200 : 409);
   }

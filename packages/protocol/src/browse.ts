@@ -1,7 +1,4 @@
 import {
-  CreditChargeId,
-  CreditChargeStatus,
-  CreditUnits,
   ConversationId,
   ProtocolVersion,
   TaskId,
@@ -19,7 +16,6 @@ export const BrowseQuote = Schema.Struct({
   instruction: Schema.String,
   budgetUsd: BrowseBudget,
   priceUsdMicros: Schema.Int,
-  priceCreditUnits: Schema.optional(CreditUnits),
   modelAllowanceUsdMicros: Schema.Int,
   executionMs: Schema.Int,
   expiresAt: Schema.Int,
@@ -109,19 +105,16 @@ export const BrowseTaskView = Schema.Struct({
     Schema.NullOr(Schema.String.check(Schema.isMaxLength(200)))
   ),
   kind: Schema.Literal("browse"),
-  chargeId: Schema.optional(CreditChargeId),
-  chargeStatus: Schema.optional(CreditChargeStatus),
   status: TaskStatus,
   input: Schema.Struct({ instruction: Schema.String }),
   priceUsdMicros: Schema.Int,
-  priceCreditUnits: Schema.optional(CreditUnits),
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
   error: Schema.NullOr(Schema.String),
   result: Schema.NullOr(
     Schema.Struct({
       text: Schema.optional(Schema.String),
-      outcome: Schema.optional(TaskOutcome),
+      outcome: Schema.optionalKey(TaskOutcome),
     })
   ),
   browse: Schema.NullOr(BrowseTaskProgress),

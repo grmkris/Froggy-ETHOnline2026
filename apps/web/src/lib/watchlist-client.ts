@@ -1,20 +1,10 @@
 import { WatchlistItem } from "@froggy/domain";
 import type { WatchlistInput, WatchlistItemId } from "@froggy/domain";
-import {
-  WatchlistList,
-  WatchlistPreview,
-  WatchlistCaptured,
-  WatchlistDetails,
-  WatchlistDetailsList,
-} from "@froggy/protocol";
-import type {
-  WatchlistPatch,
-  WatchlistResolve,
-  WatchlistCapture,
-} from "@froggy/protocol";
+import { WatchlistList } from "@froggy/protocol";
+import type { WatchlistPatch } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 
 import { useSessionToken } from "./session-token";
 import { useWorkspace } from "./workspace-context";
@@ -24,12 +14,6 @@ export const useWatchlist = () => {
   const { canConnect, getToken } = useSessionToken();
   const queries = useQueryClient();
   const key = ["watchlist", app.sessionId];
-  useEffect(() => {
-    if (app.watchlistSequence === 0) {
-      return;
-    }
-    void queries.invalidateQueries({ queryKey: ["watchlist", app.sessionId] });
-  }, [app.watchlistSequence, app.sessionId, queries]);
   const request = useCallback(
     async (path: string, init: RequestInit = {}) => {
       const token = await getToken();
@@ -68,31 +52,7 @@ export const useWatchlist = () => {
   });
   const refresh = async () => {
     await queries.invalidateQueries({ queryKey: key });
-    await queries.invalidateQueries({
-      queryKey: ["watchlist-details", app.sessionId],
-    });
   };
-  const details = useQuery({
-    queryKey: ["watchlist-details", app.sessionId],
-    enabled: canConnect && app.sessionId !== null,
-    queryFn: async () =>
-      Schema.decodeUnknownSync(WatchlistDetailsList)(
-        await request("/api/watchlist/details")
-      ),
-    refetchInterval: 10_000,
-    retry: false,
-  });
-  const capture = useMutation({
-    mutationFn: async (input: typeof WatchlistCapture.Type) =>
-      Schema.decodeUnknownSync(WatchlistCaptured)(
-        await request("/api/watchlist/capture", {
-          method: "POST",
-          body: JSON.stringify(input),
-        })
-      ),
-    onSuccess: refresh,
-    retry: false,
-  });
   const save = useMutation({
     mutationFn: async (input: WatchlistInput) =>
       Schema.decodeUnknownSync(WatchlistItem)(
@@ -131,72 +91,5 @@ export const useWatchlist = () => {
     onSuccess: refresh,
     retry: false,
   });
-  const resolve = useCallback(
-    async (input: typeof WatchlistResolve.Type, signal?: AbortSignal) =>
-      Schema.decodeUnknownSync(WatchlistPreview)(
-        await request("/api/watchlist/resolve", {
-          method: "POST",
-          body: JSON.stringify(input),
-          signal: signal ?? null,
-        })
-      ),
-    [request]
-  );
-  return { list, save, patch, remove, resolve, capture, details, request };
-};
-
-export const useWatchlistDetails = (id: WatchlistItemId) => {
-  const { request } = useWatchlist();
-  const { app } = useWorkspace();
-  return useQuery({
-    queryKey: ["watchlist-details", app.sessionId, id],
-    queryFn: async () =>
-      Schema.decodeUnknownSync(WatchlistDetails)(
-        await request(`/api/watchlist/${id}/details`)
-      ),
-    enabled: app.sessionId !== null,
-    refetchInterval: (query) =>
-      ["queued", "running"].includes(
-        query.state.data?.data.enrichment?.status ?? ""
-      )
-        ? 3000
-        : 30_000,
-    retry: false,
-  });
-};
-
-interface WatchlistView {
-  readonly query: string;
-  readonly category: string;
-  readonly sort: string;
-  readonly archived: boolean;
-  readonly attention: boolean;
-}
-const INITIAL_VIEW: WatchlistView = {
-  query: "",
-  category: "all",
-  sort: "newest",
-  archived: false,
-  attention: false,
-};
-/** Keep navigation preferences in this owner's query cache, without persisting personal searches. */
-export const useWatchlistView = () => {
-  const { app } = useWorkspace();
-  const client = useQueryClient();
-  const key = ["watchlist-view", app.sessionId];
-  const view = useQuery({
-    queryKey: key,
-    queryFn: () => INITIAL_VIEW,
-    initialData: INITIAL_VIEW,
-    enabled: false,
-    gcTime: 30 * 60_000,
-  });
-  const update = (patch: Partial<WatchlistView>): void => {
-    client.setQueryData<WatchlistView>(key, (current) => ({
-      ...INITIAL_VIEW,
-      ...current,
-      ...patch,
-    }));
-  };
-  return { ...view.data, update };
+  return { list, save, patch, remove };
 };

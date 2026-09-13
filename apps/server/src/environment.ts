@@ -147,26 +147,6 @@ const isLoopback = (origin: string): boolean => {
   }
 };
 
-const walletStreamMode = (
-  enabled: boolean,
-  apiKey: Redacted.Redacted,
-  origin: string
-): "live" | "stub" | "unavailable" => {
-  if (
-    enabled &&
-    !isPlaceholder(Redacted.value(apiKey), "REPLACE_ME_PINAX_API_KEY")
-  ) {
-    return "live";
-  }
-  return isLoopback(origin) ? "stub" : "unavailable";
-};
-
-const assertStreamEndpoint = (actual: string, expected: string): void => {
-  if (actual !== expected) {
-    throw new Error("Unsupported onchain stream endpoint.");
-  }
-};
-
 /** Names that would attach a stub adapter. Empty means every integration is live or unavailable. */
 export const stubbedNames = (
   modes: ServiceModes,
@@ -276,15 +256,13 @@ export interface TradingEnvironment {
   >;
 }
 
+const researchMode = (live: boolean, stubs: boolean): "live" | "stub" =>
+  live || !stubs ? "live" : "stub";
+const optionalResearchKey = (
+  key: Redacted.Redacted
+): Redacted.Redacted | null => (Redacted.value(key).trim() === "" ? null : key);
+
 export interface Environment {
-  readonly cards?: {
-    readonly enabled: boolean;
-    readonly mode: "stub" | "live" | "unavailable";
-    readonly vaultKey: Redacted.Redacted;
-    readonly lineaRpc: Redacted.Redacted;
-    readonly confirmations: number;
-    readonly liveCardEntry: boolean;
-  };
   readonly email?:
     | {
         readonly domain: string;
@@ -316,17 +294,15 @@ export interface Environment {
   readonly databaseUrl: string;
   /** The JSON-RPC endpoint the host broadcasts signed Base Sepolia transactions to. */
   readonly evmRpcUrl: string;
+  readonly researchMode: "stub" | "live";
+  readonly pinaxApiKey: Redacted.Redacted | null;
+  readonly graphMarketToken: Redacted.Redacted | null;
+  readonly pinaxApiUrl: string;
+  readonly polymarketGammaUrl: string;
+  readonly polymarketClobUrl: string;
+  readonly defiLlamaApiUrl: string;
+  readonly defiLlamaYieldsUrl: string;
   readonly graphApiKey: string;
-  readonly walletStream: {
-    readonly mode: "live" | "stub" | "unavailable";
-    readonly apiKey: Redacted.Redacted;
-    readonly endpoint: string;
-    readonly network: "eip155:8453";
-    readonly robinhood: {
-      readonly mode: "live" | "stub" | "unavailable";
-      readonly endpoint: string;
-    };
-  };
   readonly graphGatewayUrl: string;
   /**
    * Pay The Graph per query with x402 from the person's own wallet, when
@@ -642,7 +618,6 @@ export const loadTradingEnvironment = Effect.fn("loadTradingEnvironment")(
         Schema.Struct({
           market_search: Schema.optional(TradingPrice),
           token_inspect: Schema.optional(TradingPrice),
-          token_snapshot: Schema.optional(TradingPrice),
           rpc_read: Schema.optional(TradingPrice),
           quote_action: Schema.optional(TradingPrice),
           watch_launches: Schema.optional(TradingPrice),
@@ -809,11 +784,27 @@ const personPolicyPins = (input: {
   };
 };
 
-/** Credit funding quotes native HBAR from its USD rate; USDC is accepted on Base. */
+/**
+ * Refuse a `HEDERA_ASSET` this build cannot price, and refuse a token whose
+ * decimals do not match the price that was written for HBAR.
+ *
+ * The price lives in `oracle-route.ts` as a number of smallest units. HBAR has
+ * eight decimals and Hedera's USDC has six, so the same literal is two
+ * different amounts of money — and a deployment that flipped the asset alone
+ * would sell at roughly five hundred times the intended price with nothing
+ * anywhere saying so. Pricing in a token is supported; doing it by accident is
+ * not.
+ */
 const assertPriceableAsset = (asset: string, network: HederaNetwork): void => {
-  if (asset !== HBAR_ASSET || knownAsset(asset, network) === undefined) {
+  const known = knownAsset(asset, network);
+  if (known === undefined) {
     throw new Error(
-      `HEDERA_ASSET must be 0.0.0 for native HBAR credit funding on ${network}. USDC credit purchases use the configured Base network.`
+      `HEDERA_ASSET is ${asset}, which is not an asset this build knows how to price on ${network}. Use 0.0.0 for HBAR, or add the token to KNOWN_ASSETS with its decimals.`
+    );
+  }
+  if (known.id !== HBAR_ASSET) {
+    throw new Error(
+      `HEDERA_ASSET is ${asset} (${known.symbol}, ${known.decimals} decimals) while the price is written in tinybars. Set the price for ${known.symbol} in apps/server/src/oracle-route.ts before selling in it, and remove this check when the two are read from one place.`
     );
   }
 };
@@ -842,50 +833,6 @@ const loadEmailEnvironment = Effect.fn("loadEmailEnvironment")(
       : undefined;
   }
 );
-
-const loadCardConfiguration = Effect.fn("loadCardConfiguration")(function*  loadCardConfiguration(
-  appOrigin: string, privyLive: boolean, uniswapLive: boolean
-) {
-    const cardEnabled = yield* Config.boolean("CARD_CHECKOUT_ENABLED").pipe(
-      Config.withDefault(false)
-    );
-    const cardVaultKey = yield* secret(
-      "CARD_VAULT_KEY",
-      "replace-card-vault-key"
-    );
-    const lineaRpc = yield* secret(
-      "LINEA_RPC_URL",
-      "replace-linea-read-only-rpc"
-    );
-    const cardFramesVerified = yield* Config.boolean(
-      "CARD_CHECKOUT_IFRAMES_VERIFIED"
-    ).pipe(Config.withDefault(false));
-    const cardConfirmations = yield* Config.number("LINEA_CONFIRMATIONS").pipe(
-      Config.withDefault(2)
-    );
-    const cardStub =
-      Redacted.value(cardVaultKey) === "replace-card-vault-key" &&
-      isLoopback(appOrigin);
-    const cardLive =
-      /^[a-f0-9]{64}$/u.test(Redacted.value(cardVaultKey)) &&
-      Redacted.value(lineaRpc).startsWith("https://") &&
-      privyLive &&
-      uniswapLive;
-    if (
-      cardEnabled &&
-      (!Number.isInteger(cardConfirmations) ||
-        cardConfirmations < 2 ||
-        cardConfirmations > 100 ||
-        (!cardStub && !cardLive))
-    ) {
-      throw new Error(
-        "Invalid card checkout configuration: configure the vault key, Linea HTTPS RPC, sponsored Base execution and at least two Linea confirmations."
-      );
-    }
-    let cardMode: "stub" | "live" | "unavailable" = "unavailable";
-    if (cardEnabled) { cardMode = cardStub ? "stub" : "live"; }
-    return { enabled: cardEnabled, mode: cardMode, vaultKey: cardStub ? Redacted.make("e".repeat(64)) : cardVaultKey, lineaRpc, confirmations: cardConfirmations, liveCardEntry: cardFramesVerified };
-});
 
 export const loadEnvironment = Effect.fn("loadEnvironment")(
   function* loadEnvironment() {
@@ -955,34 +902,27 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       "PRIVY_AGENT_POLICY_ID"
     ).pipe(Config.withDefault(PLACEHOLDER.privyAgentPolicyId));
 
+    const graphMarketToken = yield* secret("GRAPH_MARKET_TOKEN", "");
+    const pinaxKey = yield* secret("PINAX_API_KEY", "");
+    const pinaxApiUrl = yield* Config.string("PINAX_API_URL").pipe(
+      Config.withDefault("https://api.pinax.network")
+    );
+    const polymarketGammaUrl = yield* Config.string(
+      "POLYMARKET_GAMMA_URL"
+    ).pipe(Config.withDefault("https://gamma-api.polymarket.com"));
+    const polymarketClobUrl = yield* Config.string("POLYMARKET_CLOB_URL").pipe(
+      Config.withDefault("https://clob.polymarket.com")
+    );
+    const defiLlamaApiUrl = yield* Config.string("DEFILLAMA_API_URL").pipe(
+      Config.withDefault("https://api.llama.fi")
+    );
+    const defiLlamaYieldsUrl = yield* Config.string(
+      "DEFILLAMA_YIELDS_URL"
+    ).pipe(Config.withDefault("https://yields.llama.fi"));
+    const liveResearch = yield* Config.boolean("RESEARCH_LIVE").pipe(
+      Config.withDefault(false)
+    );
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
-    const pinaxApiKey = yield* secret(
-      "PINAX_API_KEY",
-      "REPLACE_ME_PINAX_API_KEY"
-    );
-    const walletStreamEnabled = yield* Config.boolean(
-      "WALLET_STREAM_ENABLED"
-    ).pipe(Config.withDefault(false));
-    const walletStreamEndpoint = yield* Config.string(
-      "WALLET_STREAM_ENDPOINT"
-    ).pipe(Config.withDefault("https://base.substreams.pinax.network:443"));
-    assertStreamEndpoint(
-      walletStreamEndpoint,
-      "https://base.substreams.pinax.network:443"
-    );
-    const robinhoodStreamEnabled = yield* Config.boolean(
-      "ROBINHOOD_STREAM_ENABLED"
-    ).pipe(Config.withDefault(false));
-    const robinhoodStreamEndpoint = yield* Config.string(
-      "ROBINHOOD_STREAM_ENDPOINT"
-    ).pipe(
-      Config.withDefault("https://robinhood.substreams.pinax.network:443")
-    );
-    assertStreamEndpoint(
-      robinhoodStreamEndpoint,
-      "https://robinhood.substreams.pinax.network:443"
-    );
-
     const graphGatewayUrl = yield* Config.string("GRAPH_GATEWAY_URL").pipe(
       Config.withDefault("https://gateway.thegraph.com/api")
     );
@@ -1008,7 +948,11 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
     const hederaPayTo = yield* Config.string("HEDERA_PAY_TO").pipe(
       Config.withDefault("")
     );
-    // Native HBAR purchases use fresh USD quotes; tool prices are platform credits.
+    // What the services are priced in. `0.0.0` is native HBAR; an HTS token
+    // id prices in that token instead. The facilitator was verified on
+    // 10 Sep 2026 to accept an HTS asset, so this is a real switch and not a
+    // placeholder — but a buyer holding HBAR does not necessarily hold a
+    // token, so the default stays where a stranger can reach it.
     const hederaAsset = yield* Config.string("HEDERA_ASSET").pipe(
       Config.withDefault("0.0.0")
     );
@@ -1022,6 +966,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       );
     }
     const hederaNetwork: HederaNetwork = hederaNetworkRaw;
+    // Fail closed here too, and for a sharper reason than a typo. The price is
+    // a number of the asset's own smallest units, so changing the asset
+    // without changing the price silently changes what is charged: the 5000000
+    // that is 0.05 HBAR is 5 USDC at six decimals, about five hundred times
+    // more. Nothing downstream can tell those apart, so the check is here,
+    // once, before anything is sold.
     assertPriceableAsset(hederaAsset, hederaNetwork);
     // The facilitator host follows the network unless told otherwise, so
     // switching networks is one variable, not two that can disagree.
@@ -1201,11 +1151,9 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       ),
     };
 
-    const cards = yield* loadCardConfiguration(appOrigin, modes.privy === "live", trading.uniswapMode === "live");
     refuseStubbedBoot(appOrigin, stubbedNames(modes, trading));
 
     return {
-      cards,
       email,
       trading,
       xApiBearer,
@@ -1225,21 +1173,15 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       demoUserId,
       databaseUrl: Redacted.value(databaseUrl),
       evmRpcUrl,
+      researchMode: researchMode(liveResearch, allowStubs),
+      pinaxApiKey: optionalResearchKey(pinaxKey),
+      graphMarketToken: optionalResearchKey(graphMarketToken),
+      pinaxApiUrl,
+      polymarketGammaUrl,
+      polymarketClobUrl,
+      defiLlamaApiUrl,
+      defiLlamaYieldsUrl,
       graphApiKey: Redacted.value(graphApiKey),
-      walletStream: {
-        mode: walletStreamMode(walletStreamEnabled, pinaxApiKey, appOrigin),
-        apiKey: pinaxApiKey,
-        endpoint: walletStreamEndpoint,
-        network: "eip155:8453",
-        robinhood: {
-          mode: walletStreamMode(
-            robinhoodStreamEnabled,
-            pinaxApiKey,
-            appOrigin
-          ),
-          endpoint: robinhoodStreamEndpoint,
-        },
-      },
       graphGatewayUrl,
       graphPayPerQuery,
       hederaAccountId,

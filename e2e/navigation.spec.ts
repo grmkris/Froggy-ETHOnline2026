@@ -120,7 +120,7 @@ test("Home counts a waiting approval, and stops when it is answered", async ({
   await leash.applied;
   await page
     .getByRole("textbox", { name: "Message" })
-    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
+    .fill("Buy the lending snapshot");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });

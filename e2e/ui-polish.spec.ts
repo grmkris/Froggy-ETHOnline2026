@@ -6,7 +6,6 @@ import {
   encodeAppServerMessage,
 } from "../packages/protocol/src/app";
 import { captureScreen } from "./capture";
-import { fundCredits } from "./fund-credits";
 
 interface SessionController {
   change?: () => void;
@@ -195,7 +194,6 @@ test("opening discovery is free and new listings are an explicit request", async
     await route.continue();
   });
   await page.goto("/");
-  await fundCredits(page);
   await page.getByRole("link", { name: "Find tokens", exact: true }).click();
   await expect(page).toHaveURL(/discover=true/u);
   const discovery = page.getByRole("region", { name: "Discover tokens" });

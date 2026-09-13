@@ -1,9 +1,5 @@
 import type { HostedEvent } from "@froggy/browser";
-import {
-  CardCheckoutId,
-  ConversationId,
-  quotePaymentState,
-} from "@froggy/domain";
+import { ConversationId, quotePaymentState } from "@froggy/domain";
 import type { Task } from "@froggy/domain";
 import { BrowseActivity, BrowsePhase, TaskOutcome } from "@froggy/protocol";
 import type { BrowseTaskProgress, BrowseTaskView } from "@froggy/protocol";
@@ -12,10 +8,6 @@ import { Schema } from "effect";
 const ProviderId = Schema.String.check(Schema.isUUID());
 /** Kept inside the task result document; never serialized as a public result. */
 export const HostedBrowseState = Schema.Struct({
-  checkoutId: Schema.optionalKey(CardCheckoutId),
-  checkoutStage: Schema.optionalKey(
-    Schema.Literals(["inspect", "pay", "reconcile"])
-  ),
   revision: Schema.Int,
   phase: BrowsePhase,
   stage: Schema.Literals(["bootstrap", "task"]),
@@ -286,7 +278,7 @@ export const publicBrowseTask = (
   const legacy = Schema.decodeUnknownResult(
     Schema.Struct({
       text: Schema.optional(Schema.String),
-      outcome: Schema.optional(TaskOutcome),
+      outcome: Schema.optionalKey(TaskOutcome),
     })
   )(task.result);
   const result = legacy._tag === "Success" ? legacy.success : null;
@@ -304,9 +296,6 @@ export const publicBrowseTask = (
       instruction: browseInstruction(task),
     },
     priceUsdMicros: task.priceUsdMicros,
-    chargeId: task.chargeId,
-    chargeStatus: task.chargeStatus,
-    priceCreditUnits: task.priceCreditUnits,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     error: pendingQuote

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { userId, WatchlistItem, WalletMonitorId } from "@froggy/domain";
+import { userId, WatchlistItem } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import { WatchlistList } from "@froggy/protocol";
 import { memoryStore } from "@froggy/wallet";
@@ -34,70 +34,6 @@ const save = async (store: Store, body: Schema.Json) => {
 };
 
 describe("saved items", () => {
-  test("onchain saves preserve notes and restore an archived watch inactive", async () => {
-    const store = memoryStore();
-    const tokenInput = {
-      ...input,
-      title: "Saved token",
-      notes: "Keep my research",
-      source: {
-        _tag: "token",
-        network: "eip155:8453",
-        address: "0x1111111111111111111111111111111111111111",
-      },
-    };
-    const item = await save(store, tokenInput);
-    const expiresAt = Date.now() + 86_400_000;
-    await store.watchlist.transact(ALICE, (book) => {
-      book.set(item.id, {
-        ...item,
-        walletMonitor: {
-          v: 1,
-          id: WalletMonitorId.generate(),
-          revision: 1,
-          enabled: true,
-          startedAt: Date.now(),
-          expiresAt,
-          startBlock: 1,
-          telegram: false,
-          swaps: false,
-          transfers: true,
-        },
-      });
-    });
-    const retry = await save(store, {
-      ...tokenInput,
-      title: "Replacement",
-      notes: "Replacement",
-    });
-    expect(retry.id).toBe(item.id);
-    expect(retry.title).toBe("Saved token");
-    expect(retry.notes).toBe("Keep my research");
-    const path = `/api/watchlist/${item.id}`;
-    const archived = await handleWatchlist(
-      store,
-      new Request(`https://froggy.test${path}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          v: 1,
-          revision: retry.revision,
-          archived: true,
-        }),
-      }),
-      ALICE,
-      path
-    );
-    expect(archived?.status).toBe(200);
-    const restored = await save(store, {
-      ...tokenInput,
-      notes: "Still preserve",
-    });
-    expect(restored.id).toBe(item.id);
-    expect(restored.notes).toBe("Keep my research");
-    expect(restored.archived).toBe(false);
-    expect(restored.walletMonitor?.enabled).toBe(false);
-    expect(restored.walletMonitor?.expiresAt).toBe(expiresAt);
-  });
   test("persists all four kinds, preserves variants, deduplicates retries, and isolates owners", async () => {
     const store = memoryStore();
     const flight = await save(store, input);

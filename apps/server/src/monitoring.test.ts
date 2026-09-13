@@ -128,7 +128,7 @@ describe("watchlist monitoring", () => {
       store,
       owner,
       check.id,
-      null,
+      observation(40),
       0,
       "Variant unavailable"
     );
@@ -136,29 +136,10 @@ describe("watchlist monitoring", () => {
     expect(state.checks[0]?.reservedUsdMicros).toBe(0);
     expect(state.monitors[0]?.baseline).toBeNull();
     expect(state.monitors[0]?.status).toBe("failed");
+    expect(state.checks[0]?.alert).toContain("Variant unavailable");
+    expect(state.checks[0]?.alert).not.toContain("EUR 40");
   });
 
-  test("credit billing returns the charge for an observation rejected by currency validation", async () => {
-    const { store } = await setup();
-    const check = await claimMonitor(store, owner, now);
-    if (check === null) {
-      throw new Error("Expected a check");
-    }
-    const finished = await finishMonitorCheck(
-      store,
-      owner,
-      check.id,
-      { ...observation(40), currency: "USD" },
-      1_000_000,
-      null,
-      false,
-      true
-    );
-    expect(finished?.observation).toBeNull();
-    expect(finished?.spentUsdMicros).toBe(0);
-    const state = await monitoringState(store, owner);
-    expect(state.months[0]?.spentUsdMicros).toBe(0);
-  });
   test("archiving pauses checks and other owners cannot read or reconfigure them", async () => {
     const { store, item, config } = await setup();
     const other = userId("did:privy:monitor-other");

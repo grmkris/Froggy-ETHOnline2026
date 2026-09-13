@@ -470,13 +470,26 @@ test("320px task history preserves reading position and recovery controls stay u
         watch: false,
       },
     },
-    result: { text: "The requested shoes are available." },
+    result: {
+      text: "The product page was opened.",
+      outcome: {
+        status: "blocked",
+        reason: "Sign-in is required to check size 42.",
+        evidence: "The page shows a sign-in form.",
+      },
+    },
   };
   driver.publish?.(done);
   await expect(sheet).toBeVisible();
+  await expect(card.getByText("The product page was opened.")).toBeVisible();
   await expect(
-    card.getByText("The requested shoes are available.")
+    card.getByText("Goal blocked: Sign-in is required to check size 42.", {
+      exact: true,
+    })
   ).toBeVisible();
+  await expect(card.getByText("Goal completed", { exact: false })).toHaveCount(
+    0
+  );
   driver.publish?.(done);
   await expect(
     page.locator("output").filter({ hasText: "Finished browsing" })

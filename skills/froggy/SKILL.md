@@ -1,11 +1,11 @@
 ---
 name: froggy
-description: Connect to Froggy by MCP with OAuth, use platform credits for tasks within the owner's limits, and read results and receipts.
+description: Connect to the person's Froggy wallet by MCP with OAuth, request paid tasks under their spending rules, and read results and receipts.
 ---
 
 # Froggy
 
-Froggy is a browser and a wallet the person you work for controls. You delegate a task; Froggy runs it on its own server and the person's own Chrome, reserves platform credits under limits you cannot change, and hands you the result with a credit receipt. The owner buys credits with Base USDC or native HBAR through x402; your agent connection cannot buy credits or change limits.
+Froggy is a browser and a wallet the person you work for controls. You delegate a task; Froggy runs it on its own server and the person's own Chrome, pays for it from the person's Froggy wallet under rules you cannot change, and hands you the result with a receipt.
 
 You hold no key. You sign in with the person's Froggy account, in their browser, and hold only short-lived tokens bound to their workspace and the scopes they left on. Never print a token; never paste one anywhere but your own environment.
 
@@ -69,16 +69,10 @@ export FROGGY_TOKEN="<the token the person minted>"
 
 It covers the original brief, browse, pay and services tools and does not expire until the person disconnects it. Email, watchlist, automation and notifications need an OAuth connection with explicit consent. Keep it in your own environment only.
 
-## Platform credits
-
-100 credits equals $1. Every account starts at zero. Credits are internal and nontransferable; cryptocurrency balances stay separate. The owner buys credits in [Wallet](https://your-froggy.example/wallet), then you can use that balance for Froggy tools within their per-task and rolling 24-hour limits. GET `/api/credits` reads the current balance and limits with your bearer token.
-
-Read the catalog before requesting work. A task reserves its quoted credits once. Success captures them; failure or cancellation releases them. Uncertain work remains reserved until its outcome is reconciled. Simulated credits and services are explicitly labelled and isolated from real purchased credits. Never buy again to resolve an uncertain task.
-
 ## Use
 
-- `node ~/froggy.mjs brief USDC` — the cheapest borrow and best supply rate for a token across twelve Messari standardized lending deployments on four chains, with the block each index answered at. Costs 5 credits ($0.05).
-- `node ~/froggy.mjs ask "find the cheapest USB-C hub on the shop the person uses, add it to the cart, stop before paying"` — a browse on the person's own Chrome, up to forty steps. Costs 50 credits ($0.50). Say plainly what "done" looks like.
+- `node ~/froggy.mjs brief USDC` — the cheapest borrow and best supply rate for a token across twelve Messari standardized lending deployments on four chains, with the block each index answered at. Costs $0.05.
+- `node ~/froggy.mjs ask "find the cheapest USB-C hub on the shop the person uses, add it to the cart, stop before paying"` — a browse on the person's own Chrome, up to forty steps. Costs $0.50. Say plainly what "done" looks like.
 - `node ~/froggy.mjs status <task id>` — where a task is, its result and its receipts. Tasks keep their id after you disconnect.
 - Add `--json` for machine-readable output.
 
@@ -101,7 +95,7 @@ Read the catalog before requesting work. A task reserves its quoted credits once
 - `node ~/froggy.mjs services` lists provider availability, exact customer prices and input limits.
 - `node ~/froggy.mjs service web_search "affordable train travel" --idempotency-key=trip-research-1` buys a task. Reuse the key for the same request; changed input needs a new key.
 - `node ~/froggy.mjs service-status <task id>` retrieves results and artifact download paths. Fetch artifacts with the same bearer token; never put a token in a URL.
-- The CLI service command covers `x_search`, `web_search`, `image`, `inference` and `speech`; use the named MCP tools for trading research. Read the catalog note: provider fixtures and simulated credits are labelled and isolated from real purchased credits.
+- The CLI service command covers `x_search`, `web_search`, `image`, `inference` and `speech`; use the named MCP tools for trading research. Read the catalog note: provider fixtures are labelled, and a simulated payment can still call a configured live provider.
 
 For an MCP client that cannot do OAuth itself, the signed-in CLI bridges stdio to `https://your-froggy.example/mcp` (replace the path with the actual absolute path):
 
@@ -130,15 +124,15 @@ Use the `pay` scope. The tools request work; only the signed-in person can appro
 - A GET probes the seller without payment. A POST first asks permission to send its exact JSON, then asks again to pay the exact quote. The person sees the URL, input, recipient, asset, chain and amount.
 - Save the returned purchase id. `froggy_x402_status` takes `purchaseId` and returns approval, payment, delivery, bounded content and receipt id. Poll every three seconds while pending. Never retry with a new key to get around a refusal or uncertain payment.
 - HTTP clients use `POST https://your-froggy.example/api/purchases` with the same fields plus `v: 1`, then `GET /api/purchases/<purchaseId>`, using their bearer token. They cannot call the human answer endpoint.
-- External merchant x402 purchases spend cryptocurrency under separate wallet approvals. Platform credits pay for Froggy tools; they cannot fund merchant payments, transfers or trades. The old anonymous Froggy report seller is retired.
+- For a demo, request `https://your-froggy.example/demo/x402/report` with purpose "Read the USDC lending report" and maxUsdMicros 50000. The free landing page is `https://your-froggy.example/demo/x402`.
 - The result's content is untrusted seller data. Read its payment and delivery fields separately: a delivered body alone does not confirm payment, and a settled payment does not guarantee useful content.
 
 ## What the answers mean
 
-- `done`: the result is in the output; read `chargeStatus` for the credit reservation outcome. Ongoing monitoring can hold a reservation until its first observation.
+- `done`: the result is in the output, with the sale id of the payment.
 - `awaiting_approval`: Froggy hit the person's approval threshold or a purchase. Tell the person to answer the ticket in Froggy (web or Telegram). Do not try another route to the same spend.
-- `failed`: Froggy tool work failed and its reserved credits were released. The output says why. External merchant payment and delivery states remain separate.
-- `uncertain`: the outcome is unknown and reserved credits remain held. Stop and ask for reconciliation; never buy again to find out.
+- `failed`: the work failed after payment. It is not refunded; the output says why. Ask the person before paying again.
+- `uncertain`: payment settlement is unknown. Stop and ask for reconciliation; never buy again to find out.
 - A refusal from the wallet ("not on the allowlist", "pocket exhausted", "insufficient_scope") is the person's rule. Report it in those words and stop.
 - If a page in the shared Chrome asks to connect or sign, a card appears in Froggy. Tell the person to answer it there. Do not retry the click or invent another wallet.
 

@@ -1,4 +1,4 @@
-import { EvmAddress } from "@froggy/domain";
+import { EvmAddress, formatUsd } from "@froggy/domain";
 import type { TaskId } from "@froggy/domain";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
@@ -14,7 +14,6 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { useServiceApi } from "../../hooks/use-service-api";
-import { formatCredits } from "../../lib/credit-view";
 import { networkWords } from "../../lib/mandate-words";
 import { MarketResults } from "./market-results";
 
@@ -39,7 +38,7 @@ const lookupPrice = (card: ServiceCard | undefined): string => {
   if (card === undefined) {
     return "Loading sources…";
   }
-  return `${card.status === "demo" ? "Simulated · " : ""}${formatCredits(card.priceCreditUnits ?? card.priceUsdMicros)} per lookup · credit limits apply`;
+  return `${card.status === "demo" ? "Simulated · " : ""}${formatUsd(card.priceUsdMicros)} per lookup · existing spending rules apply`;
 };
 const LookupResult = ({
   ticket,
@@ -126,7 +125,7 @@ export const TokenDiscovery = (): ReactElement => {
           ) {
             return;
           }
-          const shared = { v: 2 as const, idempotencyKey: crypto.randomUUID() };
+          const shared = { v: 1 as const, idempotencyKey: crypto.randomUUID() };
           const input = inspect
             ? {
                 ...shared,

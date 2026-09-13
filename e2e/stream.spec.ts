@@ -33,7 +33,7 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
   await expect(log.getByText("Asked The Graph about USDC")).toBeVisible({
     timeout: 20_000,
   });
-  await expect(log.getByText("Checked your credits")).toBeVisible({
+  await expect(log.getByText(/Requested a paid resource at/u)).toBeVisible({
     timeout: 20_000,
   });
   await expect(log.getByText("Checked the wallet")).toBeVisible({
@@ -56,7 +56,13 @@ test("a turn streams into the log as cards and markdown, with no browser errors"
     page.getByRole("button", { exact: true, name: "Send" })
   ).toBeVisible({ timeout: 20_000 });
   await expect(log).toHaveAttribute("aria-busy", "false");
-  await expect(page.getByLabel(/^Receipt:/u)).toHaveCount(0);
+  const receipt = page.getByLabel(/^Receipt: Nothing was paid/u).first();
+  await expect(receipt).toBeVisible();
+  await expect(receipt).toContainText(
+    "This receipt exists so a demo cannot be mistaken for a purchase."
+  );
+  await expect(receipt).toContainText("stubbed");
+  await expect(receipt).not.toContainText("Simulated");
   await captureResponsive(page, testInfo, "chat-completed");
   expect(browserErrors).toEqual([]);
 });
@@ -75,7 +81,7 @@ test("while an approval is open the log is busy and the paying tool says it is w
 
   await page
     .getByRole("textbox", { name: "Message" })
-    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
+    .fill("Buy the lending snapshot");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
@@ -83,7 +89,7 @@ test("while an approval is open the log is busy and the paying tool says it is w
   const log = page.getByRole("log");
   await expect(log).toHaveAttribute("aria-busy", "true");
   const paying = log.getByRole("button", {
-    name: /Tried to send 0.004 USDC/u,
+    name: /Requested a paid resource at/u,
   });
   await expect(paying).toContainText("waiting for you");
 

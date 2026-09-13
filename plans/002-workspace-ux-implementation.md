@@ -1,6 +1,6 @@
 # Froggy workspace UX redesign
 
-Implemented 13 September 2026 from the approved screenshot review and workspace redesign direction. The September 12 [implementation record](001-ui-polish-implementation.md) describes the earlier iteration.
+Implemented 13 September 2026 from the approved screenshot review and workspace redesign direction.
 
 ## Delivered
 
@@ -20,10 +20,9 @@ Manrope is the UI typeface and IBM Plex Mono identifies technical values in both
 
 ## Verification
 
-- Frontend production build and TypeScript checks passed for `apps/web` and `packages/ui`. All 170 frontend unit tests passed. Type-aware lint passed for the redesign files, as did dependency boundaries, agent-file validation, naming checks and `git diff --check`.
-- The final full browser run executed 198 tests: 186 passed, 10 failed and 2 did not run. Failures covered the concurrently changing browsing-budget/monitoring flows, the now-disabled address field without a browser, an appearance timeout, token-saving tests affected by the new monitoring dialog, and the old setup-confirmation assertion after claiming email directly from Inbox.
-- An isolated rerun of email, Inbox, appearance, Watchlist and welcome executed 37 tests: 35 passed. The remaining failures were a desktop Watchlist edit timeout and the setup assertion, which was corrected to expect the newly opened mailbox. Both final confirmation checks passed (2/2). The entire 198-test suite was not repeated after this targeted confirmation.
-- `bun run check:fast` and `bun run check` were run but are not green for the shared worktree. They stop at formatting issues in concurrently changing server, monitoring, browser and Graph files. Broader frontend lint and dead-code checks also report issues in that integration work; the scoped redesign checks pass. Those files were preserved rather than swept into this change.
+- The release is isolated on `cf498d2`, which already contains the required email, Watchlist and research features. Unrelated local browser, monitoring and Graph changes are excluded.
+- `bun run check` passed, including formatting, type-aware lint, TypeScript across all projects, dependency boundaries, agent-file validation, naming checks, unit tests and dead-code detection. Unit tests: 1,300 passed; 7 integration tests skipped because their external configuration was absent. `bun run check:fast`, the production build and `git diff --check` also passed.
+- The isolated full browser suite ran 194 tests: 192 passed, one copy assertion contained unrelated monitoring wording, and the cross-tab receipt test reached its 30-second overall limit during its final reload. The copy assertion was restored to the existing feature. Both tests then passed individually; the history test passed unchanged. No complete suite rerun followed those confirmations.
 
 Browser tests use the repository’s explicit provider stubs and local identity. They do not prove live payment, real email delivery or physical mobile keyboard behavior. The Inbox regression matrix covers 320, 390, 768, 1024, 1280 and 1440px, natural row height, independent scrolling, search, pagination, downloads with original filenames, explicit Ask Froggy handoff, unsaved fields across navigation, and a delayed upload completing after a session change. Keyboard browser resizing and short-phone Home coverage are included.
 

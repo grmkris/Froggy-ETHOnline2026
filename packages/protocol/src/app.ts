@@ -315,6 +315,11 @@ export const AppServerMessage = Schema.Union([
   }),
   Schema.Struct({
     ...Envelope,
+    type: Schema.Literal("browse.task.updated"),
+    task: BrowseTaskView,
+  }),
+  Schema.Struct({
+    ...Envelope,
     type: Schema.Literal("history.changed"),
     sequence: Schema.Int,
   }),

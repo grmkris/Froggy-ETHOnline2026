@@ -33,6 +33,8 @@ import type { HistoryInput } from "./history";
 import { internalHistoryTool } from "./history-retrieval";
 import { createModel } from "./model";
 import type { Notices } from "./notices";
+import { RESEARCH_RESPONSE_POLICY } from "./research-guides";
+import { researchTaskContext } from "./research-task-context";
 import type { ChatRun, ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
@@ -99,8 +101,8 @@ sanity check for social research, a meme coin launch, shopping, or unrelated wor
 Use graph_query only for lending/borrowing/yield questions on the supported
 protocols. When a person names a lending protocol the twelve pinned deployments
 do not cover, graph_discover finds its subgraph by name or by contract, free;
-pass the deployment hash it returns to graph_query, and say if the answer came
-back as not matching the standardized schema. A missing lending market says
+inspect its graph_schema and use graph_read for the fields it actually indexes.
+Keep graph_query for standardized lending schemas. A missing lending market says
 nothing about whether a token exists or will launch. Graph queries can spend
 Froggy's treasury funds; never call them free. The paid lending snapshot lives at ${oracleUrl}.
 
@@ -267,11 +269,21 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   if (deps.paidBrowse !== undefined) {
     paidSettings.maxOutputTokens = 2048;
   }
+  const taskContext = await researchTaskContext(
+    deps.services.store,
+    userId,
+    accepted.messages
+  ).catch(
+    () =>
+      "\nSaved browser task status could not be loaded. Do not infer its outcome.\n"
+  );
   let result: ReturnType<typeof streamText<ToolSet>>;
   try {
     result = streamText<ToolSet>({
       abortSignal: run.signal,
       instructions:
+        RESEARCH_RESPONSE_POLICY +
+        taskContext +
         (deps.instructions ??
           systemPrompt(deps.oracleUrl, deps.session.ownEvmAddresses())) +
         (deps.paidBrowse === undefined

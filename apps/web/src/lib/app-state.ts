@@ -91,7 +91,6 @@ export interface AppState {
   readonly browseTasks: readonly BrowseTaskView[];
   readonly browseRecoveryError: boolean;
   readonly historySequence: number;
-  readonly watchlistSequence: number;
   readonly approvals: readonly ApprovalRequest[];
   readonly connected: boolean;
   /** Oldest first. */
@@ -139,7 +138,6 @@ export const initialAppState: AppState = {
   browseTasks: [],
   browseRecoveryError: false,
   historySequence: 0,
-  watchlistSequence: 0,
   approvals: [],
   connected: false,
   events: [],
@@ -370,9 +368,6 @@ const onServer = (
   at: number
 ): AppState => {
   switch (message.type) {
-    case "watchlist.changed": {
-      return { ...state, watchlistSequence: state.watchlistSequence + 1 };
-    }
     case "browse.task.updated": {
       return browseUpdate(state, message.task, at);
     }
