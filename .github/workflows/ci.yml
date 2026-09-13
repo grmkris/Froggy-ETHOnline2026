@@ -74,7 +74,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        # The port is spelled out per shard rather than computed: GitHub's
+        # expression syntax has no arithmetic.
+        include:
+          - shard: 1
+            port: 3610
+          - shard: 2
+            port: 3620
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -105,4 +111,4 @@ jobs:
       - name: Run browser smoke tests
         run: bun run e2e -- --shard=${{ matrix.shard }}/2 --workers=4
         env:
-          FROGGY_E2E_PORT: ${{ 3600 + matrix.shard * 10 }}
+          FROGGY_E2E_PORT: ${{ matrix.port }}
