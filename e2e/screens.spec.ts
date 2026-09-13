@@ -15,6 +15,10 @@ const PLACES = [
   { path: "/activity?tab=agents", name: "connections" },
   { path: "/activity?tab=tools", name: "tools" },
   { path: "/settings", name: "settings" },
+  { path: "/settings?tab=routines", name: "settings-routines" },
+  { path: "/settings?tab=email", name: "settings-email" },
+  { path: "/settings?tab=payments", name: "settings-payments" },
+  { path: "/settings?tab=account", name: "settings-account" },
 ] as const;
 const SIZES = [
   { width: 1440, height: 1000 },

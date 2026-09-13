@@ -124,9 +124,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await expect(
       page.getByText("the agent has no signer", { exact: true })
     ).toBeVisible();
-    await expect(
-      page.getByText("Nothing scheduled.", { exact: true })
-    ).toBeVisible();
+    await page.getByRole("tab", { name: "Account", exact: true }).click();
     await page.evaluate(async () => {
       await document.fonts.ready;
     });

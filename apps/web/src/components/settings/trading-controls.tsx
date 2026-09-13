@@ -1,4 +1,4 @@
-/** The trading leash on Account: one switch that stops signing, and the rules an agent may trade under. */
+/** The trading leash on Account: one switch that stops signing, and the rules an agent may trade under. The card around it carries the title. */
 
 import {
   Alert,
@@ -19,21 +19,14 @@ export const TradingControls = (): ReactElement => {
   const stopped = api.stopped.data?.stopped === true;
   return (
     <section aria-label="Trading controls" className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-medium">Trading</h3>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Every trade is prepared, simulated and approved by you one step at a
-            time. Stop blocks new signatures at once.
-          </p>
-        </div>
+      <div>
         <Button
-          className="min-h-11"
+          className={stopped ? "min-h-11" : "text-destructive min-h-11"}
           disabled={api.stop.isPending || !api.enabled}
           onClick={() => {
             api.stop.mutate(!stopped);
           }}
-          variant={stopped ? "outline" : "destructive"}
+          variant="outline"
         >
           {stopped ? "Resume trading" : "Stop trading"}
         </Button>

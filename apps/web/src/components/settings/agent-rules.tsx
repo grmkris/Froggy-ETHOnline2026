@@ -99,7 +99,7 @@ export const AgentRules = ({
   }
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm">
+      <p className="text-section text-balance">
         Your agent may pay up to {money(allowance.perSpendUsdMicros)} at a time
         and {money(allowance.dailyUsdMicros)} a day, and asks you above{" "}
         {money(allowance.askOverUsdMicros)}. {left(allowance.expiresAt)}

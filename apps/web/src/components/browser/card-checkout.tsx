@@ -338,7 +338,7 @@ export const BrowserCardCheckout = ({
             {busy ? "Preparing…" : "Review purchase"}
           </Button>
           {available.length === 0 ? (
-            <a className="text-sm underline" href="/settings#payment-methods">
+            <a className="text-sm underline" href="/settings?tab=payments">
               Add a payment method in Account
             </a>
           ) : null}

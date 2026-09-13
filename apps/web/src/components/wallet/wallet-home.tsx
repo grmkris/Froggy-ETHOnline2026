@@ -130,7 +130,6 @@ export const WalletHome = ({
         <AddFunds wallet={wallet} />
         <Link
           to="/settings"
-          hash="spending"
           className="text-brand inline-flex min-h-11 items-center px-3 text-sm font-medium"
         >
           Spending rules

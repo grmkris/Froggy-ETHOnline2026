@@ -277,12 +277,12 @@ export const DirectoryPanel = ({
       )}
       <div className="space-y-1.5">
         <p className="text-muted-foreground text-xs">
-          Endpoints the agent may pay a 402 to. Adding one puts its host and
-          payee on the mandate; removing it takes them off.
+          Sites the agent may pay. Adding one puts its host and payee on the
+          mandate; removing it takes them off.
         </p>
         {entries.data === undefined || entries.data.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            Nothing beyond Froggy&apos;s own paid endpoint yet.
+            Only Froggy&apos;s own services so far.
           </p>
         ) : (
           <ul className="space-y-2">

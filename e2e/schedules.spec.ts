@@ -43,7 +43,7 @@ test("scheduled reminders are listed and can be cancelled", async ({
     cancelled += 1;
     await route.fulfill({ json: { cancelled: true, v: 1 } });
   });
-  await page.goto("/settings");
+  await page.goto("/settings?tab=routines");
   const scheduled = page.getByRole("region", { name: "Scheduled" });
   await expect(scheduled.getByText("oven", { exact: true })).toBeVisible();
   await expect(scheduled.getByText("Every day at 07:30")).toBeVisible();

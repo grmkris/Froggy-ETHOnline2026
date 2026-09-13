@@ -28,6 +28,7 @@ const EmailHomeLink = () => {
     return status.data ? (
       <Link
         className="text-muted-foreground hover:text-foreground flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm"
+        search={{ tab: "email" }}
         to="/settings"
       >
         <span className="text-foreground font-medium">

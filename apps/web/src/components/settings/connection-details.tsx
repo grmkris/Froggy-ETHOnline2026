@@ -1,4 +1,4 @@
-/** The plumbing, named: the signer, the agent's standing, the session, WebMCP. */
+/** The leash, in order: the rules first, the consent that puts them on, and the plumbing last. */
 
 import type { WalletSummary } from "@froggy/protocol";
 import type { ReactElement } from "react";
@@ -41,11 +41,16 @@ const SignerPolicy = ({
     return null;
   }
   return (
-    <p className="text-muted-foreground text-xs">
-      Beneath the allowlists the signer is held to Privy policy{" "}
-      <span className="text-machine text-foreground/80">{shown}</span>: a spend
-      the mandate allows can still be refused there, and Privy says why.
-    </p>
+    <>
+      <dt className="text-muted-foreground">Policy</dt>
+      <dd>
+        <span className="text-machine text-foreground/80">{shown}</span>
+        <span className="text-muted-foreground mt-1 block text-xs">
+          Beneath the allowlists the signer is held to this Privy policy: a
+          spend the rules allow can still be refused there, and Privy says why.
+        </span>
+      </dd>
+    </>
   );
 };
 
@@ -59,11 +64,16 @@ export const ConnectionDetails = ({
   readonly webMcp: WebMcpStatus;
 }): ReactElement => (
   <div className="flex flex-col gap-4 text-sm">
-    <details className="rounded-lg border p-3">
+    {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
+      <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
+    )}
+    <AgentSignerConsent wallet={wallet} />
+    <AgentRules wallet={wallet} />
+    <details className="bg-muted shadow-inset rounded-lg p-3">
       <summary className="cursor-pointer text-sm font-medium">
         Technical details
       </summary>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 wrap-anywhere">
+      <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 wrap-anywhere">
         <dt className="text-muted-foreground">Signer</dt>
         <dd className="text-machine">
           {shortAddress(wallet?.signerAddress ?? null)}
@@ -82,13 +92,8 @@ export const ConnectionDetails = ({
             ? `${webMcp.tools} tools offered to this browser's agent`
             : "unavailable in this browser (needs Web Model Context)"}
         </dd>
+        <SignerPolicy wallet={wallet} />
       </dl>
     </details>
-    {wallet?.agentNote === null || wallet?.agentNote === undefined ? null : (
-      <p className="text-muted-foreground text-xs">{wallet.agentNote}</p>
-    )}
-    <AgentSignerConsent wallet={wallet} />
-    <AgentRules wallet={wallet} />
-    <SignerPolicy wallet={wallet} />
   </div>
 );

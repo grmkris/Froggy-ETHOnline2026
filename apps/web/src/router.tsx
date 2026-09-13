@@ -206,11 +206,26 @@ const agentDetailRoute = page(
   async () => await import("./routes/agent-detail-page"),
   "AgentDetailPage"
 );
-const settingsRoute = page(
-  "/settings",
-  async () => await import("./routes/settings-page"),
-  "SettingsPage"
-);
+/** The account, as tabs: `?tab=` names the one open, and no tab is Spending. */
+const AccountSearch = Schema.Struct({
+  tab: Schema.optional(
+    Schema.Literals(["spending", "routines", "email", "payments", "account"])
+  ),
+});
+const settingsRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/settings-page"),
+    "SettingsPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/settings",
+  validateSearch: (raw: {
+    readonly tab?: unknown;
+  }): typeof AccountSearch.Type => {
+    const decoded = Schema.decodeUnknownResult(AccountSearch)(raw);
+    return decoded._tag === "Success" ? decoded.success : {};
+  },
+});
 
 /** The page alone, for the pop-out window. */
 const browserRoute = createRoute({

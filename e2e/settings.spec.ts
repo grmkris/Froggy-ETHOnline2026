@@ -23,7 +23,7 @@ test("deleting my data wipes the receipts and starts over", async ({
     { timeout: 20_000 }
   );
 
-  await page.goto("/settings");
+  await page.goto("/settings?tab=account");
   await page.getByRole("button", { name: "Delete my data" }).click();
   // Confirming wipes the account and reloads the page; wait for that load.
   await Promise.all([
@@ -59,7 +59,7 @@ for (const failure of ["server", "network"] as const) {
         await route.fulfill({ status: 503, json: { error: "unavailable" } });
       }
     });
-    await page.goto("/settings");
+    await page.goto("/settings?tab=account");
     page.on("load", () => {
       loads += 1;
     });
@@ -96,7 +96,7 @@ test("enabling a digest reports a failed save even when it was off", async ({
     }
     await route.continue();
   });
-  await page.goto("/settings");
+  await page.goto("/settings?tab=routines");
   const hour = page.getByRole("combobox", { name: "Daily digest hour" });
   await expect(hour).toHaveValue("off");
   await hour.selectOption("7");
@@ -124,7 +124,7 @@ test("an unavailable digest is not presented as off and can be reloaded", async 
     }
     await route.continue();
   });
-  await page.goto("/settings");
+  await page.goto("/settings?tab=routines");
   const hour = page.getByRole("combobox", { name: "Daily digest hour" });
   await expect(page.getByRole("alert")).toContainText(
     "Couldn’t load your daily digest"
@@ -139,7 +139,7 @@ test("an unavailable digest is not presented as off and can be reloaded", async 
 test("digest controls and scheduled work stay synchronized", async ({
   page,
 }) => {
-  await page.goto("/settings");
+  await page.goto("/settings?tab=routines");
   const hour = page.getByLabel("Daily digest hour");
   await expect(hour).toHaveValue("off");
   await hour.selectOption("9");
@@ -161,7 +161,7 @@ test("Send a test now asks first, then runs a digest and says where it went", as
     posted += 1;
     await route.continue();
   });
-  await page.goto("/settings");
+  await page.goto("/settings?tab=routines");
   await page.getByRole("button", { name: "Send a test now" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();

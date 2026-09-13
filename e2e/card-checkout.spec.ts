@@ -92,7 +92,7 @@ test("checkout is available in Account while live card entry remains unverified"
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const methods = page.waitForResponse("**/api/payment-methods");
-  await page.goto("/settings");
+  await page.goto("/settings?tab=payments");
   const response = await methods;
   expect(await response.json()).toMatchObject({
     v: 1,
@@ -101,7 +101,7 @@ test("checkout is available in Account while live card entry remains unverified"
   });
   await expect(page.locator("#payment-methods")).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Payment methods", exact: true })
+    page.getByRole("tab", { name: "Payments", exact: true })
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -132,7 +132,7 @@ test("card metadata waits for the server-issued workspace session", async ({
       socket.send(message);
     });
   });
-  await page.goto("/settings");
+  await page.goto("/settings?tab=payments");
   const release = await welcome.promise;
   try {
     await expect(

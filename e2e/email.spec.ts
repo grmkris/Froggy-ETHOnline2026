@@ -9,7 +9,7 @@ for (const width of [1440, 390]) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/settings");
+    await page.goto("/settings?tab=email");
     await page
       .getByLabel("Choose your permanent address")
       .fill(`email-${width}-${Date.now()}`);
