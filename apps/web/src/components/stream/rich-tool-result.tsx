@@ -12,7 +12,7 @@ import { summarize } from "../../lib/tool-summary";
 import type { ToolSummary } from "../../lib/tool-summary";
 import { useWatchlist } from "../../lib/watchlist-client";
 import { ServiceTaskResult } from "../services/service-task-result";
-import { PresenceChips } from "../watchlist/item-identity";
+import { ChainChips } from "../watchlist/item-identity";
 import { PriceHistory } from "../watchlist/price-history";
 import { SavedItemCard } from "../watchlist/saved-item-card";
 import { states } from "../watchlist/wallet-monitor-panel";
@@ -43,7 +43,7 @@ const AddressResult = ({
           <p className="text-muted-foreground text-xs">{summary.detail}</p>
         </div>
       ) : null}
-      <PresenceChips
+      <ChainChips
         rows={result.networks.map((row) => ({
           ...row,
           token:

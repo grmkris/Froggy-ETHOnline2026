@@ -1,7 +1,6 @@
 import { EvmAddress, WatchlistInput } from "@froggy/domain";
 import type { TaskId } from "@froggy/domain";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
-import { Button } from "@froggy/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +19,7 @@ import {
   ToggleGroupItem,
 } from "@froggy/ui/components/toggle-group";
 import { Schema } from "effect";
-import { ArrowRightIcon, EllipsisIcon, SearchIcon } from "lucide-react";
+import { ArrowRightIcon, SearchIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -198,7 +197,7 @@ export const TrackBar = ({
       className="flex min-w-0 flex-col gap-3"
     >
       <form
-        className="flex items-center gap-2"
+        className="watch-bar flex items-center gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           void save(value.trim());
@@ -249,15 +248,14 @@ export const TrackBar = ({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-11"
+                <button
+                  type="button"
+                  className="playground-chip"
                   aria-label="More actions"
                 />
               }
             >
-              <EllipsisIcon aria-hidden />
+              More
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-64">
               <DropdownMenuGroup>
@@ -297,12 +295,12 @@ export const TrackBar = ({
       </form>
       {compact ? null : (
         <>
-          <p className="text-muted-foreground text-xs">
+          <p className="watch-help">
             {value.trim() !== "" &&
             !Schema.is(EvmAddress)(value.trim()) &&
             !/^https?:\/\//u.test(value.trim())
               ? `Enter searches tokens on ${networkWords(network)} · ${price} per search`
-              : "Free. Tokens and wallets on Ethereum, Base and Robinhood. Links from anywhere."}
+              : "Free · Tokens and wallets on Ethereum, Base and Robinhood · Links from anywhere"}
           </p>
           {value.trim() !== "" || taskId !== null ? (
             <ToggleGroup

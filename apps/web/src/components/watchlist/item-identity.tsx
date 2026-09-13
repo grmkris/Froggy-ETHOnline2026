@@ -3,6 +3,7 @@ import {
   isTestnet,
   listChainNames,
   presenceTitle,
+  shortEvmAddress,
   visiblePresence,
 } from "@froggy/domain";
 import type {
@@ -11,7 +12,6 @@ import type {
   WatchlistItem,
 } from "@froggy/domain";
 import { Badge } from "@froggy/ui/components/badge";
-import { Button } from "@froggy/ui/components/button";
 import {
   MailIcon,
   CoinsIcon,
@@ -20,6 +20,7 @@ import {
   ShoppingBagIcon,
   WalletIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useWatchlist } from "../../lib/watchlist-client";
@@ -79,13 +80,66 @@ export const displayTitle = (
   }
   return item.title;
 };
-export const PresenceChips = ({
+const chipText = (copied: boolean, named: boolean, address: string): string => {
+  if (copied) {
+    return "Copied";
+  }
+  return named ? "Copy address" : shortEvmAddress(address);
+};
+/** The address as a mono chip; a click copies the full form. */
+export const AddressChip = ({
+  address,
+  named = false,
+}: {
+  readonly address: string;
+  /** The name beside the chip is already the address, so the chip says what it does instead. */
+  readonly named?: boolean;
+}): ReactElement => {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    const timer = copied
+      ? setTimeout(() => {
+          setCopied(false);
+        }, 1500)
+      : null;
+    return () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+    };
+  }, [copied]);
+  const copy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+    } catch {
+      // A denied clipboard leaves the chip as it was; the title still carries the address.
+    }
+  };
+  return (
+    <button
+      type="button"
+      className="watch-chip watch-chip-address"
+      data-copied={copied ? "" : undefined}
+      aria-label={`Copy address ${address}`}
+      title={address}
+      onClick={() => {
+        void copy();
+      }}
+    >
+      {chipText(copied, named, address)}
+    </button>
+  );
+};
+
+/** One mono chip per chain the address was seen on: "Base · wallet". */
+export const ChainChips = ({
   rows,
   finding = false,
 }: {
   readonly rows: readonly AddressPresence[];
   readonly finding?: boolean;
-}): ReactElement => {
+}): ReactElement | null => {
   const visible = visiblePresence(rows)
     .filter((row) => row.status === "observed")
     .toSorted(
@@ -94,30 +148,32 @@ export const PresenceChips = ({
         a.network.localeCompare(b.network)
     );
   const delays = useArrivalDelays(visible.map((row) => row.network));
+  if (visible.length === 0 && !rows.some((row) => row.stubbed)) {
+    return null;
+  }
   return (
-    <div className="flex flex-wrap gap-1.5" aria-hidden={finding || undefined}>
-      {visible.map((row) => {
-        const token = row.kind === "contract" && row.token !== null;
-        const Icon = token ? CoinsIcon : WalletIcon;
-        return (
-          <MotionItem
-            inline
-            key={row.network}
-            delay={delays.get(row.network) ?? 0}
-          >
-            <Badge variant="outline">
-              <Icon aria-hidden className="size-3" />
-              {chainName(row.network)} · {token ? "token" : "wallet"}
-            </Badge>
-          </MotionItem>
-        );
-      })}
+    <span
+      className="flex flex-wrap items-center gap-1.5"
+      aria-hidden={finding || undefined}
+    >
+      {visible.map((row) => (
+        <MotionItem
+          inline
+          key={row.network}
+          delay={delays.get(row.network) ?? 0}
+        >
+          <span className="watch-chip">
+            {chainName(row.network)} ·{" "}
+            {row.kind === "contract" && row.token !== null ? "token" : "wallet"}
+          </span>
+        </MotionItem>
+      ))}
       {rows.some((row) => row.stubbed) ? (
         <Badge variant="outline" className="text-drive-agent">
           Simulated
         </Badge>
       ) : null}
-    </div>
+    </span>
   );
 };
 export const ItemPresence = ({
@@ -150,7 +206,6 @@ export const ItemPresence = ({
   }
   return (
     <div className="flex flex-col gap-1.5">
-      <PresenceChips rows={rows} finding={finding} />
       <div
         data-slot="presence-state"
         aria-live="polite"
@@ -167,15 +222,15 @@ export const ItemPresence = ({
         </span>
       </div>
       {!finding && (observed.length === 0 || unavailable.length > 0) ? (
-        <Button
-          variant="ghost"
-          className="min-h-11 self-start"
+        <button
+          type="button"
+          className="playground-chip playground-chip-sm self-start"
           onClick={() => {
             discover.mutate(item.id);
           }}
         >
           Check again
-        </Button>
+        </button>
       ) : null}
       {discover.isError ? (
         <p className="text-destructive text-xs" role="alert">

@@ -232,3 +232,42 @@ test("short phone Home keeps its starter actions and composer reachable", async 
   ).toBeInViewport();
   await captureScreen(page, testInfo, "home-short-phone");
 });
+
+for (const width of [390, 768, 1440]) {
+  test(`Watchlist is the Playground and says what it is doing at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+    page.on("pageerror", (error) => {
+      errors.push(error.message);
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/watchlist");
+    await expect(
+      page.getByRole("heading", { name: "Watchlist", exact: true })
+    ).toBeVisible();
+    const input = page.getByRole("textbox", {
+      name: "Address, link or token name",
+    });
+    await input.fill("0x8Cc232c9EB25b4b20ee448106858e3B6281708C2");
+    await input.press("Enter");
+    const items = page.getByRole("region", { name: "Saved items" });
+    await expect(items.getByRole("link")).toHaveCount(1);
+    await expect(
+      items.getByRole("switch", { name: "Notify me" })
+    ).toBeVisible();
+    await captureScreen(page, testInfo, `watchlist-${width}`);
+    await items.getByRole("link").first().click();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Ask Froggy about this" })
+    ).toBeVisible();
+    await captureScreen(page, testInfo, `watchlist-detail-${width}`);
+    expect(errors).toEqual([]);
+  });
+}

@@ -18,7 +18,7 @@ import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useWalletMonitor } from "../../lib/wallet-monitor-client";
-import { activeState } from "./wallet-monitor-panel";
+import { activeState } from "../../lib/watch-words";
 
 const notifyCaveat = (
   item: WatchlistItem,
