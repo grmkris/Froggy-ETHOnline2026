@@ -1,4 +1,4 @@
-# 0032 — Platform credits funded through x402
+# 0033 — Platform credits funded through x402
 
 Date: 2026-09-13
 
@@ -11,6 +11,10 @@ Froggy tools consume an internal, nontransferable credit balance. The owner buys
 Accounts begin at zero. Existing wallet balances and historical sales are preserved as money and history; there is no inferred conversion or starter grant. Numeric existing wallet caps initialize independent credit limits once, otherwise the defaults are $2 per task and $10 over a rolling 24 hours. Credit authority has its own expiry/frozen state and does not inherit wallet signer expiry.
 
 Only the authenticated owner can buy credits or update credit limits. OAuth agents and connection tokens use an existing owner balance within their granted scope. No tool changes funding or spending authority. External merchant payments, token transfers and trading principal continue through the wallet's existing authority and accounting boundaries. Upstream provider costs are platform expenses, not additional customer wallet charges.
+
+## Receiving native HBAR
+
+A new owner can prepare a Privy receiving key and public Hedera alias before an account number exists. Compare-and-set storage retains one canonical key across concurrent preparations using existing user custody columns. Preparation moves no money, converts no USDC and grants no credits. The owner funds the alias externally; the payer resolves its numeric Hedera account before signing the credit purchase. Historical custody remains recoverable after a workspace reset.
 
 ## Durable accounting
 
@@ -33,3 +37,7 @@ The runtime and committed agent skills, CLI, API, catalog and Wallet UI use the 
 The ledger is tested in memory and against PostgreSQL through independent connection pools, including racing funding claims, globally reused authorizations, duplicate transactions, reservation overspend, result replay, connection isolation, run budgets, uncertain holds and mode isolation. Payment coordinator and SDK adapter tests exercise saved proof recovery. Public-route tests assert that a fresh signed request cannot create a sale, while historical reports remain readable.
 
 Unit tests and simulated checkout are not live payment evidence. Deployment verification must separately record actual chain settlement, one-time crediting, a tool debit, retry behavior and the public UI/API journey.
+
+## Historical payment replay
+
+HBAR funding accepts only matching ledger transfers whose decimal consensus timestamp is at or after the purchase quote. A network/transaction lookup against every historical sale status prevents a tool payment from also purchasing credits, even when the surrounding x402 envelope changes. Missing or malformed timestamps and verifier refusals with an unknown mirror remain uncertain: a second recovery worker may already have submitted the same transaction. Recovery never replaces the signed payment.

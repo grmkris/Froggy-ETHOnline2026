@@ -85,6 +85,13 @@ const fixture = () => {
     evmTransactionKnown: async () =>
       await Promise.resolve(state.usdcSeenByChain),
     accounts: {
+      prepare: async () =>
+        await Promise.resolve({
+          accountId: "0.0.42",
+          alias: null,
+          network: "hedera:testnet",
+          stubbed: false,
+        }),
       lookup: async () => await Promise.resolve("0.0.42"),
       payerFor: async () => await Promise.resolve(base.payer),
       fund: async (_owner, _amount, beforeBroadcast) => {

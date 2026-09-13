@@ -1,0 +1,87 @@
+{
+  "origin": "https://app-production-58dd.up.railway.app",
+  "at": "2026-09-13T02:41:10.033Z",
+  "checks": [
+    {
+      "name": "x402 discovery advertises authenticated platform credits",
+      "passed": true
+    },
+    {
+      "name": "resource discovery has no anonymous paid offers",
+      "passed": true
+    },
+    {
+      "name": "/oracle/snapshot?symbol=USDC retired with 410",
+      "passed": true
+    },
+    {
+      "name": "/froggy-mcp.mjs retired with 410",
+      "passed": true
+    },
+    {
+      "name": "/froggy-mcp.js retired with 410",
+      "passed": true
+    },
+    {
+      "name": "individual demo report payments retired with 410",
+      "passed": true
+    },
+    {
+      "name": "/api/credits requires authentication",
+      "passed": true
+    },
+    {
+      "name": "/api/credits/activity requires authentication",
+      "passed": true
+    },
+    {
+      "name": "public skill describes credits and account access",
+      "passed": true
+    },
+    {
+      "name": "desktop signed-out landing and login boot",
+      "passed": true
+    },
+    {
+      "name": "public funding explanation renders without JavaScript errors",
+      "passed": true
+    },
+    {
+      "name": "mobile signed-out landing and login boot",
+      "passed": true
+    }
+  ],
+  "browsers": [
+    {
+      "device": "desktop",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://app-production-58dd.up.railway.app/",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://app-production-58dd.up.railway.app/",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "device": "mobile",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://app-production-58dd.up.railway.app/",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://app-production-58dd.up.railway.app/",
+          "error": "net::ERR_ABORTED"
+        }
+      ]
+    }
+  ],
+  "passed": true
+}

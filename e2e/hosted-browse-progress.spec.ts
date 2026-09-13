@@ -117,7 +117,7 @@ for (const width of [390, 1440]) {
     await page
       .getByRole("textbox", { name: "Message" })
       .fill("Find green shoes");
-    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     const card = page.getByRole("region", {
       name: "Browsing task",
       exact: true,

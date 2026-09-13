@@ -1,5 +1,5 @@
+import { creditUnits, EvmAddress, usdMicros } from "@froggy/domain";
 import type { UserId, AgentConnectionId, TaskId } from "@froggy/domain";
-import { EvmAddress, usdMicros } from "@froggy/domain";
 import {
   LaunchWatchRequest,
   LaunchWatchTicket,
@@ -118,11 +118,10 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
       definition.name === "watch_launches"
         ? services.launches.networks(true).length > 0
         : environment.modes[definition.mode] === "live";
-    const paymentLive = environment.modes.hedera === "live";
     const price = environment.trading.prices[definition.name];
     let networks: readonly string[] = BIRDEYE_NETWORKS;
     if (definition.name === "watch_launches") {
-      networks = services.launches.networks(paymentLive);
+      networks = services.launches.networks(providerLive);
     } else if (definition.name === "quote_action") {
       networks = environment.trading.uniswapChains
         .filter(supportsUniswapChain)
@@ -139,27 +138,25 @@ export const tradingCatalog = (services: Services): readonly ServiceCard[] => {
         : ["eip155:4663", "eip155:8453", "eip155:1"];
     }
     const available =
-      networks.length > 0 &&
-      (!paymentLive || (providerLive && price !== undefined));
+      networks.length > 0 && (!providerLive || price !== undefined);
     let note =
       "Provider credentials and an explicit service price are required before a live purchase.";
     let status: ServiceCard["status"] = "unavailable";
-    if (available && paymentLive) {
+    if (available && providerLive) {
       status = "configured";
       note =
         "One paid request; result retrieval is included. Trading capital is not spent.";
     } else if (available) {
       status = "demo";
-      note = providerLive
-        ? "Payment is simulated. This operation calls the configured live provider."
-        : "Demo fixture and simulated payment. No live provider call.";
+      note = "Demo fixture using simulated credits. No live provider call.";
     }
     return {
       name: definition.name,
       title: definition.title,
       description: definition.description,
       provider: definition.provider,
-      priceUsdMicros: usdMicros(price ?? (paymentLive ? 0 : 10_000)),
+      priceUsdMicros: usdMicros(price ?? (providerLive ? 0 : 10_000)),
+      priceCreditUnits: creditUnits(price ?? (providerLive ? 0 : 10_000)),
       maxInput: 16_000,
       status,
       note,
@@ -365,7 +362,7 @@ export const runTradingService = async (
   return {
     v: 1,
     service: request.service,
-    stubbed: data.stubbed || services.environment.modes.hedera === "stub",
+    stubbed: data.stubbed || context?.paymentStubbed === true,
     text: `${data.stubbed ? "DEMO — recorded fixture. " : ""}${resultText(data)}\n${data.limitations.join(" ")}`.slice(
       0,
       6000

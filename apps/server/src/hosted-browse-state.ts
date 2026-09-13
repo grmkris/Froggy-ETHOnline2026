@@ -278,7 +278,7 @@ export const publicBrowseTask = (
   const legacy = Schema.decodeUnknownResult(
     Schema.Struct({
       text: Schema.optional(Schema.String),
-      outcome: Schema.optionalKey(TaskOutcome),
+      outcome: Schema.optional(TaskOutcome),
     })
   )(task.result);
   const result = legacy._tag === "Success" ? legacy.success : null;
@@ -296,6 +296,9 @@ export const publicBrowseTask = (
       instruction: browseInstruction(task),
     },
     priceUsdMicros: task.priceUsdMicros,
+    chargeId: task.chargeId,
+    chargeStatus: task.chargeStatus,
+    priceCreditUnits: task.priceCreditUnits,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     error: pendingQuote

@@ -631,10 +631,12 @@ class FroggyServer extends Context.Service<
       const walletTick = setInterval(() => {
         detached("wallet recovery", async () => {
           await walletRequests.recover();
+          await services.creditFunding.recover();
         });
       }, 15_000);
       detached("wallet recovery at startup", async () => {
         await walletRequests.recover();
+        await services.creditFunding.recover();
       });
 
       const baseRouterDeps: RouterDeps = {

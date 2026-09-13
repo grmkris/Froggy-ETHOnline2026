@@ -1,23 +1,23 @@
-import { formatUsd } from "@froggy/domain";
 import { Badge } from "@froggy/ui/components/badge";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRightIcon, WalletIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
-import { walletAmounts } from "../../lib/wallet-view";
-import { useWorkspace } from "../../lib/workspace-context";
+import { useCredits } from "../../hooks/use-credits";
+import { formatCredits } from "../../lib/credit-view";
 
-/** Funding balances are not holdings valuation or reservation-adjusted buying power. */
+/** Show the available tool budget before a conversation starts. */
 export const HomeSummary = (): ReactElement => {
-  const { app } = useWorkspace();
-  const total = walletAmounts(app.wallet).totalUsdMicros;
+  const { summary } = useCredits();
   let amount = "Loading…";
-  if (app.wallet !== null) {
-    amount = total === null ? "Unavailable" : formatUsd(total);
+  if (!summary.isPending) {
+    amount = summary.data
+      ? formatCredits(summary.data.availableUnits)
+      : "Unavailable";
   }
   return (
     <Link
-      aria-label="Your money"
+      aria-label="Your credits"
       className="bg-card border-border focus-visible:ring-ring mx-4 my-2 flex items-center gap-3 rounded-2xl border px-4 py-3 outline-none focus-visible:ring-2 sm:mx-6"
       to="/wallet"
     >
@@ -26,15 +26,17 @@ export const HomeSummary = (): ReactElement => {
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-sm font-medium whitespace-nowrap">
-          Your money
+          Your credits
         </span>
-        <span className="text-muted-foreground text-[11px]">USDC + HBAR</span>
+        <span className="text-muted-foreground text-[11px]">
+          Tools and browser tasks
+        </span>
       </span>
       <span className="flex flex-col items-end gap-0.5">
         <span className="text-base font-semibold tracking-tight tabular-nums">
           {amount}
         </span>
-        {app.modes?.privy === "stub" || app.modes?.hedera === "stub" ? (
+        {summary.data?.stubbed === true ? (
           <Badge variant="outline">Simulated</Badge>
         ) : null}
       </span>

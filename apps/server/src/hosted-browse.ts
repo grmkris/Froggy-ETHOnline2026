@@ -9,6 +9,7 @@ import type {
 } from "@froggy/protocol";
 
 import { storedBrowseQuote } from "./browse-quotes";
+import { authorizeCreditTask, finishCreditTask } from "./credit-task";
 import { detached } from "./detached";
 import {
   browseInstruction,
@@ -170,17 +171,38 @@ export class HostedBrowseJob {
       updatedAt: now,
       result: { text: this.state.text, hosted: this.state },
     };
-    await this.deps.services.store.tasks.update(
-      this.workspace.userId,
-      this.task.id,
-      {
-        runId: this.task.runId,
-        result: this.task.result,
-        status,
-        error: this.task.error,
-        updatedAt: now,
+    const patch = {
+      runId: this.task.runId,
+      result: this.task.result,
+      status,
+      error: this.task.error,
+      updatedAt: now,
+    };
+    if (
+      this.task.chargeId !== undefined &&
+      ["done", "failed", "cancelled"].includes(status)
+    ) {
+      await finishCreditTask(
+        this.deps.services,
+        this.workspace.userId,
+        this.task,
+        patch,
+        status === "done" ? "capture" : "release"
+      );
+      const current = await this.deps.services.store.tasks.byId(
+        this.workspace.userId,
+        this.task.id
+      );
+      if (current !== null) {
+        this.task = current;
       }
-    );
+    } else {
+      await this.deps.services.store.tasks.update(
+        this.workspace.userId,
+        this.task.id,
+        patch
+      );
+    }
     const task = this.view();
     for (const listener of listeners) {
       listener(this.workspace.userId, {
@@ -198,6 +220,21 @@ export class HostedBrowseJob {
     };
   }
   private async dispatch(): Promise<void> {
+    try {
+      await authorizeCreditTask(
+        this.deps.services,
+        this.workspace.userId,
+        this.task
+      );
+    } catch (error) {
+      await this.finish(
+        "failed",
+        error instanceof Error
+          ? error.message
+          : "Connection permission was revoked."
+      );
+      return;
+    }
     const remaining = this.allowance().cost - this.state.spentUsdMicros;
     if (
       remaining < 10_000 ||
@@ -921,7 +958,11 @@ export const recoverHostedBrowses = async (deps: TaskDeps): Promise<void> => {
   const rows = await deps.services.store.tasks.activeBrowses();
   await Promise.all(
     rows
-      .filter((row) => hostedTask(row.task) && row.task.saleId !== null)
+      .filter(
+        (row) =>
+          hostedTask(row.task) &&
+          (row.task.saleId !== null || row.task.chargeId !== undefined)
+      )
       .map(async (row) => {
         startHostedBrowse(
           deps,

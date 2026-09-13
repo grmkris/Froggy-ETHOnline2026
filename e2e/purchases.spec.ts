@@ -7,6 +7,21 @@ import {
   PurchaseList,
   PurchaseTicket,
 } from "../packages/protocol/src/purchases";
+import { startMerchant } from "./merchant-fixture";
+
+let merchant: Awaited<ReturnType<typeof startMerchant>> | null = null;
+const merchantTarget = (): string => {
+  if (merchant === null) {
+    throw new Error("The local merchant has not started.");
+  }
+  return merchant.url;
+};
+test.beforeAll(async () => {
+  merchant = await startMerchant();
+});
+test.afterAll(async () => {
+  await merchant?.stop();
+});
 
 const decodeList = Schema.decodeUnknownSync(PurchaseList);
 const decodeTicket = Schema.decodeUnknownSync(PurchaseTicket);
@@ -32,8 +47,8 @@ const requestDemo = async (
   headers: { authorization: string };
 }> => {
   await page.goto("/services?view=purchases");
-  await page.getByRole("button", { name: "Use demo report" }).click();
   const form = page.getByRole("form", { name: "Request a URL purchase" });
+  await form.getByLabel("URL", { exact: true }).fill(merchantTarget());
   await form.getByLabel("Purpose", { exact: true }).fill(purpose);
   const requested = page.waitForResponse(
     (response) =>
@@ -79,7 +94,7 @@ test.describe("URL purchases", () => {
     ]);
     await expect(
       page.getByRole("region", { name: "Purchase approvals" })
-    ).toContainText("/demo/x402/report");
+    ).toContainText(new URL(merchantTarget()).pathname);
     await expect(
       page.getByRole("region", { name: "Purchase approvals" })
     ).toContainText("Hedera testnet");
@@ -225,7 +240,6 @@ test.describe("URL purchases", () => {
   test("a chat URL request pauses for approval and resumes with its result and receipt", async ({
     page,
     request,
-    baseURL,
   }, testInfo) => {
     const errors = watchErrors(page);
     const listing = page.waitForResponse(
@@ -236,7 +250,7 @@ test.describe("URL purchases", () => {
     const headers = {
       authorization: sessionResponse.request().headers()["authorization"] ?? "",
     };
-    const target = new URL("/demo/x402/report", baseURL).href;
+    const target = merchantTarget();
     await page
       .getByRole("textbox", { name: "Message" })
       .fill(`Buy ${target} for at most five cents`);

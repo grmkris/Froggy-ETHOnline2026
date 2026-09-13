@@ -1,3 +1,4 @@
+import { formatUsd, Purchase } from "@froggy/domain";
 /**
  * One line that says what a tool call came to, read from the tool's own words.
  *
@@ -9,17 +10,17 @@
  * The fixtures in the tests are copied from the server verbatim, so a change
  * of wording there fails a test here rather than silently blanking a card.
  */
-
-import { formatUsd, Purchase } from "@froggy/domain";
 import type { TaskStatus } from "@froggy/domain";
 import {
   AddressLookupResult,
+  CreditSummary,
   ServiceCatalog,
   ServiceTicket,
 } from "@froggy/protocol";
 import type { AddressLookupNetwork, GraphQueryOutput } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { creditChargeWords, formatCredits } from "./credit-view";
 import { networkWords } from "./mandate-words";
 import { statusWords } from "./services-view";
 import type { ToolCall } from "./tool-call";
@@ -280,9 +281,9 @@ const clickSummary = (text: string): ToolSummary =>
 
 /** What the person is waiting on, by phase, when the ticket has no text yet. */
 const SERVICE_PHASE_DETAIL: ReadonlyMap<TaskStatus, string> = new Map([
-  ["quoted", "Settling your payment. The provider has not been called yet."],
-  ["running", "Settling your payment. The provider has not been called yet."],
-  ["paid", "Paid. The provider is working; results will appear in Services."],
+  ["quoted", "Starting the task. The result will appear in Tools."],
+  ["running", "Starting the task. The result will appear in Tools."],
+  ["paid", "The provider is working; results will appear in Tools."],
 ]);
 
 const serviceSummary = (text: string): ToolSummary | null => {
@@ -291,7 +292,11 @@ const serviceSummary = (text: string): ToolSummary | null => {
     const ticket = Schema.decodeUnknownResult(ServiceTicket)(raw);
     if (ticket._tag === "Success") {
       const task = ticket.success;
-      const headline = `${task.service.replaceAll("_", " ")} · ${statusWords(task.status).label.toLowerCase()}`;
+      const billing =
+        task.priceCreditUnits === undefined
+          ? ""
+          : ` · ${formatCredits(task.priceCreditUnits)} ${creditChargeWords(task.chargeStatus)}`;
+      const headline = `${task.service.replaceAll("_", " ")} · ${statusWords(task.status).label.toLowerCase()}${billing}`;
       if (task.status === "failed" || task.status === "uncertain") {
         return summary(headline, "refused", task.error, task.stubbed);
       }
@@ -398,6 +403,22 @@ const addressLookupSummary = (text: string): ToolSummary | null => {
   }
 };
 
+const creditSummary = (text: string): ToolSummary | null => {
+  const decoded = Schema.decodeUnknownResult(
+    Schema.fromJsonString(CreditSummary)
+  )(text);
+  if (decoded._tag === "Failure") {
+    return null;
+  }
+  const credits = decoded.success;
+  return summary(
+    `${formatCredits(credits.availableUnits)} available`,
+    "info",
+    `${formatCredits(credits.reservedUnits)} held. Limit: ${formatCredits(credits.limits.perTaskUnits)} per task, ${formatCredits(credits.limits.dailyUnits)} in 24 hours.`,
+    credits.stubbed
+  );
+};
+
 /** Null when the call has no output yet, or said something no parser reads. */
 export const summarize = (call: ToolCall): ToolSummary | null => {
   const text = call.output;
@@ -427,6 +448,9 @@ export const summarize = (call: ToolCall): ToolSummary | null => {
     }
     case "wallet_send": {
       return sendSummary(text);
+    }
+    case "credits_balance": {
+      return creditSummary(text);
     }
     case "wallet_status": {
       return statusSummary(text);

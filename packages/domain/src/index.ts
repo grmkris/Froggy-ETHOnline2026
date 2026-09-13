@@ -311,3 +311,19 @@ export {
   emptyMonitoringBook,
   monitorMatches,
 } from "./monitoring";
+
+export {
+  CREDITS_PER_USD,
+  CREDIT_UNITS_PER_CREDIT,
+  CreditUnits,
+  creditUnits,
+  CreditLimits,
+  defaultCreditLimits,
+  CreditSummary,
+  CreditChargeStatus,
+  CreditCharge,
+  CreditPurchaseStatus,
+  CreditPurchase,
+  CreditLedgerEntry,
+} from "./credits";
+export { CreditChargeId, CreditPurchaseId, CreditEntryId } from "./id";

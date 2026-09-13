@@ -2,6 +2,8 @@ import {
   ExecutionId,
   AgentConnectionId,
   AgentInvocation,
+  CreditUnits,
+  CreditChargeStatus,
   OAuthScope,
   TaskKind,
   TaskStatus,
@@ -23,6 +25,8 @@ export const AgentInvocationView = Schema.Struct({
   executionId: Schema.NullOr(ExecutionId),
   taskKind: Schema.NullOr(TaskKind),
   taskStatus: Schema.NullOr(TaskStatus),
+  priceCreditUnits: Schema.optionalKey(CreditUnits),
+  chargeStatus: Schema.optionalKey(CreditChargeStatus),
 });
 export type AgentInvocationView = typeof AgentInvocationView.Type;
 

@@ -41,6 +41,7 @@ export type {
   FundingSubmission,
   DueSchedule,
   HederaAccountRecord,
+  HederaReceivingRecord,
   HederaCustody,
   PersonPolicyRecord,
   ScheduleFinish,
@@ -108,3 +109,11 @@ export type { TelegramCacheMessage } from "./history-store";
 export type { PrivyExecution } from "./privy-execution";
 
 export type { MonitoringStore } from "./monitoring-store";
+
+export { CreditStoreError, FundingPurchase } from "./credit-store";
+export type {
+  CreditStore,
+  CreditTaskPatch,
+  CreditTaskResult,
+  FundingPatch,
+} from "./credit-store";

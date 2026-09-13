@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { capturePage, captureScreen } from "./capture";
+import { fundCredits } from "./fund-credits";
 
 for (const size of [
   { width: 1440, height: 1000 },
@@ -41,7 +42,10 @@ for (const size of [
       .getByLabel("Your request")
       .fill("Find useful sources for planning a weekend in Berlin.");
     await capturePage(page, testInfo, "service-request");
-    await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
+    await fundCredits(page);
+    await page
+      .getByRole("button", { name: "Try simulated · 1 credit" })
+      .click();
     const tasks = page.getByRole("region", { name: "Service tasks" });
     await expect(tasks).toContainText("DEMO — Search the web");
     await expect(

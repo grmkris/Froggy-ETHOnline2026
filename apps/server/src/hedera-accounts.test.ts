@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { UserId } from "@froggy/domain";
+import { creditUnits, UserId } from "@froggy/domain";
 import { HederaAccountError } from "@froggy/payments";
 import type { HederaHost, RateSource } from "@froggy/payments";
 import type { FundingSubmission } from "@froggy/wallet";
@@ -285,5 +285,167 @@ describe("funding recovery", () => {
     expect(saved?.accountId).toBe("0.0.101");
     expect(saved?.custody).toEqual(submission.custody);
     expect(await restarted.lookup(ALICE)).toBe("0.0.101");
+  });
+});
+
+const RECEIVING_PUBLIC_KEY =
+  "0215fa722a20730257c669c8c3e8fd4ea0ea62b82dc6309a41cccf00a42a6a5f20";
+const RECEIVING_ALIAS = "0x451718d7197e664d8370d139fcb87abaeb303531";
+interface ReceivingState {
+  accountId: string | null;
+  created: number;
+  signatures: number;
+}
+const receivingFixture = () => {
+  const state: ReceivingState = { accountId: null, created: 0, signatures: 0 };
+  const host = fakeHost();
+  const store = memoryStore();
+  const options = {
+    host,
+    store,
+    keystore: aesGcmKeystore(KEK),
+    rates: rates(null),
+    keys: {
+      create: async () => {
+        await Promise.resolve();
+        state.created += 1;
+        return {
+          publicKey: RECEIVING_PUBLIC_KEY,
+          walletId: `receiving-${state.created}`,
+        };
+      },
+      signBytes: async () => {
+        await Promise.resolve();
+        state.signatures += 1;
+        return new Uint8Array(64);
+      },
+    },
+    resolve: async () => await Promise.resolve(state.accountId),
+  };
+  return { state, host, store, options };
+};
+
+const expectNoReceivingPayment = (
+  fixture: ReturnType<typeof receivingFixture>
+) => {
+  expect(fixture.host.opened).toEqual([]);
+  expect(fixture.host.funded).toEqual([]);
+  expect(fixture.host.transfers).toEqual([]);
+  expect(fixture.state.signatures).toBe(0);
+};
+
+describe("HBAR receiving without a platform-funded account", () => {
+  it("persists one receiving key before exposing its alias, without rates, payment or credits", async () => {
+    const fixture = receivingFixture();
+    const accounts = createHederaAccounts(fixture.options);
+    const [first, second] = await Promise.all([
+      accounts.prepare(ALICE),
+      accounts.prepare(ALICE),
+    ]);
+    expect(first).toEqual({
+      network: "hedera:testnet",
+      accountId: null,
+      alias: RECEIVING_ALIAS,
+      stubbed: false,
+    });
+    expect(second).toEqual(first);
+    expect(fixture.state.created).toBe(1);
+    expect(await fixture.store.hedera.load(ALICE)).toBeNull();
+    const pending = await fixture.store.hedera.loadReceiving(ALICE);
+    expect(pending?.custody).toEqual({
+      kind: "privy",
+      publicKey: RECEIVING_PUBLIC_KEY,
+      walletId: "receiving-1",
+    });
+    const balance = await fixture.store.credits.summary(ALICE);
+    expect(balance.availableUnits).toBe(creditUnits(0));
+    expectNoReceivingPayment(fixture);
+  });
+
+  it("reuses the persisted key after restart and pays only after external HBAR funding resolves its numeric account", async () => {
+    const fixture = receivingFixture();
+    await createHederaAccounts(fixture.options).prepare(ALICE);
+    const restarted = createHederaAccounts(fixture.options);
+    const restored = await restarted.prepare(ALICE);
+    expect(restored.alias).toBe(RECEIVING_ALIAS);
+    const refused = await failureOf(restarted.payerFor(ALICE, 0));
+    expect(refused?.message).toContain("Transfer HBAR");
+    fixture.state.accountId = "0.0.10396162";
+    const payer = await restarted.payerFor(ALICE, 0);
+    expect(payer.accountId).toBe("0.0.10396162");
+    expect(payer.mode).toBe("live");
+    const saved = await fixture.store.hedera.load(ALICE);
+    expect(saved?.accountId).toBe("0.0.10396162");
+    expect(fixture.state.created).toBe(1);
+    expectNoReceivingPayment(fixture);
+  });
+
+  it("returns the canonical persisted custody when independent instances prepare at once", async () => {
+    const fixture = receivingFixture();
+    await Promise.all([
+      createHederaAccounts(fixture.options).prepare(ALICE),
+      createHederaAccounts(fixture.options).prepare(ALICE),
+    ]);
+    const saved = await fixture.store.hedera.loadReceiving(ALICE);
+    expect(saved?.custody).toEqual({
+      kind: "privy",
+      publicKey: RECEIVING_PUBLIC_KEY,
+      walletId: "receiving-1",
+    });
+    const next = await createHederaAccounts(fixture.options).prepare(ALICE);
+    expect(next.alias).toBe(RECEIVING_ALIAS);
+    expect(fixture.state.created).toBe(2);
+    expectNoReceivingPayment(fixture);
+  });
+
+  it("does not expose a receiving alias if its custody cannot be saved", async () => {
+    const fixture = receivingFixture();
+    const accounts = createHederaAccounts({
+      ...fixture.options,
+      store: {
+        ...fixture.store,
+        hedera: {
+          ...fixture.store.hedera,
+          prepareReceiving: async () => {
+            await Promise.resolve();
+            throw new Error("storage unavailable");
+          },
+        },
+      },
+    });
+    const refused = await failureOf(accounts.prepare(ALICE));
+    expect(refused?.message).toContain("storage unavailable");
+    expectNoReceivingPayment(fixture);
+  });
+
+  it("refuses receiving preparation without Privy keys and never creates a treasury-funded fallback", async () => {
+    const fixture = receivingFixture();
+    const accounts = createHederaAccounts({ ...fixture.options, keys: null });
+    const refused = await failureOf(accounts.prepare(ALICE));
+    expect(refused).toBeInstanceOf(HederaAccountError);
+    expect(refused?.message).toContain("not configured");
+    expect(fixture.state.created).toBe(0);
+    expectNoReceivingPayment(fixture);
+  });
+
+  it("reuses prepared custody if a separately authorized legacy conversion later funds HBAR", async () => {
+    const fixture = receivingFixture();
+    await createHederaAccounts(fixture.options).prepare(ALICE);
+    fixture.state.accountId = "0.0.10396162";
+    const accounts = createHederaAccounts({
+      ...fixture.options,
+      rates: rates(80_000),
+    });
+    await accounts.fund(ALICE, 500_000);
+    expect(fixture.state.created).toBe(1);
+    expect(fixture.host.funded).toEqual([
+      { evmAddress: RECEIVING_ALIAS, tinybars: 635_000_000 },
+    ]);
+    const saved = await fixture.store.hedera.load(ALICE);
+    expect(saved?.custody).toEqual({
+      kind: "privy",
+      publicKey: RECEIVING_PUBLIC_KEY,
+      walletId: "receiving-1",
+    });
   });
 });

@@ -64,6 +64,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
+import { postgresCreditStore } from "./credit-store-postgres";
 import { postgresHistoryStore } from "./history-store-postgres";
 import { postgresLaunchStore } from "./launch-store-postgres";
 import { postgresMonitoringStore } from "./monitoring-store-postgres";
@@ -78,6 +79,7 @@ import {
 } from "./store";
 import type {
   DueSchedule,
+  HederaReceivingRecord,
   OAuthTokenRow,
   OwnedWalletRequest,
   Store,
@@ -132,6 +134,9 @@ const taskOf = (row: TaskRow): Task | null => {
     result: row.result,
     runId: row.runId,
     saleId: row.saleId,
+    chargeId: row.chargeId ?? undefined,
+    priceCreditUnits: row.priceCreditUnits ?? undefined,
+    chargeStatus: row.chargeStatus ?? undefined,
     status: row.status,
     updatedAt: row.updatedAt.getTime(),
   });
@@ -253,6 +258,42 @@ const decodeAllowance = Schema.decodeUnknownResult(Allowance);
 
 export const postgresStore = (sql: Sql): Store => {
   const database = drizzle(sql);
+  const loadHederaReceiving = async (
+    userId: UserId
+  ): Promise<HederaReceivingRecord | null> => {
+    const rows = await database
+      .select({
+        accountId: users.hederaAccountId,
+        keyCiphertext: users.hederaKeyCiphertext,
+        publicKey: users.hederaPublicKey,
+        walletId: users.hederaPrivyWalletId,
+      })
+      .from(users)
+      .where(eq(users.did, userId))
+      .limit(1);
+    const [row] = rows;
+    if (row === undefined) {
+      return null;
+    }
+    if (row.walletId !== null && row.publicKey !== null) {
+      return {
+        accountId: row.accountId,
+        custody: {
+          kind: "privy",
+          publicKey: row.publicKey,
+          walletId: row.walletId,
+        },
+      };
+    }
+    if (row.keyCiphertext !== null) {
+      return {
+        accountId: row.accountId,
+        custody: { keyCiphertext: row.keyCiphertext, kind: "sealed" },
+      };
+    }
+    return null;
+  };
+
   const ensureUser = async (userId: UserId): Promise<void> => {
     await database.insert(users).values({ did: userId }).onConflictDoNothing();
   };
@@ -271,6 +312,7 @@ export const postgresStore = (sql: Sql): Store => {
   const monitoring = postgresMonitoringStore(sql);
   const watchlist = postgresWatchlistStore(sql);
   return {
+    credits: postgresCreditStore(sql),
     browsers: {
       load: async (userId) => {
         const [row] = await database
@@ -916,6 +958,20 @@ export const postgresStore = (sql: Sql): Store => {
         const [row] = rows;
         return row === undefined ? null : saleOf(row);
       },
+      byTransaction: async (network, transactionId) => {
+        const rows = await database
+          .select()
+          .from(sales)
+          .where(
+            and(
+              eq(sales.network, network),
+              eq(sales.transactionId, transactionId)
+            )
+          )
+          .limit(1);
+        const [row] = rows;
+        return row === undefined ? null : saleOf(row);
+      },
       record: async (sale) => {
         // Insert-or-return on the hash, across processes: the unique index
         // decides who recorded the sale, the way the spends index decides who
@@ -1071,6 +1127,9 @@ export const postgresStore = (sql: Sql): Store => {
           result: task.result,
           runId: task.runId,
           saleId: task.saleId,
+          chargeId: task.chargeId ?? null,
+          priceCreditUnits: task.priceCreditUnits ?? null,
+          chargeStatus: task.chargeStatus ?? null,
           status: task.status,
           updatedAt: new Date(task.updatedAt),
           userId,
@@ -1432,38 +1491,34 @@ export const postgresStore = (sql: Sql): Store => {
         .where(eq(users.did, userId));
     },
     hedera: {
-      load: async (userId) => {
-        const rows = await database
-          .select({
-            accountId: users.hederaAccountId,
-            keyCiphertext: users.hederaKeyCiphertext,
-            publicKey: users.hederaPublicKey,
-            walletId: users.hederaPrivyWalletId,
+      loadReceiving: loadHederaReceiving,
+      prepareReceiving: async (userId, custody) => {
+        await ensureUser(userId);
+        await database
+          .update(users)
+          .set({
+            hederaPrivyWalletId: custody.walletId,
+            hederaPublicKey: custody.publicKey,
           })
-          .from(users)
-          .where(eq(users.did, userId))
-          .limit(1);
-        const [row] = rows;
-        if (row === undefined || row.accountId === null) {
-          return null;
+          .where(
+            and(
+              eq(users.did, userId),
+              isNull(users.hederaAccountId),
+              isNull(users.hederaPrivyWalletId),
+              isNull(users.hederaKeyCiphertext)
+            )
+          );
+        const record = await loadHederaReceiving(userId);
+        if (record === null) {
+          throw new Error("The receiving key could not be persisted.");
         }
-        if (row.walletId !== null && row.publicKey !== null) {
-          return {
-            accountId: row.accountId,
-            custody: {
-              kind: "privy",
-              publicKey: row.publicKey,
-              walletId: row.walletId,
-            },
-          };
-        }
-        if (row.keyCiphertext !== null) {
-          return {
-            accountId: row.accountId,
-            custody: { keyCiphertext: row.keyCiphertext, kind: "sealed" },
-          };
-        }
-        return null;
+        return record;
+      },
+      load: async (userId) => {
+        const record = await loadHederaReceiving(userId);
+        return record === null || record.accountId === null
+          ? null
+          : { accountId: record.accountId, custody: record.custody };
       },
       save: async (userId, record) => {
         await ensureUser(userId);

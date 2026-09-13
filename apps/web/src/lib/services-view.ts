@@ -31,20 +31,19 @@ export interface StatusWords {
 }
 
 /**
- * A service task's phases in the person's words. `running` is the payment
- * settling, not the provider working: the worker moves to `paid` only once
- * the payment has landed, and the provider is called after that. Naming the
- * phases is what lets a slow task be told apart from a failed one.
+ * Tasks retain historical states; neutral execution labels also describe
+ * credit-backed work without inventing a wallet settlement.
  */
 const STATUS_WORDS: ReadonlyMap<TaskStatus, StatusWords> = new Map([
-  ["quoted", { label: "Settling your payment", tone: "settling" }],
+  ["quoted", { label: "Starting task", tone: "settling" }],
   ["paid", { label: "Provider working", tone: "settling" }],
-  ["running", { label: "Settling your payment", tone: "settling" }],
+  ["running", { label: "Working", tone: "settling" }],
   ["paused", { label: "Paused", tone: "uncertain" }],
   ["awaiting_approval", { label: "Waiting for your answer", tone: "asking" }],
   ["done", { label: "Done", tone: "done" }],
   ["failed", { label: "Failed", tone: "failed" }],
-  ["uncertain", { label: "Payment uncertain", tone: "uncertain" }],
+  ["cancelled", { label: "Canceled", tone: "failed" }],
+  ["uncertain", { label: "Outcome pending", tone: "uncertain" }],
 ]);
 
 const UNKNOWN_STATUS: StatusWords = { label: "Unknown", tone: "uncertain" };
@@ -54,7 +53,7 @@ export const statusWords = (status: TaskStatus): StatusWords =>
 
 /** Still moving: worth polling for. */
 export const isSettling = (status: TaskStatus): boolean =>
-  statusWords(status).tone === "settling";
+  statusWords(status).tone === "settling" || status === "uncertain";
 
 const SERVICE_ICONS: ReadonlyMap<ServiceName, LucideIcon> = new Map([
   ["x_search", RadioIcon],

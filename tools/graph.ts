@@ -153,6 +153,8 @@ export const nodes: readonly Node[] = [
       "@x402/svm",
       "@solana/kit",
       "effect",
+      // Private USDC facilitator reads receipts and submits the persisted transaction.
+      "viem",
     ],
   },
   {

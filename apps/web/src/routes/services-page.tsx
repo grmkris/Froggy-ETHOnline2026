@@ -1,6 +1,6 @@
 import { formatUsd } from "@froggy/domain";
 /**
- * What the wallet can buy: fixed prices, a request, and the results to come
+ * What credits can buy: fixed prices, a request, and the results to come
  * back to. The chosen service lives in the URL, so Back works and the chat
  * can point at one.
  */
@@ -23,6 +23,7 @@ import { TradingServiceForm } from "../components/services/trading-service-form"
 import { ScheduleList } from "../components/settings/schedule-list";
 import { TradePanel } from "../components/trading/trade-panel";
 import { useServiceApi } from "../hooks/use-service-api";
+import { creditChargeWords, formatCredits } from "../lib/credit-view";
 
 const DelegatedTaskResult = ({
   task,
@@ -38,11 +39,17 @@ const DelegatedTaskResult = ({
       {task.kind === "brief" && task.result?.stubbed === true ? (
         <Badge variant="outline">Simulated</Badge>
       ) : null}
-      {task.saleId === null ? null : (
+      {task.priceCreditUnits === undefined ? null : (
+        <span className="text-money text-sm">
+          {formatCredits(task.priceCreditUnits)}{" "}
+          {creditChargeWords(task.chargeStatus)}
+        </span>
+      )}
+      {task.priceCreditUnits === undefined && task.saleId !== null ? (
         <span className="text-money text-sm">
           {formatUsd(task.priceUsdMicros)} paid
         </span>
-      )}
+      ) : null}
     </div>
     {task.error === null ? null : <p role="alert">{task.error}</p>}
     {task.result === null ? null : (
@@ -194,7 +201,7 @@ export const ServicesPage = (): ReactElement => {
       : ServiceRequestForm;
   return (
     <Page
-      intro="Fixed prices, paid from your wallet, with a result you can come back to."
+      intro="Froggy tools use credits. Trading and external purchases use your wallet."
       title="Tools"
       wide
     >

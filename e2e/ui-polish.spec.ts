@@ -6,6 +6,7 @@ import {
   encodeAppServerMessage,
 } from "../packages/protocol/src/app";
 import { captureScreen } from "./capture";
+import { fundCredits } from "./fund-credits";
 
 interface SessionController {
   change?: () => void;
@@ -32,7 +33,7 @@ for (const width of [320, 390, 1440]) {
     await expect(
       page
         .getByRole("main")
-        .getByRole("link", { name: "Your money", exact: true })
+        .getByRole("link", { name: "Your credits", exact: true })
     ).toBeVisible();
     await expect(
       page.getByRole("complementary", { name: "Watchlist pane" })
@@ -58,7 +59,7 @@ for (const width of [320, 390, 1440]) {
     await expect(
       page
         .getByRole("main")
-        .getByRole("link", { name: "Your money", exact: true })
+        .getByRole("link", { name: "Your credits", exact: true })
     ).toHaveCount(0);
     await page.getByRole("log").click();
     await captureScreen(page, testInfo, `chat-${width}`);
@@ -206,6 +207,7 @@ test("opening discovery is free and new listings are an explicit request", async
     .getByLabel("Chain", { exact: true })
     .selectOption("eip155:8453");
   expect(requests).toBe(0);
+  await fundCredits(page);
   await discovery.getByRole("button", { name: "Load new listings" }).click();
   await expect(
     discovery.getByRole("region", { name: "Token results" })

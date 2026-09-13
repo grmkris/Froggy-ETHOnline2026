@@ -50,6 +50,7 @@ import type { ModelBudget } from "./budget";
 import type { ChatRequest } from "./chat";
 import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
+import { handleCredits } from "./credit-routes";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import { handleDiscovery } from "./discovery-route";
@@ -891,6 +892,15 @@ const deleteAccount = async (
   return json({ deleted: true });
 };
 
+const handleBilling = async (
+  services: Services,
+  workspace: Workspace,
+  caller: TaskCaller,
+  request: Request
+): Promise<Response | null> =>
+  (await handleCredits(services, workspace, caller, request)) ??
+  (await handleTrades(services, workspace, caller, request));
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -916,9 +926,14 @@ const handleApi = async (
     return await browserViewer(workspace, caller);
   }
 
-  const trade = await handleTrades(deps.services, workspace, caller, request);
-  if (trade !== null) {
-    return trade;
+  const billing = await handleBilling(
+    deps.services,
+    workspace,
+    caller,
+    request
+  );
+  if (billing !== null) {
+    return billing;
   }
 
   const purchase = await handlePurchases(
@@ -1014,7 +1029,7 @@ const handleInstallation = async (
     ["/froggy-mcp.mjs", "/froggy-mcp.js"].includes(pathname) &&
     request.method === "GET"
   ) {
-    return await serveAgentDoor(origin);
+    return serveAgentDoor(origin);
   }
   if (
     ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
@@ -1025,7 +1040,7 @@ const handleInstallation = async (
       headers: { "content-type": "text/markdown; charset=utf-8" },
     });
   }
-  // The door's own skill, for an agent with no Froggy account at all.
+  // Historical install links explain the authenticated MCP migration.
   if (
     ["/door-skill.md", "/froggy-door/SKILL.md"].includes(pathname) &&
     request.method === "GET"
@@ -1112,9 +1127,6 @@ export const handleRequest = async (
   if (pathname === ORACLE_PATH) {
     return await handleOracleRequest(
       {
-        gate: deps.services.oracle,
-        graph: deps.services.graph,
-        hcs: deps.services.hcs,
         publicUrl: deps.oracleUrl,
         store: deps.services.store,
       },

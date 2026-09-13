@@ -11,7 +11,7 @@ import type {
   HostedAgentApi,
 } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
-import type { TradingNetwork, UserId } from "@froggy/domain";
+import type { CreditPurchaseId, TradingNetwork, UserId } from "@froggy/domain";
 import {
   Email,
   memoryEmailStore,
@@ -49,6 +49,7 @@ import type {
   RateSource,
 } from "@froggy/payments";
 import {
+  evmCreditSettlement,
   evmPayer,
   hederaAccountBalance,
   hederaHost,
@@ -89,6 +90,7 @@ import type { Redacted } from "effect";
 import postgres from "postgres";
 import { erc20Abi, getAddress } from "viem";
 
+import { CreditFunding } from "./credit-funding";
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
@@ -157,6 +159,7 @@ const createEmail = (
   return null;
 };
 export interface Services {
+  readonly creditFunding: CreditFunding;
   readonly hostedAgent: HostedAgentApi;
   readonly email: Email | null;
   readonly createBrowser: (
@@ -629,7 +632,50 @@ export const createServices = (options: ServiceOptions): Services => {
   } else if (environment.allowStubs) {
     ponsReader = stubPonsLaunchReader(Date.now);
   }
-  const adapters: Omit<Services, "purchases" | "createBrowser"> = {
+  let treasuryTail: Promise<null> = Promise.resolve(null);
+  const withTreasuryLock = async <T>(
+    operation: () => Promise<T>,
+    purchaseId?: CreditPurchaseId
+  ): Promise<T> => {
+    const previous = treasuryTail;
+    const turn = Promise.withResolvers<null>();
+    treasuryTail = turn.promise;
+    await previous;
+    try {
+      const connection = sql === null ? null : await sql.reserve();
+      const lockKey = `treasury:${environment.evmNetwork}:${environment.treasuryWallet?.address ?? "unconfigured"}`;
+      try {
+        if (connection !== null) {
+          await connection`select pg_advisory_lock(hashtextextended(${lockKey}, 0))`;
+        }
+        if (
+          await store.credits.pendingSettlement(
+            environment.evmNetwork,
+            purchaseId
+          )
+        ) {
+          throw new Error(
+            "A treasury settlement is awaiting confirmation. No new transaction was signed."
+          );
+        }
+        return await operation();
+      } finally {
+        if (connection !== null) {
+          try {
+            await connection`select pg_advisory_unlock(hashtextextended(${lockKey}, 0))`;
+          } finally {
+            connection.release();
+          }
+        }
+      }
+    } finally {
+      turn.resolve(null);
+    }
+  };
+  const adapters: Omit<
+    Services,
+    "purchases" | "createBrowser" | "creditFunding"
+  > = {
     hostedAgent:
       environment.browserUseApiKey === null
         ? stubHostedAgent
@@ -700,17 +746,20 @@ export const createServices = (options: ServiceOptions): Services => {
       }
       return {
         send: async ({ to, units, beforeBroadcast }) =>
-          await sendAuthorizedTransfer({
-            amount: units,
-            beforeBroadcast,
-            chainId: environment.evmChainId,
-            domain: await usdcDomain(),
-            from,
-            relayer,
-            rpc,
-            to,
-            token: usdc.id,
-          }),
+          await withTreasuryLock(
+            async () =>
+              await sendAuthorizedTransfer({
+                amount: units,
+                beforeBroadcast,
+                chainId: environment.evmChainId,
+                domain: await usdcDomain(),
+                from,
+                relayer,
+                rpc,
+                to,
+                token: usdc.id,
+              })
+          ),
       };
     },
     evmChainId: async () => await rpc.chainId(),
@@ -745,8 +794,27 @@ export const createServices = (options: ServiceOptions): Services => {
     store,
     treasuryPayer: treasuryPayer(),
   };
+  const treasurySigner =
+    environment.treasuryWallet === null
+      ? null
+      : privy.signerFor(environment.treasuryWallet);
+  const creditFunding = new CreditFunding({
+    ...adapters,
+    base:
+      treasurySigner === null
+        ? null
+        : evmCreditSettlement({
+            network: environment.evmNetwork,
+            rpcUrl: environment.evmRpcUrl,
+            token: usdc.id,
+            payTo: treasurySigner.address,
+            relayer: treasurySigner,
+          }),
+    withTreasuryLock,
+  });
   return {
     ...adapters,
+    creditFunding,
     createBrowser: (browserOptions, userId) => {
       if (environment.browserUseApiKey === null) {
         if (!environment.allowStubs) {
@@ -774,6 +842,6 @@ export const createServices = (options: ServiceOptions): Services => {
         },
       });
     },
-    purchases: new Purchases(adapters),
+    purchases: new Purchases({ ...adapters, creditFunding }),
   };
 };

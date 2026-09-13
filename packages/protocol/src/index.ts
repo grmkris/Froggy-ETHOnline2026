@@ -198,3 +198,14 @@ export {
   MonitoringState,
   TaskOutcome,
 } from "./monitoring";
+
+export {
+  CreditSummary,
+  CreditLimits,
+  CreditPurchase,
+  CreditUnits,
+  CreditLimitsUpdate,
+  CreditActivity,
+  CreditState,
+  HederaReceiving,
+} from "./credits";

@@ -196,7 +196,7 @@ test("another tab restores the same waiting run and its one receipt", async ({
   await leash.applied;
   await page
     .getByRole("textbox", { name: "Message" })
-    .fill("Buy the lending snapshot");
+    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
     timeout: 20_000,
@@ -207,17 +207,14 @@ test("another tab restores the same waiting run and its one receipt", async ({
   await expect(question).toBeVisible();
   await question.getByRole("button", { name: /^Approve /u }).click();
   await expect(page.getByLabel(/^Approve .* to /u)).toHaveCount(0);
-  await expect(second.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(
-    1,
-    {
-      timeout: 20_000,
-    }
-  );
-  await expect(page.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(1, {
+  await expect(second.getByLabel(/^Receipt:/u)).toHaveCount(1, {
+    timeout: 20_000,
+  });
+  await expect(page.getByLabel(/^Receipt:/u)).toHaveCount(1, {
     timeout: 20_000,
   });
   await second.reload();
-  await expect(second.getByLabel(/^Receipt: Nothing was paid/u)).toHaveCount(1);
+  await expect(second.getByLabel(/^Receipt:/u)).toHaveCount(1);
 });
 
 test("a failed recent-history request stays an error instead of an empty list", async ({

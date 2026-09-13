@@ -25,7 +25,7 @@ Built for ETHOnline 2026 — **Privy** (the wallet and the leash), **The Graph**
 
 During a task, the conversation is the ledger: every receipt is filed under the turn that produced it, the live page sits under the turn that opened it, and a question for you pins above the composer with four answers. The same four answers are built to reach your phone through Telegram, with the daily digest; the bot and its webhook are live, and no delivered message has been recorded in the evidence yet.
 
-Production uses Hedera mainnet and Base mainnet. [Earlier release evidence](docs/evidence/MAINNET_RELEASE.md) records the previous per-resource payments and treasury integration. Those historical transactions do not prove the new credit checkout. The credit model and migration invariants are recorded in [decision 0032](docs/decisions/0032-platform-credits.md).
+Production uses Hedera mainnet and Base mainnet. [Earlier release evidence](docs/evidence/MAINNET_RELEASE.md) records the previous per-resource payments and treasury integration. Those historical transactions do not prove the new credit checkout. The credit model and migration invariants are recorded in [decision 0033](docs/decisions/0033-platform-credits.md).
 
 The [8 September screenshot tour](docs/evidence/ui-review-2026-09-08/README.md) shows the interaction states and the Passbook/Lilypad comparison at four widths. Its five-page navigation was replaced on 10 September by Home, Explore and Wallet, with Connections and Account behind them.
 

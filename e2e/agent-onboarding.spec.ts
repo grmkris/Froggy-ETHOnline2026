@@ -171,9 +171,9 @@ test("Home keeps its position when earlier receipts arrive", async ({
       .getByRole("link", { name: "Your money", exact: true })
       .last()
       .click();
-    await expect(page.getByRole("region", { name: "Activity" })).toContainText(
-      "$0.0040"
-    );
+    await expect(
+      page.getByRole("region", { name: "Activity", exact: true })
+    ).toContainText("$0.0040");
     await page.goto("/chat");
     await expect(welcome).toBeVisible();
     await page.getByRole("button", { name: "Conversation options" }).click();

@@ -40,6 +40,8 @@ export interface OracleGate {
 }
 
 export interface SettleOutcome {
+  /** Definitive rejection before any submission to the network. */
+  readonly rejectedBeforeSubmission?: boolean;
   readonly error?: string;
   readonly ok: boolean;
   readonly stubbed: boolean;

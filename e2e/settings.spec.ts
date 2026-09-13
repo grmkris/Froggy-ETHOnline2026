@@ -10,10 +10,14 @@ test("deleting my data wipes the receipts and starts over", async ({
   await page.goto("/chat");
   await page
     .getByRole("textbox", { name: "Message" })
-    .fill("Buy the lending snapshot");
+    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
   await page.getByRole("button", { name: "Send", exact: true }).click();
+  const approval = page.getByLabel(/^Approve .* to /u);
+  await expect(approval).toBeVisible();
+  await approval.getByRole("button", { name: "Not this time" }).click();
+  await expect(page.getByLabel(/^Refused:/u).first()).toBeVisible();
   await page.goto("/wallet");
-  const activity = page.getByRole("region", { name: "Activity" });
+  const activity = page.getByRole("region", { name: "Activity", exact: true });
   await expect(activity.getByText("Nothing spent or refused yet.")).toHaveCount(
     0,
     { timeout: 20_000 }
@@ -30,7 +34,7 @@ test("deleting my data wipes the receipts and starts over", async ({
   await page.goto("/wallet");
   await expect(
     page
-      .getByRole("region", { name: "Activity" })
+      .getByRole("region", { name: "Activity", exact: true })
       .getByText("Nothing spent or refused yet.")
   ).toBeVisible();
 });

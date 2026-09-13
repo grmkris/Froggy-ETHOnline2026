@@ -27,6 +27,7 @@ import type { HederaHost, Payer, RateSource } from "@froggy/payments";
 import type {
   FundingSubmission,
   HederaAccountRecord,
+  HederaReceivingRecord,
   HederaKeys,
   Keystore,
   Store,
@@ -61,6 +62,14 @@ interface Funded {
 }
 
 export interface HederaAccounts {
+  /** Create a receiving key only. The owner supplies HBAR by transferring to its alias. */
+  readonly prepare: (userId: UserId) => Promise<{
+    readonly accountId: string | null;
+    readonly alias: string | null;
+    readonly network: HederaHost["network"];
+    readonly stubbed: false;
+  }>;
+
   /**
    * Moves HBAR worth `usdMicros` from the float into the person's account,
    * opening the account with that value when they have none yet: a person's
@@ -113,6 +122,55 @@ export const createHederaAccounts = (
   };
 
   const lastOpening = new Map<UserId, Funded>();
+  const preparing = new Map<UserId, Promise<HederaReceivingRecord>>();
+
+  const prepareRecord = async (
+    userId: UserId
+  ): Promise<HederaReceivingRecord> => {
+    const saved = await options.store.hedera.loadReceiving(userId);
+    if (saved !== null) {
+      return saved;
+    }
+    const inFlight = preparing.get(userId);
+    if (inFlight !== undefined) {
+      return await inFlight;
+    }
+    const pending = (async (): Promise<HederaReceivingRecord> => {
+      try {
+        if (options.keys === null) {
+          throw new HederaAccountError(
+            "Privy Hedera receiving keys are not configured for this deployment."
+          );
+        }
+        const key = await options.keys.create(userId);
+        return await options.store.hedera.prepareReceiving(userId, {
+          kind: "privy",
+          walletId: key.walletId,
+          publicKey: key.publicKey,
+        });
+      } finally {
+        preparing.delete(userId);
+      }
+    })();
+    preparing.set(userId, pending);
+    return await pending;
+  };
+
+  const resolveReceiving = async (
+    userId: UserId,
+    record: HederaReceivingRecord
+  ): Promise<HederaReceivingRecord> => {
+    if (record.accountId !== null || record.custody.kind !== "privy") {
+      return record;
+    }
+    const accountId = await resolve(evmAliasOf(record.custody.publicKey));
+    if (accountId === null) {
+      return record;
+    }
+    const active = { accountId, custody: record.custody };
+    await options.store.hedera.save(userId, active);
+    return active;
+  };
 
   /** Froggy's own key, sealed at rest: the account is created for it outright. */
   const openSealed = async (
@@ -151,12 +209,17 @@ export const createHederaAccounts = (
    * alias, and the mirror node says which id Hedera gave it a few seconds later.
    */
   const openWithPrivy = async (
-    keys: HederaKeys,
     userId: UserId,
     tinybars: number,
     beforeBroadcast?: (submission: FundingSubmission) => Promise<void>
   ): Promise<{ record: HederaAccountRecord; transactionId: string }> => {
-    const key = await keys.create(userId);
+    const prepared = await prepareRecord(userId);
+    if (prepared.custody.kind !== "privy") {
+      throw new HederaAccountError(
+        "The prepared account does not use a Privy key."
+      );
+    }
+    const key = prepared.custody;
     const evmAddress = evmAliasOf(key.publicKey);
     const { transactionId } = await options.host.fundAlias(
       evmAddress,
@@ -218,7 +281,7 @@ export const createHederaAccounts = (
     const opened =
       options.keys === null
         ? await openSealed(tinybars, beforeBroadcast)
-        : await openWithPrivy(options.keys, userId, tinybars, beforeBroadcast);
+        : await openWithPrivy(userId, tinybars, beforeBroadcast);
     await options.store.hedera.save(userId, opened.record);
     lastOpening.set(userId, {
       opened: true,
@@ -278,6 +341,21 @@ export const createHederaAccounts = (
   };
 
   return {
+    prepare: async (userId) => {
+      const record = await resolveReceiving(
+        userId,
+        await prepareRecord(userId)
+      );
+      return {
+        accountId: record.accountId,
+        alias:
+          record.custody.kind === "privy"
+            ? evmAliasOf(record.custody.publicKey)
+            : null,
+        network: options.host.network,
+        stubbed: false,
+      };
+    },
     fund: async (userId, usdMicros, beforeBroadcast) => {
       const record = await options.store.hedera.load(userId);
       if (record === null) {
@@ -332,18 +410,35 @@ export const createHederaAccounts = (
       return "success";
     },
     lookup: async (userId) => {
-      const record = await options.store.hedera.load(userId);
+      const saved = await options.store.hedera.loadReceiving(userId);
+      const record =
+        saved === null ? null : await resolveReceiving(userId, saved);
       return record?.accountId ?? null;
     },
     payerFor: async (userId, openingUsdMicros) => {
-      const existing = await options.store.hedera.load(userId);
+      const saved = await options.store.hedera.loadReceiving(userId);
+      const existing =
+        saved === null ? null : await resolveReceiving(userId, saved);
+      if (existing !== null && existing.accountId === null) {
+        throw new HederaAccountError(
+          "Transfer HBAR to your receiving alias first, then retry once the account appears on Hedera. No credits were purchased."
+        );
+      }
       if (existing === null && openingUsdMicros <= 0) {
         throw new HederaAccountError(
           "Your Hedera account opens with your first top-up, and there has been none yet."
         );
       }
       const record = existing ?? (await ensure(userId, openingUsdMicros));
-      return await payerOf(record);
+      if (record.accountId === null) {
+        throw new HederaAccountError(
+          "The Hedera account has not been funded yet."
+        );
+      }
+      return await payerOf({
+        accountId: record.accountId,
+        custody: record.custody,
+      });
     },
   };
 };

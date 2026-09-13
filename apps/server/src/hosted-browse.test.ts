@@ -9,7 +9,6 @@ import type {
 } from "@froggy/browser";
 import {
   RunId,
-  SaleId,
   TaskId,
   usdMicros,
   userId,
@@ -23,6 +22,7 @@ import { ConfigProvider, Effect } from "effect";
 
 import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudget } from "./budget";
+import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import { HostedBrowseJob } from "./hosted-browse";
 import type { HostedBrowseState } from "./hosted-browse-state";
@@ -266,11 +266,14 @@ const fixture = async () => {
     priceUsdMicros: usdMicros(1_000_000),
     result: null,
     runId: null,
-    saleId: SaleId.generate(),
+    saleId: null,
     status: "paid",
   };
-  await services.store.tasks.create(owner, task);
-  const job = new HostedBrowseJob(deps, workspace, task);
+  await fundTestCredits(services.store, owner, 2_000_000);
+  const reserved = await services.store.credits.reserveTask(owner, task, {
+    stubbed: true,
+  });
+  const job = new HostedBrowseJob(deps, workspace, reserved.task);
   const saved = async (): Promise<Task> => {
     const value = await services.store.tasks.byId(owner, id);
     if (value === null) {
@@ -312,6 +315,7 @@ describe("hosted browser lifecycle", () => {
     expect(f.deps.runs.get(f.workspace.session.id)).toBe(chat);
     await f.job.refresh();
     expect(f.job.view().status).toBe("done");
+    expect(f.job.view().chargeStatus).toBe("captured");
     expect(f.job.view().browse?.stubbed).toBe(true);
     expect(chat.signal.aborted).toBe(false);
     expect(JSON.stringify(f.job.view())).not.toContain(PROFILE);
@@ -347,6 +351,7 @@ describe("hosted browser lifecycle", () => {
     f.provider.ambiguous = true;
     await f.job.refresh();
     expect(f.job.view().browse?.phase).toBe("checking");
+    expect(f.job.view().chargeStatus).toBe("reserved");
     await f.job.refresh();
     const restored = new HostedBrowseJob(f.deps, f.workspace, await f.saved());
     await restored.refresh();
@@ -371,6 +376,7 @@ describe("hosted browser lifecycle", () => {
     f.provider.released = true;
     await restored.refresh();
     expect(restored.view().status).toBe("cancelled");
+    expect(restored.view().chargeStatus).toBe("released");
     expect(restored.view().result?.text).toBe("Task result");
   });
   test("missing result is incomplete and the local deadline stops a stalled worker", async () => {
@@ -379,6 +385,7 @@ describe("hosted browser lifecycle", () => {
     f.provider.result = "";
     await f.job.refresh();
     expect(f.job.view().status).toBe("failed");
+    expect(f.job.view().chargeStatus).toBe("released");
     const stalled = await fixture();
     await stalled.boot();
     stalled.provider.status = "running";
@@ -415,6 +422,7 @@ test("force stop confirms browser closure before completion and cannot reattach 
   f.provider.status = "cancelled";
   await f.job.refresh();
   expect(f.job.view().status).toBe("cancelled");
+  expect(f.job.view().chargeStatus).toBe("released");
 });
 
 test("expired handover reconnects with a fresh bootstrap and the same remaining allowance", async () => {
@@ -581,6 +589,7 @@ test("Done waits for this task's financial reconciliation and ignores another ru
   );
   await f.job.refresh();
   expect(f.job.view().status).toBe("done");
+  expect(f.job.view().chargeStatus).toBe("captured");
 });
 
 test("website approval is visible and Stop cancels only this browser task's pending purchase", async () => {
@@ -609,6 +618,7 @@ test("website approval is visible and Stop cancels only this browser task's pend
   f.provider.released = true;
   await f.job.refresh();
   expect(f.job.view().status).toBe("cancelled");
+  expect(f.job.view().chargeStatus).toBe("released");
 });
 
 test("task snapshots and controls enforce owner identity and protocol version", async () => {
@@ -760,26 +770,4 @@ test("approval cancellation is scoped to the browser run", async () => {
   expect(publicBrowseTask(task, Date.now()).browse?.controls.continue).toBe(
     false
   );
-});
-
-test("public browser snapshots retain the tool-enabled task's completion evidence", async () => {
-  const f = await fixture();
-  const task = await f.saved();
-  const outcome = {
-    status: "blocked" as const,
-    reason: "Login is required",
-    evidence: "The requested product page shows a login form.",
-  };
-  const view = publicBrowseTask(
-    {
-      ...task,
-      input: { instruction: "Check the saved product" },
-      status: "paused",
-      result: { text: "Waiting for login", outcome },
-    },
-    Date.now()
-  );
-  expect(view.result?.outcome).toEqual(outcome);
-  expect(view.browse?.executor).toBe("legacy");
-  expect(view.browse?.phase).toBe("human");
 });

@@ -83,26 +83,27 @@ const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   ],
   [
     "brief",
-    { detail: "$0.05 each, from The Graph.", title: "Buy lending briefs" },
+    { detail: "5 credits each, from The Graph.", title: "Buy lending briefs" },
   ],
   [
     "browse",
     {
-      detail: "$0.50 per task, up to forty steps.",
+      detail: "Use your credits within each task’s budget and browsing limit.",
       title: "Browse on your shared Chrome",
     },
   ],
   [
     "pay",
     {
-      detail: "Pay a 402 from your wallet for a task the agent brings.",
+      detail:
+        "Pay external x402 sellers from your wallet within its permissions.",
       title: "Sign x402 payments",
     },
   ],
   [
     "services",
     {
-      detail: "Search, images, inference and speech at fixed prices.",
+      detail: "Search, images, inference and speech at fixed credit prices.",
       title: "Buy services",
     },
   ],
@@ -267,9 +268,7 @@ const Consent = ({
           className="font-display text-xl font-semibold tracking-tight"
           id="consent-heading"
         >
-          {client.isPending
-            ? "Loading…"
-            : `${name} wants to use your Froggy wallet`}
+          {client.isPending ? "Loading…" : `${name} wants to connect to Froggy`}
         </h1>
         <p className="text-muted-foreground mt-2">
           It returns to{" "}

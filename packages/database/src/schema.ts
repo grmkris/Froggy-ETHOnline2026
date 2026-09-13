@@ -21,6 +21,9 @@
  */
 
 import {
+  CreditChargeId,
+  CreditPurchaseId,
+  CreditEntryId,
   WatchlistItemId,
   LaunchWatchId,
   AgentInvocationId,
@@ -46,6 +49,7 @@ import type { AgentConnectionId } from "@froggy/domain";
 import { sql } from "drizzle-orm";
 import {
   uuid,
+  check,
   bigint,
   boolean,
   index,
@@ -294,6 +298,9 @@ export const tasks = pgTable(
     result: jsonb("result"),
     runId: typeIdColumn(RunId, "run_id"),
     saleId: typeIdColumn(SaleId, "sale_id"),
+    chargeId: typeIdColumn(CreditChargeId, "charge_id"),
+    priceCreditUnits: bigint("price_credit_units", { mode: "number" }),
+    chargeStatus: text("charge_status"),
     status: text("status").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -811,3 +818,131 @@ export const monitoringAccounts = pgTable("monitoring_accounts", {
     .references(() => users.did),
   document: jsonb("document").notNull(),
 });
+
+export const creditAccounts = pgTable(
+  "credit_accounts",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.did),
+    availableUnits: bigint("available_units", { mode: "number" })
+      .notNull()
+      .default(0),
+    reservedUnits: bigint("reserved_units", { mode: "number" })
+      .notNull()
+      .default(0),
+    spentUnits: bigint("spent_units", { mode: "number" }).notNull().default(0),
+    perTaskUnits: bigint("per_task_units", { mode: "number" }).notNull(),
+    dailyUnits: bigint("daily_units", { mode: "number" }).notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }),
+    frozen: boolean("frozen").notNull().default(false),
+    stubbed: boolean("stubbed").notNull().default(false),
+  },
+  (table) => [
+    check(
+      "credit_accounts_nonnegative",
+      sql`${table.availableUnits} >= 0 AND ${table.reservedUnits} >= 0 AND ${table.spentUnits} >= 0 AND ${table.perTaskUnits} >= 0 AND ${table.dailyUnits} >= 0`
+    ),
+  ]
+);
+
+export const creditCharges = pgTable(
+  "credit_charges",
+  {
+    id: typeIdPrimaryKey(CreditChargeId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    taskId: typeIdColumn(TaskId, "task_id").notNull(),
+    connectionId: text("connection_id").$type<AgentConnectionId>(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    units: bigint("units", { mode: "number" }).notNull(),
+    status: text("status").notNull(),
+    reason: text("reason"),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+    stubbed: boolean("stubbed").notNull(),
+  },
+  (table) => [
+    uniqueIndex("credit_charges_owner_key").on(
+      table.userId,
+      table.idempotencyKey
+    ),
+    uniqueIndex("credit_charges_task").on(table.taskId),
+    index("credit_charges_owner_time").on(table.userId, table.createdAt),
+    check("credit_charges_positive", sql`${table.units} > 0`),
+  ]
+);
+
+export const creditPurchases = pgTable(
+  "credit_purchases",
+  {
+    id: typeIdPrimaryKey(CreditPurchaseId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    creditUnits: bigint("credit_units", { mode: "number" }).notNull(),
+    network: text("network").notNull(),
+    asset: text("asset").notNull(),
+    amount: text("amount").notNull(),
+    payTo: text("pay_to").notNull(),
+    status: text("status").notNull(),
+    challenge: jsonb("challenge").notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+    proofHash: text("proof_hash"),
+    authorizationKey: text("authorization_key"),
+    paymentHeader: text("payment_header"),
+    transactionId: text("transaction_id"),
+    signedTransaction: text("signed_transaction"),
+    transactionNonce: bigint("transaction_nonce", { mode: "number" }),
+    error: text("error"),
+    stubbed: boolean("stubbed").notNull(),
+  },
+  (table) => [
+    uniqueIndex("credit_purchases_owner_key").on(
+      table.userId,
+      table.idempotencyKey
+    ),
+    uniqueIndex("credit_purchases_proof").on(table.proofHash),
+    uniqueIndex("credit_purchases_authorization").on(table.authorizationKey),
+    uniqueIndex("credit_purchases_transaction").on(
+      table.network,
+      table.transactionId
+    ),
+    index("credit_purchases_owner_time").on(table.userId, table.createdAt),
+    check("credit_purchases_positive", sql`${table.creditUnits} > 0`),
+  ]
+);
+
+export const creditEntries = pgTable(
+  "credit_entries",
+  {
+    id: typeIdPrimaryKey(CreditEntryId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did),
+    kind: text("kind").notNull(),
+    units: bigint("units", { mode: "number" }).notNull(),
+    availableDelta: bigint("available_delta", { mode: "number" }).notNull(),
+    reservedDelta: bigint("reserved_delta", { mode: "number" }).notNull(),
+    chargeId: typeIdColumn(CreditChargeId, "charge_id"),
+    purchaseId: typeIdColumn(CreditPurchaseId, "purchase_id"),
+    taskId: typeIdColumn(TaskId, "task_id"),
+    at: bigint("at", { mode: "number" }).notNull(),
+    note: text("note").notNull(),
+    stubbed: boolean("stubbed").notNull(),
+  },
+  (table) => [
+    index("credit_entries_owner_time").on(table.userId, table.at),
+    uniqueIndex("credit_entries_charge_kind").on(table.chargeId, table.kind),
+    uniqueIndex("credit_entries_purchase_kind").on(
+      table.purchaseId,
+      table.kind
+    ),
+    check("credit_entries_nonnegative", sql`${table.units} >= 0`),
+  ]
+);
