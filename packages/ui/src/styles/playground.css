@@ -139,6 +139,11 @@
   border-radius: 10px;
 }
 
+:where(:root:not(:has(.landing)) [data-slot="card"] [data-slot="card"]) {
+  background: var(--muted);
+  box-shadow: var(--shadow-inset);
+}
+
 /* Buttons. The outline variant is the Playground chip. */
 :where(:root:not(:has(.landing)) [data-slot="button"]) {
   border-radius: 6px;
@@ -225,6 +230,7 @@
 
 /* Tabs: a row of small chips; the selected one is ink. */
 :where(:root:not(:has(.landing)) [data-slot="tabs-list"]) {
+  justify-content: flex-start;
   height: auto;
   gap: 8px;
   padding: 2px 4px 4px 2px;

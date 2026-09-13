@@ -87,7 +87,11 @@ export const ScheduleList = ({
       ) : null}
       {schedules.data !== undefined && active.length === 0 ? (
         <Empty
-          className={compact ? "items-start border-0 p-0 text-left" : undefined}
+          className={
+            compact
+              ? "items-start border-0 p-0 text-left [&_[data-slot=empty-header]]:items-start"
+              : undefined
+          }
         >
           <EmptyHeader>
             {compact ? null : (
