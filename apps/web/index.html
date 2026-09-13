@@ -3,10 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
+    <!-- Both capable metas: Safari only honours the apple- one, other browsers the plain one. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Froggy" />
+    <!-- default, not black-translucent: nothing pads the top inset, and iOS 26.x reports 0px anyway. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f5f6f2" />
     <meta
       name="description"
       content="A browser. A wallet. An inbox. A home for your agents. Explore Froggy for research, useful follow-up and supported purchases, or bring your own agent."

@@ -27,6 +27,7 @@
     "graph": "bun tools/check-graph.ts",
     "agents:check": "bun tools/check-agent-files.ts",
     "names:check": "bun tools/check-names.ts",
+    "icons": "bun tools/app-icons.ts",
     "hooks:install": "lefthook install",
     "fix": "ultracite fix",
     "db:generate": "bun run --cwd packages/database db:generate",
