@@ -40,6 +40,8 @@ import { PlusIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import { useCredits } from "../../hooks/use-credits";
+import { creditPaymentWords } from "../../lib/credit-payment";
+import type { CreditPaymentOutcome } from "../../lib/credit-payment";
 import { formatCredits, purchaseAmount } from "../../lib/credit-view";
 import { explorerUrl } from "../../lib/format";
 import { useWorkspace } from "../../lib/workspace-context";
@@ -199,6 +201,82 @@ const CreditQuoteForm = ({
   );
 };
 
+const confirmLabel = (busy: boolean, live: boolean, amount: string): string => {
+  if (!busy) {
+    return `Confirm · ${amount}`;
+  }
+  return live ? "Sign in your wallet…" : "Confirming…";
+};
+
+/** The one step that moves money: confirm, and for live USDC, sign in this browser. */
+const QuotedActions = ({
+  purchase,
+  api,
+  expired,
+  onChanged,
+}: {
+  readonly purchase: Purchase;
+  readonly api: CreditsApi;
+  readonly expired: boolean;
+  readonly onChanged: (purchase: Purchase) => void;
+}) => {
+  const [outcome, setOutcome] = useState<Exclude<
+    CreditPaymentOutcome,
+    { kind: "submitted" }
+  > | null>(null);
+  // A live USDC quote is signed by the person's own wallet in this browser.
+  const live = purchase.network.startsWith("eip155:") && !purchase.stubbed;
+  return (
+    <>
+      <p className="text-muted-foreground text-xs">
+        This quote expires at{" "}
+        {new Date(purchase.expiresAt).toLocaleTimeString()}. Credits are added
+        after payment confirms.
+      </p>
+      {live ? (
+        <p className="text-muted-foreground text-xs">
+          Confirming asks your Privy wallet to sign one USDC transfer to Froggy
+          for exactly this amount. Froggy pays the network fee. Nothing else is
+          authorized.
+        </p>
+      ) : null}
+      {live && !api.canSignUsdc ? (
+        <output className="text-muted-foreground text-xs">
+          {creditPaymentWords({ kind: "no-signer" })}
+        </output>
+      ) : (
+        <Button
+          disabled={api.pay.isPending || api.pay.isError || expired}
+          onClick={() => {
+            api.pay.mutate(purchase, {
+              onSuccess: (result) => {
+                if (result.kind === "submitted") {
+                  onChanged(result.purchase);
+                  return;
+                }
+                setOutcome(result);
+              },
+            });
+          }}
+        >
+          {confirmLabel(api.pay.isPending, live, paymentAmount(purchase))}
+        </Button>
+      )}
+      {outcome === null ? null : (
+        <output
+          className="text-xs"
+          role={outcome.kind === "refused" ? "alert" : undefined}
+        >
+          {creditPaymentWords(outcome)}
+        </output>
+      )}
+      {expired ? (
+        <output>This quote expired. Start a new purchase.</output>
+      ) : null}
+    </>
+  );
+};
+
 const CreditPurchaseReview = ({
   purchase,
   api,
@@ -247,26 +325,12 @@ const CreditPurchaseReview = ({
         <dd className="text-machine break-all">{purchase.payTo}</dd>
       </dl>
       {purchase.status === "quoted" ? (
-        <>
-          <p className="text-muted-foreground text-xs">
-            This quote expires at{" "}
-            {new Date(purchase.expiresAt).toLocaleTimeString()}. Credits are
-            added after payment confirms.
-          </p>
-          <Button
-            disabled={api.pay.isPending || api.pay.isError || expired}
-            onClick={() => {
-              api.pay.mutate(purchase.id, { onSuccess: onChanged });
-            }}
-          >
-            {api.pay.isPending
-              ? "Confirming…"
-              : `Confirm · ${paymentAmount(purchase)}`}
-          </Button>
-          {expired ? (
-            <output>This quote expired. Start a new purchase.</output>
-          ) : null}
-        </>
+        <QuotedActions
+          api={api}
+          expired={expired}
+          onChanged={onChanged}
+          purchase={purchase}
+        />
       ) : null}
       {pending ? (
         <Alert>
@@ -457,6 +521,7 @@ export const BuyCredits = ({
           ) : null}
           {current === null ? null : (
             <CreditPurchaseReview
+              key={current.id}
               purchase={current}
               api={api}
               onChanged={changed}

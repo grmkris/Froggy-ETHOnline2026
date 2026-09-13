@@ -17,7 +17,13 @@ const LimitsInput = Schema.Struct({
   dailyUnits: Schema.Int,
 });
 
-const creditFixture = async (page: Page) => {
+const creditFixture = async (
+  page: Page,
+  options: { readonly liveUsdc?: boolean } = {}
+) => {
+  // The real local server only ever quotes simulated purchases; `liveUsdc`
+  // stands in for production, where a USDC quote is signed in the browser.
+  const liveUsdc = options.liveUsdc === true;
   let balance = 0;
   let purchase: typeof CreditPurchase.Type | null = null;
   let payments = 0;
@@ -35,7 +41,7 @@ const creditFixture = async (page: Page) => {
       payTo: "fixture-base-recipient",
       available: true,
       reason: null,
-      stubbed: true,
+      stubbed: !liveUsdc,
     },
     {
       network: "hedera:testnet",
@@ -105,7 +111,7 @@ const creditFixture = async (page: Page) => {
         updatedAt: Date.now(),
         transactionId: null,
         error: null,
-        stubbed: true,
+        stubbed: !(liveUsdc && input.network.startsWith("eip155:")),
       });
       await route.fulfill({ json: purchase });
       return;
@@ -221,8 +227,41 @@ for (const network of ["eip155:8453", "hedera:testnet"]) {
   });
 }
 
+test("a live USDC quote without a Privy signer explains itself instead of offering a dead button", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  const fixture = await creditFixture(page, { liveUsdc: true });
+  await page.goto("/wallet");
+  await page.getByRole("button", { name: "Buy credits", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Buy credits" });
+  await dialog.getByRole("button", { name: "Custom", exact: true }).click();
+  await dialog.getByLabel("Amount in USD").fill("1.01");
+  await dialog.getByLabel("Pay with").selectOption("eip155:8453");
+  await dialog.getByRole("button", { name: "Review purchase" }).click();
+  await expect(
+    dialog.getByText(
+      "Paying with USDC needs a Privy sign-in in this browser.",
+      {
+        exact: true,
+      }
+    )
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Froggy pays the network fee.", { exact: false })
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Confirm ·/u })).toHaveCount(
+    0
+  );
+  expect(fixture.payments).toBe(0);
+  expect(errors).toEqual([]);
+});
+
 const runPrepaidSearch = async (page: Page, prompt: string) => {
-  await page.goto("/services?service=web_search");
+  await page.goto("/activity?tab=tools&service=web_search");
   const form = page.getByRole("form", { name: "Request Search the web" });
   await form.getByRole("textbox").fill(prompt);
   await form.getByRole("button", { name: "Try simulated · 1 credit" }).click();

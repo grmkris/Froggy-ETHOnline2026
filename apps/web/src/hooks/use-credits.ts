@@ -1,9 +1,11 @@
-import type { CreditPurchaseId } from "@froggy/domain";
 import { CreditActivity, CreditPurchase, CreditState } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
 import { useCallback } from "react";
 
+import { payCreditPurchaseInBrowser } from "../lib/credit-payment";
+import type { CreditPaymentOutcome } from "../lib/credit-payment";
+import { useIdentity } from "../lib/privy";
 import { useSessionToken } from "../lib/session-token";
 import { useWorkspace } from "../lib/workspace-context";
 
@@ -11,6 +13,7 @@ const ErrorBody = Schema.Struct({ error: Schema.String });
 
 export const useCredits = (history = false) => {
   const { canConnect, getToken } = useSessionToken();
+  const identity = useIdentity();
   const { app } = useWorkspace();
   const queries = useQueryClient();
   const key = ["credits", app.sessionId];
@@ -79,13 +82,40 @@ export const useCredits = (history = false) => {
     onSuccess: refresh,
     retry: false,
   });
+  // A live USDC quote is signed here, by the person's own wallet; a stubbed
+  // or HBAR quote is paid by the server, which holds what those need.
   const pay = useMutation({
-    mutationFn: async (id: CreditPurchaseId) =>
-      Schema.decodeUnknownSync(CreditPurchase)(
-        await request(`/purchases/${id}/pay`, { v: 1 })
-      ),
+    mutationFn: async (
+      purchase: CreditPurchase
+    ): Promise<CreditPaymentOutcome> => {
+      if (purchase.stubbed || !purchase.network.startsWith("eip155:")) {
+        return {
+          kind: "submitted",
+          purchase: Schema.decodeUnknownSync(CreditPurchase)(
+            await request(`/purchases/${purchase.id}/pay`, { v: 1 })
+          ),
+        };
+      }
+      return await payCreditPurchaseInBrowser({
+        purchase,
+        address: identity.address,
+        sign: identity.signTypedData,
+        token: await getToken(),
+      });
+    },
     onSettled: refresh,
     retry: false,
   });
-  return { summary, activity, limits, create, pay, refresh, request };
+  const canSignUsdc =
+    identity.signTypedData !== null && identity.address !== null;
+  return {
+    summary,
+    activity,
+    limits,
+    create,
+    pay,
+    canSignUsdc,
+    refresh,
+    request,
+  };
 };
