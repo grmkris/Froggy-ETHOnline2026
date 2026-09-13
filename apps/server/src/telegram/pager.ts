@@ -26,7 +26,7 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import { createPostgresState } from "@chat-adapter/state-pg";
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { TelegramAdapterConfig } from "@chat-adapter/telegram";
-import { MessageId, NoticeId } from "@froggy/domain";
+import { MessageId, NoticeId, formatUsd } from "@froggy/domain";
 import type { UserId } from "@froggy/domain";
 import type { AppServerMessage, ApprovalRequest } from "@froggy/protocol";
 import type { WalletAlert } from "@froggy/wallet";
@@ -57,6 +57,7 @@ import type { Workspaces } from "../workspaces";
 import {
   APPROVAL_ACTION,
   approvalCard,
+  outcomeLine,
   pairedCard,
   parseApprovalValue,
   reportCard,
@@ -131,6 +132,33 @@ export interface LivePagerDeps {
 
 const NOT_PAIRED =
   "This chat is not paired with a Froggy account yet. Open Froggy, go to Connect an agent → Telegram, and send the code here as /start CODE.";
+
+/**
+ * How a post Froggy's systems made is filed in the Telegram conversation.
+ *
+ * Every outbound post is saved as an assistant message, because that is
+ * what the thread shows; but an alert, a report card, a notice or an
+ * approval card is not something the model said, and replayed unmarked
+ * the model treated them as its own words — answering "Hi" with a
+ * four-day-old reminder and a report's "USD micros". The marker is what
+ * the prompt names, so the model knows the person has already seen these.
+ */
+const SYSTEM_POST = {
+  alert: "[Froggy alert]",
+  card: "[Froggy card]",
+  notice: "[Froggy notice]",
+  report: "[Froggy report]",
+} as const;
+
+/** The report as the model will read it back: dollars and a count, not micros and ids. */
+const reportText = (report: JobReport): string => {
+  const count = report.receipts.length;
+  const spent =
+    count === 0
+      ? "Nothing was spent."
+      : `Spent ${formatUsd(report.spentUsdMicros)} over ${count} receipt${count === 1 ? "" : "s"}.`;
+  return `${SYSTEM_POST.report} ${report.title}\n${outcomeLine(report)}\n${spent}`;
+};
 
 export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
   const { store } = deps.services;
@@ -386,7 +414,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
           store,
           alert.owner,
           pairing.threadId,
-          alert.text,
+          `${SYSTEM_POST.alert} ${alert.text}`,
           stableId
         );
       } catch {
@@ -436,11 +464,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
       return { kind: "delivered", messageId };
     },
     deliver: async (report) => {
-      await postTo(
-        report.userId,
-        reportCard(report),
-        `${report.title}\n${report.outcome}: ${report.summary === "" ? (report.reason ?? "Nothing to report.") : report.summary}\nSpent: ${report.spentUsdMicros} USD micros. Receipts: ${report.receipts.map((receipt) => receipt.id).join(", ")}`
-      );
+      await postTo(report.userId, reportCard(report), reportText(report));
     },
     link: (code) =>
       deps.botUsername === ""
@@ -457,7 +481,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
         store,
         userId,
         pairing.threadId,
-        text
+        `${SYSTEM_POST.notice} ${text}`
       );
       try {
         const sent = await bot.thread(pairing.threadId).post(text);
@@ -473,7 +497,7 @@ export const liveTelegramPager = (deps: LivePagerDeps): TelegramPager => {
         await postTo(
           userId,
           approvalCard(request),
-          `${request.title}\n${request.purpose}\n${request.amountLabel} · ${request.payeeLabel}\n${request.detail}`
+          `${SYSTEM_POST.card} ${request.title}\n${request.purpose}\n${request.amountLabel} · ${request.payeeLabel}\n${request.detail}`
         );
       });
     },

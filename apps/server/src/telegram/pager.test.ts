@@ -193,7 +193,13 @@ test("the first outbound alert initializes SDK state and records both histories 
   expect(await f.pager.deliverWalletAlert(f.alert)).toEqual(delivered);
   expect(f.post).toHaveBeenCalledTimes(1);
   expect(f.initialize).toHaveBeenCalledTimes(1);
-  expect(await f.messages()).toHaveLength(1);
+  // The phone got the alert as written; the archive marks it as a system post.
+  expect(await f.messages()).toMatchObject([
+    {
+      role: "assistant",
+      parts: [{ type: "text", text: `[Froggy alert] ${f.alert.text}` }],
+    },
+  ]);
   await f.pager.shutdown();
   expect(f.getState().get("pager-regression")).rejects.toThrow("not connected");
 });
@@ -238,7 +244,19 @@ for (const method of ["notify", "report"] as const) {
     }
     expect(f.order).toEqual(["initialized", "posted"]);
     expect(await f.messages()).toMatchObject([
-      { delivery: "delivered", clientId: "tg-42" },
+      {
+        delivery: "delivered",
+        clientId: "tg-42",
+        parts: [
+          {
+            type: "text",
+            text:
+              method === "notify"
+                ? "[Froggy notice] Local pager fixture"
+                : "[Froggy report] Fixture report\nLocal pager fixture\nNothing was spent.",
+          },
+        ],
+      },
     ]);
     expect(
       await f.getState().getList(`msg-history:${f.threadId}`)

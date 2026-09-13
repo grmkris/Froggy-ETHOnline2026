@@ -69,7 +69,8 @@ export const approvalCard = (request: ApprovalRequest): CardElement =>
     title: request.title,
   });
 
-const outcomeLine = (report: JobReport): string => {
+/** The report's first line: what happened, or why nothing did. */
+export const outcomeLine = (report: JobReport): string => {
   if (report.outcome === "skipped") {
     return `Skipped: ${report.reason ?? "no reason given"}.`;
   }
