@@ -358,6 +358,8 @@ const networkLine = (row: AddressLookupNetwork): string => {
         ? "contract"
         : `${row.token.symbol} token contract`
     );
+  } else if (row.kind === "delegated") {
+    parts.push("wallet, EIP-7702 smart account");
   } else {
     parts.push("wallet");
   }
@@ -382,12 +384,13 @@ const addressLookupSummary = (text: string): ToolSummary | null => {
     const lookup = result.success;
     const observed = lookup.networks.filter((row) => row.status === "observed");
     const kinds = new Set(observed.map((row) => row.kind));
+    const wallet = kinds.has("eoa") || kinds.has("delegated");
     let what = "Address not readable on any network";
     if (kinds.has("contract")) {
-      what = kinds.has("eoa")
+      what = wallet
         ? "Contract on some networks, wallet on others"
         : "Contract";
-    } else if (kinds.has("eoa")) {
+    } else if (wallet) {
       what = "Wallet, not a token";
     }
     const own = lookup.mine.map((label) => OWN_WORDS.get(label) ?? label);

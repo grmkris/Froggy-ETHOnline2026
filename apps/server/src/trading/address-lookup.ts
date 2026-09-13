@@ -174,9 +174,22 @@ const readErc20 = async (
   };
 };
 
+/** EIP-7702: an account's code is `0xef0100` followed by the address it delegates to. */
+const DELEGATION_PREFIX = "0xef0100";
+const DELEGATION_LENGTH = DELEGATION_PREFIX.length + 40;
+const delegateOf = (code: string): string | null =>
+  code.toLowerCase().startsWith(DELEGATION_PREFIX) &&
+  code.length === DELEGATION_LENGTH
+    ? `0x${code.slice(DELEGATION_PREFIX.length)}`
+    : null;
+
 const describe = (
-  row: Pick<AddressLookupNetwork, "kind" | "nativeBalance" | "usdc" | "token">
+  row: Pick<AddressLookupNetwork, "kind" | "nativeBalance" | "usdc" | "token">,
+  delegate: string | null
 ): string => {
+  if (row.kind === "delegated") {
+    return `A wallet with an EIP-7702 delegation to ${delegate ?? "a contract"}: a person's account upgraded to a smart account, not a token and not a protocol contract.`;
+  }
   if (row.kind === "contract") {
     return row.token?.symbol === null && row.token.decimals === null
       ? "Contract code without ERC-20 metadata: not a plain token."
@@ -247,8 +260,13 @@ export const lookupAddress = async (
           call: { method: "eth_getBalance", params: [input.address, block] },
         }),
       ]);
-      const kind: "contract" | "eoa" =
-        isHex(code) && code !== "0x" ? "contract" : "eoa";
+      const delegate = isHex(code) ? delegateOf(code) : null;
+      let kind: "contract" | "eoa" | "delegated" = "eoa";
+      if (delegate !== null) {
+        kind = "delegated";
+      } else if (isHex(code) && code !== "0x") {
+        kind = "contract";
+      }
       const [usdc, token] = await Promise.all([
         readUsdc(reader),
         kind === "contract" ? readErc20(reader) : Promise.resolve(null),
@@ -264,7 +282,7 @@ export const lookupAddress = async (
         status: "observed",
         block,
         ...row,
-        note: describe(row),
+        note: describe(row, delegate),
       };
     } catch (error) {
       return unavailable(

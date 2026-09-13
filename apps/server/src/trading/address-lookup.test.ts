@@ -170,6 +170,17 @@ const BASE_CHAIN: Chain = {
 };
 
 const { token: _token, ...BARE_CONTRACT_CHAIN } = BASE_CHAIN;
+const DELEGATED = Schema.decodeUnknownSync(EvmAddress)(
+  "0x3333333333333333333333333333333333333333"
+);
+const DELEGATE = "0x4444444444444444444444444444444444444444";
+/** An EIP-7702 account: the delegation designator, then the delegate's address. */
+const DELEGATED_CHAIN: Chain = {
+  chainId: 8453,
+  code: { [DELEGATED]: `0xef0100${DELEGATE.slice(2)}` },
+  balance: { [DELEGATED]: "0x1" },
+  usdc: { [DELEGATED]: 2_000_000n },
+};
 
 describe("lookupAddress", () => {
   it("tells a wallet from a token and reads its USDC without spending", async () => {
@@ -230,6 +241,33 @@ describe("lookupAddress", () => {
       token: { symbol: null, decimals: null, totalSupply: null },
     });
     expect(bare.networks[0]?.note).toContain("not a plain token");
+  });
+
+  it("tells an EIP-7702 delegated wallet from a contract and never probes it as a token", async () => {
+    const { rpc, calls } = fixture({ [BASE]: DELEGATED_CHAIN });
+    const result = await lookupAddress(
+      { rpc, networks: [BASE] },
+      { address: DELEGATED },
+      []
+    );
+    expect(result.kind).toBe("wallet");
+    expect(result.networks[0]).toMatchObject({
+      kind: "delegated",
+      token: null,
+      nativeBalance: "1",
+      usdc: { units: "2000000" },
+    });
+    expect(result.networks[0]?.note).toContain("EIP-7702");
+    expect(result.networks[0]?.note).toContain(DELEGATE);
+    expect(result.networks[0]?.note).toContain("not a token");
+    const probes = calls.filter(({ call }) => {
+      if (call.method !== "eth_call") {
+        return false;
+      }
+      const [target] = Schema.decodeUnknownSync(EthCall)(call.params);
+      return target.to.toLowerCase() === DELEGATED;
+    });
+    expect(probes).toEqual([]);
   });
 
   it("names the person's own wallets and keeps unavailable networks as rows", async () => {

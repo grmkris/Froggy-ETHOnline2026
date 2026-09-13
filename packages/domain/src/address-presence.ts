@@ -48,7 +48,7 @@ export const listChainNames = (networks: readonly string[]): string => {
 export const AddressPresence = Schema.Struct({
   network: EvmTradingNetwork,
   status: Schema.Literals(["observed", "absent", "unavailable"]),
-  kind: Schema.NullOr(Schema.Literals(["eoa", "contract"])),
+  kind: Schema.NullOr(Schema.Literals(["eoa", "contract", "delegated"])),
   block: Schema.NullOr(HexBlock),
   nativeBalance: Schema.NullOr(TradingUnits),
   usdc: Schema.NullOr(

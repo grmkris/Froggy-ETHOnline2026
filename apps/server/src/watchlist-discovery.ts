@@ -183,7 +183,9 @@ const describeRow = (row: AddressPresence): string => {
     row.usdc === null
       ? ""
       : ` · ${formatUnits(BigInt(row.usdc.units), row.usdc.decimals)} USDC`;
-  return `Address${eth}${usdc}`;
+  const what =
+    row.kind === "delegated" ? "Wallet (EIP-7702 smart account)" : "Address";
+  return `${what}${eth}${usdc}`;
 };
 
 type Discovery = NonNullable<WatchlistData["discovery"]>;

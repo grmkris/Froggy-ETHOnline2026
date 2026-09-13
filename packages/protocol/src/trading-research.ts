@@ -30,7 +30,8 @@ export const AddressLookupNetwork = Schema.Struct({
       Schema.isPattern(/^0x(?:0|[1-9a-fA-F][\da-fA-F]{0,63})$/u)
     )
   ),
-  kind: Schema.NullOr(Schema.Literals(["eoa", "contract"])),
+  /** `delegated`: an EOA carrying an EIP-7702 delegation, a person's wallet upgraded to a smart account. */
+  kind: Schema.NullOr(Schema.Literals(["eoa", "contract", "delegated"])),
   nativeBalance: Schema.NullOr(TradingUnits),
   usdc: Schema.NullOr(
     Schema.Struct({
