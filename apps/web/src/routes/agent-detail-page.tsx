@@ -15,6 +15,7 @@ import type { ReactElement } from "react";
 import { DisconnectAgent } from "../components/agents/agent-list";
 import { Page } from "../components/nav/page";
 import { useAgentDetail, useAgentTokens } from "../hooks/use-agent-tokens";
+import { creditChargeWords, formatCredits } from "../lib/credit-view";
 
 const when = (at: number): string => new Date(at).toLocaleString();
 const outcomeLabel = (outcome: string): string =>
@@ -44,7 +45,15 @@ const InvocationRow = ({
         {when(invocation.at)}
       </time>
     </p>
-    {invocation.usdMicros === null ? null : (
+    {invocation.priceCreditUnits === undefined ? null : (
+      <p className="text-money text-sm">
+        {invocation.outcome === "accepted" ? "" : "Task cost: "}
+        {formatCredits(invocation.priceCreditUnits)}{" "}
+        {creditChargeWords(invocation.chargeStatus)}
+      </p>
+    )}
+    {invocation.usdMicros === null ||
+    invocation.priceCreditUnits !== undefined ? null : (
       <p className="text-money text-sm">
         {formatUsd(invocation.usdMicros)}{" "}
         {invocation.outcome === "signed"

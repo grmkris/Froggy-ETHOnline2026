@@ -8,6 +8,7 @@
  * the summary; the JSON is for when someone wants to check.
  */
 
+import { WalletMonitorStatus } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
 import {
   Collapsible,
@@ -15,9 +16,12 @@ import {
   CollapsibleTrigger,
 } from "@froggy/ui/components/collapsible";
 import { cn } from "@froggy/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import { Schema } from "effect";
 import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { richResultOf } from "../../lib/tool-call";
 import type { ToolCall } from "../../lib/tool-call";
 import { toolStatus } from "../../lib/tool-status";
 import type { ToolPhase } from "../../lib/tool-status";
@@ -31,6 +35,7 @@ import { BrowseTaskForm } from "../browser/browse-task-form";
 import { MotionItem } from "../motion-item";
 import { GraphSummary } from "./graph-summary";
 import { MoneyBody } from "./money-card";
+import { RichToolResult } from "./rich-tool-result";
 import { WalletStatusCard } from "./wallet-status-card";
 
 const TONE: Record<Tone, string> = {
@@ -54,6 +59,80 @@ const OUTCOME_TEXT: Record<Outcome, string> = {
   refused: "text-refused",
 };
 
+const monitorOutput = Schema.decodeUnknownResult(
+  Schema.fromJsonString(
+    Schema.Struct({ v: Schema.Literal(1), status: WalletMonitorStatus })
+  )
+);
+const onchainStatusOf = (call: ToolCall): WalletMonitorStatus | null => {
+  if (
+    ![
+      "track_wallet",
+      "onchain_alert_configure",
+      "wallet_monitor_update",
+      "wallet_monitor_status",
+    ].includes(call.name) ||
+    call.output === null ||
+    call.output.length > 200_000
+  ) {
+    return null;
+  }
+  const parsed = monitorOutput(call.output);
+  return parsed._tag === "Success" ? parsed.success.status : null;
+};
+const OnchainSummary = ({
+  status,
+}: {
+  readonly status: WalletMonitorStatus;
+}): ReactElement => {
+  const [rule] = status.monitor?.rules ?? [];
+  let condition = "Wallet activity";
+  if (rule?.condition._tag === "price") {
+    condition = `Price ${rule.condition.comparison} ${rule.condition.threshold} ${rule.condition.quoteCurrency}`;
+  } else if (rule?.condition._tag === "transfer") {
+    condition = {
+      both: "Wallet sends and receives",
+      sent: "Wallet sends",
+      received: "Wallet receives",
+    }[rule.condition.direction];
+  } else if (rule?.condition._tag === "swap") {
+    condition = {
+      both: "Wallet buys and sells",
+      bought: "Wallet buys",
+      sold: "Wallet sells",
+    }[rule.condition.side];
+  }
+  const state =
+    status.state === "triggered"
+      ? "price matched"
+      : status.state.replaceAll("_", " ");
+  return (
+    <div className="flex flex-col gap-1 px-3 pb-3 pl-9">
+      <p className="font-medium">
+        {condition} · {state}
+      </p>
+      {status.monitor ? (
+        <p className="text-muted-foreground text-xs">
+          Until {new Date(status.monitor.expiresAt).toLocaleString()} ·{" "}
+          {status.telegramPaired
+            ? "Telegram connected"
+            : "Telegram not connected"}
+        </p>
+      ) : null}
+      {status.stubbed ? (
+        <span className="text-muted-foreground text-xs">Simulated stream</span>
+      ) : null}
+      <Link
+        to="/watchlist/$itemId"
+        params={{ itemId: status.itemId }}
+        className="text-primary w-fit text-xs underline underline-offset-4"
+      >
+        View in Watchlist
+      </Link>
+    </div>
+  );
+};
+
 /** What sits under the header: the receipt, the Graph, the wallet, or one line. */
 const Body = ({
   call,
@@ -66,24 +145,19 @@ const Body = ({
   readonly summary: ToolSummary | null;
   readonly wallet: WalletStatus | null;
 }): ReactElement | null => {
-  if (
-    call.name === "browse_task" &&
-    call.output !== null &&
-    call.input.prompt !== undefined
-  ) {
-    return (
-      <BrowseTaskForm
-        instruction={call.input.prompt}
-        requestKey={`browse:${call.toolCallId}`}
-      />
-    );
-  }
   if (receipt !== null) {
     return (
       <MotionItem key={receipt.id} spring>
         <MoneyBody call={call} receipt={receipt} />
       </MotionItem>
     );
+  }
+  if (richResultOf(call) !== null) {
+    return null;
+  }
+  const onchain = onchainStatusOf(call);
+  if (onchain !== null) {
+    return <OnchainSummary status={onchain} />;
   }
   if (call.graph !== null) {
     return <GraphSummary graph={call.graph} />;
@@ -122,6 +196,18 @@ export const ToolCard = ({
   call,
   receipt = null,
 }: ToolCardProps): ReactElement => {
+  if (
+    call.name === "browse_task" &&
+    call.output !== null &&
+    call.input.prompt !== undefined
+  ) {
+    return (
+      <BrowseTaskForm
+        instruction={call.input.prompt}
+        requestKey={`browse:${call.toolCallId}`}
+      />
+    );
+  }
   const story = storyOf(call.name);
   const summary = summarize(call);
   const status = toolStatus(call, summary, { asking });
@@ -154,6 +240,7 @@ export const ToolCard = ({
           data-slot="chevron"
         />
       </CollapsibleTrigger>
+      <RichToolResult call={call} />
       <Body call={call} receipt={receipt} summary={summary} wallet={wallet} />
       <CollapsibleContent className="space-y-2 border-t px-3 py-2">
         <pre className="text-machine max-h-40 overflow-auto whitespace-pre-wrap">

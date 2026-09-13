@@ -1,140 +1,106 @@
 import { describe, expect, it } from "bun:test";
 
-import type { GraphClient, GraphSnapshot } from "@froggy/graph";
-import { stubHcsWriter, stubOracleGate } from "@froggy/payments";
+import { SaleId } from "@froggy/domain";
 import { memoryStore } from "@froggy/wallet";
-import { Schema } from "effect";
 
 import { handleOracleRequest, handleSaleLookup } from "./oracle-route";
 
-const URL_ = "https://froggy.test/oracle/snapshot";
-
-const snapshot: GraphSnapshot = {
-  capturedAt: 1_756_000_000_000,
-  deployments: [],
-  markets: [],
-  query: "usdc",
-  source: "test",
-  stubbed: true,
+const ORIGIN = "https://froggy.test";
+const URL_ = `${ORIGIN}/oracle/snapshot`;
+const fixture = async (status: "delivered" | "uncertain" = "delivered") => {
+  const store = memoryStore();
+  const header = "historical-proof";
+  const id = SaleId.generate();
+  await store.sales.record({
+    id,
+    status,
+    amount: "5000000",
+    asset: "0.0.0",
+    at: 1,
+    deliveredAt: 2,
+    error: null,
+    network: "hedera:testnet",
+    payer: "0.0.1",
+    paymentHash: new Bun.CryptoHasher("sha256").update(header).digest("hex"),
+    resource: `${URL_}?symbol=USDC`,
+    stubbed: true,
+    transactionId: "historical-tx",
+    result: {
+      answer: "Saved answer",
+      capturedAt: 1,
+      markets: [],
+      snapshotHash: "saved-hash",
+      source: "historical",
+      stubbed: true,
+    },
+  });
+  return { store, header, id, publicUrl: URL_ };
 };
 
-const graphThat = (
-  lendingMarkets: GraphClient["lendingMarkets"]
-): GraphClient => ({ lendingMarkets });
+describe("retired anonymous oracle", () => {
+  it("rejects unpaid and fresh signed requests without creating sales", async () => {
+    const deps = { store: memoryStore(), publicUrl: URL_ };
+    await Promise.all(
+      [
+        {},
+        { "payment-signature": "fresh-proof" },
+        { "x-payment": "legacy-proof" },
+      ].map(async (headers) => {
+        const response = await handleOracleRequest(
+          deps,
+          new Request(URL_, { headers })
+        );
+        expect(response.status).toBe(410);
+        expect(response.headers.has("payment-required")).toBe(false);
+        expect(await response.text()).toContain(`${ORIGIN}/mcp`);
+      })
+    );
+    expect(
+      await deps.store.sales.byPaymentHash(
+        new Bun.CryptoHasher("sha256").update("fresh-proof").digest("hex")
+      )
+    ).toBeNull();
+  });
 
-const deps = (graph: GraphClient) => ({
-  gate: stubOracleGate(),
-  graph,
-  hcs: stubHcsWriter(),
-  now: () => 1_756_000_000_000,
-  publicUrl: URL_,
-  store: memoryStore(),
-});
-
-/** A syntactically valid payment header the stub gate accepts. */
-const proof = (nonce: string): string =>
-  Buffer.from(
-    JSON.stringify({ accepted: {}, payload: { nonce }, x402Version: 2 })
-  ).toString("base64");
-
-const paidRequest = (header: string): Request =>
-  new Request(`${URL_}?symbol=USDC`, { headers: { "x-payment": header } });
-
-/** The bodies the route answers with, decoded rather than asserted. */
-const Delivered = Schema.Struct({
-  replayed: Schema.optional(Schema.Boolean),
-  saleId: Schema.String,
-  snapshotHash: Schema.String,
-});
-const Failed = Schema.Struct({
-  error: Schema.String,
-  saleId: Schema.String,
-  settled: Schema.Boolean,
-});
-const SaleView = Schema.Struct({
-  error: Schema.NullOr(Schema.String),
-  result: Schema.NullOr(Schema.Struct({ snapshotHash: Schema.String })),
-  status: Schema.String,
-});
-const delivered = Schema.decodeUnknownSync(Delivered);
-const failed = Schema.decodeUnknownSync(Failed);
-const saleView = Schema.decodeUnknownSync(SaleView);
-
-describe("handleOracleRequest", () => {
-  it("answers 402 with the challenge when nothing was paid", async () => {
+  it("replays a historical purchased answer and preserves its settlement reference", async () => {
+    const deps = await fixture();
     const response = await handleOracleRequest(
-      deps(graphThat(async () => await Promise.resolve(snapshot))),
-      new Request(URL_)
+      deps,
+      new Request(URL_, { headers: { "payment-signature": deps.header } })
     );
-    expect(response.status).toBe(402);
-    expect(response.headers.get("payment-required")).not.toBeNull();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-froggy-sale")).toBe(deps.id);
+    expect(await response.text()).toContain("Saved answer");
+    const lookup = await handleSaleLookup(deps, deps.id);
+    expect(lookup.status).toBe(200);
+    expect(await lookup.text()).toContain("historical-tx");
   });
 
-  it("writes the sale before the work, and answers the same proof from the book without settling twice", async () => {
-    let fetched = 0;
-    const d = deps(
-      graphThat(async () => {
-        fetched += 1;
-        await Promise.resolve();
-        return snapshot;
-      })
+  it("keeps historical uncertain sales held and never treats migration as a refund", async () => {
+    const deps = await fixture("uncertain");
+    const response = await handleOracleRequest(
+      deps,
+      new Request(URL_, { headers: { "payment-signature": deps.header } })
     );
-    const first = await handleOracleRequest(d, paidRequest(proof("one")));
-    expect(first.status).toBe(200);
-    const body = delivered(await first.json());
-    expect(body.saleId).toMatch(/^sal_/u);
-    expect(body.replayed).toBeUndefined();
-
-    const again = await handleOracleRequest(d, paidRequest(proof("one")));
-    expect(again.status).toBe(200);
-    const replayed = delivered(await again.json());
-    expect(replayed.saleId).toBe(body.saleId);
-    expect(replayed.replayed).toBe(true);
-    // One fetch for two arrivals of one proof: the second was answered from
-    // the book, and the facilitator was not asked again.
-    expect(fetched).toBe(1);
-    expect(again.headers.get("x-payment-response")).toBe(
-      first.headers.get("x-payment-response")
-    );
+    expect(response.status).toBe(409);
+    const saved = await deps.store.sales.byId(deps.id);
+    expect(saved?.status).toBe("uncertain");
   });
 
-  it("keeps a failed answer as a failed sale with the settlement on it, answered 502", async () => {
-    const d = deps(
-      graphThat(async () => {
-        await Promise.resolve();
-        throw new Error("the gateway is down");
-      })
+  it("does not return another resource's stored answer", async () => {
+    const deps = await fixture();
+    const response = await handleOracleRequest(
+      { ...deps, publicUrl: `${ORIGIN}/other` },
+      new Request(URL_, { headers: { "payment-signature": deps.header } })
     );
-    const response = await handleOracleRequest(d, paidRequest(proof("two")));
-    expect(response.status).toBe(502);
-    const body = failed(await response.json());
-    expect(body.settled).toBe(true);
-    expect(body.error).toBe("the gateway is down");
-    // The buyer's receipt still gets the settlement: the money did move.
-    expect(response.headers.get("x-payment-response")).not.toBeNull();
-
-    const looked = await handleSaleLookup(d, body.saleId);
-    expect(looked.status).toBe(200);
-    const sale = saleView(await looked.json());
-    expect(sale.status).toBe("failed");
-    expect(sale.error).toBe("the gateway is down");
-
-    // Presenting the same proof again is not a second chance at the fetch.
-    const again = await handleOracleRequest(d, paidRequest(proof("two")));
-    expect(again.status).toBe(502);
+    expect(response.status).toBe(410);
   });
 
-  it("hands a delivered result back by sale id, and nothing for a made-up id", async () => {
-    const d = deps(graphThat(async () => await Promise.resolve(snapshot)));
-    const response = await handleOracleRequest(d, paidRequest(proof("three")));
-    const { saleId } = delivered(await response.json());
-    const looked = await handleSaleLookup(d, saleId);
-    const sale = saleView(await looked.json());
-    expect(sale.status).toBe("delivered");
-    expect(sale.result?.snapshotHash).toBeString();
-    const missing = await handleSaleLookup(d, "sal_nope");
+  it("keeps missing sale ids private", async () => {
+    const deps = { store: memoryStore() };
+    const invalid = await handleSaleLookup(deps, "invalid");
+    const missing = await handleSaleLookup(deps, SaleId.generate());
+    expect(invalid.status).toBe(404);
     expect(missing.status).toBe(404);
-    const malformed = await handleSaleLookup(d, "not-an-id");
-    expect(malformed.status).toBe(404);
   });
 });

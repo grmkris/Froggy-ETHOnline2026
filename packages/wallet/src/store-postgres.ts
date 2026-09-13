@@ -1,3 +1,4 @@
+import { postgresWatchlistDataStore } from "./watchlist-data-store-postgres";
 import {
   browserProfiles,
   agentInvocations,
@@ -64,8 +65,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { Result, Schema } from "effect";
 import type { Sql } from "postgres";
 
+import { postgresCardStore } from "./card-store-postgres";
+import { postgresCreditStore } from "./credit-store-postgres";
 import { postgresHistoryStore } from "./history-store-postgres";
 import { postgresLaunchStore } from "./launch-store-postgres";
+import { postgresMonitoringStore } from "./monitoring-store-postgres";
 import {
   BrowserProfileRecord,
   decodeConversion,
@@ -82,6 +86,8 @@ import type {
   Store,
 } from "./store";
 import { postgresTradingStore } from "./trading-store-postgres";
+import { postgresWalletActivityStore } from "./wallet-activity-store-postgres";
+import { postgresWatchlistStore } from "./watchlist-store-postgres";
 
 const millis = (value: Date | null): number | null =>
   value === null ? null : value.getTime();
@@ -130,6 +136,9 @@ const taskOf = (row: TaskRow): Task | null => {
     result: row.result,
     runId: row.runId,
     saleId: row.saleId,
+    chargeId: row.chargeId ?? undefined,
+    priceCreditUnits: row.priceCreditUnits ?? undefined,
+    chargeStatus: row.chargeStatus ?? undefined,
     status: row.status,
     updatedAt: row.updatedAt.getTime(),
   });
@@ -266,7 +275,12 @@ export const postgresStore = (sql: Sql): Store => {
       .where(where)
       .orderBy(desc(oauthGrants.createdAt));
   const history = postgresHistoryStore(sql);
+  const watchlistData = postgresWatchlistDataStore(sql);
+  const monitoring = postgresMonitoringStore(sql);
+  const watchlist = postgresWatchlistStore(sql);
+  const walletActivity = postgresWalletActivityStore(sql, "eip155:8453");
   return {
+    credits: postgresCreditStore(sql),
     browsers: {
       load: async (userId) => {
         const [row] = await database
@@ -291,6 +305,11 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     history,
+    watchlist,
+    watchlistData,
+    walletActivity,
+    monitoring,
+    cards: postgresCardStore(sql),
     trading: postgresTradingStore(sql),
     launches: postgresLaunchStore(sql),
     purchases: {
@@ -979,6 +998,36 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     tasks: {
+      activeBrowses: async () => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.kind, "browse"),
+              or(
+                inArray(tasks.status, [
+                  "paid",
+                  "running",
+                  "paused",
+                  "awaiting_approval",
+                  "uncertain",
+                ]),
+                and(
+                  eq(tasks.status, "quoted"),
+                  raw`(${tasks.result}->>'paymentSigning' = 'true' OR ${tasks.result}->>'paymentProofHash' IS NOT NULL)`
+                )
+              )
+            )
+          );
+        return rows.flatMap((row) => {
+          const task = taskOf(row);
+          const owner = decodeUserId(row.userId);
+          return task === null || owner._tag === "Failure"
+            ? []
+            : [{ userId: owner.success, task }];
+        });
+      },
       claim: async (userId, id, expected, patch) => {
         const rows = await database
           .update(tasks)
@@ -1337,6 +1386,10 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     forget: async (userId) => {
+      await watchlist.forget(userId);
+      await watchlistData.forget(userId);
+      await walletActivity.forget(userId);
+      await monitoring.forget(userId);
       await database
         .delete(browserProfiles)
         .where(eq(browserProfiles.userId, userId));

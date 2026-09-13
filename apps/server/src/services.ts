@@ -1,7 +1,29 @@
-import { cloudApi, CloudBrowser, StubCloudBrowser } from "@froggy/browser";
-import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
+import {
+  cloudApi,
+  CloudBrowser,
+  StubCloudBrowser,
+  hostedAgentApi,
+  stubHostedAgent,
+} from "@froggy/browser";
+import type {
+  BrowserHandle,
+  BrowserSessionOptions,
+  HostedAgentApi,
+} from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
-import type { TradingNetwork, UserId } from "@froggy/domain";
+import type {
+  CreditPurchaseId,
+  OnchainNetwork,
+  TradingNetwork,
+  UserId,
+} from "@froggy/domain";
+import {
+  Email,
+  memoryEmailStore,
+  postgresEmailStore,
+  memoryEmailTransport,
+  cloudflareEmailTransport,
+} from "@froggy/email";
 /**
  * The composition root's composition root.
  *
@@ -17,8 +39,15 @@ import type { TradingNetwork, UserId } from "@froggy/domain";
  * process, it is `workspaces.ts` that owns it. This file owns everything a
  * user does not have their own copy of.
  */
-import type { GraphClient, SubgraphDiscovery } from "@froggy/graph";
+import type {
+  GraphClient,
+  SubgraphDiscovery,
+  WalletStream,
+} from "@froggy/graph";
 import {
+  packagedWalletStream,
+  demoWalletStream,
+  stubWalletStream,
   liveGraphClient,
   liveSubgraphDiscovery,
   stubGraphClient,
@@ -31,6 +60,7 @@ import type {
   RateSource,
 } from "@froggy/payments";
 import {
+  evmCreditSettlement,
   evmPayer,
   hederaAccountBalance,
   hederaHost,
@@ -67,12 +97,17 @@ import {
   sendErc20Transfer,
   stubPrivyServer,
 } from "@froggy/wallet";
-import type { Redacted } from "effect";
+import { Redacted } from "effect";
 import postgres from "postgres";
 
+import { CardCheckouts } from "./card-checkouts";
+import { cardProviders, cardCheckoutConfiguration } from "./card-services";
+import { CreditFunding } from "./credit-funding";
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
+import { createPriceResolver, stubPriceResolver } from "./onchain-price";
+import type { PriceResolver } from "./onchain-price";
 import { Purchases } from "./purchases";
 import { liveBirdeye, stubBirdeye } from "./trading/birdeye";
 import { TradeCoordinator } from "./trading/coordinator";
@@ -109,7 +144,37 @@ interface Balances {
   readonly usdc: (address: string) => Promise<bigint | null>;
 }
 
+const createEmail = (
+  environment: Environment,
+  sql: postgres.Sql | null
+): Email | null => {
+  if (environment.email) {
+    if (!sql) {
+      throw new Error("Live email requires durable Postgres storage.");
+    }
+    return new Email({
+      store: postgresEmailStore(sql),
+      transport: cloudflareEmailTransport(
+        environment.email.workerUrl,
+        environment.email.secret
+      ),
+      domain: environment.email.domain,
+    });
+  }
+  if (environment.allowStubs) {
+    return new Email({
+      store: memoryEmailStore(),
+      transport: memoryEmailTransport(),
+      domain: "froggy.test",
+    });
+  }
+  return null;
+};
 export interface Services {
+  readonly cards: CardCheckouts;
+  readonly creditFunding: CreditFunding;
+  readonly hostedAgent: HostedAgentApi;
+  readonly email: Email | null;
   readonly createBrowser: (
     options: BrowserSessionOptions,
     userId: UserId
@@ -162,6 +227,9 @@ export interface Services {
   /** The chain the RPC answers for, so boot can refuse a URL on the wrong Base. */
   readonly evmChainId: () => Promise<number>;
   readonly graph: GraphClient;
+  readonly walletStream: WalletStream;
+  readonly walletStreams: Readonly<Record<OnchainNetwork, WalletStream>>;
+  readonly onchainPrices: PriceResolver;
   /** The Subgraph MCP: finds a deployment the registry did not pin, by name or by contract. */
   readonly graphDiscovery: SubgraphDiscovery;
   /**
@@ -404,6 +472,7 @@ export const createServices = (options: ServiceOptions): Services => {
   const rpc = evmRpc({ url: environment.evmRpcUrl });
   const usdc = KNOWN_ASSETS[`${environment.evmNetwork}:usdc`];
   const store = sql === null ? memoryStore() : postgresStore(sql);
+  const email = createEmail(environment, sql);
 
   const host =
     environment.hederaAccounts && environment.hederaKek !== null
@@ -530,16 +599,22 @@ export const createServices = (options: ServiceOptions): Services => {
       : evmPayer({ network: environment.evmNetwork, signer });
   };
 
+  const cardProvider = cardProviders(environment, privy.execution);
+  const ordinaryTrades = executionProviders(
+    environment.trading,
+    environment.modes.privy === "live",
+    environment.allowStubs,
+    privy.execution
+  );
   const trades = new TradeCoordinator({
+    cards: store.cards,
     store: store.trading,
     watches: store.launches,
     privy,
-    backend: executionProviders(
-      environment.trading,
-      environment.modes.privy === "live",
-      environment.allowStubs,
-      privy.execution
-    ),
+    backend: (input) =>
+      input.action === "bridge"
+        ? cardProvider.backend(input)
+        : ordinaryTrades(input),
     now: Date.now,
   });
 
@@ -552,7 +627,122 @@ export const createServices = (options: ServiceOptions): Services => {
   } else if (environment.allowStubs) {
     ponsReader = stubPonsLaunchReader(Date.now);
   }
-  const adapters: Omit<Services, "purchases" | "createBrowser"> = {
+  const streamFor = (config: {
+    readonly mode: "live" | "stub" | "unavailable";
+    readonly endpoint: string;
+  }): WalletStream => {
+    if (config.mode === "live") {
+      return packagedWalletStream({
+        endpoint: config.endpoint,
+        apiKey: Redacted.value(environment.walletStream.apiKey),
+      });
+    }
+    return config.mode === "stub" ? demoWalletStream() : stubWalletStream();
+  };
+  const walletStreams = {
+    "eip155:8453": streamFor(environment.walletStream),
+    "eip155:4663": streamFor(environment.walletStream.robinhood),
+  };
+  const priceClients = new Map<
+    OnchainNetwork,
+    ReturnType<typeof tradeEvmClient>
+  >();
+  const liveOnchainPrices = createPriceResolver({
+    rpc: trading.rpc,
+    now: Date.now,
+    getBlockHash: async (network, number) => {
+      let client = priceClients.get(network);
+      if (!client) {
+        const endpoint = environment.trading.rpcEndpoints[network];
+        if (!endpoint) {
+          throw new Error(
+            "Price verification RPC is unavailable on this network."
+          );
+        }
+        client = tradeEvmClient({ endpoint });
+        priceClients.set(network, client);
+      }
+      const block = await client.getBlock({ blockNumber: BigInt(number) });
+      return block.hash;
+    },
+  });
+  const demoOnchainPrices = stubPriceResolver({ now: Date.now });
+  const priceResolvers: Readonly<Record<OnchainNetwork, PriceResolver>> = {
+    "eip155:8453":
+      environment.walletStream.mode === "stub"
+        ? demoOnchainPrices
+        : liveOnchainPrices,
+    "eip155:4663":
+      environment.walletStream.robinhood.mode === "stub"
+        ? demoOnchainPrices
+        : liveOnchainPrices,
+  };
+  const onchainPrices: PriceResolver = {
+    resolve: async (input) =>
+      await priceResolvers[input.network].resolve(input),
+    read: async (source, block) =>
+      await priceResolvers[source.network].read(source, block),
+    streamSubscriptions: (source) =>
+      priceResolvers[source.network].streamSubscriptions(source),
+  };
+  let treasuryTail: Promise<null> = Promise.resolve(null);
+  const withTreasuryLock = async <T>(
+    operation: () => Promise<T>,
+    purchaseId?: CreditPurchaseId
+  ): Promise<T> => {
+    const previous = treasuryTail;
+    const turn = Promise.withResolvers<null>();
+    treasuryTail = turn.promise;
+    await previous;
+    try {
+      const connection = sql === null ? null : await sql.reserve();
+      const lockKey = `treasury:${environment.evmNetwork}:${environment.treasuryWallet?.address ?? "unconfigured"}`;
+      try {
+        if (connection !== null) {
+          await connection`select pg_advisory_lock(hashtextextended(${lockKey}, 0))`;
+        }
+        if (
+          await store.credits.pendingSettlement(
+            environment.evmNetwork,
+            purchaseId
+          )
+        ) {
+          throw new Error(
+            "A treasury settlement is awaiting confirmation. No new transaction was signed."
+          );
+        }
+        return await operation();
+      } finally {
+        if (connection !== null) {
+          try {
+            await connection`select pg_advisory_unlock(hashtextextended(${lockKey}, 0))`;
+          } finally {
+            connection.release();
+          }
+        }
+      }
+    } finally {
+      turn.resolve(null);
+    }
+  };
+  const adapters: Omit<
+    Services,
+    "purchases" | "createBrowser" | "creditFunding"
+  > = {
+    cards: new CardCheckouts({
+      ...cardCheckoutConfiguration(environment),
+      store: store.cards,
+      trades,
+      privy,
+      linea: cardProvider.reader,
+      now: Date.now,
+    }),
+    hostedAgent:
+      environment.browserUseApiKey === null
+        ? stubHostedAgent
+        : hostedAgentApi({ apiKey: environment.browserUseApiKey }),
+
+    email,
     launches: new LaunchCoordinator({
       store: store.launches,
       chainReaders:
@@ -617,17 +807,20 @@ export const createServices = (options: ServiceOptions): Services => {
       }
       return {
         send: async ({ to, units, beforeBroadcast }) =>
-          await sendAuthorizedTransfer({
-            amount: units,
-            beforeBroadcast,
-            chainId: environment.evmChainId,
-            domain: await usdcDomain(),
-            from,
-            relayer,
-            rpc,
-            to,
-            token: usdc.id,
-          }),
+          await withTreasuryLock(
+            async () =>
+              await sendAuthorizedTransfer({
+                amount: units,
+                beforeBroadcast,
+                chainId: environment.evmChainId,
+                domain: await usdcDomain(),
+                from,
+                relayer,
+                rpc,
+                to,
+                token: usdc.id,
+              })
+          ),
       };
     },
     evmChainId: async () => await rpc.chainId(),
@@ -652,10 +845,32 @@ export const createServices = (options: ServiceOptions): Services => {
       await sql?.end({ timeout: 5 });
     },
     store,
+    walletStream: walletStreams["eip155:8453"],
+    walletStreams,
+    onchainPrices,
     treasuryPayer: treasuryPayer(),
   };
+  const treasurySigner =
+    environment.treasuryWallet === null
+      ? null
+      : privy.signerFor(environment.treasuryWallet);
+  const creditFunding = new CreditFunding({
+    ...adapters,
+    base:
+      treasurySigner === null
+        ? null
+        : evmCreditSettlement({
+            network: environment.evmNetwork,
+            rpcUrl: environment.evmRpcUrl,
+            token: usdc.id,
+            payTo: treasurySigner.address,
+            relayer: treasurySigner,
+          }),
+    withTreasuryLock,
+  });
   return {
     ...adapters,
+    creditFunding,
     createBrowser: (browserOptions, userId) => {
       if (environment.browserUseApiKey === null) {
         if (!environment.allowStubs) {
@@ -667,6 +882,11 @@ export const createServices = (options: ServiceOptions): Services => {
       }
       return new CloudBrowser({
         ...browserOptions,
+        hostedApi: cloudApi({
+          apiKey: environment.browserUseApiKey,
+          country: environment.browserCountry,
+          version: 4,
+        }),
         api: cloudApi({
           apiKey: environment.browserUseApiKey,
           country: environment.browserCountry,
@@ -678,6 +898,6 @@ export const createServices = (options: ServiceOptions): Services => {
         },
       });
     },
-    purchases: new Purchases(adapters),
+    purchases: new Purchases({ ...adapters, creditFunding }),
   };
 };

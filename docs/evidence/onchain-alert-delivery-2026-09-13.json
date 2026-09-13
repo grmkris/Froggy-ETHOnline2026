@@ -1,0 +1,30 @@
+{
+  "v": 1,
+  "verifiedAt": "2026-09-13T01:46:46.496Z",
+  "scope": "disposable local PostgreSQL; real Base providers and Telegram delivery",
+  "freshReadOnlyConnection": true,
+  "network": "eip155:8453",
+  "publicAddress": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+  "streamBlocks": 3,
+  "activity": {
+    "transactionHash": "0x2a8e7074af340d9318d58c24038da50887e63f0cf9200d36214f1256af6964d5",
+    "blockNumber": "51236813",
+    "blockHash": "0xfcdc2694572354cbf06d3a991f5b96fe36d680054a58949f4d4d3964d88f963e",
+    "finality": "provisional",
+    "stubbed": false
+  },
+  "checks": {
+    "outboxDeliveredExactlyOnce": true,
+    "activityDelivered": true,
+    "activityReferencedByOutbox": true,
+    "activityReceiptMatchesOutbox": true,
+    "froggyHistoryDelivered": true,
+    "froggyHistoryReceiptMatchesOutbox": true,
+    "sdkHistoryHasExactlyOneMatchingReceipt": true,
+    "firstAttemptPreservedUncertain": true,
+    "firstHistoryPreservedUncertain": true,
+    "noPendingOrSendingAlerts": true,
+    "realActivity": true
+  },
+  "allChecksPassed": true
+}

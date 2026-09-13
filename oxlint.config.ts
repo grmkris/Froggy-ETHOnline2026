@@ -33,6 +33,22 @@ export default defineConfig({
   overrides: [
     {
       /**
+       * Onchain block and outbox transactions consume ordered cursor pages.
+       * Later records observe earlier writes (including price undo and per-user
+       * notification slots). Parallel loops would violate those invariants;
+       * RPC enrichment also consumes a shared bounded request allowance.
+       */
+      files: [
+        "apps/server/src/wallet-monitor.ts",
+        "apps/server/src/wallet-monitor-worker.ts",
+        "apps/server/src/wallet-alert-delivery.ts",
+        "apps/server/src/wallet-price-events.ts",
+        "apps/server/src/wallet-activity.ts",
+      ],
+      rules: { "eslint/no-await-in-loop": "off" },
+    },
+    {
+      /**
        * Claude Design preview cards.
        *
        * design-sync resolves a component's preview by exact name —

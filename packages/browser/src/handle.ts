@@ -25,6 +25,21 @@ import type { FrameSubscriber } from "./screencast";
 import type { Snapshot } from "./snapshot";
 
 export interface BrowserHandle {
+  readonly checkoutFrames?: () => Promise<{
+    readonly merchant: string;
+    readonly hosts: readonly string[];
+  }>;
+  /** Capability of CloudBrowser; a stub never pretends to attach a remote worker. */
+  readonly hosted?: {
+    readonly prepare: () => Promise<string>;
+    readonly attach: (browserId: string) => Promise<void>;
+    readonly stopUnexpected: (browserId: string) => Promise<void>;
+    readonly detach: () => void;
+    readonly control: (
+      control: "agent" | "human" | "stopping"
+    ) => Promise<void>;
+    readonly release: () => void;
+  };
   readonly viewer?: () => Promise<string | null>;
   readonly forget?: () => Promise<void>;
   readonly state: () => BrowserState;

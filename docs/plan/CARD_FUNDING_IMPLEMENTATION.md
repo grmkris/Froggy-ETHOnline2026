@@ -1,76 +1,44 @@
-# Card funding, credentials and the bridge: implementation plan
+# Saved-card browser purchases: implementation handoff
 
-Status: **planned, not started.** Written 13 September 2026 against `main` at `a0c50ce` (the working tree carried ~240 uncommitted files from another session at the time; none of them are this lane's). Research and evidence levels are in [`docs/research/card-funding-and-credentials-2026-09-13.md`](../research/card-funding-and-credentials-2026-09-13.md). No ADR yet: the one live probe that settles the design (§"Resume here") has not been run, so writing a decision now would be writing it blind. This is post-submission work; ADR 0024's row 24 cut still stands for the submission.
+Updated 13 September 2026. This replaces the earlier speculative swap-and-password-manager plan. The accepted scope is existing **Base USDC → independently entered Linea address → saved card**, with owner approval and the existing hosted browser lifecycle. See [ADR 0034](../decisions/0034-saved-card-checkouts.md).
 
-## One sentence
+Verification results, limits and commands are recorded in [the verification report](../evidence/CARD_CHECKOUT_VERIFICATION_2026-09-13.md).
 
-The person connects a disposable crypto-funded card, Froggy funds it just in time from their Privy wallet on Base (swap if needed, then an Across bridge quoted by Uniswap, landing on Linea at the card's address) under an approval card, watches the money arrive, and then the server types the card into the merchant's form without the model ever seeing a digit.
+## Implemented locally
 
-## The demo, as the owner described it
+- Account → Payment methods: add, replace and revoke, write-only encrypted card details including demo CVC, masked metadata and observed balance. Owner-scoped TypeIDs, AES-GCM revision binding and separate credentials/checkouts tables.
+- Browser purchase review and stages, server-calculated FX estimate/buffer/shortfall, exact Base debit and destination, expiring approval, explicit new review and owner issuer-reconciliation actions.
+- A `bridge` trade through the existing reservation/authorization/submission/recovery machinery. Rules and agent credentials cannot authorize it. Saved method recipient/revision checks apply at the trading boundary.
+- Uniswap `BRIDGE` and `/swap_5792` decoding, exact bounded allowance, Across deposit validation, Base simulation and independent Linea deposit/fill/transfer reconciliation with durable cursors.
+- Hosted inspection without secrets, run-scoped credential bindings, disabled recording/sharing, current frame checks, worker-release handover, 3DS continuation without secret redispatch, and ambiguous-dispatch recovery without an automatic payment retry.
+- Feature default off, Linea read-only configuration, loud synthetic funding/rates/outcomes, fixed order observations and card-number history redaction.
 
-1. **Settings → Payment methods → Connect MetaMask Card.** Paste the card's funding address and pick its chain (Linea, USDC). Saved; the row shows the live USDC balance on that chain.
-2. **Add card details.** Number, expiry, CVC, name. Write-only: after save the row shows brand + last4. Stored encrypted under an app key, not readable through any API.
-3. In chat, the agent finds the item and quotes. **One approval card**: "Fund card ···ab12 with 25.00 USDC on Linea (from 25.10 USDC on Base via Across, ~2 min) and pay at shop.example? Allow once / Not this time / Stop the agent".
-4. Allow → one sponsored Privy `wallet_sendCalls` batch on Base → receipt.
-5. The wallet monitor sees the USDC arrive on Linea → the task shows **card funded**.
-6. `browser_fill_card` types number / expiry / CVC into the focused fields at checkout; 3DS pauses for the human; the order confirmation is captured from the page.
-7. Three separate records, never one opaque "spend": the funding transfer, the observed card charge, the order.
+The runtime still needs the release checks below. Local code and stubs are not proof of a real purchase.
 
-## Decisions taken in this plan (reversible until the ADR)
+## Verified provider findings
 
-- **Card is disposable, funded just in time.** That, not the code, is what bounds a leak: screencast, Browser Use's recording, merchant confirmation pages and logs are all outside our control. The card is the policy. Never a reusable card.
-- **Server-side typing, not page injection.** There is no in-page protocol for cards; the value goes in via `Input.insertText` to the focused element after a top-origin check, exactly like the password-manager path. It never goes through `Runtime.evaluate` and never into a tool result.
-- **Funding leg happens on Base only.** A same-asset bridge is `approve + depositV3` on Base; Across delivers on Linea to `recipient`. No Linea delegation, gas or Privy rule. Linea is a read-only RPC for the monitor.
-- **Swap-then-bridge = option 2** of the three in the research (§6): two `TradeStep`s in one `Trade` — the existing `swap` to the person's own wallet, then a new `bridge` step to the card address. Option 3 (one atomic batch on `minimumOutput`) is the polish step if the demo wants a single signature; option 1 (Uniswap `/plan`) only if the probe shows it accepts a foreign recipient and emits `SEND_CALLS` steps.
-- **Passwords ride the same rails** but are a separate, smaller lane (§"Lane C"); the card lane does not wait for it.
+Sanitized quote and call fixtures are in `apps/server/src/trading/fixtures/card-bridge-{quote,swap_5792}.json`. The addresses `0x111…111` and `0x222…222` are synthetic probe values, never product defaults. The route accepted an external recipient: 25,000,000 Base USDC units quoted 24,977,704 Linea units. The returned calls were USDC unlimited `approve` followed by Across `depositV3`. The implementation replaces the allowance with the exact debit and preserves the validated deposit bytes.
 
-## Invariants this plan must keep
+Verified contracts: Base USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`; Linea USDC `0x176211869cA2b568f2A7D4EE941E073a821EE1ff`; Base Across proxy `0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64`; Linea Across proxy `0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75`. Primary sources are linked in the ADR. These are token/protocol addresses; the funding recipient is always entered by the user.
 
-- `packages/browser` never imports `packages/wallet`; the fill tool lives in `apps/server` and hands the browser a string.
-- Nothing the model produces can be a card number, a password or a funding address: the funding address is person-typed in Settings; `browser_fill_card` takes a field name, not a value; the value is resolved server-side.
-- Every funding is a `Trade` with reservations, receipt and recovery, through `authorize`; the agent trading rule cannot sign the batch (ADR 0027). The bridge step's `recipient` is pinned to the saved funding address and refused otherwise.
-- Every stub is loud: no card configured → the tool says so; `UNISWAP_API_KEY` placeholder → no bridge quote, `stubbed: true`, never a fake `calls[]`.
-- History redaction gains a PAN-shaped pattern (13–19 digits passing Luhn, with or without separators) before the fill tool ships, so a merchant page echoing the number cannot land in the archive.
-- The hosted Chrome still cannot reach Froggy's own origin.
+## Live-entry blocker
 
-## Lanes and order
+Two synthetic hosted probes used a controlled HTTPS checkout on `eu.httpbin.org` with an iframe on `httpbin.org`. The first fixture did not complete reliably. The corrected run `ccc31e5a-bd5c-432b-815b-22928e414bf6` found and focused the iframe password input (`activeId: card`, `activeType: password`). The server-side alias endpoint returned `no_focused_field`, leaving the field empty. This is **inconclusive for domain enforcement**, not an accepted security test. Both probe browsers were stopped. No real card credentials or wallet transactions were used.
 
-### Lane A — bridge quote and execution (Uniswap + Privy), the leaf first
+Resolve the provider's iframe entry path, then prove both allowed-frame success and forbidden-frame denial, including navigation between focus and entry. Keep `CARD_CHECKOUT_IFRAMES_VERIFIED=false` until that evidence exists. No production feature enablement has been performed.
 
-1. `packages/domain`: add `"eip155:59144"` to `Network`; add `"bridge"` to `TradeStep.kind`; a `Trade` output may name a `recipient` other than the wallet **only** for a `bridge` step, carried as a person-typed `EvmAddress` with provenance.
-2. `packages/payments/src/evm.ts`: `EvmNetwork` gains Linea in `EVM_CHAIN_IDS` / `EVM_NETWORK_LABELS` (label "Linea"); USDC contract per network (confirm the Linea USDC address against Circle's list before pinning).
-3. `apps/server/src/trading/uniswap.ts`: accept `routing: "BRIDGE"` and decode `BridgeQuote` (`destinationChainId`, `estimatedFillTimeMs`, `fillDeadline`, `exclusiveRelayer`); allow `tokenOutChainId ≠ tokenInChainId` for that kind; relax the `recipient === wallet` check at line 353 for `bridge` only, comparing against the pinned funding address; call `/swap_5792` with the quote and decode `CreateSwap5792Response` into `evm_calls` (`from` must equal the wallet, `chainId` must equal the source chain, 1–8 calls). Add `"eip155:59144"` to `UNISWAP_CHAINS` in `.env.example` with a note that it is a destination only.
-4. `packages/wallet/src/privy-execution.ts`: unchanged if the calls decode into the existing `evm_calls` payload (verify the `caip2` is the source chain and `sponsor: true` still applies).
-5. `trade_prepare` / `trade_execute`: a `fund_card` intent = optional `swap` step (existing) + `bridge` step; simulation via the existing Tenderly path for the Base batch; the approval card variant names both legs, the fill time and the destination address.
-6. Recovery: a `bridge` step that is `confirmed` on Base but not yet seen on Linea is `uncertain` until the monitor sees the transfer or `fillDeadline` passes; nothing re-submits.
-7. Tests: adapter decode fixtures from the real `/quote` and `/swap_5792` bodies recorded by the probe; refusal tests for foreign recipient on a `swap` step, for a `bridge` whose `chainId` is not the source chain, and for a stubbed key.
+## Migration and Railway release
 
-### Lane B — payment method, monitor, fill tool, UI
+Migration `0028_serious_newton_destine.sql` creates `payment_methods`, `payment_method_credentials`, and `card_checkouts`. It belongs in the existing migration sequence; preserve subsequent unrelated migrations. Take a database backup before the normal release migration. The migration is additive; disabling the feature does not delete recovery records or reverse funding.
 
-1. `packages/database`: migration `payment_methods` (id TypeID, user, label, brand, last4, `funding_address`, `funding_network`, `encrypted` bytes, `created_at`, `revoked_at`). `packages/wallet` store methods; `CARD_VAULT_KEY` (32 bytes, `Config.redacted`) for AES-GCM; decrypt only inside the fill path.
-2. `packages/domain/src/wallet-monitor.ts`: `OnchainNetwork` gains `"eip155:59144"`; `apps/server/src/environment.ts`: `LINEA_RPC_URL` (read-only); the funding address is watched for a `received` USDC transfer for the duration of a `fund_card` task.
-3. `apps/server/src/tools.ts`: `browser_fill_card({ field: "number" | "expiry" | "cvc" | "name" })`. In `packages/browser/src/session.ts` next to `agentType`: read the active tab's top-frame origin (`Page.getFrameTree`, as `WalletBridge.start` does), refuse unless it is the approved merchant host, then `Input.insertText`. First fill per origin raises an approval card through `InteractionRegistry` with the existing `OPTIONS`.
-4. History: the PAN redaction pattern in `apps/server/src/history.ts`, with a test using a Luhn-valid test number.
-5. `apps/web`: Settings → Payment methods (connect, balance, add details write-only, revoke); the `fund_card` ticket variant; the "card funded" state on the task.
-6. Demo-merchant check before the demo: confirm the checkout's card form is same-document (see research §3); otherwise route the card step through the hosted agent with `secretBindings`.
+Existing Railway target: project `d6f4178e-fc21-4827-8347-20b1cec2aba4`, production environment `44c2247f-e0a2-43f8-9b46-586a29126157`, app service `393648df-65e9-4491-87f3-1b896c736b9f`.
 
-### Lane C — credentials (password manager), independent
+Prepare a scoped release on current main with the required hosted-browser/trading prerequisites. The shared checkout contains substantial unrelated ongoing work; do not upload that whole directory as a card release. Run `bun run check:fast`, `bun run check`, `bun run e2e`, and the normal build/migration checks in isolation. Configure `CARD_VAULT_KEY` as a new secret 32-byte lowercase hex key and `LINEA_RPC_URL` as an HTTPS Linea read-only RPC. Preserve the vault key across deploys; changing it without re-encryption makes saved credentials unreadable. Set `LINEA_CONFIRMATIONS=2`. Verify configured Base mainnet RPC, sponsored Privy execution, Uniswap and Tenderly. Initially keep both feature flags false.
 
-1. `packages/browser/src/hosted-agent.ts`: `HostedRunInput.secretBindings?: SecretBinding[]`, forwarded in `create()`; attach the person's bindings to the bootstrap run and every continuation (they are run-scoped).
-2. `credentials` table + store, encrypted like the card; Settings → Logins (site, username, password, allowed hosts).
-3. `browser_fill_login({ alias, field: "username" | "password" })` with the same origin check and approval-per-origin as the card tool. Snapshot masking is already sufficient (roles and labels only).
-4. Optional: a second `addScriptToEvaluateOnNewDocument` script that _detects_ login forms and raises a binding event to surface a "Fill with Froggy" chip. Detection only; never the fill.
+After all acceptance checks, enable `CARD_CHECKOUT_ENABLED=true`; enable `CARD_CHECKOUT_IFRAMES_VERIFIED` only after the cross-origin proof. No environment mutation, migration or deployment was performed by this implementation run.
 
-## Resume here
+## Remaining acceptance
 
-1. **Run the probe** in research §7 with the key read from Railway straight into the request. Record the `routing`, whether `recipient` is echoed, `estimatedFillTimeMs`, and the `/swap_5792` `calls[]` (to-addresses should be USDC on Base and the Across `SpokePool` on Base). Save the two response bodies as fixtures under `apps/server/src/trading/` with amounts and addresses as returned. If `recipient` is rejected, option 2 becomes: bridge to the person's own Linea address is impossible too, so the fallback is Across's own API for the deposit call (a new integration) or the person's card funded by a plain Base USDC transfer if the card supports Base — check the card dashboard first.
-2. Confirm the Linea USDC contract address from Circle before pinning.
-3. Write ADR 0032 (card funding via just-in-time bridge, server-typed disposable card) from the probe result; mark `proposed` until the first testnet-free live bridge of a few dollars has a receipt.
-4. Start lane A step 1 (domain leaf), commit by pathspec, gate with `heavy bun run check:fast`, one commit per step.
+The full controlled-checkout matrix must cover cross-origin entry, redirects, declines, a 3DS-style human takeover, changed totals, browser restart, revocation and leaked card echoes. Confirm keyboard access, responsive layout and absence of browser errors. The account payment-method UI and hosted lifecycle are covered by automated tests; they do not replace this end-to-end provider acceptance.
 
-## Owner-side items
-
-- Which card, and its funding networks as shown in its dashboard (if Base USDC is enabled, the bridge is unnecessary for the demo).
-- The funding address to pin; a few dollars of Base USDC in the Privy wallet for the live check.
-- A demo merchant whose card form is same-document, or acceptance that the card step runs through the hosted agent.
-- Acceptance of CVC-at-rest for a disposable demo card (research §3), to be recorded in the ADR.
+The user supplies the real checkout URL later and approves the exact purchase and debit in Froggy. Record the actual Base transaction, matching confirmed Linea arrival, observed merchant confirmation and user issuer-dashboard confirmation separately. Do not report the feature complete based on a quote, a stubbed test, or this handoff.

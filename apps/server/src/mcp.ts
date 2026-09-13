@@ -1,6 +1,6 @@
-import type { OAuthScope } from "@froggy/domain";
 /** Stateless Streamable HTTP MCP. Auth is the same revocable token as the task API. */
 import { PurchaseId, TaskId } from "@froggy/domain";
+import type { CreditSummary, OAuthScope } from "@froggy/domain";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import {
   AddressLookupInput,
@@ -11,8 +11,15 @@ import {
 import { Schema } from "effect";
 
 import { trackAgentInvocation, recordMcpDiagnostic } from "./agent-invocations";
+import { connectionScopes } from "./capabilities";
+import {
+  emailToolDefinitions,
+  invokeEmailTool,
+  readEmailAttachment,
+} from "./email-tools";
 import { decodeHistoryJson } from "./history";
 import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
+import type { Notices } from "./notices";
 import { boundedBytes } from "./outbound";
 import { PurchaseToolInput, purchaseToolResult } from "./purchase-tool";
 import { serviceCatalog } from "./service-providers";
@@ -38,6 +45,11 @@ import {
   TradeStatusInput,
   tradeToolResult,
 } from "./trading/tools";
+import { walletMonitorDependencies } from "./wallet-monitor";
+import {
+  workspaceToolDefinitions,
+  invokeWorkspaceTool,
+} from "./workspace-tools";
 
 const Envelope = Schema.Struct({
   jsonrpc: Schema.Literals(["2.0"]),
@@ -71,6 +83,18 @@ const TradingToolEnvelope = Schema.Struct({
   input: Schema.Unknown,
 });
 const tools = [
+  ...workspaceToolDefinitions.map((entry) => ({
+    name: `froggy_${entry.name}`,
+    description: entry.description,
+    inputSchema: inputSchema(entry.schema),
+    annotations: { readOnlyHint: !entry.writes },
+  })),
+  ...emailToolDefinitions.map((entry) => ({
+    name: entry.name,
+    description: entry.description,
+    inputSchema: inputSchema(entry.schema),
+    annotations: { readOnlyHint: entry.scope === "email:read" },
+  })),
   {
     name: "froggy_address_lookup",
     description:
@@ -155,7 +179,7 @@ const tools = [
   },
   ...TRADING_TOOL_DEFINITIONS.map((definition) => ({
     name: `froggy_${definition.name}`,
-    description: `${definition.description} Purchases one data operation under the person's spending rules. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
+    description: `${definition.description} Uses the displayed Froggy credits within the owner's credit limits. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
     inputSchema: inputSchema(
       Schema.Struct({
         idempotencyKey: definition.schema.fields.idempotencyKey,
@@ -187,6 +211,17 @@ const tools = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: "froggy_credits",
+    description:
+      "Read available and reserved Froggy credits and current usage limits. Only the owner can buy credits or change limits in Your money.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {},
+      type: "object",
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: "froggy_services",
     description: "List fixed-price services and availability before buying.",
     // Spelled out: an empty Effect struct renders as `anyOf [object, array]`,
@@ -201,7 +236,7 @@ const tools = [
   {
     name: "froggy_service_run",
     description:
-      "Purchase a service using the person's Froggy wallet under their spending rules. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
+      "Run a service using prepaid Froggy credits within the owner's credit limits. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
     inputSchema: inputSchema(PromptServiceRequest),
     annotations: {
       readOnlyHint: false,
@@ -212,14 +247,21 @@ const tools = [
   {
     name: "froggy_service_status",
     description:
-      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Status quoted or running means the payment is still settling; paid means the provider is working. Approval happens in Froggy, never through this tool.",
+      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Paid or running means credits are reserved while the provider works. Failed or canceled work returns credits; uncertain work holds them pending recovery. Approval happens in Froggy, never through this tool.",
     inputSchema: inputSchema(StatusInput),
     annotations: { readOnlyHint: true },
   },
 ];
 
 interface ToolResult {
-  readonly content: readonly { readonly type: "text"; readonly text: string }[];
+  readonly content: readonly (
+    | { readonly type: "text"; readonly text: string }
+    | {
+        readonly type: "image";
+        readonly mimeType: string;
+        readonly data: string;
+      }
+  )[];
   readonly isError: boolean;
 }
 type McpResult =
@@ -247,9 +289,20 @@ const invokeServiceCall = async (
   caller: TaskCaller,
   call: typeof Call.Type,
   onCreated: (id: TaskId) => void
-): Promise<ServiceTicket | { v: number; services: readonly ServiceCard[] }> => {
-  let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
+): Promise<
+  | ServiceTicket
+  | CreditSummary
+  | { v: number; services: readonly ServiceCard[] }
+> => {
+  let result:
+    | ServiceTicket
+    | CreditSummary
+    | { v: number; services: readonly ServiceCard[] };
   switch (call.name) {
+    case "froggy_credits": {
+      result = await services.store.credits.summary(caller.userId);
+      break;
+    }
     case "froggy_services": {
       result = { v: 1, services: serviceCatalog(services) };
       break;
@@ -270,6 +323,7 @@ const invokeServiceCall = async (
     case "froggy_watch_launches":
     case "froggy_market_search":
     case "froggy_token_inspect":
+    case "froggy_token_snapshot":
     case "froggy_rpc_read":
     case "froggy_quote_action":
     case "froggy_token_research": {
@@ -286,7 +340,7 @@ const invokeServiceCall = async (
         },
         Schema.decodeUnknownSync(TradingServiceRequest)({
           ...input,
-          v: 1,
+          v: 2,
           service: call.name.slice("froggy_".length),
         })
       );
@@ -469,11 +523,20 @@ const classifyCall = (name: string) => {
   if (name === "froggy_history") {
     scope = "history";
   }
+  const workspace = workspaceToolDefinitions.find(
+    (entry) => `froggy_${entry.name}` === name
+  );
+  if (workspace) {
+    ({ scope } = workspace);
+  }
+  const email = emailToolDefinitions.find((entry) => entry.name === name);
+  if (email) {
+    ({ scope } = email);
+  }
   return { isPurchase, isTrade, scope };
 };
-const invokeTool = async (
+const invokeEmailMcp = async (
   services: Services,
-  session: WorkspaceSession,
   caller: TaskCaller,
   call: typeof Call.Type
 ): Promise<ToolResult> =>
@@ -483,7 +546,157 @@ const invokeTool = async (
     "mcp",
     call.name,
     async (invocation) => {
+      try {
+        const text = await invokeEmailTool(
+          services,
+          caller.userId,
+          call.name,
+          Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
+          caller.scopes
+        );
+        if (call.name === "froggy_email_file_read") {
+          const attachment = await readEmailAttachment(
+            services,
+            caller.userId,
+            Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {})
+          );
+          invocation.outcome = "completed";
+          return {
+            content: [
+              { type: "text" as const, text: attachment.text },
+              ...attachment.images.map((image) => ({
+                type: "image" as const,
+                ...image,
+              })),
+            ],
+            isError: false,
+          };
+        }
+        invocation.outcome = "completed";
+        return { content: [{ type: "text", text }], isError: false };
+      } catch (error) {
+        invocation.outcome = "refused";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                error instanceof Error ? error.message : "Email tool refused.",
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+    {
+      input: { redacted: true },
+      output: () => ({
+        redacted: true,
+        reason: "Read through explicitly scoped email tools.",
+      }),
+    }
+  );
+
+const invokeWorkspaceMcp = async (
+  services: Services,
+  caller: TaskCaller,
+  call: typeof Call.Type,
+  notices?: Notices,
+  embeddedWallet?: string
+): Promise<ToolResult> =>
+  await trackAgentInvocation(
+    services,
+    caller,
+    "mcp",
+    call.name,
+    async (invocation) => {
+      try {
+        const definition = workspaceToolDefinitions.find(
+          (entry) => `froggy_${entry.name}` === call.name
+        );
+        const scopes = await connectionScopes(
+          services.store,
+          caller.userId,
+          caller.grantId ?? caller.agentTokenId
+        );
+        if (!definition || (scopes !== null && !scopes.has(definition.scope))) {
+          throw new Error(
+            `Explicit ${definition?.scope ?? "workspace"} permission is required. Reconnect in Agents.`
+          );
+        }
+        const result = await invokeWorkspaceTool(
+          services.store,
+          caller.userId,
+          caller.grantId ?? caller.agentTokenId,
+          call.name,
+          Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
+          notices,
+          walletMonitorDependencies(services),
+          embeddedWallet
+        );
+        invocation.outcome = "completed";
+        const text = JSON.stringify(result);
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                text.length <= 50_000
+                  ? text
+                  : "Result too large. Narrow your query.",
+            },
+          ],
+          isError: false,
+        };
+      } catch (error) {
+        invocation.outcome = "refused";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                error instanceof Error
+                  ? error.message
+                  : "Workspace operation refused.",
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+const invokeTool = async (
+  services: Services,
+  session: WorkspaceSession,
+  caller: TaskCaller,
+  call: typeof Call.Type,
+  notices?: Notices
+): Promise<ToolResult> => {
+  if (
+    workspaceToolDefinitions.some(
+      (entry) => `froggy_${entry.name}` === call.name
+    )
+  ) {
+    return await invokeWorkspaceMcp(
+      services,
+      caller,
+      call,
+      notices,
+      session.embeddedWallet?.address
+    );
+  }
+  if (call.name.startsWith("froggy_email_")) {
+    return await invokeEmailMcp(services, caller, call);
+  }
+  return await trackAgentInvocation(
+    services,
+    caller,
+    "mcp",
+    call.name,
+    async (invocation) => {
       const { isPurchase, isTrade, scope } = classifyCall(call.name);
+
       if (caller.scopes !== null && !caller.scopes.has(scope)) {
         invocation.outcome = "insufficient_scope";
         return {
@@ -634,15 +847,24 @@ const invokeTool = async (
     },
     {
       input: capturedInput(call),
-      output: (result) => decodeHistoryJson(JSON.stringify(result)),
+      output: (result) =>
+        call.name.startsWith("froggy_email_")
+          ? {
+              redacted: true,
+              reason:
+                "Email requires current email permission; read it through email tools.",
+            }
+          : decodeHistoryJson(JSON.stringify(result)),
     }
   );
+};
 
 export const handleMcp = async (
   services: Services,
   session: WorkspaceSession,
   caller: TaskCaller,
-  request: Request
+  request: Request,
+  notices?: Notices
 ): Promise<Response> => {
   const origin = request.headers.get("origin");
   if (
@@ -718,7 +940,16 @@ export const handleMcp = async (
     return respond({});
   }
   if (message.method === "tools/list") {
-    return respond({ tools });
+    const scopes = await connectionScopes(
+      services.store,
+      caller.userId,
+      caller.grantId ?? caller.agentTokenId
+    );
+    return respond({
+      tools: tools.filter(
+        (entry) => scopes === null || scopes.has(classifyCall(entry.name).scope)
+      ),
+    });
   }
   if (message.method !== "tools/call") {
     return error(-32_601, "Method not found");
@@ -728,5 +959,7 @@ export const handleMcp = async (
     await recordMcpDiagnostic(services, caller, "tool_parameters");
     return error(-32_602, "Invalid tool parameters");
   }
-  return respond(await invokeTool(services, session, caller, call.success));
+  return respond(
+    await invokeTool(services, session, caller, call.success, notices)
+  );
 };

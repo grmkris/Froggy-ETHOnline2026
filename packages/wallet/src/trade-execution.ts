@@ -156,7 +156,11 @@ const settlementRefusal = (
   const lastAction = trade.steps.findLast(
     (entry) => !["approve", "permit"].includes(entry.kind)
   );
-  if (lastAction?.id === step.id && trade.minimumOutput !== null) {
+  if (
+    trade.input.action !== "bridge" &&
+    lastAction?.id === step.id &&
+    trade.minimumOutput !== null
+  ) {
     if (settlement.output === null) {
       return "trade.output_unknown: the transaction confirmed but its proceeds could not be established.";
     }

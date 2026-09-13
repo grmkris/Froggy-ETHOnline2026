@@ -10,6 +10,7 @@ import type { TaskStatus } from "@froggy/domain";
 import type { FrogPose } from "@froggy/ui/components/frog-mark";
 
 const POSE: Record<TaskStatus, FrogPose> = {
+  cancelled: "stopped",
   awaiting_approval: "needs-user",
   done: "success",
   failed: "stopped",
@@ -21,6 +22,7 @@ const POSE: Record<TaskStatus, FrogPose> = {
 };
 
 const COPY: Record<TaskStatus, string> = {
+  cancelled: "Browsing stopped.",
   awaiting_approval: "One thing needs you.",
   done: "Done, and confirmed.",
   failed: "This failed. Nothing was paid.",

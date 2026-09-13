@@ -1,3 +1,5 @@
+import { BunRuntime } from "@effect/platform-bun";
+import type { UserId } from "@froggy/domain";
 /**
  * The Froggy server: one Bun process, one origin.
  *
@@ -10,8 +12,6 @@
  * Effect owns the lifecycle: configuration through `Config`, the server as an
  * acquired resource so Chrome and the socket are released together.
  */
-
-import { BunRuntime } from "@effect/platform-bun";
 import { WS_PROTOCOL } from "@froggy/protocol";
 import { Config, Context, Effect, Layer } from "effect";
 
@@ -27,8 +27,18 @@ import {
 import { AgentGrants } from "./grants";
 import type { GrantDeps } from "./grants";
 import { recordHistoryWait } from "./history-sources";
+import {
+  controlCurrentHostedBrowse,
+  hasHostedBrowse,
+  hostedBrowseBusy,
+  hostedBrowseFor,
+  recoverHostedBrowses,
+  subscribeHostedBrowses,
+  suspendHostedBrowses,
+} from "./hosted-browse";
 import { InteractionRegistry } from "./interactions";
 import { digestJob, promptJob, runScheduledFor } from "./jobs";
+import { createMonitoringRunner } from "./monitoring-runner";
 import { createNotices } from "./notices";
 import { PersonPolicies } from "./person-policies";
 import { createQuotes } from "./quotes";
@@ -47,8 +57,15 @@ import type { TelegramPager } from "./telegram/pager";
 import { LaunchReactor } from "./trading/reactions";
 import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
+import { walletVenueVerifier } from "./wallet-activity";
 import { chainIdHex } from "./wallet-call";
+import { walletMonitorDependencies } from "./wallet-monitor";
+import {
+  dispatchWalletAlerts,
+  runWalletMonitorWorker,
+} from "./wallet-monitor-worker";
 import { WalletRequests } from "./wallet-requests";
+import { enrichSavedItems } from "./watchlist-enrichment";
 import { Workspaces } from "./workspaces";
 
 /** How often idle browsers are looked for. Coarse on purpose; nothing waits on it. */
@@ -188,8 +205,21 @@ class FroggyServer extends Context.Service<
             outcome.kind === "answered" ? outcome.optionId : outcome.kind
           );
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
-            runs.abort(workspaces.for(userId).session.id);
-            interactions.abortAll(userId, "stopped from the approval card");
+            if (
+              hasHostedBrowse(userId) &&
+              input.request.runId === hostedBrowseFor(userId)?.id
+            ) {
+              await controlCurrentHostedBrowse(userId, "stop");
+            } else {
+              runs.abort(workspaces.for(userId).session.id);
+              if (input.request.runId !== undefined) {
+                interactions.abortRun(
+                  userId,
+                  input.request.runId,
+                  "Stopped from the approval card."
+                );
+              }
+            }
           }
           return outcome;
         },
@@ -198,14 +228,17 @@ class FroggyServer extends Context.Service<
         browserIdleMs: environment.browserIdleMs,
         createBrowser: services.createBrowser,
         demoUserId: environment.demoUserId,
-        isBusy: (sessionId) => runs.get(sessionId) !== null,
+        isBusy: (sessionId) =>
+          runs.get(sessionId) !== null || hostedBrowseBusy(sessionId),
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
         modes: environment.modes,
         onBrowserPayment: (userId, request) => {
           detached("browser purchase", async () => {
             const workspace = await workspaces.hydrate(userId);
-            const run = runs.get(workspace.session.id);
+            const run = hasHostedBrowse(userId)
+              ? hostedBrowseFor(userId)
+              : runs.get(workspace.session.id);
             await services.purchases.observe(
               {
                 session: workspace.session,
@@ -311,6 +344,7 @@ class FroggyServer extends Context.Service<
       );
 
       const walletRequests = new WalletRequests({
+        browserRun: (userId) => hostedBrowseFor(userId),
         appOrigin: environment.appOrigin,
         ask: async (userId, input) => {
           await recordHistoryWait(
@@ -328,8 +362,21 @@ class FroggyServer extends Context.Service<
             outcome.kind === "answered" ? outcome.optionId : outcome.kind
           );
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
-            runs.abort(workspaces.for(userId).session.id);
-            interactions.abortAll(userId, "stopped from the approval card");
+            if (
+              hasHostedBrowse(userId) &&
+              input.request.runId === hostedBrowseFor(userId)?.id
+            ) {
+              await controlCurrentHostedBrowse(userId, "stop");
+            } else {
+              runs.abort(workspaces.for(userId).session.id);
+              if (input.request.runId !== undefined) {
+                interactions.abortRun(
+                  userId,
+                  input.request.runId,
+                  "Stopped from the approval card."
+                );
+              }
+            }
           }
           return outcome;
         },
@@ -396,6 +443,22 @@ class FroggyServer extends Context.Service<
         policies === undefined ? socketDeps : { ...socketDeps, policies }
       );
 
+      const unsubscribeBrowse = subscribeHostedBrowses(sockets.publishApp);
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribeBrowse));
+      yield* Effect.promise(async () => {
+        await recoverHostedBrowses({
+          budget,
+          interactions,
+          notices,
+          oracleUrl,
+          runs,
+          services,
+          tasksUrl: `${environment.appOrigin}/api/tasks`,
+          unlocks,
+          workspaces,
+        });
+      });
+
       // Browsers nobody is watching or driving are released on a slow clock.
       // The profile stays; only the process goes, so eight seats serve more
       // than eight people over an afternoon.
@@ -430,7 +493,63 @@ class FroggyServer extends Context.Service<
               workspaces,
             })
           : stubTelegramPager();
+      yield* Effect.addFinalizer(() => Effect.promise(pager.shutdown));
       sinks.pager = pager;
+      const walletMonitorDeps = (["eip155:8453", "eip155:4663"] as const).map(
+        (network) => ({
+          ...walletMonitorDependencies(services, network),
+          verifier: walletVenueVerifier(services.trading.rpc, network),
+          appUrl: environment.appOrigin,
+          deliver: pager.deliverWalletAlert,
+          invalidate: (owner: UserId) => {
+            sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
+          },
+        })
+      );
+      const walletStreamController = new AbortController();
+      for (const monitor of walletMonitorDeps) {
+        yield* Effect.promise(
+          async () =>
+            await services.store.walletActivity.transact(
+              async (tx) => await Promise.resolve(tx.checkpoint),
+              monitor.network
+            )
+        );
+      }
+      const walletStreamTask = Promise.all(
+        walletMonitorDeps.map(async (monitor) => {
+          await runWalletMonitorWorker(monitor, walletStreamController.signal);
+        })
+      );
+      let walletDeliveryTask: Promise<unknown> | null = null;
+      const dispatchWalletTick = async (): Promise<void> => {
+        try {
+          await Promise.all(
+            walletMonitorDeps.map(async (monitor) => {
+              await dispatchWalletAlerts(monitor);
+            })
+          );
+        } catch {
+          console.error(
+            "Onchain alert dispatch failed; saved delivery state retained."
+          );
+        } finally {
+          walletDeliveryTask = null;
+        }
+      };
+      const walletAlertTick = setInterval(() => {
+        if (walletDeliveryTask || walletStreamController.signal.aborted) {
+          return;
+        }
+        walletDeliveryTask = dispatchWalletTick();
+      }, 1000);
+      const closeWalletMonitoring = async (): Promise<void> => {
+        clearInterval(walletAlertTick);
+        walletStreamController.abort();
+        await walletStreamTask;
+        await walletDeliveryTask;
+      };
+      yield* Effect.addFinalizer(() => Effect.promise(closeWalletMonitoring));
 
       // Reminders, scheduled prompts and the digest, on one clock. A run
       // happens unattended, under the person's own mandate, with nobody to
@@ -472,9 +591,40 @@ class FroggyServer extends Context.Service<
         },
         store: services.store,
       });
+      const monitoringRunner = createMonitoringRunner({
+        budget,
+        interactions,
+        notices,
+        oracleUrl,
+        runs,
+        services,
+        tasksUrl: `${environment.appOrigin}/api/tasks`,
+        unlocks,
+        workspaces,
+      });
       const scheduleTick = setInterval(() => {
         detached("schedule tick", async () => {
           await ticker.tick();
+          await monitoringRunner.tick();
+          const enrichmentOwners = await services.store.watchlistData.owners();
+          await Promise.all(
+            enrichmentOwners.map(async (owner) => {
+              await enrichSavedItems(
+                {
+                  budget,
+                  interactions,
+                  notices,
+                  oracleUrl,
+                  runs,
+                  services,
+                  tasksUrl: `${environment.appOrigin}/api/tasks`,
+                  unlocks,
+                  workspaces,
+                },
+                owner
+              );
+            })
+          );
         });
       }, SCHEDULE_TICK_MS);
 
@@ -546,19 +696,42 @@ class FroggyServer extends Context.Service<
         },
       });
       const tradeTick = setInterval(() => {
-        detached("trade recovery", tradeRecovery.tick);
+        detached("trade recovery", async () => {
+          await tradeRecovery.tick();
+          const owners = await services.store.cards.pendingOwners();
+          await Promise.all(
+            owners.map(async (owner) => {
+              const checkouts = await services.cards.pending(owner);
+              await Promise.all(
+                checkouts.map(async (id) => {
+                  await services.cards.refresh(owner, id);
+                })
+              );
+            })
+          );
+        });
       }, 15_000);
       detached("trade recovery at startup", tradeRecovery.tick);
       detached("service task recovery at startup", async () => {
         await recoverOrphanedServiceTasks(services);
       });
+      const emailTick = setInterval(() => {
+        detached("email cleanup", async () => {
+          await services.email?.maintain();
+        });
+      }, 60_000);
+      detached("email cleanup at startup", async () => {
+        await services.email?.maintain();
+      });
       const walletTick = setInterval(() => {
         detached("wallet recovery", async () => {
           await walletRequests.recover();
+          await services.creditFunding.recover();
         });
       }, 15_000);
       detached("wallet recovery at startup", async () => {
         await walletRequests.recover();
+        await services.creditFunding.recover();
       });
 
       const baseRouterDeps: RouterDeps = {
@@ -660,9 +833,12 @@ class FroggyServer extends Context.Service<
             await reactions.close();
             clearInterval(tradeTick);
             await tradeRecovery.close();
+            clearInterval(emailTick);
             clearInterval(walletTick);
             await running.stop(true);
-            await workspaces.closeAll();
+            const preserved = await suspendHostedBrowses();
+            await workspaces.closeAll(preserved);
+            await closeWalletMonitoring();
             await services.shutdown();
           })
       );

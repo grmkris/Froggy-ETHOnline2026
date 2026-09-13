@@ -4,10 +4,8 @@
  *
  * Built for Node 20 and Bun alike, because it runs in whatever sandbox a
  * personal agent has: Hermes' Docker terminal, a Claude Code shell, a laptop.
- * It is a real x402 client whose signer is the person's Froggy wallet: the 402
- * comes back, the wallet endpoint signs a header under the person's mandate,
- * the request is retried with it, and the task id that comes back is polled
- * until the task ends. The agent never holds a key.
+ * Each authenticated task reserves prepaid credits and returns a durable id.
+ * The owner buys credits in Froggy using x402; the agent never holds a key.
  *
  * It signs in the way an MCP client does: `login` sends the person to
  * Froggy's consent page in their browser (or prints the link, with
@@ -16,8 +14,7 @@
  * refreshing them before they expire. `FROGGY_TOKEN` still works for an
  * unattended agent with a token the person minted.
  *
- * Nothing here decides money. A refusal from the wallet is printed in the
- * wallet's words and the command exits non-zero.
+ * The server enforces credit limits. A refusal is printed as returned.
  */
 
 import { spawn } from "node:child_process";
@@ -32,6 +29,7 @@ import { createInterface } from "node:readline";
 import { createInterface as createPrompt } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { OAUTH_SCOPES, OAuthScope } from "@froggy/domain";
 import { Predicate, Schema } from "effect";
 
 const Ticket = Schema.Struct({ id: Schema.String, title: Schema.String });
@@ -42,12 +40,13 @@ const Task = Schema.Struct({
   kind: Schema.String,
   result: Schema.NullOr(Schema.Unknown),
   saleId: Schema.NullOr(Schema.String),
+  chargeId: Schema.optional(Schema.String),
+  chargeStatus: Schema.optional(Schema.String),
+  priceCreditUnits: Schema.optional(Schema.Int),
   status: Schema.String,
 });
 type Task = typeof Task.Type;
 const TaskEnvelope = Schema.Struct({ task: Task });
-const Signed = Schema.Struct({ header: Schema.String });
-const Refusal = Schema.Struct({ error: Schema.String });
 
 /** What a login leaves behind. Never printed. */
 const Credentials = Schema.Struct({
@@ -80,8 +79,6 @@ const OAuthError = Schema.Struct({
 });
 
 const decodeTask = Schema.decodeUnknownResult(TaskEnvelope);
-const decodeSigned = Schema.decodeUnknownResult(Signed);
-const decodeRefusal = Schema.decodeUnknownResult(Refusal);
 const decodeCredentials = Schema.decodeUnknownResult(Credentials);
 const decodeMetadata = Schema.decodeUnknownResult(Metadata);
 const decodeRegistered = Schema.decodeUnknownResult(Registered);
@@ -99,6 +96,7 @@ interface Options {
   readonly json: boolean;
   readonly manual: boolean;
   readonly requestKey: string;
+  readonly scopes: string;
   readonly url: string;
   readonly wait: boolean;
 }
@@ -123,14 +121,16 @@ const CREDENTIALS_PATH = path.join(
 
 const usage = `froggy — let Froggy do a paid task for you
 
-  froggy login [--url=<froggy>] [--manual]   sign in with the person's Froggy account
+  froggy login [--url=<froggy>] [--manual] [--all-tools]
+                                 sign in with the person's Froggy account
   froggy logout                  revoke this sign-in and forget it
   froggy brief <SYMBOL>          a lending brief: cheapest borrow and best supply
                                  for one token across twelve standardized markets
   froggy ask "<instruction>"     a browse on the person's own Chrome, under their mandate
   froggy status <task id>        where a task is, its result and its receipts
   froggy tasks                   recent tasks
-  froggy services                service catalog and prices
+  froggy credits                 available balance and credit limits
+  froggy services                service catalog and credit prices
   froggy service <name> "<text>"   buy a service (returns a ticket)
   froggy service-status <id>      read a service result
   froggy mcp                     MCP stdio bridge for agent clients
@@ -141,11 +141,13 @@ paste the code the page shows. Credentials live in ~/.config/froggy/credentials.
 (mode 600) and refresh themselves. FROGGY_URL names the server when --url is not
 given; FROGGY_TOKEN, a token the person minted, overrides the sign-in entirely.
 Flags: --json, --no-wait, --idempotency-key=<stable-request-id> (reuse for the
-same request).
+same request). Login accepts --all-tools to request every supported permission,
+or --scopes="browse pay email:read" for a smaller set. Both use the person's
+consent screen; neither changes spending limits or existing grants.
 
-A task is paid in HBAR from the person's Froggy wallet before it runs; the
-receipt and the sale id come back with the task. If the wallet refuses, the
-refusal is printed in the wallet's words and nothing is charged.`;
+Paid tasks use Froggy credits: 100 credits = $1. The owner buys credits with
+USDC or HBAR in Your money. Failed or canceled work returns reserved credits;
+uncertain execution holds credits until recovery confirms the outcome.`;
 
 const fail = (message: string): never => {
   console.error(message);
@@ -160,6 +162,25 @@ const flagValue = (flags: ReadonlySet<string>, name: string): string | null =>
   [...flags]
     .find((flag) => flag.startsWith(`${name}=`))
     ?.slice(name.length + 1) ?? null;
+
+const requestedScopes = (flags: ReadonlySet<string>): string => {
+  const selected = flagValue(flags, "--scopes");
+  if (flags.has("--all-tools")) {
+    if (selected !== null) {
+      return fail("Choose --all-tools or --scopes, not both.");
+    }
+    return OAUTH_SCOPES.join(" ");
+  }
+  if (selected === null) {
+    return SCOPES;
+  }
+  const values = [...new Set(selected.trim().split(/[\s,]+/u))];
+  const decoded = Schema.decodeUnknownResult(Schema.Array(OAuthScope))(values);
+  if (decoded._tag === "Failure" || values.length === 0) {
+    return fail(`Supported scopes: ${OAUTH_SCOPES.join(" ")}`);
+  }
+  return decoded.success.join(" ");
+};
 
 const trimUrl = (url: string): string => url.replace(/\/+$/u, "");
 
@@ -221,6 +242,7 @@ const optionsFrom = async (argv: readonly string[]): Promise<Parsed> => {
       json: flags.has("--json"),
       manual: flags.has("--manual"),
       requestKey: flagValue(flags, "--idempotency-key") ?? crypto.randomUUID(),
+      scopes: requestedScopes(flags),
       url,
       wait: !flags.has("--no-wait"),
     },
@@ -583,7 +605,7 @@ const login = async (options: Options): Promise<void> => {
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
-  authorize.searchParams.set("scope", SCOPES);
+  authorize.searchParams.set("scope", options.scopes);
   authorize.searchParams.set("state", state);
   authorize.searchParams.set("resource", `${url}/mcp`);
   console.error(
@@ -658,50 +680,19 @@ const taskOf = async (response: Response): Promise<Task> => {
   return decoded.success.task;
 };
 
-/** POST the task, pay the 402 with the person's wallet, POST again. */
+/** One authenticated request reserves credits; reusing the key returns the same task. */
 const submit = async (
   options: Options,
   body: Record<string, string>
 ): Promise<Task> => {
-  const idempotencyKey = options.requestKey;
-  const first = await api(options, "/api/tasks", {
-    body: JSON.stringify({ ...body, idempotencyKey }),
+  const response = await api(options, "/api/tasks", {
+    body: JSON.stringify({ ...body, v: 2, idempotencyKey: options.requestKey }),
     method: "POST",
   });
-  if (first.status !== 402) {
-    if (!first.ok) {
-      return fail(`Froggy answered ${first.status}: ${await first.text()}`);
-    }
-    return await taskOf(first);
+  if (!response.ok) {
+    return fail(`Froggy answered ${response.status}: ${await response.text()}`);
   }
-  const challenge: unknown = await first.json();
-  const signed = await api(options, "/api/wallet/pay", {
-    body: JSON.stringify({ challenge }),
-    method: "POST",
-  });
-  const signedBody: unknown = await signed.json();
-  if (!signed.ok) {
-    // The wallet's refusal in its own words when the body carries one.
-    const refusal = decodeRefusal(signedBody);
-    const reason =
-      refusal._tag === "Failure"
-        ? `status ${signed.status}`
-        : refusal.success.error;
-    return fail(`The wallet did not pay: ${reason}`);
-  }
-  const header = decodeSigned(signedBody);
-  if (header._tag === "Failure") {
-    return fail("The wallet answered without a payment header.");
-  }
-  const paid = await api(options, "/api/tasks", {
-    body: JSON.stringify({ ...body, idempotencyKey }),
-    headers: { "x-payment": header.success.header },
-    method: "POST",
-  });
-  if (!paid.ok) {
-    return fail(`Froggy did not accept the payment: ${await paid.text()}`);
-  }
-  return await taskOf(paid);
+  return await taskOf(response);
 };
 
 const show = (task: Task, options: Options): void => {
@@ -721,6 +712,11 @@ const show = (task: Task, options: Options): void => {
   }
   if (task.status === "done" && task.result !== null) {
     console.log(JSON.stringify(task.result, null, 2));
+  }
+  if (task.chargeId !== undefined) {
+    console.log(
+      `  credits ${(task.priceCreditUnits ?? 0) / 10_000}: ${task.chargeStatus ?? "reserved"} (${task.chargeId})`
+    );
   }
   if (task.saleId !== null) {
     console.log(`  sale ${task.saleId}`);
@@ -789,6 +785,14 @@ const serviceCommand = async (
       }
       return true;
     }
+    case "credits": {
+      const response = await api(options, "/api/credits");
+      console.log(await response.text());
+      if (!response.ok) {
+        process.exitCode = 1;
+      }
+      return true;
+    }
     case "services": {
       const response = await api(options, "/api/services");
       console.log(await response.text());
@@ -802,7 +806,7 @@ const serviceCommand = async (
       const response = await api(options, "/api/services/run", {
         method: "POST",
         body: JSON.stringify({
-          v: 1,
+          v: 2,
           service,
           prompt: words.join(" "),
           idempotencyKey: options.requestKey,

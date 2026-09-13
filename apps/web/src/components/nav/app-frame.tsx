@@ -27,8 +27,8 @@ export const AppFrame = ({
     <div
       className={
         wide
-          ? "flex h-dvh"
-          : "flex h-dvh flex-col pb-[calc(5.25rem+env(safe-area-inset-bottom))]"
+          ? "workspace-frame flex h-dvh"
+          : "workspace-frame flex h-dvh flex-col pb-[calc(5.25rem+env(safe-area-inset-bottom))]"
       }
     >
       {wide ? <AppRail waiting={waiting} /> : null}

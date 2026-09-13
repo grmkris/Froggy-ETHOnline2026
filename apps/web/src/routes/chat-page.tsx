@@ -1,7 +1,14 @@
-import type { BrowserState } from "@froggy/protocol";
-import { Field, FieldLabel } from "@froggy/ui/components/field";
+import type { BrowserState, BrowseTaskView } from "@froggy/protocol";
+import { Button } from "@froggy/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@froggy/ui/components/sheet";
 import { Skeleton } from "@froggy/ui/components/skeleton";
-import { Switch } from "@froggy/ui/components/switch";
+import { Link } from "@tanstack/react-router";
+import { XIcon } from "lucide-react";
 /**
  * The conversation: the stream with the ledger filed into it and the live
  * page under the turn that opened it, the composer beneath.
@@ -10,7 +17,7 @@ import { Switch } from "@froggy/ui/components/switch";
  * own. Either way it is the same card, and the same painter, with more room.
  */
 import { useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { SplitPane } from "../components/browser/browser-split-pane";
 import { BrowserStrip } from "../components/browser/browser-strip";
@@ -18,14 +25,19 @@ import {
   driveModeOf,
   LiveBrowserCard,
 } from "../components/browser/live-browser-card";
-import { ChatToolbar } from "../components/chat/chat-toolbar";
 import { ComposerStack } from "../components/chat/composer-stack";
+import { HomeSummary } from "../components/chat/home-summary";
 import { LiveCardSlot } from "../components/chat/live-card-slot";
 import { ConversationHeader } from "../components/chat/recent-conversations";
+import { EmailThread } from "../components/email/email-thread";
 import { EmptyState } from "../components/stream/empty-state";
 import { Stream } from "../components/stream/stream";
+import { SaveItem } from "../components/watchlist/item-form";
+import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useConnectionLock } from "../hooks/use-connection-lock";
+import { useMediaQuery } from "../hooks/use-media-query";
 import { useChatSurface } from "../lib/chat-context";
+import { useEmailStatus } from "../lib/email-client";
 import { scrollToLive } from "../lib/scroll-to-live";
 import { applySlash } from "../lib/slash";
 import {
@@ -36,6 +48,15 @@ import {
 } from "../lib/stream-model";
 import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 import { useWorkspace } from "../lib/workspace-context";
+
+const showInlineBrowser = (show: boolean, phone: boolean): boolean =>
+  show && !phone;
+
+const showWatchlistPane = (
+  roomy: boolean,
+  open: boolean,
+  split: boolean
+): boolean => roomy && open && !split;
 
 const hasLivePage = (
   state: BrowserState | null,
@@ -63,6 +84,73 @@ const historyDisabled = (
   }
   return connectionLock;
 };
+const isEmptyConversation = (
+  mailbox: boolean,
+  messages: number,
+  busy: boolean,
+  requested: boolean,
+  mode: string
+): boolean =>
+  !mailbox && messages === 0 && !busy && !requested && mode === "inline";
+const automaticallyShowBrowser = (
+  state: BrowserState | null,
+  tasks: readonly BrowseTaskView[],
+  lastTurn: string | null
+): boolean =>
+  state?.cloud === undefined &&
+  !tasks.some((task) => task.browse?.executor === "hosted") &&
+  hasLivePage(state, lastTurn);
+
+const MobileBrowser = ({
+  phone,
+  open,
+  close,
+  waiting,
+  children,
+}: {
+  readonly waiting: number;
+  readonly phone: boolean;
+  readonly open: boolean;
+  readonly close: () => void;
+  readonly children: ReactNode;
+}): ReactElement | null => {
+  if (!phone) {
+    return null;
+  }
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          close();
+        }
+      }}
+    >
+      <SheetContent className="h-dvh! w-full! max-w-none!" side="bottom">
+        <div className="px-4 pt-4 pr-16">
+          <SheetTitle>Watch live</SheetTitle>
+          <SheetDescription>
+            Watch the shared browser. Use a desktop to interact with the page.
+          </SheetDescription>
+        </div>
+        {waiting > 0 ? (
+          <output className="border-border mx-2 flex items-center justify-between gap-3 rounded-xl border p-3">
+            <span className="text-sm">An approval needs your attention.</span>
+            <Button
+              className="min-h-11 shrink-0"
+              onClick={close}
+              variant="outline"
+            >
+              Review approval
+            </Button>
+          </output>
+        ) : null}
+        <div className="min-h-0 flex-1 overflow-auto p-2">{children}</div>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
 export const ChatPage = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
   const {
@@ -70,11 +158,11 @@ export const ChatPage = (): ReactElement => {
     historyLoading,
     historyError,
     historyReceipts,
-    crossThreadHistory,
-    setCrossThreadHistory,
+    watchlistOpen,
+    setWatchlistOpen,
     browser,
     browserRequested,
-    showBrowser,
+    hideBrowser,
     busy,
     chat,
     chatNotices,
@@ -85,6 +173,7 @@ export const ChatPage = (): ReactElement => {
     split,
     stopRun,
   } = useChatSurface();
+  const roomy = useMediaQuery("(min-width: 1280px)");
   const [liveVisible, setLiveVisible] = useState(true);
   const connectionLock = useConnectionLock(app.connected);
 
@@ -123,7 +212,13 @@ export const ChatPage = (): ReactElement => {
   const showLive =
     browserRequested ||
     popOut.mode === "window" ||
-    hasLivePage(browser.state, liveAfter);
+    automaticallyShowBrowser(browser.state, app.browseTasks, liveAfter);
+  const browserSplit = roomy && popOut.mode === "split" && showLive;
+  const watchlistVisible = showWatchlistPane(
+    roomy,
+    watchlistOpen,
+    browserSplit
+  );
   const currentUrl = activeUrl(browser.state);
 
   const card = (fill: boolean): ReactElement => (
@@ -136,7 +231,7 @@ export const ChatPage = (): ReactElement => {
       popOut={{
         handleDock: popOut.mode === "split" ? popOut.handleDock : null,
         handleSplit:
-          popOut.mode === "inline" && !phone ? popOut.handleSplit : null,
+          popOut.mode === "inline" && roomy ? popOut.handleSplit : null,
         handleToWindow: phone ? null : popOut.handleToWindow,
       }}
       send={browser.send}
@@ -152,22 +247,29 @@ export const ChatPage = (): ReactElement => {
   );
   // Loading earlier receipts or restoring Chrome must not dismiss onboarding.
   // Only work in this conversation or an explicit browser action replaces it.
-  const firstUse =
-    chat.messages.length === 0 &&
-    !busy &&
-    !browserRequested &&
-    popOut.mode === "inline";
+  const emailStatus = useEmailStatus();
+  const mailboxConversation =
+    emailStatus.data?.mailbox?.conversationId === conversationId;
+  const firstUse = isEmptyConversation(
+    mailboxConversation,
+    chat.messages.length,
+    busy,
+    browserRequested,
+    popOut.mode
+  );
 
   return (
     <div className="flex min-h-0 flex-1">
+      <MobileBrowser
+        phone={phone}
+        open={browserRequested}
+        close={hideBrowser}
+        waiting={app.approvals.length + pendingPurchases}
+      >
+        {card(true)}
+      </MobileBrowser>
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <ChatToolbar
-          drive={drive}
-          onShowBrowser={() => {
-            showBrowser();
-            scrollToLive();
-          }}
-        />
+        {firstUse ? <HomeSummary /> : null}
         {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
           // Over the stream, not in the column: its arrival moves nothing.
           <div className="pointer-events-none absolute inset-x-0 top-12 z-20 px-4">
@@ -195,18 +297,17 @@ export const ChatPage = (): ReactElement => {
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 data-slot="chat-welcome-scroll"
               >
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-12">
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-8">
                   <EmptyState
                     disabled={disabledReason !== null}
-                    modes={app.modes}
                     onSend={send}
-                    wallet={app.wallet}
                   />
                 </div>
               </div>
             ) : (
               <Stream
                 key={conversationId}
+                context={<EmailThread conversationId={conversationId} />}
                 asking={app.approvals.length > 0 || pendingPurchases > 0}
                 busy={busy}
                 items={items}
@@ -214,10 +315,12 @@ export const ChatPage = (): ReactElement => {
                 liveCard={
                   <LiveCardSlot
                     card={card(false)}
-                    mode={popOut.mode}
+                    mode={
+                      popOut.mode === "split" && !roomy ? "inline" : popOut.mode
+                    }
                     onDock={popOut.handleDock}
                     onVisible={setLiveVisible}
-                    show={showLive}
+                    show={showInlineBrowser(showLive, phone)}
                   />
                 }
                 onRetry={(messageId) => {
@@ -232,18 +335,6 @@ export const ChatPage = (): ReactElement => {
             )}
           </div>
         )}
-        <Field className="mx-auto max-w-3xl px-4 py-1" orientation="horizontal">
-          <Switch
-            checked={crossThreadHistory}
-            id="history-scope"
-            onCheckedChange={(checked) => {
-              setCrossThreadHistory(checked);
-            }}
-          />
-          <FieldLabel className="text-muted-foreground" htmlFor="history-scope">
-            Allow searching my other conversations
-          </FieldLabel>
-        </Field>
         <ComposerStack
           app={app}
           busy={busy}
@@ -260,9 +351,40 @@ export const ChatPage = (): ReactElement => {
           suggestions={suggestions}
         />
       </div>
-      {popOut.mode === "split" && showLive ? (
+      {watchlistVisible ? (
+        <aside
+          aria-label="Watchlist pane"
+          className="border-border bg-muted/30 flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l p-5 2xl:w-96"
+        >
+          <div className="flex items-center justify-between">
+            <Link
+              to="/watchlist"
+              className="text-lg font-semibold tracking-tight"
+            >
+              Watchlist
+            </Link>
+            <Button
+              aria-label="Close watchlist"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setWatchlistOpen(false);
+              }}
+            >
+              <XIcon />
+            </Button>
+          </div>
+          <p className="text-muted-foreground -mt-3 text-xs">
+            Good things to come back to.
+          </p>
+          <WatchlistItems compact />
+          <SaveItem />
+        </aside>
+      ) : null}
+      {browserSplit ? (
         <SplitPane
           onPointerDownHandle={split.handlePointerDown}
+          onKeyDownHandle={split.handleKeyDown}
           width={split.width}
         >
           {card(true)}

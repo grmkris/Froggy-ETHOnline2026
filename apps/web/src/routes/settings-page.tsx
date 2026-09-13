@@ -1,6 +1,5 @@
+import { Button, buttonVariants } from "@froggy/ui/components/button";
 /** The account: the daily digest, the plumbing, paid endpoints, and the way out. */
-
-import { Button } from "@froggy/ui/components/button";
 import {
   Card,
   CardContent,
@@ -8,14 +7,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@froggy/ui/components/card";
+import { Link } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
+import { EmailAccount } from "../components/email/email-account";
 import { Page } from "../components/nav/page";
 import { AppearanceSettings } from "../components/settings/appearance-settings";
 import { ConnectionDetails } from "../components/settings/connection-details";
 import { DeleteData } from "../components/settings/delete-data";
 import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
+import { PaymentMethodsPanel } from "../components/settings/payment-methods";
 import { ScheduleList } from "../components/settings/schedule-list";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
@@ -29,11 +31,35 @@ export const SettingsPage = (): ReactElement => {
       title="Account"
       wide
     >
+      <nav
+        aria-label="Account sections"
+        className="text-muted-foreground flex flex-wrap gap-x-5 gap-y-2 border-b pb-4 text-sm"
+      >
+        {[
+          ["email", "Email"],
+          ["payment-methods", "Payment methods"],
+          ["routines", "Routines"],
+          ["spending", "Spending controls"],
+          ["appearance", "Appearance"],
+          ["account", "Your account"],
+        ].map(([id, label]) => (
+          <a
+            className="hover:text-brand focus-visible:outline-ring inline-flex min-h-11 items-center focus-visible:outline-2"
+            key={id}
+            href={`#${id}`}
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-6">
-          <Card>
+          <section id="email" className="scroll-mt-6">
+            <EmailAccount />
+          </section>
+          <Card id="routines" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Reminders</CardTitle>
+              <CardTitle>Routines</CardTitle>
               <CardDescription>
                 What Froggy does on its own: the daily digest, and anything you
                 asked it to remind you of or run later. Sent to Telegram when it
@@ -58,9 +84,10 @@ export const SettingsPage = (): ReactElement => {
           </Card>
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <Card>
+          <PaymentMethodsPanel />
+          <Card id="spending" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Connection</CardTitle>
+              <CardTitle>Spending controls</CardTitle>
               <CardDescription>
                 The signer, the session, and the rules your agent is held to.
               </CardDescription>
@@ -73,10 +100,12 @@ export const SettingsPage = (): ReactElement => {
               />
             </CardContent>
           </Card>
-          <AppearanceSettings />
-          <Card>
+          <section id="appearance" className="scroll-mt-6">
+            <AppearanceSettings />
+          </section>
+          <Card id="account" className="scroll-mt-6">
             <CardHeader>
-              <CardTitle>Account</CardTitle>
+              <CardTitle>Your account</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {identity.stubbed ? null : (
@@ -90,6 +119,12 @@ export const SettingsPage = (): ReactElement => {
                   Sign out
                 </Button>
               )}
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                to="/welcome"
+              >
+                Show the welcome again
+              </Link>
               <DeleteData onConfirm={deleteMyData} />
             </CardContent>
           </Card>

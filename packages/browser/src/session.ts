@@ -323,6 +323,41 @@ export class BrowserSession implements BrowserHandle {
     return value;
   }
 
+  async checkoutFrames(): Promise<{
+    readonly merchant: string;
+    readonly hosts: readonly string[];
+  }> {
+    const tab = this.tabs.activeTab;
+    if (tab === null) {
+      throw new Error("The checkout tab is unavailable.");
+    }
+    interface FrameTree {
+      readonly frame: { readonly url: string };
+      readonly childFrames?: readonly FrameTree[];
+    }
+    const reply = await tab.cdp.send<{ readonly frameTree: FrameTree }>(
+      "Page.getFrameTree"
+    );
+    const top = new URL(reply.frameTree.frame.url);
+    if (top.protocol !== "https:") {
+      throw new Error("Card checkout requires HTTPS.");
+    }
+    const hosts = new Set<string>();
+    const pending: FrameTree[] = [reply.frameTree];
+    let count = 0;
+    while (pending.length > 0) {
+      const frame = pending.pop();
+      count += 1;
+      if (frame === undefined || count > 64) {
+        throw new Error("The payment frame tree exceeds the inspection limit.");
+      }
+      if (frame.frame.url.startsWith("https://")) {
+        hosts.add(new URL(frame.frame.url).hostname);
+      }
+      pending.push(...(frame.childFrames ?? []));
+    }
+    return { merchant: top.hostname, hosts: [...hosts] };
+  }
   async agentType(text: string): Promise<void> {
     await this.arbiter.withAgentControl(async () => {
       const tab = this.tabs.activeTab;

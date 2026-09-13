@@ -1,5 +1,8 @@
+import type { WatchlistDataStore } from "./watchlist-data-store";
+import { memoryWatchlistDataStore } from "./watchlist-data-store";
 import {
   AgentInvocation,
+  quotePaymentState,
   ConversionId,
   Mandate,
   Purchase,
@@ -50,12 +53,21 @@ import type {
  */
 import { Result, Schema } from "effect";
 
+import { memoryCardStore } from "./card-store";
+import type { CardStore } from "./card-store";
+import type { CreditStore } from "./credit-store";
+import { memoryCreditStore } from "./credit-store-memory";
 import type { HistoryStore } from "./history-store";
 import { memoryHistoryStore } from "./history-store";
 import { memoryLaunchStore } from "./launch-store";
 import type { LaunchStore } from "./launch-store";
+import { memoryMonitoringStore } from "./monitoring-store";
+import type { MonitoringStore } from "./monitoring-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
+import type { WalletActivityStore } from "./wallet-activity-store";
+import { memoryWalletActivityStores } from "./wallet-activity-store-memory";
+import type { WatchlistStore } from "./watchlist-store";
 
 /** A token row with the one field the domain record leaves out. */
 interface AgentTokenRow extends AgentToken {
@@ -122,6 +134,9 @@ type TaskPatch = Partial<
     | "result"
     | "runId"
     | "saleId"
+    | "chargeId"
+    | "priceCreditUnits"
+    | "chargeStatus"
     | "status"
   >
 > & { readonly updatedAt: number };
@@ -257,6 +272,7 @@ export interface OwnedWalletRequest {
 export const BrowserProfileRecord = Schema.Struct({
   profileId: Schema.String.check(Schema.isUUID()),
   browserId: Schema.NullOr(Schema.String.check(Schema.isUUID())),
+  apiVersion: Schema.optional(Schema.Literals([3, 4])),
   uncertain: Schema.Boolean,
   usage: Schema.optional(
     Schema.Struct({
@@ -274,6 +290,7 @@ export const BrowserProfileRecord = Schema.Struct({
 export type BrowserProfileRecord = typeof BrowserProfileRecord.Type;
 
 export interface Store {
+  readonly credits: CreditStore;
   readonly browsers: {
     readonly load: (userId: UserId) => Promise<BrowserProfileRecord | null>;
     readonly save: (
@@ -281,7 +298,12 @@ export interface Store {
       record: BrowserProfileRecord
     ) => Promise<void>;
   };
+  readonly watchlist: WatchlistStore;
+  readonly watchlistData: WatchlistDataStore;
+  readonly walletActivity: WalletActivityStore;
+  readonly monitoring: MonitoringStore;
   readonly history: HistoryStore;
+  readonly cards: CardStore;
   readonly trading: TradingStore;
   readonly launches: LaunchStore;
   readonly purchases: {
@@ -429,6 +451,9 @@ export interface Store {
   };
   /** Delegated tasks, per person. A key seen before returns the earlier task. */
   readonly tasks: {
+    readonly activeBrowses: () => Promise<
+      readonly { readonly userId: UserId; readonly task: Task }[]
+    >;
     readonly claim: (
       userId: UserId,
       id: TaskId,
@@ -725,6 +750,9 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
 export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
+  const watchlistData = memoryWatchlistDataStore();
+  const monitoring = memoryMonitoringStore();
+  const { watchlist, walletActivity } = memoryWalletActivityStores();
   const purchases = new Map<
     PurchaseId,
     { userId: UserId; purchase: Purchase }
@@ -764,6 +792,10 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
+    credits: memoryCreditStore(
+      tasks,
+      (owner) => personPolicies.get(owner)?.allowance ?? null
+    ),
     browsers: {
       load: async (userId) =>
         await Promise.resolve(structuredClone(browsers.get(userId) ?? null)),
@@ -776,6 +808,11 @@ export const memoryStore = (): Store => {
       },
     },
     history,
+    watchlist,
+    watchlistData,
+    walletActivity,
+    monitoring,
+    cards: memoryCardStore(),
     trading: memoryTradingStore(),
     launches: memoryLaunchStore(),
     purchases: {
@@ -1187,6 +1224,24 @@ export const memoryStore = (): Store => {
       },
     },
     tasks: {
+      activeBrowses: async () =>
+        await Promise.resolve(
+          [...tasks.values()]
+            .filter(
+              (task) =>
+                task.kind === "browse" &&
+                ([
+                  "paid",
+                  "running",
+                  "paused",
+                  "awaiting_approval",
+                  "uncertain",
+                ].includes(task.status) ||
+                  (task.status === "quoted" &&
+                    quotePaymentState(task) !== null))
+            )
+            .map((task) => ({ userId: task.userId, task }))
+        ),
       claim: async (userId, id, expected, patch) => {
         await Promise.resolve();
         const row = tasks.get(id);
@@ -1425,6 +1480,10 @@ export const memoryStore = (): Store => {
       },
     },
     forget: async (userId) => {
+      await watchlist.forget(userId);
+      await watchlistData.forget(userId);
+      await walletActivity.forget(userId);
+      await monitoring.forget(userId);
       browsers.delete(userId);
       setupSeen.delete(userId);
       await history.clearTelegramCache(userId);

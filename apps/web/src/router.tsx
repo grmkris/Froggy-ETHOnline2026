@@ -1,4 +1,4 @@
-import { HistoryId, TaskId } from "@froggy/domain";
+import { HistoryId, TaskId, EmailId, EmailDraftId } from "@froggy/domain";
 import { ServiceName } from "@froggy/protocol";
 import {
   createRootRoute,
@@ -9,28 +9,9 @@ import {
 import { Schema } from "effect";
 
 import { AppShell } from "./components/app-shell";
-import { keyboardInteraction } from "./lib/motion";
-import { NAV_ITEMS } from "./lib/nav";
 import { WorkspaceLayout } from "./routes/workspace-layout";
 
 const rootRoute = createRootRoute({ component: AppShell });
-
-/**
- * Where a path sits in the nav order, for the direction of a page transition.
- *
- * A conversation is something Home has, so /chat travels from Home's slot.
- * Without that, every move out of a conversation fell outside the order and
- * silently lost its transition.
- */
-const slot = (path: string | undefined): number => {
-  if (path === undefined) {
-    return -1;
-  }
-  if (path === "/" || path.startsWith("/chat")) {
-    return 0;
-  }
-  return NAV_ITEMS.findIndex((item) => item.to === path);
-};
 
 /**
  * The workspace holds the sockets and the conversation; its pages are the
@@ -95,6 +76,62 @@ const activityRoute = createRoute({
     return { dropped: "1" as const };
   },
 });
+interface WatchlistSearch {
+  readonly discover?: boolean;
+}
+const watchlistRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/watchlist-page"),
+    "WatchlistPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/watchlist",
+  validateSearch: (raw: { readonly discover?: unknown }): WatchlistSearch =>
+    raw.discover === true || raw.discover === "true" ? { discover: true } : {},
+});
+const watchlistDetailRoute = page(
+  "/watchlist/$itemId",
+  async () => await import("./routes/watchlist-page"),
+  "WatchlistPage"
+);
+const InboxSearch = Schema.Struct({
+  message: Schema.optional(EmailId),
+  draft: Schema.optional(EmailDraftId),
+  compose: Schema.optional(Schema.Literals(["new", "reply"])),
+  view: Schema.optional(Schema.Literal("outgoing")),
+});
+const inboxRoute = createRoute({
+  component: lazyRouteComponent(
+    async () => await import("./routes/inbox-page"),
+    "InboxPage"
+  ),
+  getParentRoute: () => workspaceRoute,
+  path: "/inbox",
+  validateSearch: (raw: {
+    readonly message?: unknown;
+    readonly draft?: unknown;
+    readonly compose?: unknown;
+    readonly view?: unknown;
+  }): typeof InboxSearch.Type => {
+    const result = Schema.decodeUnknownResult(InboxSearch)(raw);
+    if (result._tag !== "Success") {
+      return {};
+    }
+    const { message, draft, compose, view } = result.success;
+    if (draft) {
+      return compose
+        ? { draft, view: "outgoing", compose: "new" }
+        : { draft, view: "outgoing" };
+    }
+    if (compose === "new") {
+      return { compose };
+    }
+    if (message) {
+      return compose === "reply" ? { message, compose } : { message };
+    }
+    return view ? { view } : {};
+  },
+});
 const exploreRoute = page(
   "/explore",
   async () => await import("./routes/explore-page"),
@@ -107,6 +144,7 @@ const walletRoute = page(
 );
 /** The chosen service, when the URL names one; anything else is no choice. */
 const ServicesSearch = Schema.Struct({
+  view: Schema.optional(Schema.Literals(["trading", "purchases", "scheduled"])),
   dropped: Schema.optional(Schema.Literal("1")),
   service: Schema.optional(ServiceName),
   task: Schema.optional(TaskId),
@@ -116,6 +154,7 @@ type ServicesSearch = typeof ServicesSearch.Type;
 
 /** What the router hands over: whatever the URL held under that key. */
 interface ServicesSearchInput {
+  readonly view?: unknown;
   readonly dropped?: unknown;
   readonly service?: unknown;
   readonly task?: unknown;
@@ -191,6 +230,9 @@ const routeTree = rootRoute.addChildren([
     welcomeRoute,
     chatRoute,
     conversationRoute,
+    inboxRoute,
+    watchlistRoute,
+    watchlistDetailRoute,
     exploreRoute,
     activityRoute,
     walletRoute,
@@ -206,19 +248,6 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
-  defaultViewTransition: {
-    types: ({ fromLocation, toLocation, pathChanged }) => {
-      if (!pathChanged || keyboardInteraction()) {
-        return false;
-      }
-      const from = slot(fromLocation?.pathname);
-      const to = slot(toLocation.pathname);
-      if (from === -1 || to === -1) {
-        return false;
-      }
-      return [to > from ? "workspace-forward" : "workspace-back"];
-    },
-  },
 });
 
 declare module "@tanstack/react-router" {

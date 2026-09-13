@@ -251,7 +251,7 @@ export const AddFunds = ({
               {wallet === null
                 ? "your wallet’s network"
                 : networkWords(wallet.balances.evmNetwork)}{" "}
-              to pay for services.
+              to fund your wallet. Buying credits is a separate step.
             </DialogDescription>
           </DialogHeader>
           {wallet === null ? (

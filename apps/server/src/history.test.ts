@@ -600,3 +600,12 @@ describe("history execution boundaries", () => {
     expect(historyPreview("x".repeat(5000)).truncated).toBe(true);
   });
 });
+
+test("merchant card echoes are redacted before history previews and artifacts", () => {
+  const preview = historyPreview({
+    text: "Card 4242 4242 4242 4242 was entered",
+  });
+  expect(preview.redacted).toBe(true);
+  expect(preview.text).not.toContain("4242");
+  expect(preview.text).toContain("card number redacted");
+});

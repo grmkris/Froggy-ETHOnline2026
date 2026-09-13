@@ -15,11 +15,17 @@ import {
   driveModeOf,
   LiveBrowserCard,
 } from "../components/browser/live-browser-card";
+import { useAppSocket } from "../hooks/use-app-socket";
 import { useBrowserSocket } from "../hooks/use-browser-socket";
+import { taskTerminal } from "../lib/browse-task-state";
 import { createBrowserPainter } from "../lib/browser-painter";
 import { pageWindowLink } from "../lib/page-window";
 
 export const BrowserWindowPage = (): ReactElement => {
+  const app = useAppSocket();
+  const hostedTask = app.browseTasks.find(
+    (task) => task.browse?.executor === "hosted" && !taskTerminal(task)
+  );
   const painter = useMemo(() => createBrowserPainter(), []);
   const browser = useBrowserSocket(painter);
 
@@ -67,6 +73,7 @@ export const BrowserWindowPage = (): ReactElement => {
       </div>
       <div className="min-h-0 flex-1">
         <LiveBrowserCard
+          hostedTask={hostedTask}
           connected={browser.connected}
           drive={drive}
           fill

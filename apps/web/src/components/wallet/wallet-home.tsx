@@ -10,48 +10,20 @@ import { formatUsd } from "@froggy/domain";
 import type { ServiceModes, WalletSummary } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Skeleton } from "@froggy/ui/components/skeleton";
+import { Link } from "@tanstack/react-router";
 import { WalletIcon } from "lucide-react";
-import { useEffect } from "react";
 import type { ReactElement } from "react";
-import { useTextMorph } from "torph/react";
 
 import { stubsOf } from "../../lib/stubs";
 import { walletAmounts } from "../../lib/wallet-view";
-import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { AddFunds } from "./add-funds";
 import { WalletBreakdown } from "./wallet-breakdown";
 
-/** Start known totals at zero; Torph keeps the target accessible while digits roll. */
-const WalletTotal = ({ value }: { readonly value: number }): ReactElement => {
-  const { ref, update } = useTextMorph({
-    duration: 600,
-    ease: "cubic-bezier(0.23, 1, 0.32, 1)",
-    numbers: true,
-    respectReducedMotion: true,
-  });
-  useEffect(() => {
-    update(formatUsd(0));
-  }, [update]);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      update(formatUsd(value));
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-    };
-  }, [update, value]);
-  return (
-    <p
-      className="text-money mt-2 tabular-nums"
-      data-slot="wallet-total"
-      ref={(element) => {
-        ref.current = element;
-      }}
-    >
-      {formatUsd(0)}
-    </p>
-  );
-};
+const WalletTotal = ({ value }: { readonly value: number }): ReactElement => (
+  <p className="text-money mt-2 tabular-nums" data-slot="wallet-total">
+    {formatUsd(value)}
+  </p>
+);
 
 const WalletBalance = ({
   wallet,
@@ -156,7 +128,13 @@ export const WalletHome = ({
       </div>
       <div className="flex flex-wrap items-start gap-2">
         <AddFunds wallet={wallet} />
-        <AgentOnboarding />
+        <Link
+          to="/settings"
+          hash="spending"
+          className="text-brand inline-flex min-h-11 items-center px-3 text-sm font-medium"
+        >
+          Spending rules
+        </Link>
       </div>
       <StubChips modes={modes} />
       {wallet === null ? (

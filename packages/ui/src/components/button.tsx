@@ -10,9 +10,9 @@ const buttonVariants = cva(
         default:
           "action-primary bg-primary text-primary-foreground active:bg-primary",
         outline:
-          "bg-card text-foreground shadow-control hover:bg-muted active:bg-muted aria-expanded:bg-muted",
+          "border-input bg-card text-foreground hover:bg-muted active:bg-muted aria-expanded:bg-muted border",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-control aria-expanded:bg-secondary aria-expanded:text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] active:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_10%)]",
+          "bg-secondary text-secondary-foreground aria-expanded:bg-secondary aria-expanded:text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] active:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_10%)]",
         ghost:
           "hover:bg-muted hover:text-foreground active:bg-muted active:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         destructive:
@@ -25,11 +25,11 @@ const buttonVariants = cva(
         xs: "rounded-cta h-6 gap-1 px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "rounded-cta h-7 gap-1 px-2.5 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-[46px] gap-2 px-4 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        icon: "shadow-control size-[46px] rounded-full",
+        icon: "size-11 rounded-lg",
         "icon-xs":
           "size-6 rounded-full in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7 rounded-full in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "shadow-control size-[46px] rounded-full",
+        "icon-lg": "size-11 rounded-lg",
       },
     },
     defaultVariants: {

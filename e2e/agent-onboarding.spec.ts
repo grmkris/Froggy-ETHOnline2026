@@ -24,7 +24,7 @@ const layoutOf = (node: Element) => {
   };
 };
 
-for (const path of ["/", "/wallet", "/agents"]) {
+for (const path of ["/agents"]) {
   test(`copy agent instructions and recover clipboard denial on ${path}`, async ({
     page,
     context,
@@ -40,7 +40,7 @@ for (const path of ["/", "/wallet", "/agents"]) {
     await expect(
       page.getByText("Copied. Paste this into your agent’s chat.")
     ).toBeVisible();
-    const prompt = `Read ${baseURL}/llm.md and follow it to connect yourself to my Froggy wallet as an MCP server; then tell me what you can do.`;
+    const prompt = `Read ${baseURL}/llm.md and follow it to connect yourself to my Froggy workspace as an MCP server. Request all supported tools in one consent flow, including email and watchlist monitoring, then tell me what you can do.`;
     expect(
       await page.evaluate(async () => await navigator.clipboard.readText())
     ).toBe(prompt);
@@ -91,12 +91,12 @@ test("connection counts update without removing the copy action", async ({
       },
     });
   });
-  await page.goto("/chat");
+  await page.goto("/agents");
   await expect(
     page.getByRole("button", { name: "Copy for your agent" })
   ).toBeVisible();
   active = 1;
-  await page.goto("/wallet");
+  await page.reload();
   await expect(
     page.getByRole("link", { name: "1 agent connected" })
   ).toHaveAttribute("href", `/agents/${token.id}`);
@@ -104,7 +104,7 @@ test("connection counts update without removing the copy action", async ({
     page.getByRole("button", { name: "Copy for your agent" })
   ).toBeVisible();
   active = 2;
-  await page.goto("/chat");
+  await page.goto("/agents");
   await expect(
     page.getByRole("link", { name: "2 agents connected" })
   ).toHaveAttribute("href", "/agents");
@@ -113,7 +113,7 @@ test("connection counts update without removing the copy action", async ({
   ).toBeVisible();
 });
 
-test("copying keeps the welcome page and its position when earlier receipts arrive", async ({
+test("Home keeps its position when earlier receipts arrive", async ({
   page,
   context,
 }) => {
@@ -152,50 +152,36 @@ test("copying keeps the welcome page and its position when earlier receipts arri
   try {
     await page.goto("/chat");
     const welcome = page.getByRole("region", { name: "Use Froggy here" });
-    const copy = page.getByRole("button", { name: "Copy for your agent" });
-    await expect(copy).toBeVisible();
-    await expect(page.getByText("No agent connected yet.")).toBeVisible();
+    const heading = page.getByRole("heading", {
+      name: "What can I help with?",
+    });
+    await expect(heading).toBeVisible();
     await page.evaluate(async () => {
       await document.fonts.ready;
     });
-    await copy.scrollIntoViewIfNeeded();
-    const before = await copy.evaluate(layoutOf);
-    await copy.click();
-    await expect(
-      page.getByText("Copied. Paste this into your agent’s chat.")
-    ).toBeVisible();
+    const before = await heading.evaluate(layoutOf);
     const loaded = page.waitForResponse("**/api/receipts");
     backfill.resolve(null);
     await loaded;
     await expect(welcome).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "What would you like to do?" })
-    ).toBeVisible();
-    await expect(
-      page.getByText("Copied. Paste this into your agent’s chat.")
-    ).toHaveCount(0);
-    expect(await copy.evaluate(layoutOf)).toEqual(before);
+    expect(await heading.evaluate(layoutOf)).toEqual(before);
+    await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Wallet", exact: true })
+      .locator('[data-slot="popover-content"]')
+      .getByRole("link", { name: "Your money", exact: true })
+      .last()
       .click();
-    await expect(page.getByRole("region", { name: "Activity" })).toContainText(
-      "$0.0040"
-    );
+    await expect(
+      page.getByRole("region", { name: "Activity", exact: true })
+    ).toContainText("$0.0040");
     await page.goto("/chat");
     await expect(welcome).toBeVisible();
-    await page.getByRole("button", { name: "Show the browser" }).click();
-    await expect(welcome).toHaveCount(0);
+    await page.getByRole("button", { name: "Conversation options" }).click();
     await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("link", { name: "Wallet", exact: true })
+      .getByRole("button", { name: "Show the browser", exact: true })
+      .last()
       .click();
-    await page.goto("/chat");
     await expect(welcome).toHaveCount(0);
-    await page.getByRole("textbox", { name: "Message" }).fill("Hello Froggy");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(welcome).toHaveCount(0);
-    await expect(page.getByRole("log")).toContainText("Hello Froggy");
   } finally {
     backfill.resolve(null);
   }
@@ -255,7 +241,7 @@ test("agent status loading and failures never remove the onboarding action", asy
     );
   });
   try {
-    await page.goto("/chat");
+    await page.goto("/agents");
     const copy = page.getByRole("button", { name: "Copy for your agent" });
     await expect(copy).toBeVisible();
     await expect(page.getByLabel("Loading agent connections")).toBeVisible();

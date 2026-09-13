@@ -22,6 +22,7 @@ import {
 } from "viem/account-abstraction";
 
 import type { Environment } from "../environment";
+import { bridgeSourceSettlement } from "./card-bridge-observation";
 import type { TradeSigner } from "./coordinator";
 import { assertTradeNetwork, tradeEvmClient } from "./evm-chain";
 import type { EvmExecutionOptions } from "./evm-execution";
@@ -38,10 +39,23 @@ const TOKENS = parseAbi([
 ]);
 
 const managedAssetSettlement = (
-  trade: Pick<Trade, "input">,
+  trade: Pick<Trade, "input"> & Partial<Pick<Trade, "minimumOutput">>,
   scoped: TransactionReceipt["logs"],
   at: number
 ): Exclude<TradeSettlement, { state: "pending" }> => {
+  if (trade.input.action === "bridge") {
+    if (trade.minimumOutput === undefined || trade.minimumOutput === null) {
+      throw new Error("trade.bridge_receipt: missing approved minimum.");
+    }
+    bridgeSourceSettlement(trade.input, scoped, trade.minimumOutput);
+    return {
+      state: "confirmed",
+      nativeFee: "0",
+      output: null,
+      actualInput: trade.input.amount,
+      at,
+    };
+  }
   let output = 0n;
   let spent = 0n;
   for (const tokenLog of scoped) {
@@ -113,7 +127,7 @@ const managedAssetSettlement = (
 
 /** Only logs inside this operation's execution establish its proceeds. */
 export const managedSwapSettlement = (
-  trade: Pick<Trade, "input">,
+  trade: Pick<Trade, "input"> & Partial<Pick<Trade, "minimumOutput">>,
   receipt: TransactionReceipt,
   userOperationHash: string,
   at: number

@@ -44,4 +44,29 @@ describe("promptJob", () => {
     expect(job.surface).toBe("digest");
     expect(job.scheduleId).toBeNull();
   });
+  test("scheduled inbox access is explicit and never adds draft permission implicitly", () => {
+    const schedule: Schedule = {
+      action: {
+        _tag: "prompt",
+        text: "Check the inbox",
+        permissions: ["email:read"],
+      },
+      cadence: { _tag: "daily", time: "09:00" },
+      createdAt: 0,
+      id: ScheduleId.generate(),
+      label: "Inbox",
+      lastRunAt: null,
+      nextRunAt: 1,
+      status: "active",
+      timezone: "UTC",
+    };
+    expect(promptJob(schedule, ORACLE).tools).toContain("email_read");
+    expect(promptJob(schedule, ORACLE).tools).not.toContain("email_draft");
+    expect(
+      promptJob(
+        { ...schedule, action: { _tag: "prompt", text: "Check the inbox" } },
+        ORACLE
+      ).tools
+    ).not.toContain("email_read");
+  });
 });

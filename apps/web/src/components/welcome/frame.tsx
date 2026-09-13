@@ -1,5 +1,5 @@
 /**
- * The welcome flow's frame: the wordmark, the three step names, one column.
+ * The welcome flow's frame: the wordmark, the four step names, one column.
  *
  * Not the workspace frame. There is no rail and no pill while a person is
  * being welcomed — every step has its own way out — and the step names are
@@ -13,10 +13,10 @@ import { cn } from "@froggy/ui/lib/utils";
 import { CheckIcon } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
-const STEPS = ["Welcome", "Spending rules", "Notifications"] as const;
+const STEPS = ["Welcome", "Spending rules", "Notifications", "Email"] as const;
 
-/** Which step is open; `STEPS.length` once all three are behind the person. */
-export type StepIndex = 0 | 1 | 2 | 3;
+/** Which step is open; `STEPS.length` once all four are behind the person. */
+export type StepIndex = 0 | 1 | 2 | 3 | 4;
 
 const Steps = ({ current }: { readonly current: StepIndex }): ReactElement => (
   <ol aria-label="Setup steps" className="flex items-center gap-1 sm:gap-3">
@@ -75,7 +75,7 @@ export const WelcomeFrame = ({
           </span>
         </div>
         <Steps current={current} />
-        <div className="flex min-w-[5.5rem] justify-end">
+        <div className="flex justify-end sm:min-w-[5.5rem]">
           {onSkip === undefined ? null : (
             <Button
               className="min-h-11"

@@ -11,7 +11,7 @@ import type { Receipt } from "@froggy/domain";
 import { Schema } from "effect";
 
 import type { FroggyMessage } from "./stream-model";
-import { isToolPart, toolCallOf } from "./tool-call";
+import { isToolPart, toolCallOf, richResultOf } from "./tool-call";
 import type { ToolCall } from "./tool-call";
 import { MONEY_TOOLS } from "./tool-stories";
 
@@ -86,6 +86,11 @@ export const matchReceipts = (
  * A step boundary between two other blocks stays, as a hairline.
  */
 export type TurnBlock =
+  | {
+      readonly kind: "service";
+      readonly calls: readonly ToolCall[];
+      readonly index: number;
+    }
   | {
       readonly kind: "browse";
       readonly calls: readonly ToolCall[];
@@ -189,7 +194,35 @@ export const groupParts = (message: FroggyMessage): readonly TurnBlock[] => {
     }
   }
   flush();
-  return blocks;
+  const grouped: TurnBlock[] = [];
+  const tasks = new Map<
+    string,
+    {
+      readonly kind: "service";
+      readonly calls: ToolCall[];
+      readonly index: number;
+    }
+  >();
+  for (const block of blocks) {
+    const result = block.kind === "tool" ? richResultOf(block.call) : null;
+    if (block.kind !== "tool" || !result || !("service" in result)) {
+      grouped.push(block);
+      continue;
+    }
+    const previous = tasks.get(result.id);
+    if (previous) {
+      previous.calls.push(block.call);
+    } else {
+      const group = {
+        kind: "service" as const,
+        calls: [block.call],
+        index: block.index,
+      };
+      tasks.set(result.id, group);
+      grouped.push(group);
+    }
+  }
+  return grouped;
 };
 
 export interface TurnCost {

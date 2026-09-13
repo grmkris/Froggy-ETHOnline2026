@@ -64,7 +64,7 @@ test("an MCP client signs in through the consent page and is held to its scopes"
   await page.goto(authorize.toString());
   await expect(
     page.getByRole("heading", {
-      name: "E2E MCP client wants to use your Froggy wallet",
+      name: "E2E MCP client wants to connect to Froggy",
     })
   ).toBeVisible();
   await expect(

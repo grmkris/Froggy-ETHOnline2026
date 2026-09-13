@@ -1,3 +1,4 @@
+import type { WatchlistItem } from "@froggy/domain";
 import { Outlet, useLocation } from "@tanstack/react-router";
 /**
  * The workspace: everything that must outlive a page change.
@@ -11,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Announcer } from "../components/announcer";
+import { ActiveBrowseTask } from "../components/browser/active-browse-task";
 import { useSplitWidth } from "../components/browser/browser-split-pane";
 import { AppFrame } from "../components/nav/app-frame";
 import { PurchaseApprovals } from "../components/purchases/purchase-approvals";
@@ -31,14 +33,18 @@ import { createBrowserPainter } from "../lib/browser-painter";
 import { ChatContext } from "../lib/chat-context";
 import type { ChatSurface } from "../lib/chat-context";
 import { CHAT_ERROR_ID, chatErrorText } from "../lib/chat-error";
+import { DraftProvider } from "../lib/draft-context";
 import { HistoryContext, useWorkspaceHistory } from "../lib/history-client";
 import { useIdentity } from "../lib/privy";
 import { SessionIdsContext } from "../lib/session-ids";
 import { useSessionToken } from "../lib/session-token";
+import { withWatchlistContext } from "../lib/watchlist-context";
 import { WorkspaceContext } from "../lib/workspace-context";
 import type { Workspace } from "../lib/workspace-context";
 
 export const WorkspaceLayout = (): ReactElement => {
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [attachedItem, setAttachedItem] = useState<WatchlistItem | null>(null);
   const painter = useMemo(() => createBrowserPainter(), []);
   useEffect(
     () => () => {
@@ -58,9 +64,21 @@ export const WorkspaceLayout = (): ReactElement => {
   const showBrowser = useCallback(() => {
     setBrowserRequested(true);
   }, []);
+  const hideBrowser = useCallback(() => {
+    setBrowserRequested(false);
+  }, []);
   const phone = useMediaQuery("(max-width: 767px)");
   const split = useSplitWidth();
   const app = useAppSocket();
+  const [workspaceSession, setWorkspaceSession] = useState(app.sessionId);
+  if (workspaceSession !== app.sessionId) {
+    setWorkspaceSession(app.sessionId);
+    setWatchlistOpen(false);
+    setAttachedItem(null);
+    if (workspaceSession !== null) {
+      setBrowserRequested(false);
+    }
+  }
   const purchases = usePurchases(app.sessionId);
   const trades = useTrades(app.sessionId);
   const pendingPurchases =
@@ -128,9 +146,13 @@ export const WorkspaceLayout = (): ReactElement => {
   const send = useCallback(
     (text: string, includeOtherThreads?: boolean): void => {
       clearStop();
-      sendPersistent(text, includeOtherThreads);
+      sendPersistent(
+        attachedItem === null ? text : withWatchlistContext(attachedItem, text),
+        includeOtherThreads
+      );
+      setAttachedItem(null);
     },
-    [clearStop, sendPersistent]
+    [attachedItem, clearStop, sendPersistent]
   );
 
   // The wallet as tools for this browser's own agent, through the same leash.
@@ -174,9 +196,14 @@ export const WorkspaceLayout = (): ReactElement => {
   const surface = useMemo(
     (): ChatSurface => ({
       ...persistent,
+      watchlistOpen,
+      setWatchlistOpen,
+      attachedItem,
+      attachItem: setAttachedItem,
       browser,
       browserRequested,
       showBrowser,
+      hideBrowser,
       busy,
       chat,
       chatNotices,
@@ -189,9 +216,13 @@ export const WorkspaceLayout = (): ReactElement => {
     }),
     [
       persistent,
+      watchlistOpen,
+      setWatchlistOpen,
+      attachedItem,
       browser,
       browserRequested,
       showBrowser,
+      hideBrowser,
       busy,
       chat,
       chatNotices,
@@ -209,24 +240,27 @@ export const WorkspaceLayout = (): ReactElement => {
       <WorkspaceContext.Provider value={workspace}>
         <HistoryContext.Provider value={history}>
           <ChatContext.Provider value={surface}>
-            <Announcer
-              approvals={app.approvals}
-              mandate={app.mandate}
-              receipts={app.receipts}
-            />
-            {welcome ? (
-              <Outlet />
-            ) : (
-              <AppFrame
-                connected={app.connected}
-                modes={app.modes}
-                waiting={app.approvals.length + pendingPurchases}
-              >
-                <PurchaseApprovals api={purchases} />
-                <TradeNotice api={trades} />
+            <DraftProvider sessionId={app.sessionId}>
+              <Announcer
+                approvals={app.approvals}
+                mandate={app.mandate}
+                receipts={app.receipts}
+              />
+              {welcome ? (
                 <Outlet />
-              </AppFrame>
-            )}
+              ) : (
+                <AppFrame
+                  connected={app.connected}
+                  modes={app.modes}
+                  waiting={app.approvals.length + pendingPurchases}
+                >
+                  <ActiveBrowseTask />
+                  <PurchaseApprovals api={purchases} />
+                  <TradeNotice api={trades} />
+                  <Outlet />
+                </AppFrame>
+              )}
+            </DraftProvider>
           </ChatContext.Provider>
         </HistoryContext.Provider>
       </WorkspaceContext.Provider>

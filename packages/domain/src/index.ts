@@ -50,7 +50,7 @@ export {
   Weekday,
   WEEKDAYS,
 } from "./schedule";
-export { Task, TaskKind, TaskStatus } from "./task";
+export { Task, TaskKind, TaskStatus, quotePaymentState } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {
@@ -272,3 +272,117 @@ export type {
   SiweMessage,
   TypedDataDocument,
 } from "./dapp-decode";
+
+export {
+  MailboxId,
+  EmailId,
+  EmailDraftId,
+  EmailFileId,
+  EmailWaitId,
+} from "./id";
+export {
+  EmailAddress,
+  EmailHandle,
+  Mailbox,
+  EmailFile,
+  EmailMessage,
+  EmailDraftInput,
+  EmailDraft,
+  EmailWait,
+  EmailRecord,
+} from "./email";
+
+export { WatchlistItemId } from "./id";
+export {
+  WatchlistInput,
+  WatchlistItem,
+  WatchlistSource,
+  watchlistSourceKey,
+} from "./watchlist";
+
+export { MonitorId, MonitorCheckId } from "./id";
+export {
+  MonitorCondition,
+  MonitorConfig,
+  MonitorObservation,
+  Monitor,
+  MonitorCheck,
+  MonitoringBook,
+  emptyMonitoringBook,
+  monitorMatches,
+} from "./monitoring";
+
+export {
+  WalletActivity,
+  WalletActivityFlow,
+  WalletMonitor,
+  WalletMonitorStatus,
+  WALLET_MONITOR_DURATION_MS,
+  WALLET_MONITOR_USER_LIMIT,
+  WALLET_MONITOR_ADDRESS_LIMIT,
+} from "./wallet-monitor";
+
+export { WalletMonitorId, WalletActivityId } from "./id";
+
+export { OnchainAlertRuleId } from "./id";
+export {
+  OnchainNetwork,
+  OnchainAsset,
+  OnchainAlertCondition,
+  OnchainAlertRule,
+  WalletPriceEvaluation,
+} from "./wallet-monitor";
+
+export {
+  OnchainPriceNetwork,
+  PriceAsset,
+  PriceDecimal,
+  PriceObservation,
+  PriceOracleFeed,
+  PriceQuoteCurrency,
+  ResolvedPriceSource,
+  matchesPriceThreshold,
+  priceDecimalRatio,
+  priceRatioDecimal,
+} from "./onchain-price";
+export type { PriceRatio } from "./onchain-price";
+
+export {
+  CREDITS_PER_USD,
+  CREDIT_UNITS_PER_CREDIT,
+  CreditUnits,
+  creditUnits,
+  CreditLimits,
+  defaultCreditLimits,
+  CreditSummary,
+  CreditChargeStatus,
+  CreditCharge,
+  CreditPurchaseStatus,
+  CreditPurchase,
+  CreditLedgerEntry,
+} from "./credits";
+export { CreditChargeId, CreditPurchaseId, CreditEntryId } from "./id";
+
+export {
+  CheckoutDecimal,
+  CheckoutHost,
+  CardCredentials,
+  PaymentMethod,
+  CardVaultEnvelope,
+  CheckoutInspection,
+  CardFunding,
+  CardBridgeObservation,
+  CardCheckout,
+  calculateCardFunding,
+  cardCheckoutReserved,
+} from "./card-checkout";
+export { PaymentMethodId, CardCheckoutId } from "./id";
+
+export {
+  WatchlistData,
+  WatchlistObservation,
+  WatchlistFact,
+  emptyWatchlistData,
+} from "./watchlist-data";
+
+export { WatchlistPreviewId } from "./id";

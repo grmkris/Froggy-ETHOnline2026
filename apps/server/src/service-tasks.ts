@@ -1,33 +1,46 @@
 /** One paid service path for the web, chat and external agents. */
-import { RunId, SaleId, TaskId } from "@froggy/domain";
+import { creditUnits, RunId, TaskId } from "@froggy/domain";
 import type {
   AgentTokenId,
+  MonitorCheckId,
   AgentConnectionId,
-  Amount,
-  Receipt,
   RunId as RunIdValue,
   Task,
   UserId,
 } from "@froggy/domain";
-import { describePayment } from "@froggy/payments";
 import { ServiceRequest, ServiceResult } from "@froggy/protocol";
 import type { ServiceTicket } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import {
+  CreditCommitUncertainError,
+  authorizeCreditTask,
+  creditBillingError,
+  creditLimitsFromMandate,
+  finishCreditTask,
+} from "./credit-task";
 import { detached } from "./detached";
-import { runServiceProvider, serviceCatalog } from "./service-providers";
+import {
+  ProviderExecutionUncertainError,
+  StoredServiceJob,
+  resumeServiceProvider,
+  runServiceProvider,
+  serviceCatalog,
+} from "./service-providers";
 import type { Services } from "./services";
 import type { WorkspaceSession } from "./session";
-import { assetFor } from "./tools-assets";
 import { preflightTrading, serviceRequestText } from "./trading/services";
 
 /** After this long without a progress write, an in-flight task is reported as uncertain rather than pending. */
 const SERVICE_STALE_MS = 15 * 60 * 1000;
 const SERVICE_STALE_ERROR =
-  "No progress was recorded for 15 minutes. Check the payment before retrying; this request will not be purchased again automatically.";
+  "No progress was recorded for 15 minutes. Credits remain held while execution is checked; this request will not run again automatically.";
 
 export const serviceTicket = (task: Task): ServiceTicket => {
-  const request = Schema.decodeUnknownSync(ServiceRequest)(task.input);
+  const request = Schema.decodeUnknownSync(ServiceRequest)({
+    ...task.input,
+    v: 2,
+  });
   const decoded = Schema.decodeUnknownResult(ServiceResult)(task.result);
   const result = decoded._tag === "Success" ? decoded.success : null;
   const stale =
@@ -38,6 +51,10 @@ export const serviceTicket = (task: Task): ServiceTicket => {
     id: task.id,
     runId: task.runId,
     saleId: task.saleId,
+    billingError: creditBillingError(task),
+    chargeId: task.chargeId,
+    chargeStatus: task.chargeStatus,
+    priceCreditUnits: task.priceCreditUnits,
     upstreamTransactionId: result?.upstreamTransactionId ?? null,
     service: request.service,
     prompt: serviceRequestText(request),
@@ -107,19 +124,84 @@ export const awaitServiceTask = async (
  * Nothing is retried or refunded here: a stale payment is for a human to check.
  */
 export const recoverOrphanedServiceTasks = async (
-  services: Pick<Services, "store">,
+  services: Services,
   now: number = Date.now()
-): Promise<number> =>
-  await services.store.tasks.expireInFlight({
+): Promise<number> => {
+  const pending = await services.store.credits.pendingTasks();
+  await Promise.all(
+    pending.map(async ({ userId, task }) => {
+      const delivery = Schema.decodeUnknownResult(
+        Schema.Struct({ creditDeliveryReady: Schema.Literal(true) })
+      )(task.result);
+      if (delivery._tag === "Success") {
+        await finishCreditTask(
+          services,
+          userId,
+          task,
+          { status: "done", error: null, updatedAt: now },
+          "capture"
+        );
+        return;
+      }
+      if (task.kind !== "service") {
+        return;
+      }
+      const job = Schema.decodeUnknownResult(StoredServiceJob)(task.result);
+      if (job._tag === "Success") {
+        detached(`recover provider ${task.id}`, async () => {
+          try {
+            const result = await resumeServiceProvider(job.success);
+            await finishCreditTask(
+              services,
+              userId,
+              task,
+              { status: "done", result, error: null, updatedAt: Date.now() },
+              "capture"
+            );
+          } catch (error) {
+            if (error instanceof CreditCommitUncertainError) {
+              return;
+            }
+            const uncertain = error instanceof ProviderExecutionUncertainError;
+            await finishCreditTask(
+              services,
+              userId,
+              task,
+              {
+                status: uncertain ? "uncertain" : "failed",
+                error:
+                  error instanceof Error
+                    ? error.message.slice(0, 1000)
+                    : "The provider job could not finish.",
+                updatedAt: Date.now(),
+              },
+              uncertain ? "uncertain" : "release"
+            );
+          }
+        });
+      } else if (task.updatedAt < now - SERVICE_STALE_MS) {
+        await finishCreditTask(
+          services,
+          userId,
+          task,
+          { status: "uncertain", error: SERVICE_STALE_ERROR, updatedAt: now },
+          "uncertain"
+        );
+      }
+    })
+  );
+  return await services.store.tasks.expireInFlight({
     kind: "service",
     statuses: [...IN_FLIGHT],
     before: now - SERVICE_STALE_MS,
     error: SERVICE_STALE_ERROR,
     now,
   });
+};
 
 interface PurchaseContext {
   readonly budgetUsdMicros?: number | undefined;
+  readonly monitorCheckId?: MonitorCheckId;
   readonly services: Services;
   readonly session: WorkspaceSession;
   readonly agentTokenId: AgentTokenId | null;
@@ -137,33 +219,6 @@ const sameRequest = (task: Task, request: ServiceRequest): boolean => {
   return decoded._tag === "Success" && requestEquals(decoded.success, request);
 };
 
-interface PaymentProof {
-  hash: string;
-  payer: string | null;
-}
-const recordSaleAudit = (
-  services: Services,
-  receipt: Receipt,
-  amount: Amount,
-  taskId: TaskId
-): void => {
-  const transactionId = receipt.settlement?.transactionId;
-  if (transactionId === undefined) {
-    return;
-  }
-  detached("service sale audit", async () => {
-    await services.hcs.record({
-      amount: amount.units,
-      asset: amount.asset.id,
-      at: Date.now(),
-      kind: "sold",
-      network: amount.asset.network,
-      ref: taskId,
-      transactionId,
-    });
-  });
-};
-
 export const purchaseService = async (
   context: PurchaseContext,
   input: ServiceRequest
@@ -177,7 +232,11 @@ export const purchaseService = async (
     request.idempotencyKey
   );
   const replay = (task: Task): ServiceTicket => {
-    if (task.kind !== "service" || !sameRequest(task, request)) {
+    if (
+      task.kind !== "service" ||
+      task.connectionId !== connectionId ||
+      !sameRequest(task, request)
+    ) {
       throw new Error(
         "Idempotency key already belongs to a different request."
       );
@@ -206,14 +265,11 @@ export const purchaseService = async (
   if (request.service === "watch_launches") {
     await services.launches.preflight(session.userId);
   }
-  const rate = services.rates.current(Date.now());
-  if (!rate || rate.usdMicrosPerHbar <= 0) {
-    throw new Error("No usable HBAR rate. Nothing was charged.");
-  }
-  const units = String(
-    Math.ceil((card.priceUsdMicros * 100_000_000) / rate.usdMicrosPerHbar)
-  );
   const runId = context.runId ?? RunId.generate();
+  let storedInput: Task["input"] = { ...request, demo: card.status === "demo" };
+  if (context.monitorCheckId !== undefined) {
+    storedInput = { ...storedInput, monitorCheckId: context.monitorCheckId };
+  }
   const task: Task = {
     id: TaskId.generate(),
     agentTokenId: context.agentTokenId,
@@ -222,7 +278,7 @@ export const purchaseService = async (
     createdAt: Date.now(),
     updatedAt: Date.now(),
     error: null,
-    input: { ...request, demo: card.status === "demo" },
+    input: storedInput,
     kind: "service",
     priceUsdMicros: card.priceUsdMicros,
     result: null,
@@ -230,141 +286,46 @@ export const purchaseService = async (
     saleId: null,
     status: "quoted",
   };
-  // The database's unique (user, key) claim wins BEFORE signing or charging.
-  try {
-    await store.tasks.create(session.userId, task);
-  } catch (error) {
-    const winner = await store.tasks.byIdempotencyKey(
-      session.userId,
-      request.idempotencyKey
+  await authorizeCreditTask(services, session.userId, task);
+  if (
+    context.budgetUsdMicros !== undefined &&
+    task.priceUsdMicros > context.budgetUsdMicros
+  ) {
+    throw new Error(
+      "This service exceeds the task's credit budget. Nothing was charged."
     );
-    if (winner) {
-      return replay(winner);
-    }
-    throw error;
   }
-  context.onCreated?.(task.id);
-  detached(`service ${task.id}`, async () => {
-    let sent = false;
-    let settled = false;
-    let saleId: SaleId | null = null;
-    const proof: PaymentProof = {
-      hash: "",
-      payer: null,
+  let reserveOptions: NonNullable<
+    Parameters<typeof store.credits.reserveTask>[2]
+  > = {
+    initialLimits: creditLimitsFromMandate(session.currentMandate),
+    stubbed: card.status === "demo",
+  };
+  if (context.budgetUsdMicros !== undefined) {
+    reserveOptions = {
+      ...reserveOptions,
+      runBudgetUnits: creditUnits(context.budgetUsdMicros),
     };
+  }
+  const reserved = await store.credits.reserveTask(
+    session.userId,
+    task,
+    reserveOptions
+  );
+  if (reserved.replayed) {
+    return replay(reserved.task);
+  }
+  context.onCreated?.(reserved.task.id);
+  if (reserved.charge.status === "refused") {
+    return serviceTicket(reserved.task);
+  }
+  detached(`service ${task.id}`, async () => {
     try {
-      const resource = `${services.environment.appOrigin}/api/services/tasks/${task.id}`;
-      const challenge = services.oracle.challenge({
-        description: card.title,
-        units,
-        url: resource,
-      });
-      const [requirement] = challenge.accepts;
-      const amount = requirement ? assetFor(requirement) : null;
-      if (!requirement || !amount) {
-        throw new Error("No supported payment offer.");
-      }
+      await authorizeCreditTask(services, session.userId, reserved.task);
       await store.tasks.update(session.userId, task.id, {
         status: "running",
         updatedAt: Date.now(),
       });
-      // Opening an account funds its whole credit, including the amount about to be reserved.
-      const openingUsdMicros = session.pocket ?? 0;
-      const outcome = await session.spend({
-        amount,
-        host: new URL(resource).host,
-        idempotencyKey: `service:${task.id}`,
-        kind: "service_payment",
-        budgetUsdMicros: context.budgetUsdMicros,
-        interactive: context.interactive ?? true,
-        payeeId: services.oracle.payTo,
-        payeeLabel: `Froggy: ${card.title}`,
-        provenance: "server",
-        purpose: card.title,
-        runId,
-        settle: async () => {
-          const payer = await services.hederaPayerFor({
-            userId: session.userId,
-            openingUsdMicros,
-          });
-          const signed = await payer.pay(challenge);
-          if (signed.header === null) {
-            return {
-              ok: false,
-              sent: false,
-              network: requirement.network,
-              stubbed: signed.stubbed || card.status === "demo",
-              transactionId: null,
-              error: signed.error ?? "Wallet did not sign.",
-            };
-          }
-          proof.hash = new Bun.CryptoHasher("sha256")
-            .update(signed.header)
-            .digest("hex");
-          proof.payer = describePayment(signed.header).payer;
-          sent = true;
-          try {
-            const payment = await services.oracle.settle(
-              signed.header,
-              requirement
-            );
-            settled = payment.ok;
-            return {
-              ...payment,
-              stubbed: payment.stubbed || card.status === "demo",
-              network: requirement.network,
-              sent: true,
-            };
-          } catch (error) {
-            return {
-              ok: false,
-              sent: true,
-              network: requirement.network,
-              stubbed: signed.stubbed || card.status === "demo",
-              transactionId: null,
-              error: errorText(
-                error instanceof Error ? error : new Error("Service failed.")
-              ),
-            };
-          }
-        },
-      });
-      if (
-        outcome.decision._tag !== "allow" ||
-        outcome.receipt.failure !== undefined ||
-        !settled
-      ) {
-        throw new Error(
-          outcome.receipt.failure ??
-            (outcome.decision._tag === "deny"
-              ? outcome.decision.message
-              : "Payment was not confirmed.")
-        );
-      }
-      // The spending receipt is durable before secondary sale bookkeeping.
-      saleId = SaleId.generate();
-      await store.sales.record({
-        id: saleId,
-        amount: requirement.amount,
-        asset: requirement.asset,
-        at: Date.now(),
-        deliveredAt: null,
-        error: null,
-        network: requirement.network,
-        payer: proof.payer,
-        paymentHash: proof.hash,
-        resource,
-        result: null,
-        status: "settled",
-        stubbed: outcome.receipt.stubbed,
-        transactionId: outcome.receipt.settlement?.transactionId ?? null,
-      });
-      await store.tasks.update(session.userId, task.id, {
-        saleId,
-        status: "paid",
-        updatedAt: Date.now(),
-      });
-      recordSaleAudit(services, outcome.receipt, amount, task.id);
       const result = await runServiceProvider(
         services,
         request,
@@ -373,33 +334,60 @@ export const purchaseService = async (
           owner: session.userId,
           connectionId,
           sourceTaskId: task.id,
-          paymentStubbed: outcome.receipt.stubbed,
+          paymentStubbed: reserved.charge.stubbed,
         }
       );
-      await store.tasks.update(session.userId, task.id, {
-        status: "done",
-        result,
-        updatedAt: Date.now(),
-      });
-      if (saleId !== null) {
-        await store.sales.update(saleId, {
-          status: "delivered",
-          deliveredAt: Date.now(),
-        });
-      }
+      const patch = { status: "done" as const, result, updatedAt: Date.now() };
+      // A monitor captures only after its usable observation is durable.
+      await (context.monitorCheckId === undefined
+        ? finishCreditTask(
+            services,
+            session.userId,
+            reserved.task,
+            patch,
+            "capture"
+          )
+        : store.tasks.update(session.userId, task.id, patch));
     } catch (error) {
+      if (error instanceof CreditCommitUncertainError) {
+        return;
+      }
       const message = errorText(
         error instanceof Error ? error : new Error("Service failed.")
       );
-      await store.tasks.update(session.userId, task.id, {
-        status: sent && !settled ? "uncertain" : "failed",
-        error: `${message}${settled ? " Paid task; not refunded." : ""}`,
-        updatedAt: Date.now(),
-      });
-      if (saleId !== null) {
-        await store.sales.update(saleId, { status: "failed", error: message });
-      }
+      await finishCreditTask(
+        services,
+        session.userId,
+        reserved.task,
+        {
+          status:
+            error instanceof ProviderExecutionUncertainError
+              ? "uncertain"
+              : "failed",
+          error: message,
+          updatedAt: Date.now(),
+        },
+        error instanceof ProviderExecutionUncertainError
+          ? "uncertain"
+          : "release"
+      );
     }
   });
-  return { ...serviceTicket(task), stubbed: card.status === "demo" };
+  return serviceTicket(reserved.task);
+};
+
+/** Keep repeated chat polls small; the owner-checked immutable task holds the actual series. */
+export const compactServiceTicket = (ticket: ServiceTicket): ServiceTicket => {
+  const { data } = ticket;
+  if (data?.operation !== "token_snapshot") {
+    return ticket;
+  }
+  return {
+    ...ticket,
+    data: {
+      ...data,
+      seriesTaskId: ticket.id,
+      series: data.series.map((series) => ({ ...series, points: [] })),
+    },
+  };
 };

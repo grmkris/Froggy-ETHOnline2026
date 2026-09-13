@@ -16,6 +16,7 @@ import type {
   HistoryExecution,
 } from "@froggy/domain";
 import type { AgentConnection, AgentDetail } from "@froggy/protocol";
+import { AgentInvocationView } from "@froggy/protocol";
 import type { Store } from "@froggy/wallet";
 import { Schema } from "effect";
 
@@ -324,7 +325,7 @@ export const agentDetail = async (
       name: token.label,
       // A minted token has no scope set and may call every agent tool,
       // including history. Listing a subset would understate what it can do.
-      scopes: [...OAUTH_SCOPES],
+      scopes: OAUTH_SCOPES.filter((scope) => !scope.startsWith("email:")),
     };
   } else {
     const found = await store.oauth.grants.byId(id);
@@ -348,8 +349,15 @@ export const agentDetail = async (
         limit: 1,
       });
       const [execution] = executions;
+      const billing = Schema.decodeUnknownSync(
+        Schema.Struct({
+          priceCreditUnits: AgentInvocationView.fields.priceCreditUnits,
+          chargeStatus: AgentInvocationView.fields.chargeStatus,
+        })
+      )(task ?? {});
       return {
         ...row,
+        ...billing,
         executionId: execution?.kind === "execution" ? execution.id : null,
         // Signing is not settlement, and polling/replaying a task is not another purchase.
         usdMicros:

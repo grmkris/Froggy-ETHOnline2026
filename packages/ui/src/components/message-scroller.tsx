@@ -108,7 +108,7 @@ function MessageScrollerButton({
       data-size={size}
       direction={direction}
       className={cn(
-        "border-border bg-background text-foreground hover:bg-muted hover:text-foreground absolute left-1/2 -translate-x-1/2 transition-opacity duration-(--motion-feedback) ease-(--ease-out) data-[active=false]:pointer-events-none data-[active=false]:opacity-0 data-[active=true]:opacity-100 data-[direction=end]:bottom-4 data-[direction=start]:top-4 rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180",
+        "border-border bg-background text-foreground hover:bg-muted hover:text-foreground absolute left-1/2 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 transition-opacity duration-(--motion-feedback) ease-(--ease-out) data-[active=false]:pointer-events-none data-[active=false]:opacity-0 data-[active=true]:opacity-100 data-[direction=end]:bottom-4 data-[direction=start]:top-4 rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180",
         className
       )}
       render={render ?? <Button variant={variant} size={size} />}

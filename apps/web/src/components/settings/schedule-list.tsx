@@ -20,17 +20,24 @@ import {
   nextRunWords,
 } from "../../lib/schedule-words";
 import { useSessionToken } from "../../lib/session-token";
+import { useWorkspace } from "../../lib/workspace-context";
 
 const decodeList = Schema.decodeUnknownSync(ScheduleListSchema);
 
-export const ScheduleList = (): ReactElement => {
-  const { getToken } = useSessionToken();
+export const ScheduleList = ({
+  compact = false,
+}: {
+  readonly compact?: boolean;
+}): ReactElement => {
+  const { getToken, canConnect } = useSessionToken();
+  const { app } = useWorkspace();
   const queries = useQueryClient();
   const headers = async (): Promise<Record<string, string>> => {
     const token = await getToken();
     return token === null ? {} : { authorization: `Bearer ${token}` };
   };
   const schedules = useQuery({
+    enabled: canConnect && app.sessionId !== null,
     queryFn: async () => {
       const response = await fetch("/api/schedules", {
         headers: await headers(),
@@ -40,7 +47,7 @@ export const ScheduleList = (): ReactElement => {
       }
       return decodeList(await response.json());
     },
-    queryKey: ["schedules"],
+    queryKey: ["schedules", app.sessionId],
     retry: false,
   });
   const cancel = useMutation({
@@ -54,8 +61,10 @@ export const ScheduleList = (): ReactElement => {
       }
     },
     onSuccess: () => {
-      void queries.invalidateQueries({ queryKey: ["schedules"] });
-      void queries.invalidateQueries({ queryKey: ["digest"] });
+      void queries.invalidateQueries({
+        queryKey: ["schedules", app.sessionId],
+      });
+      void queries.invalidateQueries({ queryKey: ["digest", app.sessionId] });
     },
     retry: false,
   });
@@ -65,7 +74,7 @@ export const ScheduleList = (): ReactElement => {
     ) ?? [];
   return (
     <section aria-label="Scheduled" className="flex flex-col gap-3 text-sm">
-      <h3 className="font-medium">Scheduled</h3>
+      {compact ? null : <h3 className="font-medium">Scheduled</h3>}
       {schedules.isPending ? (
         <output aria-label="Loading schedules">
           <Skeleton className="h-16 w-full rounded-xl" />
@@ -77,18 +86,22 @@ export const ScheduleList = (): ReactElement => {
         </p>
       ) : null}
       {schedules.data !== undefined && active.length === 0 ? (
-        <Empty>
+        <Empty
+          className={compact ? "items-start border-0 p-0 text-left" : undefined}
+        >
           <EmptyHeader>
-            <EmptyMedia>
-              <img
-                alt=""
-                aria-hidden
-                className="size-24"
-                height={96}
-                src="/vignettes/watch.png"
-                width={96}
-              />
-            </EmptyMedia>
+            {compact ? null : (
+              <EmptyMedia>
+                <img
+                  alt=""
+                  aria-hidden
+                  className="size-24"
+                  height={96}
+                  src="/vignettes/watch.png"
+                  width={96}
+                />
+              </EmptyMedia>
+            )}
             <EmptyTitle>Nothing scheduled.</EmptyTitle>
             <EmptyDescription>
               Ask Froggy in the chat: “remind me in 20 minutes to…” or “every

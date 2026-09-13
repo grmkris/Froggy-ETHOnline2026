@@ -42,6 +42,9 @@ export const AddressLookupNetwork = Schema.Struct({
   /** ERC-20 metadata read from the contract itself; each field null when the call reverted. */
   token: Schema.NullOr(
     Schema.Struct({
+      name: Schema.optional(
+        Schema.NullOr(Schema.String.check(Schema.isMaxLength(64)))
+      ),
       symbol: Schema.NullOr(Schema.String.check(Schema.isMaxLength(64))),
       decimals: Schema.NullOr(
         Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 }))

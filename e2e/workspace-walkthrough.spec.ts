@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { capturePage, captureScreen } from "./capture";
+import { fundCredits } from "./fund-credits";
 
 for (const size of [
   { width: 1440, height: 1000 },
@@ -30,15 +31,21 @@ for (const size of [
     await captureScreen(page, testInfo, "add-funds");
     await page.keyboard.press("Escape");
 
-    const nav = page.getByRole("navigation", { name: "Primary" });
-    await nav.getByRole("link", { name: "Explore" }).click();
+    await page.getByRole("button", { name: "Workspace menu" }).click();
+    await page
+      .locator('[data-slot="popover-content"]')
+      .getByRole("link", { name: "Tools", exact: true })
+      .click();
     await page.goto("/services");
     await page.getByRole("button", { name: "Choose search the web" }).click();
     await page
       .getByLabel("Your request")
       .fill("Find useful sources for planning a weekend in Berlin.");
     await capturePage(page, testInfo, "service-request");
-    await page.getByRole("button", { name: "Try simulated · $0.01" }).click();
+    await fundCredits(page);
+    await page
+      .getByRole("button", { name: "Try simulated · 1 credit" })
+      .click();
     const tasks = page.getByRole("region", { name: "Service tasks" });
     await expect(tasks).toContainText("DEMO — Search the web");
     await expect(
@@ -48,7 +55,11 @@ for (const size of [
 
     // The secondary places live in the rail at desktop width and in the top
     // bar below it — exactly one of the two exists at any given width.
-    await page.getByRole("link", { name: "Connections" }).click();
+    await page.getByRole("button", { name: "Workspace menu" }).click();
+    await page
+      .locator('[data-slot="popover-content"]')
+      .getByRole("link", { name: "Connections" })
+      .click();
     await expect(
       page.getByRole("button", { name: "Copy for your agent" })
     ).toBeVisible();
@@ -82,7 +93,11 @@ for (const size of [
       page.getByRole("heading", { name: "My research assistant" })
     ).toHaveCount(0);
 
-    await page.getByRole("link", { name: "Account" }).click();
+    await page.getByRole("button", { name: "Workspace menu" }).click();
+    await page
+      .locator('[data-slot="popover-content"]')
+      .getByRole("link", { name: "Account" })
+      .click();
     await page.getByRole("button", { name: "Delete my data" }).click();
     await expect(page.getByRole("alertdialog")).toBeVisible();
     await captureScreen(page, testInfo, "delete-confirmation");

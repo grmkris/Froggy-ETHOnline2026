@@ -10,7 +10,8 @@
 import { Schema } from "effect";
 
 import { AgentConnectionId } from "./agent-invocation";
-import { AgentTokenId, RunId, SaleId, TaskId } from "./id";
+import { CreditChargeStatus, CreditUnits } from "./credits";
+import { AgentTokenId, RunId, SaleId, TaskId, CreditChargeId } from "./id";
 import { UsdMicros } from "./money";
 
 /** `brief` is a paid data answer with no browser; `browse` drives the shared Chrome. */
@@ -29,6 +30,7 @@ export const TaskStatus = Schema.Literals([
   "awaiting_approval",
   "done",
   "failed",
+  "cancelled",
   "uncertain",
 ]);
 export type TaskStatus = typeof TaskStatus.Type;
@@ -54,7 +56,27 @@ export const Task = Schema.Struct({
   result: Schema.NullOr(Schema.Unknown),
   runId: Schema.NullOr(RunId),
   saleId: Schema.NullOr(SaleId),
+  chargeId: Schema.optional(CreditChargeId),
+  priceCreditUnits: Schema.optional(CreditUnits),
+  chargeStatus: Schema.optional(CreditChargeStatus),
   status: TaskStatus,
   updatedAt: Schema.Int,
 });
 export type Task = typeof Task.Type;
+
+/** A quote stays reserved after an outbound signing attempt, even across restart. */
+export const quotePaymentState = (task: Task): "signing" | "signed" | null => {
+  const parsed = Schema.decodeUnknownResult(
+    Schema.Struct({
+      paymentSigning: Schema.optional(Schema.Boolean),
+      paymentProofHash: Schema.optional(Schema.String),
+    })
+  )(task.result);
+  if (parsed._tag === "Failure") {
+    return null;
+  }
+  if (parsed.success.paymentProofHash !== undefined) {
+    return "signed";
+  }
+  return parsed.success.paymentSigning === true ? "signing" : null;
+};

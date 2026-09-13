@@ -1,3 +1,10 @@
+import type {
+  AgentConnectionId,
+  Receipt,
+  Schedule,
+  ScheduleId,
+  UserId,
+} from "@froggy/domain";
 /**
  * Unattended turns: the daily digest, and a prompt the person scheduled.
  *
@@ -14,17 +21,15 @@
  * A person who is mid-conversation is not interrupted: their job reports
  * `skipped` and the ticker retries it for a while.
  */
-
-import type { Receipt, Schedule, ScheduleId, UserId } from "@froggy/domain";
 import type { AppServerMessage, RunSurface } from "@froggy/protocol";
 import { HistoryConflictError } from "@froggy/wallet";
 
+import { emailToolDefinitions } from "./email-tools";
 import type { Notices } from "./notices";
 import type { ChatRunRegistry } from "./runs";
 import { describeCadence, formatLocal } from "./schedules";
 import type { Services } from "./services";
 import { isConversion } from "./session";
-import type { buildTools } from "./tools";
 import { recordTurn, sseOf, startTurn } from "./turn";
 import type { UnlockTokens } from "./unlock";
 import type { Workspaces } from "./workspaces";
@@ -37,7 +42,7 @@ const DIGEST_BUDGET_USD_MICROS = 50_000;
 /** A quarter for a prompt the person wrote themselves. */
 const PROMPT_BUDGET_USD_MICROS = 250_000;
 
-type ToolName = keyof ReturnType<typeof buildTools>;
+type ToolName = string;
 
 const DIGEST_TOOLS: readonly ToolName[] = [
   "graph_query",
@@ -47,6 +52,8 @@ const DIGEST_TOOLS: readonly ToolName[] = [
 
 /** What a scheduled prompt may do unattended: read, buy a listed service, tell the person. */
 const PROMPT_TOOLS: readonly ToolName[] = [
+  "watchlist_get",
+  "watchlist_list",
   "graph_discover",
   "graph_query",
   "x402_fetch",
@@ -59,6 +66,7 @@ const PROMPT_TOOLS: readonly ToolName[] = [
 
 /** One unattended turn, described. */
 export interface ScheduledJob {
+  readonly connectionId?: AgentConnectionId | null;
   readonly budgetUsdMicros: number;
   readonly instructions: string;
   readonly prompt: string;
@@ -112,7 +120,20 @@ cost, and anything that was refused.`,
   scheduleId: schedule.id,
   surface: "schedule",
   title: schedule.label,
-  tools: PROMPT_TOOLS,
+  tools: [
+    ...PROMPT_TOOLS,
+    ...emailToolDefinitions
+      .filter(
+        (entry) =>
+          schedule.action._tag === "prompt" &&
+          schedule.action.permissions?.includes(entry.scope) === true
+      )
+      .map((entry) => entry.name.replace("froggy_", "")),
+  ],
+  connectionId:
+    schedule.action._tag === "prompt"
+      ? (schedule.action.connectionId ?? null)
+      : null,
 });
 
 export interface JobReport {
@@ -194,6 +215,7 @@ export const runScheduledFor = async (
   try {
     turn = await startTurn(
       {
+        connectionId: job.connectionId ?? null,
         browser: workspace.browser,
         notices: deps.notices,
         oracleUrl: deps.oracleUrl,
@@ -203,6 +225,7 @@ export const runScheduledFor = async (
         unlocks: deps.unlocks,
         workspaces: deps.workspaces,
         stepCap: JOB_STEP_CAP,
+        surface: "schedule",
         activeTools: job.tools,
         interactive: false,
         budgetUsdMicros: job.budgetUsdMicros,

@@ -26,17 +26,46 @@ const ARTIFACT_CAP = 65_536;
 export const decodeHistoryJson = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Json)
 );
+const redactCardText = (text: string): string =>
+  text.replaceAll(
+    /(?<![a-zA-Z0-9])(?:[0-9][ -]?){12,18}[0-9](?![a-zA-Z0-9])/gu,
+    (candidate) => {
+      const digits = candidate.replaceAll(/[ -]/gu, "");
+      let sum = 0;
+      for (let index = 0; index < digits.length; index += 1) {
+        const digit = Number(digits[index]);
+        const doubled = (digits.length - index) % 2 === 0 ? digit * 2 : digit;
+        sum += doubled > 9 ? doubled - 9 : doubled;
+      }
+      return sum % 10 === 0 ? "[card number redacted]" : candidate;
+    }
+  );
+const redactCardOutput = (value: Schema.Json): Schema.Json => {
+  if (Schema.is(Schema.String)(value)) {
+    return redactCardText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactCardOutput);
+  }
+  if (!Schema.is(Schema.Record(Schema.String, Schema.Json))(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, redactCardOutput(item)])
+  );
+};
 export const historyPreview = (value: Schema.Json, limit = PREVIEW_CAP) => {
   const text: string = Schema.is(Schema.String)(value)
     ? value
     : JSON.stringify(value);
-  const bytes = new TextEncoder().encode(text);
+  const safe = redactCardText(text);
+  const bytes = new TextEncoder().encode(safe);
   return {
     text: new TextDecoder().decode(bytes.subarray(0, limit), {
       stream: bytes.length > limit,
     }),
     truncated: bytes.length > limit,
-    redacted: false,
+    redacted: safe !== text,
   };
 };
 interface SavedParts {
@@ -46,7 +75,11 @@ interface SavedParts {
 const jsonParts = (parts: UIMessage["parts"]): SavedParts => {
   // Provider reasoning and binary attachments are deliberately not archived.
   const visible = parts.filter(
-    (part) => part.type !== "reasoning" && part.type !== "file"
+    (part) =>
+      part.type !== "reasoning" &&
+      part.type !== "file" &&
+      !part.type.startsWith("tool-email_") &&
+      !(part.type === "dynamic-tool" && part.toolName.startsWith("email_"))
   );
   const safe = historyPreview(
     decodeHistoryJson(JSON.stringify(visible)),
@@ -502,8 +535,11 @@ export const executeHistoryTool = async ({
     await tx.save(execution, 0);
   });
   let output: Schema.Json;
+  let cardRedacted = false;
   try {
-    output = await action();
+    const raw = await action();
+    output = name.startsWith("browser_") ? redactCardOutput(raw) : raw;
+    cardRedacted = !Bun.deepEquals(raw, output, true);
   } catch (error) {
     await store.transaction(userId, async (tx) => {
       assertHistoryLease(tx, run);
@@ -528,8 +564,11 @@ export const executeHistoryTool = async ({
       references === undefined
         ? { taskId: null, purchaseId: null, receiptIds: [] }
         : await references(output);
-    const result = historyPreview(output);
-    const artifact = historyPreview(output, ARTIFACT_CAP);
+    const savedOutput = name.startsWith("email_")
+      ? { redacted: true, reason: "Read the original through email tools." }
+      : output;
+    const result = historyPreview(savedOutput);
+    const artifact = historyPreview(savedOutput, ARTIFACT_CAP);
     const at = Date.now();
     await store.transaction(userId, async (tx) => {
       assertHistoryLease(tx, run);
@@ -563,7 +602,7 @@ export const executeHistoryTool = async ({
           outcome: "returned",
           result: result.text,
           truncated: result.truncated,
-          redacted: result.redacted || execution.redacted,
+          redacted: result.redacted || execution.redacted || cardRedacted,
           artifactIds: [artifactId],
           updatedAt: at,
           finishedAt: at,
@@ -603,7 +642,9 @@ export const historyTools = (
               run,
               name,
               toolCallId: options.toolCallId,
-              input: decodeHistoryJson(JSON.stringify(input)),
+              input: name.startsWith("email_")
+                ? { redacted: true }
+                : decodeHistoryJson(JSON.stringify(input)),
               abort,
               references: async (output) => {
                 const receipts = await store.receipts.forRun(userId, run.id);
