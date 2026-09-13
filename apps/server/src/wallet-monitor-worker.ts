@@ -23,6 +23,8 @@ import {
   monitorIsActive as active,
   monitorNetworkName,
   ownedMonitorItem,
+  watchCovers,
+  watchStartBlock,
 } from "./wallet-monitor";
 import type { WalletMonitorDeps } from "./wallet-monitor";
 import { commitPriceRules, readBlockPrices } from "./wallet-price-events";
@@ -99,6 +101,7 @@ const advanceActivities = async (
           alertFor(
             owner,
             item,
+            activity.network,
             "activity",
             key,
             walletActivityText(activity, deps.appUrl),
@@ -127,6 +130,17 @@ const advanceActivities = async (
     after = page.at(-1)?.activity.id;
   }
 };
+/** Active, and this chain's stream has reached the block the watch starts from. */
+const started = (
+  item: WatchlistItem,
+  block: WalletStreamBlock,
+  deps: WalletWorkerDeps
+): boolean =>
+  active(item, deps.now()) &&
+  block.number >=
+    (watchStartBlock(item, deps.network) ??
+      item.walletMonitor?.startBlock ??
+      0);
 const commitWatchActivity = async (
   tx: WalletActivityTransaction,
   owner: UserId,
@@ -207,7 +221,7 @@ const recordReady = async (
   ) {
     return;
   }
-  const key = `ready:${monitor.id}:${monitor.revision}`;
+  const key = `ready:${monitor.id}:${monitor.revision}:${deps.network}`;
   if (await tx.alert(key)) {
     return;
   }
@@ -228,6 +242,7 @@ const recordReady = async (
     alertFor(
       owner,
       item,
+      deps.network,
       "ready",
       key,
       `${mode}Watching ${item.title} on ${monitorNetworkName(deps.network)} until ${new Date(monitor.expiresAt).toISOString()}.${waiting}\n${deps.appUrl}/watchlist/${item.id}`,
@@ -273,10 +288,8 @@ export const commitWalletBlock = async (
       throw new Error("Changed block requires a Substreams undo signal.");
     }
     const savedWatches = await tx.watches();
-    const watches = savedWatches.filter(
-      ({ item }) =>
-        (item.source._tag === "wallet" || item.source._tag === "token") &&
-        item.source.network === deps.network
+    const watches = savedWatches.filter(({ item }) =>
+      watchCovers(item, deps.network)
     );
     let { generation } = tx.checkpoint;
     for (const { owner, item } of watches) {
@@ -299,7 +312,7 @@ export const commitWalletBlock = async (
         });
         generation += 1;
       }
-      if (!allowed || !active(item, now) || block.number < monitor.startBlock) {
+      if (!allowed || !started(item, block, deps)) {
         continue;
       }
       owners.add(owner);
@@ -455,15 +468,16 @@ const recoverMonitoringGap = async (
     const monitor = item.walletMonitor;
     if (
       item.source._tag !== "token" ||
-      item.source.network !== deps.network ||
+      !watchCovers(item, deps.network) ||
       !monitor?.rules
     ) {
       continue;
     }
     const rules = monitor.rules.map((rule) => {
       if (
-        rule.triggeredBlock !== null &&
-        rule.triggeredBlock <= tx.checkpoint.finalizedBlock
+        (rule.source !== null && rule.source.network !== deps.network) ||
+        (rule.triggeredBlock !== null &&
+          rule.triggeredBlock <= tx.checkpoint.finalizedBlock)
       ) {
         return rule;
       }
@@ -548,10 +562,7 @@ const runStream = async (
     }
     const savedWatches = await tx.watches();
     const watches = savedWatches.filter(
-      ({ item }) =>
-        active(item, now) &&
-        (item.source._tag === "wallet" || item.source._tag === "token") &&
-        item.source.network === deps.network
+      ({ item }) => active(item, now) && watchCovers(item, deps.network)
     );
     if (watches.length === 0 && !(await hasPendingReconciliation(tx))) {
       return null;
@@ -568,10 +579,7 @@ const runStream = async (
     }
     const refreshed = await tx.watches();
     const claimedWatches = refreshed.filter(
-      ({ item }) =>
-        active(item, now) &&
-        (item.source._tag === "wallet" || item.source._tag === "token") &&
-        item.source.network === deps.network
+      ({ item }) => active(item, now) && watchCovers(item, deps.network)
     );
     const checkpoint = {
       ...tx.checkpoint,

@@ -9,7 +9,11 @@ import type {
 import type { WalletStreamBlock } from "@froggy/graph";
 import type { WalletActivityTransaction } from "@froggy/wallet";
 
-import { monitorIsActive } from "./wallet-monitor";
+import {
+  monitorIsActive,
+  watchCovers,
+  watchStartBlock,
+} from "./wallet-monitor";
 import type { WalletMonitorDeps } from "./wallet-monitor";
 
 export const readBlockPrices = async (
@@ -29,13 +33,17 @@ export const readBlockPrices = async (
     if (
       !monitorIsActive(item, deps.now()) ||
       item.source._tag !== "token" ||
-      item.source.network !== deps.network ||
-      block.number < (item.walletMonitor?.startBlock ?? 0)
+      !watchCovers(item, deps.network) ||
+      block.number < (watchStartBlock(item, deps.network) ?? 0)
     ) {
       continue;
     }
     for (const rule of item.walletMonitor?.rules ?? []) {
-      if (!rule.source || rule.triggeredBlock !== null) {
+      if (
+        !rule.source ||
+        rule.source.network !== deps.network ||
+        rule.triggeredBlock !== null
+      ) {
         continue;
       }
       if (observations.has(rule.source.key)) {
@@ -97,17 +105,13 @@ export const commitPriceRules = async (
     if (
       !observation ||
       rule.condition._tag !== "price" ||
-      rule.triggeredBlock !== null
+      rule.triggeredBlock !== null ||
+      rule.source?.network !== tx.network
     ) {
       rules.push(rule);
       continue;
     }
-    assertPriceEvidence(
-      observation,
-      rule.source?.key,
-      item.source.network,
-      block
-    );
+    assertPriceEvidence(observation, rule.source.key, tx.network, block);
     const matched = matchesPriceThreshold(
       observation,
       rule.condition.comparison,

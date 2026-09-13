@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
-import { EvmAddress, userId, WALLET_MONITOR_DURATION_MS } from "@froggy/domain";
-import type { OnchainNetwork, WatchlistInput } from "@froggy/domain";
+import {
+  EvmAddress,
+  emptyWatchlistData,
+  userId,
+  WALLET_MONITOR_DURATION_MS,
+} from "@froggy/domain";
+import type {
+  OnchainNetwork,
+  WatchlistInput,
+  WatchlistItemId,
+} from "@froggy/domain";
 import { demoWalletStream } from "@froggy/graph";
 import type { WalletStreamBlock, WalletStreamTransaction } from "@froggy/graph";
 import { memoryStore } from "@froggy/wallet";
@@ -29,6 +38,7 @@ import type {
   WalletAlertDelivery,
   WalletWorkerDeps,
 } from "./wallet-monitor-worker";
+import { saveWatchlistItem } from "./watchlist-routes";
 
 // Synthetic fixture addresses; no production wallet or transaction is used.
 const address = (digit: string) =>
@@ -882,5 +892,175 @@ describe("observed onchain stream health", () => {
     await updateWalletMonitor(deps, owner, item.id, "pause");
     const paused = await walletMonitorStatus(deps, owner, item.id);
     expect(paused.state).toBe("paused");
+  });
+});
+
+describe("watch coverage", () => {
+  const seedPresence = async (
+    store: ReturnType<typeof memoryStore>,
+    itemId: WatchlistItemId,
+    networks: readonly string[],
+    status: "done" | "queued" = "done"
+  ) => {
+    await store.watchlistData.transact(owner, (book) => {
+      book.set(itemId, {
+        ...emptyWatchlistData(itemId),
+        presence: networks.map((network) => ({
+          network,
+          status: "observed",
+          kind: "eoa",
+          block: "0x1",
+          nativeBalance: "1",
+          usdc: null,
+          token: null,
+          observedAt: 1,
+          stubbed: false,
+          note: null,
+        })),
+        discovery: {
+          key: `discover:${itemId}:first`,
+          requestedAt: 1,
+          startedAt: 1,
+          status,
+          note: "",
+        },
+      });
+    });
+  };
+  const twoChains = () => {
+    const base = setup();
+    const robin = setup("eip155:4663", base.store);
+    const deps: WalletWorkerDeps = {
+      ...base.deps,
+      forNetwork: (network) =>
+        network === "eip155:4663" ? robin.deps : base.deps,
+    };
+    return { base, robin, deps };
+  };
+  test("a wallet seen on both chains streams on both workers from one monitor", async () => {
+    const { base, robin, deps } = twoChains();
+    const saved = await saveWatchlistItem(base.store, owner, input);
+    await seedPresence(base.store, saved.id, [
+      "eip155:8453",
+      "eip155:4663",
+      "eip155:1",
+    ]);
+    const item = await trackWallet(deps, owner, input, options);
+    expect(item.walletMonitor?.networks).toEqual([
+      { network: "eip155:8453", startBlock: 1001 },
+      { network: "eip155:4663", startBlock: 1001 },
+    ]);
+    expect(item.walletMonitor?.startBlock).toBe(1001);
+    const baseFence = await base.fence();
+    const robinFence = await robin.fence();
+    await commitWalletBlock(
+      base.deps,
+      baseFence,
+      base.block(1001, [transaction()])
+    );
+    await commitWalletBlock(
+      robin.deps,
+      robinFence,
+      robin.block(1001, [transaction({ hash: hash("b") })])
+    );
+    const activities = await base.store.walletActivity.list(owner, item.id);
+    expect(activities.map((activity) => activity.network).toSorted()).toEqual([
+      "eip155:4663",
+      "eip155:8453",
+    ]);
+    const status = await walletMonitorStatus(deps, owner, item.id);
+    expect(status.networks?.map((entry) => entry.network)).toEqual([
+      "eip155:8453",
+      "eip155:4663",
+    ]);
+    expect(status.coverage).toContain("Base and Robinhood");
+    expect(status.state).toBe("watching");
+    const again = await trackWallet(deps, owner, input, options);
+    expect(again).toEqual(item);
+    const restricted = await trackWallet(deps, owner, input, {
+      ...options,
+      networks: ["eip155:4663"],
+    });
+    expect(restricted.walletMonitor?.networks).toEqual([
+      { network: "eip155:4663", startBlock: 1002 },
+    ]);
+  });
+  test("an address seen only on Ethereum cannot start alerts, in plain words", async () => {
+    const s = setup();
+    const saved = await saveWatchlistItem(s.store, owner, input);
+    await seedPresence(s.store, saved.id, ["eip155:1"]);
+    const error = await trackWallet(s.deps, owner, input, options).then(
+      () => null,
+      String
+    );
+    expect(error).toContain("has not seen this address on Base or Robinhood");
+    expect(error).toContain("Ethereum only");
+    expect(
+      await s.store.watchlist.transact(
+        owner,
+        (book) => book.get(saved.id)?.walletMonitor
+      )
+    ).toBeUndefined();
+  });
+  test("a watch waits for the chain check instead of guessing a chain", async () => {
+    const s = setup();
+    const saved = await saveWatchlistItem(s.store, owner, input);
+    await seedPresence(s.store, saved.id, [], "queued");
+    const error = await trackWallet(s.deps, owner, input, options).then(
+      () => null,
+      String
+    );
+    expect(error).toContain("Still checking which chains this address is on");
+  });
+  test("address capacity is counted per chain", async () => {
+    const { base, robin, deps } = twoChains();
+    const wallets = Array.from({ length: 21 }, (_, index) =>
+      Schema.decodeUnknownSync(EvmAddress)(
+        `0x${(index + 1).toString(16).padStart(40, "0")}`
+      )
+    );
+    await Promise.all(
+      wallets.slice(0, 20).map(
+        async (each, index) =>
+          await trackWallet(
+            deps,
+            userId(`did:privy:capacity-${index}`),
+            {
+              ...input,
+              source: { _tag: "wallet", network: "eip155:8453", address: each },
+            },
+            options
+          )
+      )
+    );
+    const [last] = wallets.slice(20);
+    if (last === undefined) {
+      throw new Error("fixture");
+    }
+    const refused = await trackWallet(
+      deps,
+      userId("did:privy:capacity-21"),
+      {
+        ...input,
+        source: { _tag: "wallet", network: "eip155:8453", address: last },
+      },
+      options
+    ).then(() => null, String);
+    expect(refused).toContain("on Base is at capacity");
+    const elsewhere = await trackWallet(
+      robin.deps,
+      userId("did:privy:capacity-21"),
+      {
+        ...input,
+        source: { _tag: "wallet", network: "eip155:4663", address: last },
+      },
+      options
+    );
+    expect(elsewhere.walletMonitor?.networks).toEqual([
+      { network: "eip155:4663", startBlock: 1001 },
+    ]);
+    expect(
+      await base.store.watchlist.transact(owner, (book) => book.size)
+    ).toBe(0);
   });
 });

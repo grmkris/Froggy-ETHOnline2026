@@ -25,6 +25,25 @@ export const TESTNETS: readonly EvmTradingNetwork[] = [
 export const isTestnet = (network: string): boolean =>
   TESTNETS.includes(network);
 
+const CHAIN_NAMES = new Map([
+  ["eip155:1", "Ethereum"],
+  ["eip155:8453", "Base"],
+  ["eip155:4663", "Robinhood"],
+  ["eip155:11155111", "Sepolia"],
+  ["eip155:84532", "Base Sepolia"],
+]);
+/** The word a person reads for a chain id; the id itself when there is none. */
+export const chainName = (network: string): string =>
+  CHAIN_NAMES.get(network) ?? network;
+/** "Base", "Base and Ethereum", "Base, Ethereum and Robinhood". */
+export const listChainNames = (networks: readonly string[]): string => {
+  const names = networks.map(chainName);
+  if (names.length <= 1) {
+    return names.join("");
+  }
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+};
+
 /** One chain's answer to "is this address here", at one pinned block. Chain state only, never a screen or a quote. */
 export const AddressPresence = Schema.Struct({
   network: EvmTradingNetwork,

@@ -6,6 +6,11 @@ import {
   WALLET_MONITOR_USER_LIMIT,
   WalletMonitorId,
   WatchlistItemId,
+  listChainNames,
+  monitorCoverage,
+  monitorStartBlock,
+  supportedPresence,
+  visiblePresence,
   watchlistSourceKey,
 } from "@froggy/domain";
 import type {
@@ -14,6 +19,7 @@ import type {
   OnchainAlertRule,
   UserId,
   WalletMonitor,
+  WalletMonitorCoverage,
   WalletMonitorStatus,
   WatchlistInput,
   WatchlistItem,
@@ -45,6 +51,50 @@ export const monitorIsActive = (item: WatchlistItem, now: number): boolean =>
   item.walletMonitor.expiresAt > now;
 export const monitorNetworkName = (network: string): string =>
   network === "eip155:4663" ? "Robinhood" : "Base";
+/** Whether a saved watch streams on this chain; rows written before decision 0037 name one chain on their source. */
+export const watchCovers = (
+  item: WatchlistItem,
+  network: OnchainNetwork
+): boolean => {
+  const monitor = item.walletMonitor;
+  if (!monitor) {
+    return false;
+  }
+  const coverage = monitorCoverage(monitor);
+  if (coverage.length > 0) {
+    return coverage.some((entry) => entry.network === network);
+  }
+  return (
+    (item.source._tag === "wallet" || item.source._tag === "token") &&
+    item.source.network === network
+  );
+};
+/** The block this chain's stream starts reading from, null when the watch does not cover it. */
+export const watchStartBlock = (
+  item: WatchlistItem,
+  network: OnchainNetwork
+): number | null => {
+  const monitor = item.walletMonitor;
+  if (!monitor || !watchCovers(item, network)) {
+    return null;
+  }
+  return monitorStartBlock(monitor, network) ?? monitor.startBlock;
+};
+const coveredNetworks = (item: WatchlistItem): readonly OnchainNetwork[] => {
+  const monitor = item.walletMonitor;
+  if (!monitor) {
+    return [];
+  }
+  const coverage = monitorCoverage(monitor);
+  if (coverage.length > 0) {
+    return coverage.map((entry) => entry.network);
+  }
+  const named =
+    item.source._tag === "wallet" || item.source._tag === "token"
+      ? item.source.network
+      : null;
+  return named !== null && Schema.is(OnchainNetwork)(named) ? [named] : [];
+};
 const selectMonitorNetwork = (
   deps: WalletMonitorDeps,
   network: string
@@ -71,6 +121,8 @@ interface MonitorOptions {
   readonly telegram: boolean;
   readonly conditions: readonly OnchainAlertCondition[];
   readonly connectionId?: AgentConnectionId | null;
+  /** A restriction, never a default: the watch covers every supported chain the address was seen on. */
+  readonly networks?: readonly OnchainNetwork[];
 }
 const sameConditions = (
   item: WatchlistItem,
@@ -128,8 +180,12 @@ const configuredItem = (
   options: MonitorOptions,
   rules: readonly OnchainAlertRule[],
   now: number,
-  head: number
+  coverage: readonly WalletMonitorCoverage[]
 ): WatchlistItem => {
+  const [first] = coverage;
+  if (first === undefined) {
+    throw new Error("A watch needs at least one chain.");
+  }
   const previous = current?.walletMonitor;
   const expiresAt =
     current && previous && monitorIsActive(current, now)
@@ -152,11 +208,12 @@ const configuredItem = (
       connectionId: options.connectionId ?? null,
       startedAt: now,
       expiresAt,
-      startBlock: head + 1,
+      startBlock: first.startBlock,
       telegram: options.telegram,
       swaps: rules.some((rule) => rule.condition._tag === "swap"),
       transfers: rules.some((rule) => rule.condition._tag === "transfer"),
       rules,
+      networks: coverage,
     },
   };
 };
@@ -176,32 +233,31 @@ const assertCapacity = async (
   ) {
     throw new Error("You can watch three items at a time. Pause one first.");
   }
-  const sameNetwork = active.filter(
-    (row) =>
-      (row.item.source._tag === "wallet" || row.item.source._tag === "token") &&
-      (item.source._tag === "wallet" || item.source._tag === "token") &&
-      row.item.source.network === item.source.network
-  );
-  const addresses = new Set(
-    sameNetwork
-      .filter((row) => row.item.source._tag === "wallet")
-      .map((row) => watchlistSourceKey(row.item.source))
-  );
-  if (item.source._tag === "wallet") {
-    addresses.add(watchlistSourceKey(item.source));
-  }
-  const sources = new Set(
-    [...sameNetwork.map((row) => row.item), item].flatMap(
-      (saved) =>
-        saved.walletMonitor?.rules?.flatMap((rule) =>
-          rule.source ? [rule.source.key] : []
-        ) ?? []
-    )
-  );
-  if (addresses.size > WALLET_MONITOR_ADDRESS_LIMIT || sources.size > 20) {
-    throw new Error(
-      "Onchain monitoring is at capacity. Try again after a watch expires."
+  for (const network of coveredNetworks(item)) {
+    const sameNetwork = active.filter((row) => watchCovers(row.item, network));
+    const addresses = new Set(
+      sameNetwork
+        .filter((row) => row.item.source._tag === "wallet")
+        .map((row) => watchlistSourceKey(row.item.source))
     );
+    if (item.source._tag === "wallet") {
+      addresses.add(watchlistSourceKey(item.source));
+    }
+    const sources = new Set(
+      [...sameNetwork.map((row) => row.item), item].flatMap(
+        (saved) =>
+          saved.walletMonitor?.rules?.flatMap((rule) =>
+            rule.source && rule.source.network === network
+              ? [rule.source.key]
+              : []
+          ) ?? []
+      )
+    );
+    if (addresses.size > WALLET_MONITOR_ADDRESS_LIMIT || sources.size > 20) {
+      throw new Error(
+        `Onchain monitoring on ${monitorNetworkName(network)} is at capacity. Try again after a watch expires.`
+      );
+    }
   }
 };
 const cancelPending = async (
@@ -247,6 +303,129 @@ const cancelPending = async (
     after = alerts.at(-1)?.id;
   }
 };
+/** Which chains the watch covers: the caller's restriction, else every supported chain the address was seen on. */
+const coverageFor = async (
+  initial: WalletMonitorDeps,
+  owner: UserId,
+  input: WatchlistInput,
+  options: MonitorOptions
+): Promise<readonly OnchainNetwork[]> => {
+  if (options.networks !== undefined && options.networks.length > 0) {
+    return [...new Set(options.networks)];
+  }
+  if (input.source._tag !== "wallet" && input.source._tag !== "token") {
+    return [];
+  }
+  const existing = await initial.store.watchlist.transact(owner, (book) =>
+    [...book.values()].find(
+      (item) =>
+        watchlistSourceKey(item.source) === watchlistSourceKey(input.source)
+    )
+  );
+  const data = existing
+    ? await initial.store.watchlistData.transact(owner, (book) =>
+        book.get(existing.id)
+      )
+    : undefined;
+  const presence = data?.presence ?? [];
+  const supported = supportedPresence(presence);
+  if (supported.length > 0) {
+    return supported;
+  }
+  const seen = visiblePresence(presence).filter(
+    (row) => row.status === "observed"
+  );
+  if (seen.length > 0) {
+    throw new Error(
+      `Froggy has not seen this address on Base or Robinhood, the chains alerts can watch. It was found on ${listChainNames(seen.map((row) => row.network))} only.`
+    );
+  }
+  const pending = data?.discovery ?? null;
+  if (pending !== null && ["queued", "running"].includes(pending.status)) {
+    throw new Error(
+      "Still checking which chains this address is on. Try again in a moment."
+    );
+  }
+  // Nothing known yet: the one chain the source names, until the identity commit of 0037.
+  return Schema.is(OnchainNetwork)(input.source.network)
+    ? [input.source.network]
+    : [];
+};
+interface ChainHead {
+  readonly deps: WalletMonitorDeps;
+  readonly block: PriceBlock | null;
+  readonly head: number;
+  readonly checkpoint: number;
+}
+/** The stream head on every covered chain; a chain whose head cannot be read is left out, and said so. */
+const chainHeads = async (
+  perNetwork: readonly WalletMonitorDeps[],
+  needsPrice: boolean
+): Promise<readonly ChainHead[]> => {
+  const heads: ChainHead[] = [];
+  let failure: Error | null = null;
+  for (const deps of perNetwork) {
+    try {
+      const block = needsPrice ? ((await deps.headBlock?.()) ?? null) : null;
+      const head = block?.number ?? (await deps.head());
+      const checkpoint = await deps.store.walletActivity.transact(
+        async (tx) => await Promise.resolve(tx.checkpoint.block),
+        deps.network
+      );
+      heads.push({ deps, block, head, checkpoint });
+    } catch (error) {
+      failure =
+        error instanceof Error
+          ? error
+          : new Error(
+              "The stream has not reached the current head. Try again shortly."
+            );
+    }
+  }
+  if (heads.length === 0) {
+    throw (
+      failure ??
+      new Error(
+        "The stream has not reached the current head. Try again shortly."
+      )
+    );
+  }
+  return heads;
+};
+/** Price rules resolve on the first covered chain that has a source; the rule records which. */
+const resolveRulesOn = async (
+  heads: readonly ChainHead[],
+  input: WatchlistInput,
+  options: MonitorOptions
+): Promise<OnchainAlertRule[]> => {
+  let failure: Error | null = null;
+  for (const { deps, block } of heads) {
+    try {
+      return await resolveRules(deps, input, options, block ?? undefined);
+    } catch (error) {
+      failure =
+        error instanceof Error
+          ? error
+          : new Error(
+              "A positive threshold and live price source are required."
+            );
+    }
+  }
+  throw (
+    failure ??
+    new Error("A positive threshold and live price source are required.")
+  );
+};
+const sameCoverage = (
+  item: WatchlistItem,
+  networks: readonly OnchainNetwork[]
+): boolean => {
+  const covered = coveredNetworks(item);
+  return (
+    covered.length === networks.length &&
+    networks.every((network) => covered.includes(network))
+  );
+};
 export const configureOnchainMonitor = async (
   initial: WalletMonitorDeps,
   owner: UserId,
@@ -255,10 +434,6 @@ export const configureOnchainMonitor = async (
 ): Promise<WatchlistItem> => {
   if (input.source._tag !== "wallet" && input.source._tag !== "token") {
     throw new Error("Onchain alerts require a wallet or token.");
-  }
-  const deps = selectMonitorNetwork(initial, input.source.network);
-  if (!deps.source.available) {
-    throw new Error("Onchain streaming is unavailable on this deployment.");
   }
   if (options.conditions.length < 1 || options.conditions.length > 4) {
     throw new Error("Choose between one and four alert conditions.");
@@ -273,6 +448,19 @@ export const configureOnchainMonitor = async (
       "Price alerts belong to a saved token; movement alerts belong to a saved wallet."
     );
   }
+  const networks = await coverageFor(initial, owner, input, options);
+  const perNetwork = networks.flatMap((network) => {
+    try {
+      const selected = selectMonitorNetwork(initial, network);
+      return selected.source.available ? [selected] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [deps] = perNetwork;
+  if (deps === undefined) {
+    throw new Error("Onchain streaming is unavailable on this deployment.");
+  }
   const existing = await deps.store.walletActivity.transact(async (tx) => {
     const items = await tx.items(owner);
     return items.find(
@@ -280,16 +468,19 @@ export const configureOnchainMonitor = async (
         watchlistSourceKey(item.source) === watchlistSourceKey(input.source)
     );
   }, deps.network);
-  if (existing && sameConditions(existing, options, deps.now())) {
+  const covered = perNetwork.map((selected) => selected.network);
+  if (
+    existing &&
+    sameConditions(existing, options, deps.now()) &&
+    sameCoverage(existing, covered)
+  ) {
     return existing;
   }
-  const priceBlock = options.conditions.some(
-    (condition) => condition._tag === "price"
-  )
-    ? await deps.headBlock?.()
-    : undefined;
-  const head = priceBlock?.number ?? (await deps.head());
-  const rules = await resolveRules(deps, input, options, priceBlock);
+  const heads = await chainHeads(
+    perNetwork,
+    options.conditions.some((condition) => condition._tag === "price")
+  );
+  const rules = await resolveRulesOn(heads, input, options);
   return await deps.store.walletActivity.transact(async (tx) => {
     const now = deps.now();
     const items = await tx.items(owner);
@@ -297,7 +488,11 @@ export const configureOnchainMonitor = async (
       (item) =>
         watchlistSourceKey(item.source) === watchlistSourceKey(input.source)
     );
-    if (current && sameConditions(current, options, now)) {
+    if (
+      current &&
+      sameConditions(current, options, now) &&
+      sameCoverage(current, covered)
+    ) {
       return current;
     }
     if (current && current.revision !== existing?.revision) {
@@ -311,14 +506,15 @@ export const configureOnchainMonitor = async (
     if (current?.walletMonitor) {
       await cancelPending(tx, current.walletMonitor);
     }
-    const item = configuredItem(
-      input,
-      current,
-      options,
-      rules,
-      now,
-      Math.max(head, tx.checkpoint.block)
-    );
+    const coverage = heads.map(({ deps: chain, head, checkpoint }) => ({
+      network: chain.network,
+      startBlock:
+        Math.max(
+          head,
+          chain.network === tx.network ? tx.checkpoint.block : checkpoint
+        ) + 1,
+    }));
+    const item = configuredItem(input, current, options, rules, now, coverage);
     await assertCapacity(tx, owner, item, now);
     await tx.saveItem(owner, item);
     await tx.bumpGenerations();
@@ -334,6 +530,7 @@ export const trackWallet = async (
     readonly swaps: boolean;
     readonly transfers: boolean;
     readonly connectionId?: AgentConnectionId | null;
+    readonly networks?: readonly OnchainNetwork[];
   }
 ): Promise<WatchlistItem> => {
   const conditions: OnchainAlertCondition[] = [];
@@ -343,41 +540,65 @@ export const trackWallet = async (
   if (options.swaps) {
     conditions.push({ _tag: "swap", side: "both", token: null });
   }
-  return await configureOnchainMonitor(deps, owner, input, {
+  const configured: MonitorOptions = {
     telegram: options.telegram,
     conditions,
     connectionId: options.connectionId ?? null,
-  });
+  };
+  return await configureOnchainMonitor(
+    deps,
+    owner,
+    input,
+    options.networks === undefined
+      ? configured
+      : { ...configured, networks: options.networks }
+  );
 };
 const changedMonitor = (
   item: WatchlistItem,
   monitor: WalletMonitor,
   action: "pause" | "resume" | "extend" | "rearm",
   now: number,
-  head: number
+  heads: ReadonlyMap<OnchainNetwork, number>,
+  main: OnchainNetwork
 ): WalletMonitor => {
   const continuous = action === "extend" && monitorIsActive(item, now);
   const reset = action === "rearm" || (action === "extend" && !continuous);
-  const next = {
+  const keep = continuous || action === "pause";
+  const coverage = monitorCoverage(monitor);
+  const restarted = coverage.map((entry) => {
+    const head = heads.get(entry.network);
+    return keep || head === undefined
+      ? entry
+      : { ...entry, startBlock: head + 1 };
+  });
+  const mainStart = (heads.get(main) ?? monitor.startBlock - 1) + 1;
+  const base = {
     ...monitor,
     enabled: action !== "pause",
     revision: continuous ? monitor.revision : monitor.revision + 1,
-    startedAt: continuous || action === "pause" ? monitor.startedAt : now,
-    startBlock:
-      continuous || action === "pause" ? monitor.startBlock : head + 1,
+    startedAt: keep ? monitor.startedAt : now,
+    startBlock: keep
+      ? monitor.startBlock
+      : (restarted[0]?.startBlock ?? mainStart),
     expiresAt:
       action === "extend"
         ? now + WALLET_MONITOR_DURATION_MS
         : monitor.expiresAt,
   };
-  if (monitor.rules) {
-    next.rules = monitor.rules.map((rule) => ({
+  const next: WalletMonitor =
+    coverage.length > 0 ? { ...base, networks: restarted } : base;
+  if (!monitor.rules) {
+    return next;
+  }
+  return {
+    ...next,
+    rules: monitor.rules.map((rule) => ({
       ...rule,
       latest: action === "pause" || continuous ? rule.latest : null,
       triggeredBlock: reset ? null : rule.triggeredBlock,
-    }));
-  }
-  return next;
+    })),
+  };
 };
 export const updateWalletMonitor = async (
   initial: WalletMonitorDeps,
@@ -394,11 +615,27 @@ export const updateWalletMonitor = async (
   ) {
     throw new Error("Onchain monitor not found.");
   }
-  const deps = selectMonitorNetwork(initial, found.source.network);
-  if (action !== "pause" && !deps.source.available) {
+  const perNetwork = coveredNetworks(found).flatMap((network) => {
+    try {
+      const selected = selectMonitorNetwork(initial, network);
+      return action === "pause" || selected.source.available ? [selected] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [deps] = perNetwork;
+  if (deps === undefined) {
     throw new Error("Onchain streaming is unavailable on this deployment.");
   }
-  const head = action === "pause" ? 0 : await deps.head();
+  const heads = new Map<OnchainNetwork, number>();
+  if (action !== "pause") {
+    for (const { deps: chain, head, checkpoint } of await chainHeads(
+      perNetwork,
+      false
+    )) {
+      heads.set(chain.network, Math.max(head, checkpoint));
+    }
+  }
   return await deps.store.walletActivity.transact(async (tx) => {
     const item = await ownedMonitorItem(tx, owner, itemId);
     const monitor = item?.walletMonitor;
@@ -426,6 +663,10 @@ export const updateWalletMonitor = async (
     if (action !== "pause") {
       await assertCapacity(tx, owner, item, now);
     }
+    const mainHead = heads.get(deps.network);
+    if (mainHead !== undefined) {
+      heads.set(deps.network, Math.max(mainHead, tx.checkpoint.block));
+    }
     const next = {
       ...item,
       updatedAt: now,
@@ -435,7 +676,8 @@ export const updateWalletMonitor = async (
         monitor,
         action,
         now,
-        Math.max(head, tx.checkpoint.block)
+        heads,
+        deps.network
       ),
     };
     if (next.walletMonitor.revision !== monitor.revision) {
@@ -480,6 +722,109 @@ export const walletStreamHealth = async (
   return deps.now() - checkpoint.blockAt > 15_000 ? "delayed" : "live";
 };
 
+type MonitorState = WalletMonitorStatus["state"];
+const SEVERITY: readonly MonitorState[] = [
+  "saved",
+  "triggered",
+  "watching",
+  "waiting_price",
+  "starting",
+  "delayed",
+  "paused",
+  "expired",
+  "unavailable",
+];
+const worstState = (states: readonly MonitorState[]): MonitorState => {
+  let worst: MonitorState = "saved";
+  for (const state of states) {
+    if (SEVERITY.indexOf(state) > SEVERITY.indexOf(worst)) {
+      worst = state;
+    }
+  }
+  return worst;
+};
+const stateFor = (
+  item: WatchlistItem,
+  deps: WalletMonitorDeps,
+  tx: WalletActivityTransaction,
+  now: number
+): MonitorState => {
+  const monitor = item.walletMonitor;
+  if (!monitor) {
+    return "saved";
+  }
+  const prices =
+    monitor.rules?.filter((rule) => rule.condition._tag === "price") ?? [];
+  const startBlock = watchStartBlock(item, deps.network) ?? monitor.startBlock;
+  if (monitor.expiresAt <= now) {
+    return "expired";
+  }
+  if (item.archived || !monitor.enabled) {
+    return "paused";
+  }
+  if (!deps.source.available || tx.checkpoint.error !== null) {
+    return "unavailable";
+  }
+  if (
+    prices.length > 0 &&
+    prices.every((rule) => rule.triggeredBlock !== null)
+  ) {
+    return "triggered";
+  }
+  if (tx.checkpoint.block < startBlock) {
+    return "starting";
+  }
+  if (now - tx.checkpoint.blockAt > 15_000) {
+    return "delayed";
+  }
+  if (
+    prices.some(
+      (rule) =>
+        rule.source?.network === deps.network &&
+        rule.latest?.status !== "available"
+    )
+  ) {
+    return "waiting_price";
+  }
+  return "watching";
+};
+type ChainStatus = NonNullable<WalletMonitorStatus["networks"]>[number] & {
+  readonly gapSince: number | null;
+};
+const chainStatus = async (
+  initial: WalletMonitorDeps,
+  owner: UserId,
+  itemId: WatchlistItemId,
+  network: OnchainNetwork
+): Promise<ChainStatus> => {
+  let deps: WalletMonitorDeps;
+  try {
+    deps = selectMonitorNetwork(initial, network);
+  } catch {
+    return {
+      network,
+      state: "unavailable",
+      latestBlock: null,
+      latestBlockAt: null,
+      stubbed: false,
+      gapSince: null,
+    };
+  }
+  return await deps.store.walletActivity.transact(async (tx) => {
+    const item = await ownedMonitorItem(tx, owner, itemId);
+    if (!item) {
+      throw new Error("Saved onchain item not found.");
+    }
+    return {
+      network,
+      state: stateFor(item, deps, tx, deps.now()),
+      latestBlock: tx.checkpoint.block || null,
+      latestBlockAt: tx.checkpoint.blockAt || null,
+      stubbed: deps.source.stubbed,
+      gapSince: tx.checkpoint.gapSince,
+    };
+  }, deps.network);
+};
 export const walletMonitorStatus = async (
   initial: WalletMonitorDeps,
   owner: UserId,
@@ -494,53 +839,35 @@ export const walletMonitorStatus = async (
   ) {
     throw new Error("Saved onchain item not found.");
   }
-  const deps = selectMonitorNetwork(initial, found.source.network);
-  const paired = await deps.store.telegram.forUser(owner);
-  return await deps.store.walletActivity.transact(async (tx) => {
-    const item = await ownedMonitorItem(tx, owner, itemId);
-    if (!item) {
-      throw new Error("Saved onchain item not found.");
-    }
-    const now = deps.now();
-    const monitor = item.walletMonitor ?? null;
-    let state: WalletMonitorStatus["state"] = "saved";
-    if (monitor) {
-      const prices =
-        monitor.rules?.filter((rule) => rule.condition._tag === "price") ?? [];
-      if (monitor.expiresAt <= now) {
-        state = "expired";
-      } else if (item.archived || !monitor.enabled) {
-        state = "paused";
-      } else if (!deps.source.available || tx.checkpoint.error !== null) {
-        state = "unavailable";
-      } else if (
-        prices.length > 0 &&
-        prices.every((rule) => rule.triggeredBlock !== null)
-      ) {
-        state = "triggered";
-      } else if (tx.checkpoint.block < monitor.startBlock) {
-        state = "starting";
-      } else if (now - tx.checkpoint.blockAt > 15_000) {
-        state = "delayed";
-      } else if (prices.some((rule) => rule.latest?.status !== "available")) {
-        state = "waiting_price";
-      } else {
-        state = "watching";
-      }
-    }
-    return {
-      v: 1,
-      itemId,
-      monitor,
-      state,
-      latestBlock: tx.checkpoint.block || null,
-      latestBlockAt: tx.checkpoint.blockAt || null,
-      telegramPaired: paired !== null,
-      gapSince: tx.checkpoint.gapSince,
-      coverage: `${monitorNetworkName(deps.network)} ETH and ERC20 transfers; verified Uniswap v2/v3/v4 ${deps.network === "eip155:8453" ? "and Aerodrome classic" : "and registered Pons"} swaps. Price source and units are shown per rule. Alerts are provisional until finalized.`,
-      stubbed: deps.source.stubbed,
-    };
-  }, deps.network);
+  const covered = coveredNetworks(found);
+  const networks: readonly OnchainNetwork[] =
+    covered.length > 0
+      ? covered
+      : [
+          Schema.is(OnchainNetwork)(found.source.network)
+            ? found.source.network
+            : initial.network,
+        ];
+  const paired = await initial.store.telegram.forUser(owner);
+  const entries: ChainStatus[] = [];
+  for (const network of networks) {
+    entries.push(await chainStatus(initial, owner, itemId, network));
+  }
+  const [first] = entries;
+  const monitor = found.walletMonitor ?? null;
+  return {
+    v: 1,
+    itemId,
+    monitor,
+    state: monitor ? worstState(entries.map((entry) => entry.state)) : "saved",
+    latestBlock: first?.latestBlock ?? null,
+    latestBlockAt: first?.latestBlockAt ?? null,
+    telegramPaired: paired !== null,
+    gapSince: first?.gapSince ?? null,
+    coverage: `${listChainNames(networks)}: ETH and ERC20 transfers; verified Uniswap v2/v3/v4 swaps, Aerodrome classic on Base and registered Pons on Robinhood. Price source and units are shown per rule. Alerts are provisional until finalized.`,
+    stubbed: entries.some((entry) => entry.stubbed),
+    networks: entries.map(({ gapSince: _gap, ...entry }) => entry),
+  };
 };
 export const walletMonitorDependencies = (
   services: {

@@ -14,8 +14,10 @@
 
 import {
   AddressPresence,
+  chainName,
   emptyWatchlistData,
   isTestnet,
+  listChainNames,
   presenceTag,
   presenceTitle,
   shortEvmAddress,
@@ -82,24 +84,6 @@ const GLOBAL_STARTS_PER_MINUTE = 100;
 const DRAIN_LIMIT = 20;
 const ABSENT_NOTE =
   "No code, no ETH and no USDC at this block. The address may still hold other tokens or have past activity here.";
-
-const CHAIN_NAMES = new Map([
-  ["eip155:1", "Ethereum"],
-  ["eip155:8453", "Base"],
-  ["eip155:4663", "Robinhood"],
-  ["eip155:11155111", "Sepolia"],
-  ["eip155:84532", "Base Sepolia"],
-]);
-const chainName = (network: string): string =>
-  CHAIN_NAMES.get(network) ?? network;
-
-const listNames = (networks: readonly string[]): string => {
-  const names = networks.map(chainName);
-  if (names.length <= 1) {
-    return names.join("");
-  }
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-};
 
 /** Start times in the last minute, per person; a runaway paste loop stays a queue, not a flood. */
 const starts = new Map<UserId, number[]>();
@@ -276,7 +260,7 @@ const recordPresence = async (
       .filter((row) => !isTestnet(row.network))
       .map((row) => row.network);
     const testnets = rows.filter((row) => isTestnet(row.network));
-    note = `Not seen on any chain we checked: ${listNames(mainnets)}${testnets.length > 0 ? " (and the Sepolia testnets)" : ""}.`;
+    note = `Not seen on any chain we checked: ${listChainNames(mainnets)}${testnets.length > 0 ? " (and the Sepolia testnets)" : ""}.`;
   } else {
     const found = visible
       .filter((row) => row.status === "observed")
@@ -284,7 +268,7 @@ const recordPresence = async (
     const unreachable = visible
       .filter((row) => row.status === "unavailable")
       .map((row) => row.network);
-    note = `Found on ${listNames(found)}.${unreachable.length > 0 ? ` ${listNames(unreachable)} could not be checked.` : ""}`;
+    note = `Found on ${listChainNames(found)}.${unreachable.length > 0 ? ` ${listChainNames(unreachable)} could not be checked.` : ""}`;
   }
   await store.watchlistData.transact(owner, (book) => {
     const data = book.get(item.id) ?? emptyWatchlistData(item.id);

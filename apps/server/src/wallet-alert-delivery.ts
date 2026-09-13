@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { NoticeId } from "@froggy/domain";
 import type {
+  OnchainNetwork,
   UserId,
   WalletActivity,
   WalletActivityId,
@@ -22,6 +23,7 @@ import type {
 export const alertFor = (
   owner: UserId,
   item: WatchlistItem,
+  network: OnchainNetwork,
   kind: WalletAlert["kind"],
   key: string,
   text: string,
@@ -34,8 +36,6 @@ export const alertFor = (
   ) {
     throw new Error("Missing onchain monitor.");
   }
-  const network =
-    item.source.network === "eip155:4663" ? "eip155:4663" : "eip155:8453";
   return {
     v: 1,
     id: NoticeId.generate(),
@@ -77,6 +77,7 @@ export const recordCorrection = async (
       alertFor(
         owner,
         item,
+        activity.network,
         "correction",
         key,
         `Correction: provisional ${monitorNetworkName(activity.network)} ${activity.kind === "price" ? "price evidence" : "wallet activity"} ${reason}.\n${appUrl}/watchlist/${item.id}`,

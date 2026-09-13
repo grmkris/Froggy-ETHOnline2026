@@ -303,7 +303,9 @@ export {
 export {
   AddressPresence,
   TESTNETS,
+  chainName,
   isTestnet,
+  listChainNames,
   presenceTag,
   presenceTitle,
   visiblePresence,
