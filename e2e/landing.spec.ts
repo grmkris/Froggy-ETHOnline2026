@@ -346,7 +346,32 @@ test("loading and failed sign-in leave the public page usable with a retry", asy
   ).toBeEnabled();
 });
 
-test("a signed-out workspace URL still shows the original sign-in gate", async ({
+test("the root is the landing for a signed-out visitor, with no workspace traffic", async ({
+  page,
+}) => {
+  const privateRequests: string[] = [];
+  const sockets: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/")) {
+      privateRequests.push(request.url());
+    }
+  });
+  page.on("websocket", (socket) => {
+    if (new URL(socket.url()).pathname.startsWith("/ws/")) {
+      sockets.push(socket.url());
+    }
+  });
+  await landingIdentity(page, "signed-out");
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "A home for your agents." })
+  ).toBeVisible();
+  await expect(page.locator(".landing")).toHaveCount(1);
+  expect(privateRequests).toEqual([]);
+  expect(sockets).toEqual([]);
+});
+
+test("a deeper signed-out workspace URL still shows the original sign-in gate", async ({
   page,
 }) => {
   await landingIdentity(page, "signed-out");
