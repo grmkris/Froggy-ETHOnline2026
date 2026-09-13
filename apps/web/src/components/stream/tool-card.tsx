@@ -66,18 +66,6 @@ const Body = ({
   readonly summary: ToolSummary | null;
   readonly wallet: WalletStatus | null;
 }): ReactElement | null => {
-  if (
-    call.name === "browse_task" &&
-    call.output !== null &&
-    call.input.prompt !== undefined
-  ) {
-    return (
-      <BrowseTaskForm
-        instruction={call.input.prompt}
-        requestKey={`browse:${call.toolCallId}`}
-      />
-    );
-  }
   if (receipt !== null) {
     return (
       <MotionItem key={receipt.id} spring>
@@ -122,6 +110,18 @@ export const ToolCard = ({
   call,
   receipt = null,
 }: ToolCardProps): ReactElement => {
+  if (
+    call.name === "browse_task" &&
+    call.output !== null &&
+    call.input.prompt !== undefined
+  ) {
+    return (
+      <BrowseTaskForm
+        instruction={call.input.prompt}
+        requestKey={`browse:${call.toolCallId}`}
+      />
+    );
+  }
   const story = storyOf(call.name);
   const summary = summarize(call);
   const status = toolStatus(call, summary, { asking });

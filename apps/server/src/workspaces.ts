@@ -152,10 +152,26 @@ export class Workspaces {
   /** Open browser sockets per user. Zero means nobody is looking. */
   private readonly watchers = new Map<UserId, number>();
   private readonly seated = new Set<UserId>();
+  private readonly hostedSeats = new Set<UserId>();
   private readonly queue: Waiting[] = [];
 
   constructor(deps: WorkspaceDeps) {
     this.deps = deps;
+  }
+
+  tryAdmitHosted(userId: UserId): boolean {
+    if (!this.seated.has(userId) && !this.hasSeatFor(userId)) {
+      return false;
+    }
+    this.seated.add(userId);
+    this.hostedSeats.add(userId);
+    this.touch(userId);
+    return true;
+  }
+
+  releaseHosted(userId: UserId): void {
+    this.hostedSeats.delete(userId);
+    this.observe(userId, this.for(userId).browser.state());
   }
 
   /** Browsers with a process behind them, as opposed to workspaces that exist. */
@@ -380,11 +396,13 @@ export class Workspaces {
     this.publishQueue();
   }
 
-  async closeAll(): Promise<void> {
+  async closeAll(preserve: ReadonlySet<UserId> = new Set()): Promise<void> {
     await Promise.all(
-      [...this.workspaces.values()].map(async (workspace) => {
-        await workspace.browser.close();
-      })
+      [...this.workspaces.values()]
+        .filter((workspace) => !preserve.has(workspace.userId))
+        .map(async (workspace) => {
+          await workspace.browser.close();
+        })
     );
   }
 
@@ -460,7 +478,7 @@ export class Workspaces {
    * or crashed gives its seat back, and the next person in line takes it.
    */
   private observe(userId: UserId, state: BrowserState): void {
-    if (isSeated(state)) {
+    if (isSeated(state) || this.hostedSeats.has(userId)) {
       this.seated.add(userId);
       return;
     }

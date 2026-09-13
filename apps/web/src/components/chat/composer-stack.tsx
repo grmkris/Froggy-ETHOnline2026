@@ -66,7 +66,10 @@ export const ComposerStack = ({
   return (
     <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-3 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <NoticeList
-        notices={[...chatNotices, ...app.notices]}
+        notices={[
+          ...chatNotices,
+          ...app.notices.filter((notice) => !notice.id.startsWith("browse:")),
+        ]}
         onDismiss={(id) => {
           if (id === CHAT_ERROR_ID) {
             onClearError();

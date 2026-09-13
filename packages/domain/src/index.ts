@@ -50,7 +50,7 @@ export {
   Weekday,
   WEEKDAYS,
 } from "./schedule";
-export { Task, TaskKind, TaskStatus } from "./task";
+export { Task, TaskKind, TaskStatus, quotePaymentState } from "./task";
 export { decodeUserId, userId, UserId } from "./identity";
 export type { Caller } from "./identity";
 export {

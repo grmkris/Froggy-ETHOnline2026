@@ -982,6 +982,36 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     tasks: {
+      activeBrowses: async () => {
+        const rows = await database
+          .select()
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.kind, "browse"),
+              or(
+                inArray(tasks.status, [
+                  "paid",
+                  "running",
+                  "paused",
+                  "awaiting_approval",
+                  "uncertain",
+                ]),
+                and(
+                  eq(tasks.status, "quoted"),
+                  raw`(${tasks.result}->>'paymentSigning' = 'true' OR ${tasks.result}->>'paymentProofHash' IS NOT NULL)`
+                )
+              )
+            )
+          );
+        return rows.flatMap((row) => {
+          const task = taskOf(row);
+          const owner = decodeUserId(row.userId);
+          return task === null || owner._tag === "Failure"
+            ? []
+            : [{ userId: owner.success, task }];
+        });
+      },
       claim: async (userId, id, expected, patch) => {
         const rows = await database
           .update(tasks)

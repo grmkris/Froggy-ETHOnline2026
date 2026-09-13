@@ -26,6 +26,7 @@ export interface ChatSurface extends ReturnType<typeof usePersistentChat> {
   readonly browser: BrowserStream;
   readonly browserRequested: boolean;
   readonly showBrowser: () => void;
+  readonly hideBrowser: () => void;
   readonly busy: boolean;
   /** A refused turn, shown beside the socket's notices. */
   readonly chatNotices: readonly Notice[];

@@ -1,7 +1,8 @@
-import { beforeAll, describe, expect, it } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 
 import type { BrowserHandle } from "@froggy/browser";
 import {
+  OAuthGrantId,
   OAUTH_SCOPES,
   SaleId,
   defaultAllowance,
@@ -464,9 +465,29 @@ const quoteBody = (key: string) => ({
   budgetUsd: 1 as const,
   idempotencyKey: key,
 });
-const quoteView = (task: Task) => ({ ...task, approval: [], receipts: [] });
+const quoteView = (task: Task) => ({
+  ...task,
+  browse: null,
+  approval: [],
+  receipts: [],
+});
 
 describe("bounded browser quotes", () => {
+  beforeEach(async () => {
+    // Each scenario owns a separate purchase; unresolved earlier fixtures must not block it.
+    const previous = await services.store.tasks.list(ALICE, 100);
+    await Promise.all(
+      previous
+        .filter((task) => task.kind === "browse")
+        .map(async (task) => {
+          await services.store.tasks.update(ALICE, task.id, {
+            status: "failed",
+            updatedAt: Date.now(),
+            error: "Fixture cleanup",
+          });
+        })
+    );
+  });
   const caller = {
     agentTokenId: null,
     grantId: null,
@@ -679,6 +700,11 @@ describe("bounded browser quotes", () => {
     expect(replay.status).toBe(202);
     expect(settlements).toBe(1);
     expect(executions).toBe(0);
+    // Release the shared fixture's active slot after verifying its uncertain state.
+    await services.store.tasks.update(ALICE, quoted.quote.taskId, {
+      status: "failed",
+      updatedAt: Date.now(),
+    });
   });
 
   it("claims one settlement and one execution for simultaneous proof replays", async () => {
@@ -740,6 +766,70 @@ describe("bounded browser quotes", () => {
     );
     expect(repeated.status).toBe(202);
     expect(executions).toBe(1);
+    await services.store.tasks.update(ALICE, quoted.quote.taskId, {
+      status: "done",
+      updatedAt: Date.now(),
+    });
+  });
+
+  it("only signs one of two simultaneous browser purchases and preserves an ambiguous signing reservation", async () => {
+    await session.creditPocket(2_000_000);
+    const one = quoteBody("parallel-one");
+    const two = quoteBody("parallel-two");
+    const first = await handleBrowseQuote(
+      deps,
+      post(one),
+      workspace(),
+      caller,
+      one,
+      () => {},
+      quoteView
+    );
+    const second = await handleBrowseQuote(
+      deps,
+      post(two),
+      workspace(),
+      caller,
+      two,
+      () => {},
+      quoteView
+    );
+    const a = Schema.decodeUnknownSync(BrowseQuoteResponse)(await first.json());
+    const b = Schema.decodeUnknownSync(BrowseQuoteResponse)(
+      await second.json()
+    );
+    const sign = async (raw: typeof BrowseQuoteResponse.Type) => {
+      const { quote } = raw;
+      const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
+      return await handleWalletPay(
+        deps,
+        new Request("http://localhost:3000/api/wallet/pay", {
+          method: "POST",
+          body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
+        }),
+        workspace(),
+        caller
+      );
+    };
+    const replies = await Promise.all([sign(a), sign(b)]);
+    expect(
+      replies
+        .map((reply) => reply.status)
+        .toSorted((left, right) => left - right)
+    ).toEqual([200, 409]);
+    const active = await services.store.tasks.activeBrowses();
+    const own = active.filter((row) => row.userId === ALICE);
+    expect(own).toHaveLength(1);
+    const task = own[0]?.task;
+    if (task === undefined) {
+      throw new Error("Missing reserved quote");
+    }
+    await services.store.tasks.update(ALICE, task.id, {
+      result: { paymentSigning: true },
+      updatedAt: Date.now(),
+    });
+    const retry = await sign(a);
+    expect(retry.status).toBe(409);
   });
 
   it("refuses to resume an exhausted allowance without buying or signing again", async () => {
@@ -917,6 +1007,17 @@ describe("paying a quote under the ask line", () => {
       })
     )(await signed.json());
     expect(receipt.decision._tag).toBe("allow");
+    const signedQuotes = await services.store.tasks.activeBrowses();
+    await Promise.all(
+      signedQuotes
+        .filter((row) => row.userId === BOB)
+        .map(async (row) => {
+          await services.store.tasks.update(BOB, row.task.id, {
+            status: "done",
+            updatedAt: Date.now(),
+          });
+        })
+    );
     // The tap answers the question; it does not move the ceiling.
     const place = {
       // SAFETY: as above.
@@ -972,5 +1073,23 @@ describe("paying a quote under the ask line", () => {
         await refused.json()
       ).error
     ).toContain("no one to ask");
+  });
+  it("does not treat an OAuth grant as human payment approval", async () => {
+    const who = await sessionFor();
+    const refused = await payFor(
+      who,
+      {
+        agentTokenId: null,
+        grantId: OAuthGrantId.generate(),
+        scopes: new Set(["browse", "pay"]),
+        userId: BOB,
+      },
+      "ask-line-oauth"
+    );
+    expect(refused.status).toBe(403);
+    const result = Schema.decodeUnknownSync(
+      Schema.Struct({ error: Schema.String })
+    )(await refused.json());
+    expect(result.error).toContain("no one to ask");
   });
 });

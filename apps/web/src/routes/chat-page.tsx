@@ -1,5 +1,11 @@
-import type { BrowserState } from "@froggy/protocol";
+import type { BrowserState, BrowseTaskView } from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@froggy/ui/components/sheet";
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { Link } from "@tanstack/react-router";
 import { XIcon } from "lucide-react";
@@ -11,7 +17,7 @@ import { XIcon } from "lucide-react";
  * own. Either way it is the same card, and the same painter, with more room.
  */
 import { useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { SplitPane } from "../components/browser/browser-split-pane";
 import { BrowserStrip } from "../components/browser/browser-strip";
@@ -42,6 +48,9 @@ import {
 } from "../lib/stream-model";
 import { suggestionInputFrom, suggestionsFor } from "../lib/suggestions";
 import { useWorkspace } from "../lib/workspace-context";
+
+const showInlineBrowser = (show: boolean, phone: boolean): boolean =>
+  show && !phone;
 
 const showWatchlistPane = (
   roomy: boolean,
@@ -83,6 +92,65 @@ const isEmptyConversation = (
   mode: string
 ): boolean =>
   !mailbox && messages === 0 && !busy && !requested && mode === "inline";
+const automaticallyShowBrowser = (
+  state: BrowserState | null,
+  tasks: readonly BrowseTaskView[],
+  lastTurn: string | null
+): boolean =>
+  state?.cloud === undefined &&
+  !tasks.some((task) => task.browse?.executor === "hosted") &&
+  hasLivePage(state, lastTurn);
+
+const MobileBrowser = ({
+  phone,
+  open,
+  close,
+  waiting,
+  children,
+}: {
+  readonly waiting: number;
+  readonly phone: boolean;
+  readonly open: boolean;
+  readonly close: () => void;
+  readonly children: ReactNode;
+}): ReactElement | null => {
+  if (!phone) {
+    return null;
+  }
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          close();
+        }
+      }}
+    >
+      <SheetContent className="h-dvh! w-full! max-w-none!" side="bottom">
+        <div className="px-4 pt-4 pr-16">
+          <SheetTitle>Watch live</SheetTitle>
+          <SheetDescription>
+            Watch the shared browser. Use a desktop to interact with the page.
+          </SheetDescription>
+        </div>
+        {waiting > 0 ? (
+          <output className="border-border mx-2 flex items-center justify-between gap-3 rounded-xl border p-3">
+            <span className="text-sm">An approval needs your attention.</span>
+            <Button
+              className="min-h-11 shrink-0"
+              onClick={close}
+              variant="outline"
+            >
+              Review approval
+            </Button>
+          </output>
+        ) : null}
+        <div className="min-h-0 flex-1 overflow-auto p-2">{children}</div>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
 export const ChatPage = (): ReactElement => {
   const { app, pendingPurchases } = useWorkspace();
   const {
@@ -94,6 +162,7 @@ export const ChatPage = (): ReactElement => {
     setWatchlistOpen,
     browser,
     browserRequested,
+    hideBrowser,
     busy,
     chat,
     chatNotices,
@@ -143,7 +212,7 @@ export const ChatPage = (): ReactElement => {
   const showLive =
     browserRequested ||
     popOut.mode === "window" ||
-    hasLivePage(browser.state, liveAfter);
+    automaticallyShowBrowser(browser.state, app.browseTasks, liveAfter);
   const browserSplit = roomy && popOut.mode === "split" && showLive;
   const watchlistVisible = showWatchlistPane(
     roomy,
@@ -191,6 +260,14 @@ export const ChatPage = (): ReactElement => {
 
   return (
     <div className="flex min-h-0 flex-1">
+      <MobileBrowser
+        phone={phone}
+        open={browserRequested}
+        close={hideBrowser}
+        waiting={app.approvals.length + pendingPurchases}
+      >
+        {card(true)}
+      </MobileBrowser>
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {firstUse ? <HomeSummary /> : null}
         {popOut.mode === "inline" && showLive && !liveVisible && busy ? (
@@ -243,7 +320,7 @@ export const ChatPage = (): ReactElement => {
                     }
                     onDock={popOut.handleDock}
                     onVisible={setLiveVisible}
-                    show={showLive}
+                    show={showInlineBrowser(showLive, phone)}
                   />
                 }
                 onRetry={(messageId) => {

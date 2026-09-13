@@ -164,6 +164,13 @@ export {
   BrowseQuote,
   BrowseQuoteResponse,
   BrowseChallenge,
+  BrowseActivity,
+  BrowsePhase,
+  BrowseTaskProgress,
+  BrowseTaskView,
+  BrowseTaskResponse,
+  BrowseTasksResponse,
+  BrowseTaskControl,
 } from "./browse";
 
 export { LaunchWatchTicket, LaunchWatchResult } from "./trading-launches";

@@ -1,4 +1,10 @@
-import { SaleId, TaskId, usdMicros } from "@froggy/domain";
+import {
+  ConversationId,
+  SaleId,
+  TaskId,
+  usdMicros,
+  quotePaymentState,
+} from "@froggy/domain";
 import type { Task, UserId } from "@froggy/domain";
 import {
   decodePaymentChallenge,
@@ -9,6 +15,7 @@ import {
 import { BrowseBudget, BrowseQuote } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { hostedTask } from "./hosted-browse-state";
 import type { TaskCaller, TaskDeps, TaskView } from "./tasks";
 import type { Workspaces } from "./workspaces";
 
@@ -24,6 +31,7 @@ export const QuotedBrowseInput = Schema.Struct({
     Schema.isMaxLength(200)
   ),
   quoteTaskId: Schema.optional(TaskId),
+  conversationId: Schema.optional(ConversationId),
 });
 type BrowseInput = typeof QuotedBrowseInput.Type;
 const StoredQuote = Schema.Struct({
@@ -56,11 +64,31 @@ const json = (body: ResponseBody, status = 200): Response =>
 const description = (executionMs: number): string =>
   `A bounded browsing task (${executionMs / 60_000} active minutes maximum). Website purchases cost extra.`;
 
+// The process owns one browser per person. Signing, re-pricing and settlement
+// share this queue; the durable signing marker survives a process restart.
+const paymentOwners = new Map<UserId, Promise<unknown>>();
+export const serializeBrowsePayment = async <T>(
+  owner: UserId,
+  work: () => Promise<T>
+): Promise<T> => {
+  const previous = paymentOwners.get(owner) ?? Promise.resolve();
+  const next = (async () => {
+    await previous.catch(() => null);
+    return await work();
+  })();
+  paymentOwners.set(owner, next);
+  try {
+    return await next;
+  } finally {
+    if (paymentOwners.get(owner) === next) {
+      paymentOwners.delete(owner);
+    }
+  }
+};
+
 /** A signed payment header is on file for this quote, so its price is spoken for. */
 const hasSignedPayment = (task: Task): boolean =>
-  Schema.decodeUnknownResult(
-    Schema.Struct({ paymentProofHash: Schema.String })
-  )(task.result)._tag === "Success";
+  quotePaymentState(task) !== null;
 
 /**
  * Everything a quote needs to be paid, or the reason it cannot be offered.
@@ -82,6 +110,14 @@ const priceQuote = (
   const { deps, now } = context;
   const { services } = deps;
   const { environment } = services;
+  // Delegated tools and email run in Froggy's loop, where their current grants are enforced.
+  const workspaceTools =
+    deps.unattended === true ||
+    context.caller.grantId !== null ||
+    context.caller.agentTokenId !== null ||
+    /\b(?:email|inbox|verification code|confirmation code)\b/iu.test(
+      body.instruction
+    );
   if (environment.browserUseApiKey === null) {
     return json(
       { error: "Browsing is not configured. Nothing was charged." },
@@ -89,6 +125,7 @@ const priceQuote = (
     );
   }
   if (
+    (workspaceTools || environment.browseExecutor !== "hosted") &&
     environment.modes.model !== "stub" &&
     (!(environment.browserModelInputRate > 0) ||
       !(environment.browserModelOutputRate > 0))
@@ -122,19 +159,24 @@ const priceQuote = (
     units: String(Math.ceil((price * 100_000_000) / rate.usdMicrosPerHbar)),
     url: `${deps.tasksUrl}?quote=${id}`,
   });
-  return {
-    input: {
-      instruction: body.instruction,
-      quote,
-      challenge,
-      modelRates: {
-        input: environment.browserModelInputRate,
-        output: environment.browserModelOutputRate,
-      },
-    },
-    priceUsdMicros: price,
+  let input: Task["input"] = {
+    instruction: body.instruction,
+    stubbed:
+      environment.modes.browser === "stub" ||
+      environment.modes.hedera === "stub" ||
+      environment.modes.privy === "stub",
+    executor: workspaceTools ? "legacy" : environment.browseExecutor,
     quote,
+    challenge,
+    modelRates: {
+      input: environment.browserModelInputRate,
+      output: environment.browserModelOutputRate,
+    },
   };
+  if (body.conversationId !== undefined) {
+    input = { ...input, conversationId: body.conversationId };
+  }
+  return { input, priceUsdMicros: price, quote };
 };
 
 const createQuote = async (
@@ -259,7 +301,17 @@ const performSettlement = async (
   if (await store.sales.byPaymentHash(hash)) {
     return json({ error: "That proof already paid for a task." }, 409);
   }
-  if (deps.runs.get(workspace.session.id) !== null) {
+  const activeTasks = await store.tasks.activeBrowses();
+  const active = activeTasks.find(
+    (row) => row.userId === caller.userId && row.task.id !== task.id
+  );
+  if (active !== undefined) {
+    return json(
+      { error: "Another browser task is active. Nothing else was charged." },
+      409
+    );
+  }
+  if (!hostedTask(task) && deps.runs.get(workspace.session.id) !== null) {
     return json(
       {
         error:
@@ -437,7 +489,7 @@ const quotedTaskFor = async (
   return task;
 };
 
-export const handleBrowseQuote = async (
+const performBrowseQuote = async (
   deps: TaskDeps,
   request: Request,
   workspace: Context["workspace"],
@@ -450,6 +502,30 @@ export const handleBrowseQuote = async (
   const context: Context = { deps, caller, workspace, execute, view, now };
   const key = request.headers.get("idempotency-key") ?? body.idempotencyKey;
   const payment = paymentFrom(request.headers);
+  const activeTasks = await deps.services.store.tasks.activeBrowses();
+  const active = activeTasks.find(
+    (row) => row.userId === caller.userId && row.task.idempotencyKey !== key
+  );
+  if (active !== undefined && payment === null) {
+    const connection = caller.grantId ?? caller.agentTokenId;
+    return connection === null || active.task.connectionId === connection
+      ? json({ task: view(active.task) })
+      : json(
+          {
+            error: "Another browser task is active. Nothing else was charged.",
+          },
+          409
+        );
+  }
+  if (body.conversationId !== undefined) {
+    const conversation = await deps.services.store.history.get(
+      caller.userId,
+      body.conversationId
+    );
+    if (conversation === null || conversation.kind !== "conversation") {
+      return json({ error: "Conversation not found." }, 404);
+    }
+  }
   const task = await quotedTaskFor(context, body, key, payment);
   if (task instanceof Response) {
     return task;
@@ -513,3 +589,11 @@ export const handleBrowseQuote = async (
   }
   return await settleQuote(context, task, challenge, payment);
 };
+
+export const handleBrowseQuote = async (
+  ...args: Parameters<typeof performBrowseQuote>
+): Promise<Response> =>
+  await serializeBrowsePayment(
+    args[3].userId,
+    async () => await performBrowseQuote(...args)
+  );

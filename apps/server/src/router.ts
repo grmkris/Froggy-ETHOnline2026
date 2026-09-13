@@ -44,6 +44,7 @@ import {
   resolveAgentSecret,
 } from "./agents";
 import { authenticate, bearerFromRequest } from "./auth";
+import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
 import type { ChatRequest } from "./chat";
@@ -57,6 +58,7 @@ import { handleEmail, handleEmailWebhook } from "./email-routes";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import { handleHistory } from "./history-routes";
+import { hasHostedBrowse, controlCurrentHostedBrowse } from "./hosted-browse";
 import type { InteractionRegistry } from "./interactions";
 import { digestJob, runScheduledFor } from "./jobs";
 import type { JobDeps, JobReport } from "./jobs";
@@ -101,7 +103,7 @@ import type { UnlockTokens } from "./unlock";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
 import { handleWatchlist } from "./watchlist-routes";
-import type { Workspaces } from "./workspaces";
+import type { Workspace, Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
 
 export const ORACLE_PATH = "/oracle/snapshot";
@@ -546,6 +548,15 @@ const handleTasks = async (
     unlocks: deps.unlocks,
     workspaces: deps.workspaces,
   };
+  const browseResponse = await handleBrowseTaskRoutes(
+    taskDeps,
+    request,
+    workspace,
+    caller
+  );
+  if (browseResponse !== null) {
+    return browseResponse;
+  }
   if (pathname === "/api/services" || pathname.startsWith("/api/services/")) {
     return await handleServices(
       deps.services,
@@ -707,10 +718,12 @@ const handleChatRoutes = async (
 
   if (pathname === "/api/chat/stop" && request.method === "POST") {
     const stopped = deps.runs.abort(sessionId);
-    await deps.services.purchases.cancelAll(
-      workspace.userId,
-      workspace.browser
-    );
+    if (!hasHostedBrowse(workspace.userId)) {
+      await deps.services.purchases.cancelAll(
+        workspace.userId,
+        workspace.browser
+      );
+    }
     return json({ stopped });
   }
 
@@ -842,6 +855,32 @@ const removeAccountEmails = async (services: Services, userId: UserId) => {
   await services.email?.removeConversation(userId);
 };
 
+const deleteAccount = async (
+  deps: RouterDeps,
+  userId: UserId,
+  workspace: Workspace
+): Promise<Response> => {
+  // Their run stops, their browser closes, their profile and their records
+  // go. The ledger's spend rows stay: money that moved is not a preference.
+  if (await controlCurrentHostedBrowse(userId, "stop")) {
+    return json(
+      {
+        error:
+          "Your browser task is stopping. Wait for its result, then delete your account again.",
+      },
+      409
+    );
+  }
+  deps.runs.abort(workspace.session.id);
+  await deps.services.trades.stopAndRevoke(userId);
+  await deps.services.launches.cancelAll(userId);
+  await deps.services.purchases.cancelAll(userId, workspace.browser);
+  await deps.workspaces.forget(userId);
+  await removeAccountEmails(deps.services, userId);
+  await deps.services.store.forget(userId);
+  return json({ deleted: true });
+};
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -862,7 +901,6 @@ const handleApi = async (
   const { caller } = resolved;
   const { userId } = caller;
   const workspace = await deps.workspaces.hydrate(userId);
-  const sessionId = workspace.session.id;
 
   if (pathname === "/api/browser/viewer" && request.method === "GET") {
     return await browserViewer(workspace, caller);
@@ -936,16 +974,7 @@ const handleApi = async (
   }
 
   if (pathname === "/api/me" && request.method === "DELETE") {
-    // Their run stops, their browser closes, their profile and their records
-    // go. The ledger's spend rows stay: money that moved is not a preference.
-    deps.runs.abort(sessionId);
-    await deps.services.trades.stopAndRevoke(userId);
-    await deps.services.launches.cancelAll(userId);
-    await deps.services.purchases.cancelAll(userId, workspace.browser);
-    await deps.workspaces.forget(userId);
-    await removeAccountEmails(deps.services, userId);
-    await deps.services.store.forget(userId);
-    return json({ deleted: true });
+    return await deleteAccount(deps, userId, workspace);
   }
 
   if (pathname === "/api/receipts") {

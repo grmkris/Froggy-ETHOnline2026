@@ -19,10 +19,12 @@ const STATUSES: readonly TaskStatus[] = [
   "awaiting_approval",
   "done",
   "failed",
+  "cancelled",
   "uncertain",
 ];
 
 const POSES: Record<TaskStatus, FrogPose> = {
+  cancelled: "stopped",
   quoted: "needs-user",
   paid: "working",
   running: "working",
@@ -34,6 +36,7 @@ const POSES: Record<TaskStatus, FrogPose> = {
 };
 
 const COPY: Record<TaskStatus, string> = {
+  cancelled: "Browsing stopped.",
   quoted: "One thing needs you.",
   paid: "Working on it.",
   running: "Working on it.",

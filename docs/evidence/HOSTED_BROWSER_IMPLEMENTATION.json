@@ -1,0 +1,96 @@
+{
+  "date": "2026-09-13",
+  "compatibility": {
+    "mode": "live-browser-stub-wallet-no-customer-charge",
+    "phases": [
+      {
+        "phase": "starting",
+        "elapsedMs": 1005
+      },
+      {
+        "phase": "working",
+        "elapsedMs": 13019
+      },
+      {
+        "phase": "done",
+        "elapsedMs": 31444
+      }
+    ],
+    "maxModelCostUsd": 0.1,
+    "cleanup": ["browser stopped and confirmed", "temporary profile deleted"],
+    "calls": [
+      {
+        "method": "eth_requestAccounts",
+        "origin": "https://example.com"
+      }
+    ],
+    "result": {
+      "status": "done",
+      "text": "Completed:\n- IANA heading: **Example Domains**\n- `eth_chainId`: **0x14a34**\n- `eth_requestAccounts`: refused with compatibility code **4001**\n\nNo signing, login, form submission, or purchase performed.",
+      "error": null,
+      "spentUsdMicros": 6296,
+      "attempts": 2,
+      "released": true,
+      "attached": true
+    }
+  },
+  "handover": {
+    "takeoverRequested": true,
+    "continued": true,
+    "mode": "live-browser-stub-wallet-no-customer-charge",
+    "phases": [
+      {
+        "phase": "starting",
+        "elapsedMs": 838
+      },
+      {
+        "phase": "working",
+        "elapsedMs": 16821
+      },
+      {
+        "phase": "handing_over",
+        "elapsedMs": 19321
+      },
+      {
+        "phase": "human",
+        "elapsedMs": 21842
+      },
+      {
+        "phase": "starting",
+        "elapsedMs": 24291
+      },
+      {
+        "phase": "working",
+        "elapsedMs": 26541
+      },
+      {
+        "phase": "done",
+        "elapsedMs": 40316
+      }
+    ],
+    "maxModelCostUsd": 0.1,
+    "cleanup": ["browser stopped and confirmed", "temporary profile deleted"],
+    "humanControl": "human",
+    "calls": [
+      {
+        "method": "eth_requestAccounts",
+        "origin": "https://example.com"
+      }
+    ],
+    "observedPages": [
+      {
+        "title": "Example Domains",
+        "host": "www.iana.org"
+      }
+    ],
+    "result": {
+      "status": "done",
+      "text": "Completed:\n- Reloaded `example.com`\n- `window.ethereum` detected\n- `eth_chainId`: `0x14a34`\n- `eth_requestAccounts`: refused with code `4001`\n- Navigated to IANA; heading: **Example Domains**\n\nThe IANA page is left open.",
+      "error": null,
+      "spentUsdMicros": 6765,
+      "attempts": 3,
+      "released": true,
+      "attached": true
+    }
+  }
+}

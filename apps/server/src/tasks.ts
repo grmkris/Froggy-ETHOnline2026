@@ -1,3 +1,21 @@
+import type {
+  AgentConnectionId,
+  OAuthGrantId,
+  OAuthScope,
+  Receipt,
+  Task,
+  TaskKind,
+  TaskStatus,
+  UserId,
+  UsdMicros,
+} from "@froggy/domain";
+import {
+  quotePaymentState,
+  RunId,
+  SaleId,
+  TaskId,
+  usdMicros,
+} from "@froggy/domain";
 /**
  * Delegated tasks: the thing an outside agent buys.
  *
@@ -12,19 +30,6 @@
  * back. Paid work that fails afterwards stays retrievable as a failed task
  * whose receipt says paid, failed, not refunded.
  */
-
-import { RunId, SaleId, TaskId, usdMicros } from "@froggy/domain";
-import type {
-  AgentConnectionId,
-  OAuthGrantId,
-  OAuthScope,
-  Receipt,
-  Task,
-  TaskKind,
-  TaskStatus,
-  UserId,
-  UsdMicros,
-} from "@froggy/domain";
 import { describeBestSupply, describeCheapestBorrow } from "@froggy/graph";
 import {
   decodePaymentChallenge,
@@ -33,6 +38,7 @@ import {
   paymentFrom,
 } from "@froggy/payments";
 import type { PaymentChallenge } from "@froggy/payments";
+import type { BrowseTaskProgress } from "@froggy/protocol";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
 
@@ -42,10 +48,17 @@ import {
   handleBrowseQuote,
   QuotedBrowseInput,
   storedBrowseQuote,
+  serializeBrowsePayment,
 } from "./browse-quotes";
 import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
 import { detached } from "./detached";
+import {
+  controlCurrentHostedBrowse,
+  hasHostedBrowse,
+  startHostedBrowse,
+} from "./hosted-browse";
+import { hostedTask, publicBrowseTask } from "./hosted-browse-state";
 import type { InteractionRegistry } from "./interactions";
 import type { Notices } from "./notices";
 import { insufficientScope } from "./oauth";
@@ -104,6 +117,7 @@ const PayBody = Schema.Struct({
 const decodePayBody = Schema.decodeUnknownResult(PayBody);
 
 export interface TaskDeps {
+  readonly unattended?: boolean;
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
   /** For the `notify` tool inside a browse turn. */
@@ -163,6 +177,8 @@ interface TaskApproval {
 
 /** A task as a caller sees it. Approval and receipts are joined at read time. */
 export interface TaskView {
+  readonly requestKey?: string | null;
+  readonly browse: BrowseTaskProgress | null;
   readonly approval: readonly TaskApproval[];
   readonly createdAt: number;
   readonly error: string | null;
@@ -239,7 +255,9 @@ const taskView = (
   deps: TaskDeps,
   workspace: Workspace
 ): TaskView => {
-  const pending = deps.interactions.pendingFor(workspace.session.userId);
+  const pending = deps.interactions
+    .pendingFor(workspace.session.userId)
+    .filter((request) => task.runId !== null && request.runId === task.runId);
   const awaiting = task.status === "running" && pending.length > 0;
   const receipts =
     task.runId === null
@@ -247,7 +265,20 @@ const taskView = (
       : workspace.session.history.filter(
           (receipt) => receipt.runId === task.runId
         );
+  const browse =
+    task.kind === "browse"
+      ? publicBrowseTask(task, (deps.now ?? Date.now)(), awaiting)
+      : null;
+  let { result } = task;
+  if (hostedTask(task)) {
+    result = browse?.result ?? null;
+  }
+  if (task.kind === "service") {
+    result = serviceTicket(task);
+  }
   return {
+    browse: browse?.browse ?? null,
+    requestKey: browse?.requestKey ?? null,
     approval: awaiting
       ? pending.map((request) => ({
           amountLabel: request.amountLabel,
@@ -259,11 +290,11 @@ const taskView = (
     createdAt: task.createdAt,
     error: task.error,
     id: task.id,
-    input: task.input,
+    input: hostedTask(task) && browse !== null ? browse.input : task.input,
     kind: task.kind,
     priceUsdMicros: task.priceUsdMicros,
     receipts,
-    result: task.kind === "service" ? serviceTicket(task) : task.result,
+    result,
     runId: task.runId,
     saleId: task.saleId,
     status: awaiting ? "awaiting_approval" : task.status,
@@ -532,6 +563,10 @@ const failureText = (error: Error): string =>
 
 /** Run a paid task to its end, whatever that is, and write the end down. */
 const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
+  if (hostedTask(task)) {
+    startHostedBrowse(deps, workspace, task);
+    return;
+  }
   const now = deps.now ?? Date.now;
   const { userId } = workspace.session;
   detached(`task ${task.id}`, async () => {
@@ -577,9 +612,14 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
 
 export const resumeBrowseTask = async (
   deps: TaskDeps,
-  userId: UserId
+  userId: UserId,
+  taskId?: TaskId
 ): Promise<void> => {
   const workspace = await deps.workspaces.hydrate(userId);
+  if (hasHostedBrowse(userId)) {
+    await controlCurrentHostedBrowse(userId, "continue");
+    return;
+  }
   if (
     deps.runs.get(workspace.session.id) !== null ||
     activeBrowses.has(workspace.session.id)
@@ -592,6 +632,7 @@ export const resumeBrowseTask = async (
   const task = tasks.find(
     (entry) =>
       entry.kind === "browse" &&
+      (taskId === undefined || entry.id === taskId) &&
       entry.saleId !== null &&
       (entry.status === "paused" ||
         entry.status === "running" ||
@@ -815,6 +856,28 @@ const performTaskPost = async (
       (task) => taskView(task, deps, workspace)
     );
   }
+  if (body.kind === "browse") {
+    return await serializeBrowsePayment(caller.userId, async () => {
+      const activeTasks = await deps.services.store.tasks.activeBrowses();
+      const active = activeTasks.some((row) => row.userId === caller.userId);
+      if (active || hasHostedBrowse(caller.userId)) {
+        return json(
+          {
+            error: "Another browser task is active. Nothing else was charged.",
+          },
+          409
+        );
+      }
+      return await postLegacyTask(
+        deps,
+        request,
+        workspace,
+        caller,
+        invocation,
+        body
+      );
+    });
+  }
   return await postLegacyTask(
     deps,
     request,
@@ -967,6 +1030,28 @@ const validateQuotePayment = async (
     if (quoted === null || quoted.status !== "quoted") {
       return json({ error: "That quote is not payable." }, 409);
     }
+    if (quotePaymentState(quoted) === "signing") {
+      return json(
+        {
+          error:
+            "A signing attempt is still unconfirmed. Do not sign or purchase again.",
+        },
+        409
+      );
+    }
+    const activeTasks = await deps.services.store.tasks.activeBrowses();
+    const active = activeTasks.find(
+      (row) => row.userId === caller.userId && row.task.id !== quoted.id
+    );
+    if (active !== undefined) {
+      return json(
+        {
+          error:
+            "Another browser task is active. Open its task card before purchasing again.",
+        },
+        409
+      );
+    }
     const saved = storedBrowseQuote(quoted);
     const decodedSaved = decodePaymentChallenge(saved.challenge);
     if (
@@ -993,8 +1078,33 @@ const validateQuotePayment = async (
  */
 const personAnswered = (
   caller: TaskCaller,
-  quoteTaskId: TaskId | undefined
-): boolean => caller.agentTokenId === null && quoteTaskId !== undefined;
+  quoteTaskId: TaskId | undefined,
+  unattended = false
+): boolean =>
+  !unattended &&
+  caller.agentTokenId === null &&
+  caller.grantId === null &&
+  quoteTaskId !== undefined;
+
+const saveQuoteSigning = async (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined,
+  signing: boolean
+): Promise<void> => {
+  if (id !== undefined) {
+    await deps.services.store.tasks.update(caller.userId, id, {
+      result: signing ? { paymentSigning: true } : null,
+      updatedAt: (deps.now ?? Date.now)(),
+    });
+  }
+};
+
+const paymentApproved = (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined
+): boolean => deps.unattended !== true && personAnswered(caller, id);
 
 const performWalletPay = async (
   deps: TaskDeps,
@@ -1057,16 +1167,18 @@ const performWalletPay = async (
       body.success.quoteTaskId === undefined
         ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
         : `pay:quote:${body.success.quoteTaskId}`,
-    approved: personAnswered(caller, body.success.quoteTaskId),
-    interactive: true,
+    approved: paymentApproved(deps, caller, body.success.quoteTaskId),
+    interactive: deps.unattended !== true,
     payeeId: requirement.payTo,
     payeeLabel: `${requirement.payTo} (x402, signed for an agent)`,
     provenance: "server",
     purpose: `a payment header for ${requirement.amount} ${requirement.asset} on ${requirement.network}`,
     runId: RunId.generate(),
     settle: async () => {
+      await saveQuoteSigning(deps, caller, body.success.quoteTaskId, true);
       const attempt = await payer.pay(challenge.success);
       if (attempt.header === null) {
+        await saveQuoteSigning(deps, caller, body.success.quoteTaskId, false);
         return {
           error: attempt.error ?? "no payment could be built",
           network: requirement.network,
@@ -1139,5 +1251,9 @@ export const handleWalletPay = async (
     "pay",
     "wallet.pay",
     "POST",
-    async () => await performWalletPay(deps, request, workspace, caller)
+    async () =>
+      await serializeBrowsePayment(
+        caller.userId,
+        async () => await performWalletPay(deps, request, workspace, caller)
+      )
   );

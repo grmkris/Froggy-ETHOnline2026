@@ -77,7 +77,14 @@ const Overlay = ({
 }): ReactElement | null => {
   const status = state?.status ?? "idle";
   if (status === "running") {
-    return null;
+    return connected ? null : (
+      <div
+        className="bg-background/85 absolute inset-x-0 top-0 p-3 text-sm"
+        aria-live="polite"
+      >
+        Reconnecting browser updates. The agent may still be working.
+      </div>
+    );
   }
   if (state?.queue !== null && state?.queue !== undefined) {
     return (
@@ -126,7 +133,11 @@ export const BrowserSurface = ({
   state,
 }: BrowserSurfaceProps): ReactElement => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const input = usePageInput(canvasRef, send, interactive);
+  const canInput =
+    interactive &&
+    connected &&
+    (state?.cloud === undefined || state.cloud.control === "human");
+  const input = usePageInput(canvasRef, send, canInput);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -152,14 +163,14 @@ export const BrowserSurface = ({
             "block h-full w-full object-contain",
             interactive ? "cursor-default" : "pointer-events-none"
           )}
-          inert={!interactive}
+          inert={!canInput}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               input.focusKeyboard();
             }
           }}
           ref={canvasRef}
-          tabIndex={interactive ? 0 : -1}
+          tabIndex={canInput ? 0 : -1}
           {...input.canvasProps}
         />
       )}

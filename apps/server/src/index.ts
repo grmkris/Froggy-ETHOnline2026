@@ -27,6 +27,15 @@ import {
 import { AgentGrants } from "./grants";
 import type { GrantDeps } from "./grants";
 import { recordHistoryWait } from "./history-sources";
+import {
+  controlCurrentHostedBrowse,
+  hasHostedBrowse,
+  hostedBrowseBusy,
+  hostedBrowseFor,
+  recoverHostedBrowses,
+  subscribeHostedBrowses,
+  suspendHostedBrowses,
+} from "./hosted-browse";
 import { InteractionRegistry } from "./interactions";
 import { digestJob, promptJob, runScheduledFor } from "./jobs";
 import { createNotices } from "./notices";
@@ -188,8 +197,21 @@ class FroggyServer extends Context.Service<
             outcome.kind === "answered" ? outcome.optionId : outcome.kind
           );
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
-            runs.abort(workspaces.for(userId).session.id);
-            interactions.abortAll(userId, "stopped from the approval card");
+            if (
+              hasHostedBrowse(userId) &&
+              input.request.runId === hostedBrowseFor(userId)?.id
+            ) {
+              await controlCurrentHostedBrowse(userId, "stop");
+            } else {
+              runs.abort(workspaces.for(userId).session.id);
+              if (input.request.runId !== undefined) {
+                interactions.abortRun(
+                  userId,
+                  input.request.runId,
+                  "Stopped from the approval card."
+                );
+              }
+            }
           }
           return outcome;
         },
@@ -198,14 +220,17 @@ class FroggyServer extends Context.Service<
         browserIdleMs: environment.browserIdleMs,
         createBrowser: services.createBrowser,
         demoUserId: environment.demoUserId,
-        isBusy: (sessionId) => runs.get(sessionId) !== null,
+        isBusy: (sessionId) =>
+          runs.get(sessionId) !== null || hostedBrowseBusy(sessionId),
         ledger: services.ledger,
         maxBrowsers: environment.maxBrowsers,
         modes: environment.modes,
         onBrowserPayment: (userId, request) => {
           detached("browser purchase", async () => {
             const workspace = await workspaces.hydrate(userId);
-            const run = runs.get(workspace.session.id);
+            const run = hasHostedBrowse(userId)
+              ? hostedBrowseFor(userId)
+              : runs.get(workspace.session.id);
             await services.purchases.observe(
               {
                 session: workspace.session,
@@ -311,6 +336,7 @@ class FroggyServer extends Context.Service<
       );
 
       const walletRequests = new WalletRequests({
+        browserRun: (userId) => hostedBrowseFor(userId),
         appOrigin: environment.appOrigin,
         ask: async (userId, input) => {
           await recordHistoryWait(
@@ -328,8 +354,21 @@ class FroggyServer extends Context.Service<
             outcome.kind === "answered" ? outcome.optionId : outcome.kind
           );
           if (outcome.kind === "answered" && outcome.optionId === "deny_stop") {
-            runs.abort(workspaces.for(userId).session.id);
-            interactions.abortAll(userId, "stopped from the approval card");
+            if (
+              hasHostedBrowse(userId) &&
+              input.request.runId === hostedBrowseFor(userId)?.id
+            ) {
+              await controlCurrentHostedBrowse(userId, "stop");
+            } else {
+              runs.abort(workspaces.for(userId).session.id);
+              if (input.request.runId !== undefined) {
+                interactions.abortRun(
+                  userId,
+                  input.request.runId,
+                  "Stopped from the approval card."
+                );
+              }
+            }
           }
           return outcome;
         },
@@ -395,6 +434,22 @@ class FroggyServer extends Context.Service<
       const sockets = createSocketHandlers(
         policies === undefined ? socketDeps : { ...socketDeps, policies }
       );
+
+      const unsubscribeBrowse = subscribeHostedBrowses(sockets.publishApp);
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribeBrowse));
+      yield* Effect.promise(async () => {
+        await recoverHostedBrowses({
+          budget,
+          interactions,
+          notices,
+          oracleUrl,
+          runs,
+          services,
+          tasksUrl: `${environment.appOrigin}/api/tasks`,
+          unlocks,
+          workspaces,
+        });
+      });
 
       // Browsers nobody is watching or driving are released on a slow clock.
       // The profile stays; only the process goes, so eight seats serve more
@@ -671,7 +726,8 @@ class FroggyServer extends Context.Service<
             clearInterval(emailTick);
             clearInterval(walletTick);
             await running.stop(true);
-            await workspaces.closeAll();
+            const preserved = await suspendHostedBrowses();
+            await workspaces.closeAll(preserved);
             await services.shutdown();
           })
       );

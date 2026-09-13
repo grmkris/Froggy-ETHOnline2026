@@ -1,5 +1,15 @@
-import { cloudApi, CloudBrowser, StubCloudBrowser } from "@froggy/browser";
-import type { BrowserHandle, BrowserSessionOptions } from "@froggy/browser";
+import {
+  cloudApi,
+  CloudBrowser,
+  StubCloudBrowser,
+  hostedAgentApi,
+  stubHostedAgent,
+} from "@froggy/browser";
+import type {
+  BrowserHandle,
+  BrowserSessionOptions,
+  HostedAgentApi,
+} from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
 import type { TradingNetwork, UserId } from "@froggy/domain";
 import {
@@ -147,6 +157,7 @@ const createEmail = (
   return null;
 };
 export interface Services {
+  readonly hostedAgent: HostedAgentApi;
   readonly email: Email | null;
   readonly createBrowser: (
     options: BrowserSessionOptions,
@@ -619,6 +630,11 @@ export const createServices = (options: ServiceOptions): Services => {
     ponsReader = stubPonsLaunchReader(Date.now);
   }
   const adapters: Omit<Services, "purchases" | "createBrowser"> = {
+    hostedAgent:
+      environment.browserUseApiKey === null
+        ? stubHostedAgent
+        : hostedAgentApi({ apiKey: environment.browserUseApiKey }),
+
     email,
     launches: new LaunchCoordinator({
       store: store.launches,
@@ -742,6 +758,11 @@ export const createServices = (options: ServiceOptions): Services => {
       }
       return new CloudBrowser({
         ...browserOptions,
+        hostedApi: cloudApi({
+          apiKey: environment.browserUseApiKey,
+          country: environment.browserCountry,
+          version: 4,
+        }),
         api: cloudApi({
           apiKey: environment.browserUseApiKey,
           country: environment.browserCountry,

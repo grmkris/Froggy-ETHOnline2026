@@ -1,5 +1,6 @@
 import {
   AgentInvocation,
+  quotePaymentState,
   ConversionId,
   Mandate,
   Purchase,
@@ -259,6 +260,7 @@ export interface OwnedWalletRequest {
 export const BrowserProfileRecord = Schema.Struct({
   profileId: Schema.String.check(Schema.isUUID()),
   browserId: Schema.NullOr(Schema.String.check(Schema.isUUID())),
+  apiVersion: Schema.optional(Schema.Literals([3, 4])),
   uncertain: Schema.Boolean,
   usage: Schema.optional(
     Schema.Struct({
@@ -432,6 +434,9 @@ export interface Store {
   };
   /** Delegated tasks, per person. A key seen before returns the earlier task. */
   readonly tasks: {
+    readonly activeBrowses: () => Promise<
+      readonly { readonly userId: UserId; readonly task: Task }[]
+    >;
     readonly claim: (
       userId: UserId,
       id: TaskId,
@@ -1192,6 +1197,24 @@ export const memoryStore = (): Store => {
       },
     },
     tasks: {
+      activeBrowses: async () =>
+        await Promise.resolve(
+          [...tasks.values()]
+            .filter(
+              (task) =>
+                task.kind === "browse" &&
+                ([
+                  "paid",
+                  "running",
+                  "paused",
+                  "awaiting_approval",
+                  "uncertain",
+                ].includes(task.status) ||
+                  (task.status === "quoted" &&
+                    quotePaymentState(task) !== null))
+            )
+            .map((task) => ({ userId: task.userId, task }))
+        ),
       claim: async (userId, id, expected, patch) => {
         await Promise.resolve();
         const row = tasks.get(id);

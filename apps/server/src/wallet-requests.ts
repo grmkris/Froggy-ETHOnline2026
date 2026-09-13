@@ -329,6 +329,9 @@ class AddressLock {
 }
 
 export interface WalletRequestDeps {
+  readonly browserRun?: (
+    userId: UserId
+  ) => { readonly id: RunId; readonly signal: AbortSignal } | null;
   readonly appOrigin: string;
   readonly ask: (userId: UserId, input: AskInput) => Promise<ApprovalOutcome>;
   readonly chainId: number;
@@ -826,7 +829,7 @@ export class WalletRequests {
       pageRequestId: observation.call.id,
       payload,
       receiptId: null,
-      runId: null,
+      runId: this.deps.browserRun?.(userId)?.id ?? null,
       signedHash: null,
       status: "pending",
       stubbed: this.deps.stubbed,
@@ -888,6 +891,13 @@ export class WalletRequests {
     return created;
   }
 
+  private approvalSignal(userId: UserId, request: WalletRequest): AbortSignal {
+    const run = this.deps.browserRun?.(userId);
+    return run?.id === request.runId
+      ? run.signal
+      : new AbortController().signal;
+  }
+
   private async askAndSettle(
     userId: UserId,
     workspace: {
@@ -903,7 +913,6 @@ export class WalletRequests {
       request.chainId,
       request.origin
     );
-    const controller = new AbortController();
     const policy = await this.deps.policies?.current(userId);
     const needsSignature =
       request.kind !== "connect" &&
@@ -913,7 +922,7 @@ export class WalletRequests {
       (await this.advance(userId, request, "card_shown")) ?? request;
     const outcome = await this.deps.ask(userId, {
       request: walletCard(awaiting, reading, needsSignature),
-      signal: controller.signal,
+      signal: this.approvalSignal(userId, request),
     });
     const latest =
       (await this.deps.store.walletRequests.byId(userId, request.id)) ??

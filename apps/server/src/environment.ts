@@ -341,6 +341,8 @@ export interface Environment {
   readonly hederaPrivateKey: string;
   /** Kill a browser nobody is watching or driving after this long. */
   readonly browserIdleMs: number;
+  readonly browseExecutor: "legacy" | "hosted";
+  readonly hostedBrowserModel: string;
   readonly browserUseApiKey: string | null;
   readonly browserCountry: string | null;
   readonly browserModelInputRate: number;
@@ -711,6 +713,20 @@ const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
       Config.withDefault("us")
     );
     const browserCountry = country === "none" ? null : country;
+    const executor = yield* Config.string("BROWSE_EXECUTOR").pipe(
+      Config.withDefault("legacy")
+    );
+    if (executor !== "legacy" && executor !== "hosted") {
+      return yield* Effect.die(
+        new Error("BROWSE_EXECUTOR must be legacy or hosted.")
+      );
+    }
+    const browseExecutor = Schema.decodeUnknownSync(
+      Schema.Literals(["legacy", "hosted"])
+    )(executor);
+    const hostedBrowserModel = yield* Config.string(
+      "HOSTED_BROWSER_MODEL"
+    ).pipe(Config.withDefault("gpt-5.6-luna"));
     const browserModelInputRate = yield* Config.number(
       "BROWSER_MODEL_INPUT_USD_PER_MILLION"
     ).pipe(Config.withDefault(0));
@@ -722,6 +738,8 @@ const loadBrowserConfiguration = Effect.fn("loadBrowserConfiguration")(
     const browserMode: ServiceMode =
       browserUseApiKey === null ? "stub" : "live";
     return {
+      browseExecutor,
+      hostedBrowserModel,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
@@ -847,6 +865,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       Config.withDefault(1)
     );
     const {
+      browseExecutor,
+      hostedBrowserModel,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
@@ -1144,6 +1164,8 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       allowStubs,
       blockPrivateNetwork: !isLoopback(appOrigin),
       browserIdleMs,
+      browseExecutor,
+      hostedBrowserModel,
       browserUseApiKey,
       browserCountry,
       browserModelInputRate,
