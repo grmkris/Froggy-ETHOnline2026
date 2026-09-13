@@ -20,21 +20,16 @@ import { WorkspaceLayout } from "./routes/workspace-layout";
 
 const rootRoute = createRootRoute({ component: AppShell });
 
-/** Public previews never mount workspace sockets or account queries. */
+/** Old landing links resolve to the same session-aware front door. */
+const LandingRedirect = () => <Navigate replace to="/" />;
 const landingIndexRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/landing-page"),
-    "LandingIndexPage"
-  ),
+  component: LandingRedirect,
   getParentRoute: () => rootRoute,
   path: "/landing",
 });
 
 const landingPlaygroundRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/landing-page"),
-    "LandingIndexPage"
-  ),
+  component: LandingRedirect,
   getParentRoute: () => rootRoute,
   path: "/landing/playground",
 });

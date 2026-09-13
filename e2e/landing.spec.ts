@@ -48,7 +48,8 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     });
     await page.setViewportSize({ width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/landing");
+    await landingIdentity(page, "signed-out");
+    await page.goto("/");
     await expect(
       page.getByRole("heading", { name: "A home for your agents." })
     ).toBeVisible();
@@ -58,7 +59,7 @@ for (const width of [320, 390, 768, 1024, 1440]) {
       0
     );
     await expect(
-      page.getByText("Local identity · development preview").first()
+      page.getByRole("button", { name: "Sign in", exact: true }).first()
     ).toBeVisible();
     await visit(
       ["watch", "possibilities", "connect", "money", "setup"],
@@ -108,7 +109,8 @@ test("walkthrough, scenario review and keep watching stay local", async ({
       actions.push(request.url());
     }
   });
-  await page.goto("/landing");
+  await landingIdentity(page, "signed-out");
+  await page.goto("/");
   await visit(
     [
       "Put the browser to work.",
@@ -154,7 +156,8 @@ test("navigation, keyboard tabs, FAQs and reduced motion work", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/landing");
+  await landingIdentity(page, "signed-out");
+  await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "A home for your agents." })
   ).toBeVisible();
@@ -207,7 +210,8 @@ test("connection copy uses this deployment and handles denied clipboard", async 
   baseURL,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/landing");
+  await landingIdentity(page, "signed-out");
+  await page.goto("/");
   await page
     .getByRole("button", { name: "Copy connection instructions" })
     .click();
@@ -244,12 +248,13 @@ test("art failure leaves the story and primary actions usable", async ({
   await page.route("**/froggy/landing/*.webp", async (route) => {
     await route.abort();
   });
-  await page.goto("/landing");
+  await landingIdentity(page, "signed-out");
+  await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "A home for your agents." })
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Open workspace" }).first()
+    page.getByRole("button", { name: "Sign in", exact: true }).first()
   ).toBeEnabled();
   await page.getByRole("button", { name: "Preview a match" }).click();
   await expect(
@@ -257,9 +262,10 @@ test("art failure leaves the story and primary actions usable", async ({
   ).toBeVisible();
 });
 
-test("the approved preview URL stays public", async ({ page }) => {
+test("the old preview URL redirects to the root landing", async ({ page }) => {
   await landingIdentity(page, "signed-out");
   await page.goto("/landing/playground");
+  await expect(page).toHaveURL(/\/$/u);
   await expect(
     page.getByRole("heading", { name: "A home for your agents." })
   ).toBeVisible();
@@ -267,9 +273,10 @@ test("the approved preview URL stays public", async ({ page }) => {
     page.getByRole("button", { name: "Sign in", exact: true }).first()
   ).toBeVisible();
 });
-test("local sign-in from the landing opens Home", async ({ page }) => {
+test("the old landing URL opens Home for a local identity", async ({
+  page,
+}) => {
   await page.goto("/landing");
-  await page.getByRole("button", { name: "Open workspace" }).first().click();
   await expect(page).toHaveURL(/\/$/u);
   await expect(
     page.getByRole("heading", { name: "What can I help with?" })
@@ -302,7 +309,7 @@ test("a cancelled sign-in stays on the landing, then a completed sign-in reaches
     "yes"
   );
   await changeLandingIdentity(page, "signed-out");
-  await expect(page).toHaveURL(/\/landing$/u);
+  await expect(page).toHaveURL(/\/$/u);
   await page
     .getByRole("button", { name: "Sign in", exact: true })
     .first()
@@ -314,16 +321,20 @@ test("a cancelled sign-in stays on the landing, then a completed sign-in reaches
   ).toBeVisible();
 });
 
-test("an existing signed-in visitor can read the landing without a redirect", async ({
-  page,
-}) => {
-  await landingIdentity(page, "signed-in");
-  await page.goto("/landing");
-  await expect(
-    page.getByRole("button", { name: "Open workspace" }).first()
-  ).toBeVisible();
-  await expect(page).toHaveURL(/\/landing$/u);
-});
+for (const path of ["/", "/landing", "/landing/playground"]) {
+  test(`a signed-in visitor opens Home from ${path}`, async ({ page }) => {
+    await landingIdentity(page, "signed-in");
+    await page.route("**/api/setup", async (route) => {
+      await route.fulfill({ json: { v: 1, seenAt: Date.now() } });
+    });
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/$/u);
+    await expect(
+      page.getByRole("heading", { name: "What can I help with?" })
+    ).toBeVisible();
+    await expect(page.locator(".landing")).toHaveCount(0);
+  });
+}
 
 test("loading and failed sign-in leave the public page usable with a retry", async ({
   page,
@@ -409,7 +420,7 @@ test("every sign-in CTA and in-page link has a working destination", async ({
     await button.click();
   });
   await expect(page.locator("body")).toHaveAttribute("data-login-count", "3");
-  await expect(page).toHaveURL(/\/landing$/u);
+  await expect(page).toHaveURL(/\/$/u);
   await visit(
     await page.locator('.landing a[href^="#"]').all(),
     async (link) => {
