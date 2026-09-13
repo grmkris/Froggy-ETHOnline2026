@@ -73,8 +73,8 @@ const InvocationRow = ({
         ) : (
           <Link
             className="focus-visible:ring-ring rounded-sm underline underline-offset-4 outline-none focus-visible:ring-2"
-            to="/services"
-            search={{ task: invocation.taskId }}
+            to="/activity"
+            search={{ tab: "tools", task: invocation.taskId }}
           >
             {invocation.taskId}
           </Link>

@@ -23,37 +23,14 @@ import { networkWords } from "../../lib/mandate-words";
 const label = (value: string): string => value.replaceAll("_", " ");
 const TradeProceeds = ({
   trade,
-  onUseProceeds,
 }: {
   readonly trade: TradeTicket;
-  readonly onUseProceeds: (trade: TradeTicket) => void;
-}): ReactElement | null => {
-  if (trade.sourceTradeId !== undefined) {
-    return (
-      <p className="text-muted-foreground text-xs break-all">
-        Funded from confirmed withdrawal {trade.sourceTradeId}.
-      </p>
-    );
-  }
-  if (
-    trade.status !== "completed" ||
-    trade.actualOutput === null ||
-    !["withdraw", "claim"].includes(trade.input.action)
-  ) {
-    return null;
-  }
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={() => {
-        onUseProceeds(trade);
-      }}
-    >
-      Use proceeds in a swap
-    </Button>
+}): ReactElement | null =>
+  trade.sourceTradeId === undefined ? null : (
+    <p className="text-muted-foreground text-xs break-all">
+      Funded from confirmed withdrawal {trade.sourceTradeId}.
+    </p>
   );
-};
 
 const TradeSettlement = ({
   trade,
@@ -109,11 +86,9 @@ const TradeGas = ({ trade }: { readonly trade: TradeTicket }): ReactElement => {
 export const TradeReview = ({
   trade,
   api,
-  onUseProceeds,
 }: {
   readonly trade: TradeTicket;
   readonly api: TradesApi;
-  readonly onUseProceeds: (trade: TradeTicket) => void;
 }): ReactElement => {
   const answering = useRef(false);
   const next = trade.steps.find(
@@ -300,7 +275,7 @@ export const TradeReview = ({
             </div>
           </div>
         ) : null}
-        <TradeProceeds trade={trade} onUseProceeds={onUseProceeds} />
+        <TradeProceeds trade={trade} />
         {pending ? (
           <div className="flex flex-col items-start gap-2">
             <p className="text-muted-foreground text-sm">

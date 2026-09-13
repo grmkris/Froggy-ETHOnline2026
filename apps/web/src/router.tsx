@@ -181,52 +181,11 @@ const inboxRoute = createRoute({
     return view ? { view } : {};
   },
 });
-const exploreRoute = page(
-  "/explore",
-  async () => await import("./routes/explore-page"),
-  "ExplorePage"
-);
 const walletRoute = page(
   "/wallet",
   async () => await import("./routes/wallet-page"),
   "WalletPage"
 );
-/** The chosen service, when the URL names one; anything else is no choice. */
-const ServicesSearch = Schema.Struct({
-  view: Schema.optional(Schema.Literals(["trading", "purchases", "scheduled"])),
-  dropped: Schema.optional(Schema.Literal("1")),
-  service: Schema.optional(ServiceName),
-  task: Schema.optional(TaskId),
-});
-const decodeServicesSearch = Schema.decodeUnknownResult(ServicesSearch);
-type ServicesSearch = typeof ServicesSearch.Type;
-
-/** What the router hands over: whatever the URL held under that key. */
-interface ServicesSearchInput {
-  readonly view?: unknown;
-  readonly dropped?: unknown;
-  readonly service?: unknown;
-  readonly task?: unknown;
-}
-
-/** Only a known service or task survives; a bad name is flagged, not silent. */
-const servicesSearch = (raw: ServicesSearchInput): ServicesSearch => {
-  const decoded = decodeServicesSearch(raw);
-  if (decoded._tag === "Success") {
-    return decoded.success;
-  }
-  return { dropped: "1" };
-};
-
-const servicesRoute = createRoute({
-  component: lazyRouteComponent(
-    async () => await import("./routes/services-page"),
-    "ServicesPage"
-  ),
-  getParentRoute: () => workspaceRoute,
-  path: "/services",
-  validateSearch: servicesSearch,
-});
 /** Connections moved into Activity; the old address still arrives there. */
 const AgentsRedirect = () => (
   <Navigate replace search={{ tab: "agents" }} to="/activity" />
@@ -290,10 +249,8 @@ const routeTree = rootRoute.addChildren([
     inboxRoute,
     watchlistRoute,
     watchlistDetailRoute,
-    exploreRoute,
     activityRoute,
     walletRoute,
-    servicesRoute,
     agentsRoute,
     agentDetailRoute,
     settingsRoute,

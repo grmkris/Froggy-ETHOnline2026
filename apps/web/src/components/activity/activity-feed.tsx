@@ -1,4 +1,4 @@
-import { formatUsd } from "@froggy/domain";
+import { formatUsd, TaskId } from "@froggy/domain";
 import type {
   HistoryExecution,
   HistoryId,
@@ -291,10 +291,14 @@ const BusinessEvidence = ({
         {record.error === null ? null : (
           <p className="text-sm">{record.error}</p>
         )}
-        {record.kind === "task" ? (
-          <a className="text-sm underline" href={`/services?task=${record.id}`}>
+        {record.kind === "task" && TaskId.is(record.id) ? (
+          <Link
+            className="text-sm underline"
+            search={{ tab: "tools", task: record.id }}
+            to="/activity"
+          >
             View task and sale
-          </a>
+          </Link>
         ) : null}
       </div>
     ))}
@@ -333,8 +337,8 @@ const ExecutionEvidence = ({
       {record.taskId === null ? null : (
         <Link
           className="text-sm underline"
-          search={{ task: record.taskId }}
-          to="/services"
+          search={{ tab: "tools", task: record.taskId }}
+          to="/activity"
         >
           View task
         </Link>

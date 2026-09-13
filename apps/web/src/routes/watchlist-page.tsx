@@ -58,8 +58,8 @@ const ItemFacts = ({
       {details.data?.data.enrichment?.taskId ? (
         <Link
           className="text-brand min-h-11 w-fit content-center text-sm underline"
-          to="/services"
-          search={{ task: details.data.data.enrichment.taskId }}
+          to="/activity"
+          search={{ tab: "tools", task: details.data.data.enrichment.taskId }}
         >
           View enrichment task
         </Link>

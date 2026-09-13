@@ -427,7 +427,7 @@ const RuleForm = ({
               ))}
             </NativeSelect>
             <FieldDescription>
-              Buy a listing watch in Services first to authorize automatic
+              Buy a listing watch under Tools first to authorize automatic
               entries and exits. One rule can attach to each watch.
             </FieldDescription>
           </Field>

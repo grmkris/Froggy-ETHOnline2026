@@ -19,6 +19,7 @@ import { DigestSettings } from "../components/settings/digest-settings";
 import { DirectoryPanel } from "../components/settings/directory-panel";
 import { PaymentMethodsPanel } from "../components/settings/payment-methods";
 import { ScheduleList } from "../components/settings/schedule-list";
+import { TradingControls } from "../components/settings/trading-controls";
 import { usePaymentMethods } from "../hooks/use-card-checkouts";
 import { useIdentity } from "../lib/privy";
 import { useWorkspace } from "../lib/workspace-context";
@@ -98,12 +99,13 @@ export const SettingsPage = (): ReactElement => {
                 The signer, the session, and the rules your agent is held to.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-6">
               <ConnectionDetails
                 sessionId={app.sessionId}
                 wallet={app.wallet}
                 webMcp={webMcp}
               />
+              <TradingControls />
             </CardContent>
           </Card>
           <section id="appearance" className="scroll-mt-6">

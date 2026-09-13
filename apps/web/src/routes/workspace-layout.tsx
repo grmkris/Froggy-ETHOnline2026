@@ -17,7 +17,7 @@ import { useSplitWidth } from "../components/browser/browser-split-pane";
 import { AppFrame } from "../components/nav/app-frame";
 import { PurchaseApprovals } from "../components/purchases/purchase-approvals";
 import { useStopRun } from "../components/stop-feedback";
-import { TradeNotice } from "../components/trading/trade-panel";
+import { TradeNotice } from "../components/trading/trade-notice";
 import { useAppSocket } from "../hooks/use-app-socket";
 import { useBrowserSocket } from "../hooks/use-browser-socket";
 import { useMediaQuery } from "../hooks/use-media-query";
