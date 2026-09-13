@@ -399,7 +399,7 @@ test("price editor keeps quote units and renders a marked fixture with rearm and
     });
   });
   await page.goto(`/watchlist/${saved.id}`);
-  await page.getByText("Alert details and activity", { exact: true }).click();
+
   const panel = page.getByRole("region", { name: "Token price alerts" });
   await panel.getByLabel("Price per token").fill("0.01");
   await panel

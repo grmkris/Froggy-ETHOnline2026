@@ -1,5 +1,4 @@
 import {
-  flowAmount,
   flowAsset,
   foreignSigner,
   listChainNames,
@@ -40,17 +39,20 @@ import {
   ToggleGroupItem,
 } from "@froggy/ui/components/toggle-group";
 import { Schema } from "effect";
-import {
-  ArrowDownLeftIcon,
-  ArrowUpRightIcon,
-  PlusIcon,
-  RadioIcon,
-  Trash2Icon,
-} from "lucide-react";
-import { useId, useState } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
 
-import { networkWords } from "../../lib/mandate-words";
+import { useNow } from "../../hooks/use-now";
 import { useWalletMonitor } from "../../lib/wallet-monitor-client";
+import {
+  activeState,
+  eventMeta,
+  eventSentence,
+  flowSentence,
+  timeWords,
+  windowLeft,
+} from "../../lib/watch-words";
+import type { AssetLabel, WatchState } from "../../lib/watch-words";
 import { useWatchlistDetails } from "../../lib/watchlist-client";
 import { useWorkspace } from "../../lib/workspace-context";
 import { TelegramSettings } from "../agents/telegram-settings";
@@ -65,15 +67,6 @@ export const states = {
   paused: "Paused",
   expired: "Expired",
   unavailable: "Unavailable",
-} as const;
-const delivery = {
-  waiting: "Telegram queued",
-  delivered: "Delivered to Telegram",
-  not_paired: "Telegram was disconnected",
-  cancelled: "Telegram alert cancelled",
-  uncertain: "Telegram delivery uncertain",
-  failed: "Telegram delivery failed",
-  summarized: "Included in Telegram summary",
 } as const;
 const assetLabel = (value: string | null): string => {
   if (value === null) {
@@ -480,147 +473,120 @@ const PriceRuleEvidence = ({ rule }: { readonly rule: OnchainAlertRule }) => {
     </div>
   );
 };
-export const ActivityCard = ({
-  activity,
-}: {
-  readonly activity: WalletActivity;
-}) => {
-  const quote = activity.price?.quoteCurrency ?? "";
+const kindWords: Record<WalletActivity["kind"], string> = {
+  price: "Price alert",
+  swap: "Swap",
+  transfer: "Transfer",
+  activity: "Wallet activity",
+};
+const explorerUrl = (activity: WalletActivity): string =>
+  `https://${activity.network === "eip155:4663" ? "robinhoodchain.blockscout.com" : "basescan.org"}/tx/${activity.transactionHash}`;
+
+/** The caveats an event carries: who signed, doubtful tokens, missing evidence. */
+const EventNotes = ({ activity }: { readonly activity: WalletActivity }) => {
   const signer = foreignSigner(activity);
   const doubtful = activity.flows.some(
     (flow) => flowAsset(flow, activity.network).doubt !== null
   );
   return (
-    <article className="motion-safe:animate-in motion-safe:fade-in flex min-w-0 flex-col gap-2 rounded-xl border p-4 duration-300">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">
-          {
-            {
-              price: "Price alert",
-              swap: "Swap",
-              transfer: "Transfer",
-              activity: "Wallet activity",
-            }[activity.kind]
-          }
-        </h3>
-        <Badge variant="outline">
-          {
-            {
-              provisional: "Observed · awaiting confirmation",
-              reverted: "Reverted by chain reorganization",
-              finalized: "Confirmed",
-              unverified: "Unverified · stream gap",
-            }[activity.finality]
-          }
-        </Badge>
-      </div>
-      {activity.stubbed ? <Badge variant="secondary">Simulated</Badge> : null}
+    <>
       {activity.finality === "unverified" ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="watch-row-words">
           Froggy could not confirm this provisional activity after a stream
           interruption.
         </p>
       ) : null}
-
-      {activity.price ? (
-        <>
-          <p className="text-sm break-words">
-            {activity.price.initiallyMatched ? "Price already" : "Price moved"}{" "}
-            {activity.price.comparison} {activity.price.threshold} {quote}.
-          </p>
-          <p className="text-muted-foreground text-xs break-words">
-            Observed {activity.price.observation.price} {quote} ·{" "}
-            {activity.price.sourceLabel}
-          </p>
-        </>
-      ) : null}
-      {activity.flows.slice(0, 8).map((flow, index) => {
-        const Icon =
-          flow.direction === "sent" ? ArrowUpRightIcon : ArrowDownLeftIcon;
-        return (
-          <p
-            key={`${flow.asset}:${flow.direction}:${index}`}
-            className="flex min-w-0 items-start gap-2 text-sm"
-          >
-            <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
-            <span className="break-all">
-              {flow.direction === "sent" ? "Sent" : "Received"}{" "}
-              {flowAmount(flow)} {flowAsset(flow, activity.network).label}
-              {flow.direction === "sent" ? " to " : " from "}
-              {shortAddress(flow.counterparty)}
-            </span>
-          </p>
-        );
-      })}
-      {activity.flows.length > 8 ? (
-        <p className="text-muted-foreground text-xs">
-          +{activity.flows.length - 8} movements in this transaction.
-        </p>
-      ) : null}
       {signer === null ? null : (
-        <p className="text-muted-foreground text-xs">
+        <p className="watch-row-words">
           Sent by {shortAddress(signer)}, not signed by this wallet: a contract
           acted for it, or a third party reported a movement it never made.
         </p>
       )}
       {doubtful ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="watch-row-words">
           Unverified token: no known symbol, or a lookalike name. Such tokens
           are used for address poisoning; never copy an address from here.
         </p>
       ) : null}
       {activity.complete ? null : (
-        <p className="text-muted-foreground text-xs">
+        <p className="watch-row-words">
           Partial evidence: some movements may be missing.
         </p>
       )}
-      <div className="text-muted-foreground flex flex-wrap justify-between gap-2 text-xs">
-        <span>
-          {networkWords(activity.network)} · {delivery[activity.delivery]}
-        </span>
+    </>
+  );
+};
+
+/** One onchain event as a sentence; shared with the Inbox reader. */
+export const ActivityCard = ({
+  activity,
+  fresh = false,
+}: {
+  readonly activity: WalletActivity;
+  /** Newer than the person's last visit: a lime rail on the left. */
+  readonly fresh?: boolean;
+}) => {
+  const now = useNow();
+  const label: AssetLabel = (flow) => flowAsset(flow, activity.network).label;
+  const swap = activity.flows.some((flow) => flow.swapSide !== undefined);
+  const extra = swap ? [] : activity.flows.slice(1, 8);
+  return (
+    <article className="watch-event" data-new={fresh ? "" : undefined}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="playground-eyebrow">{kindWords[activity.kind]}</h3>
+        <time
+          className="watch-time"
+          dateTime={new Date(activity.blockTime).toISOString()}
+        >
+          {timeWords(activity.blockTime, now)}
+        </time>
+      </div>
+      <p className="watch-event-sentence">{eventSentence(activity, label)}</p>
+      {activity.price ? (
+        <p className="watch-row-words">{activity.price.sourceLabel}</p>
+      ) : null}
+      {extra.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {extra.map((flow, index) => (
+            <li
+              key={`${flow.asset}:${flow.direction}:${index}`}
+              className="watch-row-words"
+            >
+              {flowSentence(flow, label)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {activity.flows.length > 8 ? (
+        <p className="watch-row-words">
+          +{activity.flows.length - 8} movements in this transaction.
+        </p>
+      ) : null}
+      <EventNotes activity={activity} />
+      {activity.stubbed ? (
+        <Badge variant="secondary" className="self-start">
+          Simulated
+        </Badge>
+      ) : null}
+      <p className="watch-event-meta">
+        {eventMeta(activity).map((words) => (
+          <span key={words}>{words}</span>
+        ))}
         {activity.transactionHash === null ? null : (
           <a
-            className="text-primary underline underline-offset-4"
-            href={`https://${activity.network === "eip155:4663" ? "robinhoodchain.blockscout.com" : "basescan.org"}/tx/${activity.transactionHash}`}
+            href={explorerUrl(activity)}
             target="_blank"
             rel="noopener noreferrer"
           >
             View transaction
           </a>
         )}
-      </div>
+      </p>
     </article>
-  );
-};
-export const WalletMonitorBadge = ({
-  item,
-}: {
-  readonly item: WatchlistItem;
-}) => {
-  if (item.archived) {
-    return <span>Archived</span>;
-  }
-  const monitor = item.walletMonitor;
-  if (!monitor) {
-    return <span>Saved</span>;
-  }
-  if (!monitor.enabled) {
-    return <span>Paused</span>;
-  }
-  return (
-    <span>
-      Watching · until{" "}
-      {new Date(monitor.expiresAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      })}
-    </span>
   );
 };
 
 type MonitorClient = ReturnType<typeof useWalletMonitor>;
-export const activeState = (state: WalletMonitorStatus["state"]): boolean =>
-  ["starting", "watching", "waiting_price", "delayed"].includes(state);
 const primaryAction = (
   state: WalletMonitorStatus["state"]
 ): "pause" | "resume" | "extend" | "rearm" => {
@@ -632,7 +598,49 @@ const primaryAction = (
   }
   return state === "triggered" ? "rearm" : "resume";
 };
-const MonitorProgress = ({
+/** The chip's colour for a stream state; the words stay the stream's own. */
+const chipState = (state: WalletMonitorStatus["state"]): WatchState => {
+  if (activeState(state)) {
+    return "watching";
+  }
+  if (state === "paused") {
+    return "paused";
+  }
+  if (state === "expired") {
+    return "ended";
+  }
+  return state === "triggered" ? "needs_you" : "saved";
+};
+const WatchWindow = ({
+  status,
+  now,
+}: {
+  readonly status: WalletMonitorStatus | null;
+  readonly now: number;
+}) => {
+  const monitor = status?.monitor;
+  if (!monitor) {
+    return null;
+  }
+  const left = windowLeft(monitor, now);
+  const paused = status.state === "paused";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span
+        aria-hidden
+        className="watch-time-bar"
+        data-paused={paused ? "" : undefined}
+      >
+        <span style={{ width: `${left.percent}%` }} />
+      </span>
+      <p className="watch-help">
+        {left.words}
+        {paused ? " · pausing does not extend it" : ""}
+      </p>
+    </div>
+  );
+};
+const StreamDetails = ({
   status,
 }: {
   readonly status: WalletMonitorStatus | null;
@@ -642,23 +650,6 @@ const MonitorProgress = ({
   }
   return (
     <>
-      {status.stubbed ? (
-        <Badge variant="outline">Simulated stream · local demo</Badge>
-      ) : null}
-      {status.monitor ? (
-        <p className="text-muted-foreground text-xs">
-          Watch ends {new Date(status.monitor.expiresAt).toLocaleString()}.
-          Pausing does not extend this time.
-        </p>
-      ) : null}
-      {status.latestBlock === null ? null : (
-        <p className="text-muted-foreground text-xs tabular-nums">
-          Last observed block {status.latestBlock.toLocaleString()} ·{" "}
-          {status.latestBlockAt === null
-            ? ""
-            : new Date(status.latestBlockAt).toLocaleTimeString()}
-        </p>
-      )}
       {status.gapSince === null ? null : (
         <Alert variant="destructive">
           <AlertDescription>
@@ -669,10 +660,26 @@ const MonitorProgress = ({
         </Alert>
       )}
       {status.state === "delayed" ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="watch-row-words">
           The source is catching up. Froggy will resume from its saved position.
         </p>
       ) : null}
+      <details className="watch-disclosure">
+        <summary className="playground-eyebrow min-h-11">
+          Stream details
+        </summary>
+        <div className="flex flex-col gap-1 pt-2">
+          {status.latestBlock === null ? null : (
+            <p className="watch-time">
+              Last observed block {status.latestBlock.toLocaleString()}
+              {status.latestBlockAt === null
+                ? ""
+                : ` · ${new Date(status.latestBlockAt).toLocaleTimeString()}`}
+            </p>
+          )}
+          <p className="watch-row-words">{status.coverage}</p>
+        </div>
+      </details>
     </>
   );
 };
@@ -687,14 +694,16 @@ const MonitorRules = ({
     return null;
   }
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="watch-rules">
       {rules.map((rule) => (
-        <li key={rule.id} className="flex flex-col gap-1">
-          <p className="text-sm font-medium">
-            {ruleLabel(rule)}
-            {rule.triggeredBlock === null ? "" : " · matched"}
-          </p>
-          <PriceRuleEvidence rule={rule} />
+        <li key={rule.id}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span>
+              {ruleLabel(rule)}
+              {rule.triggeredBlock === null ? "" : " · matched"}
+            </span>
+            <PriceRuleEvidence rule={rule} />
+          </div>
         </li>
       ))}
     </ul>
@@ -740,8 +749,10 @@ const MonitorEditor = ({
   }
   const action = primaryAction(state);
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button
+    <div className="flex flex-wrap gap-3">
+      <button
+        type="button"
+        className="playground-chip"
         disabled={busy || state === "unavailable"}
         onClick={() => {
           change.mutate(action);
@@ -755,27 +766,29 @@ const MonitorEditor = ({
               extend: "Track for another 24 hours",
               rearm: "Rearm price alert",
             }[action]}
-      </Button>
+      </button>
       {activeState(state) || state === "paused" ? (
-        <Button
-          variant="outline"
+        <button
+          type="button"
+          className="playground-chip"
           disabled={busy}
           onClick={() => {
             change.mutate("extend");
           }}
         >
           Extend for 24 hours
-        </Button>
+        </button>
       ) : null}
-      <Button
-        variant="ghost"
+      <button
+        type="button"
+        className="playground-chip"
         disabled={busy}
         onClick={() => {
           setEditing(true);
         }}
       >
         Edit alerts
-      </Button>
+      </button>
     </div>
   );
 };
@@ -790,37 +803,40 @@ const MonitorDelivery = ({
   }
   if (status.telegramPaired) {
     return (
-      <p className="text-muted-foreground text-xs">
-        Telegram connected · alerts go to your paired chat.
+      <p className="watch-row-words text-foreground">
+        Telegram on · alerts go to your paired chat
       </p>
     );
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">
-        Activity stays here while Telegram is disconnected. Connect it for
-        future alerts.
+      <p className="watch-row-words">
+        Telegram off · activity stays here. Connect it for future alerts.
       </p>
       <TelegramSettings active configured={app.modes?.telegram === "live"} />
     </div>
   );
 };
+const emptyWords = (price: boolean, active: boolean): string => {
+  if (price) {
+    return "A matching price will appear here and notify your paired Telegram. You can close Froggy while it watches.";
+  }
+  if (active) {
+    return "Make a swap or transfer in your external wallet after Watching appears. You can close Froggy; the watch keeps running.";
+  }
+  return "Start a watch to see new wallet activity here.";
+};
 const MonitorActivityList = ({
   view,
   price,
+  seenAt,
 }: {
   readonly view: MonitorClient["view"];
   readonly price: boolean;
+  readonly seenAt: number;
 }) => {
   const activities = view.data?.activities ?? [];
-  let emptyText = "Start a watch to see new wallet activity here.";
-  if (price) {
-    emptyText =
-      "A matching price will appear here and notify your paired Telegram. You can close Froggy while it watches.";
-  } else if (activeState(view.data?.status.state ?? "saved")) {
-    emptyText =
-      "Make a swap or transfer in your external wallet after Watching appears. You can close Froggy; the watch keeps running.";
-  }
+  const active = activeState(view.data?.status.state ?? "saved");
   return (
     <div
       className="flex flex-col gap-3"
@@ -828,96 +844,162 @@ const MonitorActivityList = ({
       aria-live="polite"
     >
       {activities.length === 0 ? (
-        <Empty className="py-6">
+        <Empty className="watch-card py-6">
           <EmptyHeader>
             <EmptyTitle>No activity yet</EmptyTitle>
-            <EmptyDescription>{emptyText}</EmptyDescription>
+            <EmptyDescription>{emptyWords(price, active)}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         activities.map((activity) => (
-          <ActivityCard key={activity.id} activity={activity} />
+          <ActivityCard
+            key={activity.id}
+            activity={activity}
+            fresh={activity.observedAt > seenAt}
+          />
         ))
       )}
       {view.hasNextPage ? (
-        <Button
-          variant="outline"
+        <button
+          type="button"
+          className="playground-chip playground-chip-sm self-start"
           disabled={view.isFetchingNextPage}
           onClick={() => {
             void view.fetchNextPage();
           }}
         >
           {view.isFetchingNextPage ? "Loading…" : "Load older activity"}
-        </Button>
+        </button>
       ) : null}
     </div>
   );
 };
+const seenKey = (id: WatchlistItem["id"]): string => `froggy.watch-seen.${id}`;
+const readSeen = (id: WatchlistItem["id"]): number => {
+  try {
+    return Number(localStorage.getItem(seenKey(id)) ?? 0);
+  } catch {
+    return 0;
+  }
+};
+/** Remember the visit so the next one can mark what is new; storage is best effort. */
+const useSeen = (id: WatchlistItem["id"]): number => {
+  const seenAt = useMemo(() => readSeen(id), [id]);
+  useEffect(() => {
+    const stamp = (): void => {
+      try {
+        localStorage.setItem(seenKey(id), String(Date.now()));
+      } catch {
+        // Private mode or a full quota: the rail simply shows nothing as new.
+      }
+    };
+    stamp();
+    return stamp;
+  }, [id]);
+  return seenAt;
+};
+const UnsupportedCoverage = () => (
+  <section
+    aria-label="Onchain alert coverage"
+    className="watch-card flex flex-col gap-2 p-5"
+  >
+    <h2 className="playground-eyebrow">Onchain alerts</h2>
+    <p className="watch-row-words">
+      Live alerts currently support Base and Robinhood. Scheduled checks remain
+      available for this item.
+    </p>
+  </section>
+);
+const WatchCardHead = ({
+  price,
+  status,
+  networks,
+  pending,
+}: {
+  readonly price: boolean;
+  readonly status: WalletMonitorStatus | null;
+  readonly networks: readonly string[];
+  readonly pending: boolean;
+}) => {
+  const state = status?.state ?? "saved";
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="playground-eyebrow">What Froggy is watching</h2>
+        <span className="watch-state" data-state={chipState(state)}>
+          {states[state]}
+        </span>
+      </div>
+      <p className="watch-row-words">
+        {price ? "A price condition" : "Swaps and ETH or token transfers"} on{" "}
+        {listChainNames(networks)} for 24 hours. Included with Froggy.
+      </p>
+      {pending ? <Skeleton className="h-16 w-full" /> : null}
+      {status?.stubbed === true ? (
+        <Badge variant="outline" className="self-start">
+          Simulated stream · local demo
+        </Badge>
+      ) : null}
+    </>
+  );
+};
+const TimelineHead = ({ count }: { readonly count: number }) => (
+  <h2 className="playground-eyebrow">
+    What happened
+    {count > 0 ? (
+      <span className="text-muted-foreground font-normal tracking-normal normal-case">
+        {count} {count === 1 ? "event" : "events"}
+      </span>
+    ) : null}
+  </h2>
+);
 const WalletMonitorDetails = ({ item }: { readonly item: WatchlistItem }) => {
   const details = useWatchlistDetails(item.id);
   const networks = supportedPresence(details.data?.data.presence ?? []);
   const supported = networks.length > 0;
   const client = useWalletMonitor(item.id, supported);
   const [editing, setEditing] = useState(false);
+  const seenAt = useSeen(item.id);
+  const now = useNow();
   const status = client.view.data?.status ?? null;
-  const state = status?.state ?? "saved";
   const price = item.source._tag === "token";
   const failure =
     client.configure.error ?? client.change.error ?? client.view.error;
-  const network = listChainNames(networks);
   if (!supported) {
-    return (
-      <section
-        aria-label="Onchain alert coverage"
-        className="bg-card flex flex-col gap-2 rounded-2xl border p-5"
-      >
-        <h2 className="font-semibold">Onchain alerts</h2>
-        <p className="text-muted-foreground text-sm">
-          Live alerts currently support Base and Robinhood. Scheduled checks
-          remain available for this item.
-        </p>
-      </section>
-    );
+    return <UnsupportedCoverage />;
   }
   return (
     <section
       aria-label={price ? "Token price alerts" : "Wallet activity monitor"}
-      className="bg-card flex min-w-0 flex-col gap-5 rounded-2xl border p-5"
+      className="flex min-w-0 flex-col gap-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <RadioIcon aria-hidden className="text-brand size-5" />
-          <h2 className="font-semibold">
-            {price ? "Onchain price alerts" : "Wallet activity"}
-          </h2>
-        </div>
-        <Badge variant={state === "watching" ? "default" : "secondary"}>
-          {states[state]}
-        </Badge>
+      <div className="watch-card flex min-w-0 flex-col gap-4 p-5">
+        <WatchCardHead
+          price={price}
+          status={status}
+          networks={networks}
+          pending={client.view.isPending}
+        />
+        <MonitorRules rules={status?.monitor?.rules ?? []} editing={editing} />
+        <WatchWindow status={status} now={now} />
+        <MonitorEditor
+          item={item}
+          client={client}
+          editing={editing}
+          setEditing={setEditing}
+        />
+        {failure ? (
+          <Alert variant="destructive">
+            <AlertDescription>{failure.message}</AlertDescription>
+          </Alert>
+        ) : null}
+        <MonitorDelivery status={status} />
+        <StreamDetails status={status} />
       </div>
-      <p className="text-muted-foreground text-sm">
-        {price
-          ? "Watch a price condition"
-          : "Follow swaps and ETH or token transfers"}{" "}
-        on {network} for 24 hours. Included with Froggy.
-      </p>
-      {client.view.isPending ? <Skeleton className="h-16 w-full" /> : null}
-      <MonitorProgress status={status} />
-      <MonitorRules rules={status?.monitor?.rules ?? []} editing={editing} />
-      <MonitorEditor
-        item={item}
-        client={client}
-        editing={editing}
-        setEditing={setEditing}
-      />
-      {failure ? (
-        <Alert variant="destructive">
-          <AlertDescription>{failure.message}</AlertDescription>
-        </Alert>
-      ) : null}
-      <MonitorDelivery status={status} />
-      <p className="text-muted-foreground text-xs">{status?.coverage}</p>
-      <MonitorActivityList view={client.view} price={price} />
+      <div className="flex min-w-0 flex-col gap-3">
+        <TimelineHead count={client.view.data?.activities.length ?? 0} />
+        <MonitorActivityList view={client.view} price={price} seenAt={seenAt} />
+      </div>
     </section>
   );
 };
