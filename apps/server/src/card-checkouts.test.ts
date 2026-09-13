@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 
 import {
   CardCheckoutId,
@@ -35,7 +35,8 @@ const destination = Schema.decodeUnknownSync(EvmAddress)(
 );
 const fixture = (
   units = "100000000",
-  fee: "none" | "flat" | "percentage" = "none"
+  fee: "none" | "flat" | "percentage" = "none",
+  stubbed = true
 ) => {
   const store = memoryStore();
   let time = 100_000;
@@ -92,16 +93,20 @@ const fixture = (
   );
   const lineaState = { outage: false };
   const cards = new CardCheckouts({
-    enabled: true,
     liveCardEntry: false,
     store: store.cards,
     trades,
     privy,
     now,
-    rates: stubCardRates(now),
+    rates: {
+      get: async (currency) => ({
+        ...(await stubCardRates(now).get(currency)),
+        stubbed,
+      }),
+    },
     vault: new CardVault(Redacted.make("a".repeat(64))),
     linea: {
-      stubbed: true,
+      stubbed,
       balance: async () =>
         await Promise.resolve({ units, block: "10", observedAt: now() }),
       observe: async (_input, _minimum, previous) => {
@@ -424,4 +429,30 @@ test("bridge fee requoting covers the shortfall and stops after three deficient 
   expect(paused.checkout.stage).toBe("needs_help");
   expect(paused.checkout.fingerprint).toBeNull();
   expect(paused.checkout.approvedAt).toBeNull();
+});
+
+test("unverified cross-origin entry refuses real credentials before decryption or dispatch", async () => {
+  const f = fixture("100000000", "none", false);
+  const { checkout } = await prepare(f);
+  await f.cards.approve(
+    f.context,
+    checkout.id,
+    answer(checkout.fingerprint),
+    "owner-token"
+  );
+  const decrypt = spyOn(f.cards.options.vault, "open");
+  try {
+    const refusal = await f.cards
+      .dispatchCredentials(owner, checkout.id, {
+        merchant: "shop.example",
+        hosts: ["pay.example"],
+      })
+      .then(() => null, String);
+    expect(refusal).toContain("card.frame_verification");
+    expect(decrypt).not.toHaveBeenCalled();
+    const current = await f.cards.get(owner, checkout.id);
+    expect(current.paymentDispatchedAt).toBeNull();
+  } finally {
+    decrypt.mockRestore();
+  }
 });

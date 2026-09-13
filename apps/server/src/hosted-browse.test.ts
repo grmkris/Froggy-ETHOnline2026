@@ -1,4 +1,4 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import { StubCloudBrowser, HostedBrowserExpiredError } from "@froggy/browser";
 import type {
@@ -118,7 +118,7 @@ interface ProviderFixture {
   ids: string[];
   browserId: string;
 }
-const fixture = async (cardEnabled = true) => {
+const fixture = async () => {
   const owner = userId(`did:privy:hosted-${crypto.randomUUID()}`);
   const environment = await Effect.runPromise(
     loadEnvironment().pipe(
@@ -127,7 +127,6 @@ const fixture = async (cardEnabled = true) => {
         ConfigProvider.fromUnknown({
           APP_ORIGIN: "http://localhost:3000",
           BROWSE_EXECUTOR: "hosted",
-          CARD_CHECKOUT_ENABLED: cardEnabled,
         })
       )
     )
@@ -966,50 +965,28 @@ test("synthetic funding cannot release credentials into a live browser", async (
   expect(current.paymentDispatchedAt).toBeNull();
 });
 
-test("disabled card routes refuse every method before storage, body decoding, or browser dispatch", async () => {
-  const f = await fixture(false);
-  const transact = spyOn(f.deps.services.store.cards, "transact");
-  const paths = [
-    "/api/payment-methods",
-    "/api/payment-methods/invalid-id",
-    "/api/card-checkouts",
-    "/api/card-checkouts/prepare",
-    "/api/card-checkouts/invalid-id",
-    ...["approve", "authorization", "stop", "review", "reconcile"].map(
-      (action) => `/api/card-checkouts/invalid-id/${action}`
-    ),
-  ];
-  try {
-    await Promise.all(
-      paths.flatMap((path) =>
-        ["GET", "POST", "PUT", "DELETE"].map(async (method) => {
-          const response = await handleCardCheckouts(
-            f.deps.services,
-            f.workspace,
-            {
-              grantId: null,
-              agentTokenId: null,
-              scopes: null,
-              userId: f.owner,
-            },
-            new Request(`http://localhost${path}`, { method })
-          );
-          expect(response?.status).toBe(403);
-          expect(await response?.json()).toEqual({
-            v: 1,
-            error: "card.disabled: Saved-card checkout is disabled.",
-          });
-        })
-      )
-    );
-    expect(transact).not.toHaveBeenCalled();
-    expect(f.provider.calls).toHaveLength(0);
-  } finally {
-    transact.mockRestore();
-  }
+test("card routes are available to the owner without an opt-in configuration", async () => {
+  const f = await fixture();
+  await Promise.all(
+    ["/api/payment-methods", "/api/card-checkouts"].map(async (path) => {
+      const response = await handleCardCheckouts(
+        f.deps.services,
+        f.workspace,
+        { grantId: null, agentTokenId: null, scopes: null, userId: f.owner },
+        new Request(`http://localhost${path}`)
+      );
+      expect(response?.status).toBe(200);
+      expect(await response?.json()).toEqual(
+        path === "/api/payment-methods"
+          ? { v: 1, enabled: true, liveCardEntry: false, methods: [] }
+          : { v: 1, checkouts: [] }
+      );
+    })
+  );
+  expect(f.provider.calls).toHaveLength(0);
 });
 
-test("card checkout is disabled when its configuration flag is omitted", async () => {
+test("card configuration defaults to local stubs while live card entry stays unverified", async () => {
   const environment = await Effect.runPromise(
     loadEnvironment().pipe(
       Effect.provideService(
@@ -1018,6 +995,38 @@ test("card checkout is disabled when its configuration flag is omitted", async (
       )
     )
   );
-  expect(environment.cards?.enabled).toBe(false);
+  expect(environment.cards?.mode).toBe("stub");
+  expect(environment.cards?.liveCardEntry).toBe(false);
+});
+
+test("missing live funding configuration keeps card metadata available without synthetic funding", async () => {
+  const environment = await Effect.runPromise(
+    loadEnvironment().pipe(
+      Effect.provideService(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromUnknown({
+          APP_ORIGIN: "http://localhost:3000",
+          CARD_VAULT_KEY: "a".repeat(64),
+        })
+      )
+    )
+  );
   expect(environment.cards?.mode).toBe("unavailable");
+  const services = createServices({ environment });
+  expect(
+    await services.cards.methods(userId("did:privy:card-unconfigured"))
+  ).toEqual({
+    v: 1,
+    enabled: true,
+    liveCardEntry: false,
+    methods: [],
+  });
+  expect(services.cards.options.linea.stubbed).toBe(false);
+  expect(
+    services.cards.options.linea.balance(
+      Schema.decodeUnknownSync(EvmAddress)(
+        "0x2468246824682468246824682468246824682468"
+      )
+    )
+  ).rejects.toThrow("card.configuration");
 });

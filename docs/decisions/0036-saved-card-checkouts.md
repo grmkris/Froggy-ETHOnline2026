@@ -1,6 +1,6 @@
 # 0036 — Saved-card checkout funding and credential release
 
-Date: 13 September 2026. Status: integrated behind a default-off configuration flag; live card entry gated pending iframe acceptance.
+Date: 13 September 2026. Status: saved-card checkout is always available; live card entry remains gated pending iframe acceptance.
 
 The owner requested a demo that funds an independently entered Linea address using existing Base USDC and pays a merchant with a saved card in the shared Chrome. Swaps, password managers, Linea signing, and issuer APIs are outside this change.
 
@@ -8,7 +8,7 @@ The owner requested a demo that funds an independently entered Linea address usi
 
 For the explicitly selected demo configuration, the database stores the cardholder name, PAN, expiry and CVC encrypted together with AES-256-GCM. Each write uses a fresh 96-bit nonce. Associated data binds the ciphertext to owner, payment-method TypeID and revision. A redacted server-only 32-byte key is configured separately. Credentials live in a separate table; checkouts contain masked references and observations. This decision does **not** claim PCI compliance. A production card vault requires separate security, retention and compliance review.
 
-`CARD_CHECKOUT_ENABLED` defaults to false. When disabled, every payment-method and card-checkout route returns a versioned `403 card.disabled` refusal before reading request bodies, card storage or provider state. Account and browser purchase controls remain hidden, and checkout polling is disabled.
+At the owner’s direction, the saved-card opt-in flag and its route/service refusal branches are removed. Saved-card checkout is always available to the authenticated owner, including Account payment methods and browser purchase controls. Provider configuration remains necessary for real funding and encrypted storage. Missing live configuration reports an operation-specific configuration error; it does not select synthetic funding outside the local demo.
 
 Only authenticated owner endpoints save, replace, revoke or approve. Revision changes invalidate pending authority, erase revoked credentials and request cancellation of the associated browser task. Account deletion revokes all saved methods. Funding already submitted remains recoverable. A dispatched payment is never automatically retried. Its reservation survives stop and an ambiguous result until the owner explicitly reviews their issuer dashboard and reconciles after confirmed browser-worker release. That acknowledgement is not an issuer-verified charge.
 
@@ -24,7 +24,7 @@ One sponsored Privy batch executes through the existing trade ledger and `spendT
 
 Inspection has no card secrets. Payment uses the existing hosted task, same Chrome/profile, remaining allowance and run-scoped secret aliases. The server checks the current merchant and required frame hosts before decrypting; run recording and sharing are disabled. Purchase summaries are converted to fixed observations before persistence, and PAN-shaped Luhn-valid echoes are redacted at Froggy's tool/history boundary. Merchant pages can still expose entered data through the shared screen.
 
-Credential domain enforcement must be verified in the provider's iframe-capable entry path before `CARD_CHECKOUT_IFRAMES_VERIFIED=true`. A controlled live probe focused an actual cross-origin password input, but the provider's `/secrets/{alias}/type` returned `no_focused_field`. This does not establish allowed/denied iframe behavior. The gate remains false.
+`CARD_CHECKOUT_IFRAMES_VERIFIED` is deliberately retained and defaults to false. It gates release of real card credentials pending the controlled cross-origin secret-binding acceptance test. The verification report records that this acceptance test has not been completed: a preliminary probe focused a cross-origin password field, but `/secrets/{alias}/type` returned `no_focused_field`. It established neither allowed-frame entry nor forbidden-frame denial. This path handles real card credentials, so the server refuses live credential dispatch before decryption until that evidence exists. The coordinator has informed the owner that this one flag remains; removing it requires the owner’s further instruction. Keeping it does not hide saved-card checkout or disable funding review.
 
 Funding transfer, merchant order observation and issuer charge remain distinct. The card charge is always independently unverified without an issuer API. Privy controls the funding debit; the issuer controls merchant-side charging.
 

@@ -27,7 +27,7 @@ export const PaymentMethodView = Schema.Struct({
 });
 export const PaymentMethods = Schema.Struct({
   v: Schema.Literal(1),
-  enabled: Schema.Boolean,
+  enabled: Schema.Literal(true),
   liveCardEntry: Schema.Boolean,
   methods: Schema.Array(PaymentMethodView).check(Schema.isMaxLength(20)),
 });

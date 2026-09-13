@@ -69,7 +69,6 @@ const checkoutIn = (book: CardBook, id: CardCheckoutId): CardCheckout => {
   return checkout;
 };
 export interface CardCheckoutOptions {
-  readonly enabled: boolean;
   readonly liveCardEntry: boolean;
   readonly store: CardStore;
   readonly trades: TradeCoordinator;
@@ -84,18 +83,13 @@ export class CardCheckouts {
   constructor(options: CardCheckoutOptions) {
     this.options = options;
   }
-  private enabled(): void {
-    if (!this.options.enabled) {
-      throw new Error("card.disabled: saved-card checkout is disabled.");
-    }
-  }
   async methods(owner: UserId) {
     const methods = await this.options.store.transact(owner, (book) => [
       ...book.methods.values(),
     ]);
     return {
       v: 1 as const,
-      enabled: this.options.enabled,
+      enabled: true,
       liveCardEntry: this.options.liveCardEntry,
       methods: await Promise.all(
         methods.map(async (method) => {
@@ -120,7 +114,6 @@ export class CardCheckouts {
     input: PaymentMethodSave,
     id = PaymentMethodId.generate()
   ): Promise<PaymentMethod> {
-    this.enabled();
     const old = await this.options.store.transact(owner, (book) =>
       book.methods.get(id)
     );
@@ -242,7 +235,6 @@ export class CardCheckouts {
     taskId: TaskId,
     key: string
   ): Promise<CardCheckout> {
-    this.enabled();
     return await this.options.store.transact(owner, (book) => {
       const old = [...book.checkouts.values()].find(
         (checkout) => checkout.idempotencyKey === key
@@ -609,7 +601,6 @@ export class CardCheckouts {
     input: typeof CardCheckoutApprove.Type,
     token: string
   ): Promise<CardCheckout> {
-    this.enabled();
     if (context.connectionId !== null) {
       throw new Error(
         "card.human_only: only the owner can approve a purchase."
@@ -837,7 +828,6 @@ export class CardCheckouts {
     id: CardCheckoutId,
     frames: { readonly merchant: string; readonly hosts: readonly string[] }
   ): Promise<CardCredentials> {
-    this.enabled();
     const checkout = await this.refresh(owner, id);
     if (!checkout.stubbed && !this.options.liveCardEntry) {
       throw new Error(

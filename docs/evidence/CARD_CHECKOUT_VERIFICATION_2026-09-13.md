@@ -1,6 +1,6 @@
 # Saved-card checkout verification — 13 September 2026
 
-Status: **dark integration verified locally; not ready for live enablement**. No real card purchase, Base debit, production migration or Railway deployment was performed.
+Status: **saved-card checkout is always available; live credential entry awaits cross-origin acceptance**. No real card purchase, Base debit, production migration or Railway deployment was performed.
 
 ## Initial implementation evidence
 
@@ -35,7 +35,7 @@ The card lane was restored from `wip-tree-2026-09-13` into `/tmp/froggy-card-mai
 - Full browser suite: **207 passed, 0 failed** in 10.8 minutes with `FROGGY_E2E_PORT=3240 heavy bun run e2e --workers=2`. Includes three card account tests and hidden disabled controls. The mobile capture was inspected.
 - Final affected browser run after the workspace-session query guard: **4 passed, 0 failed** in 22.7 seconds with `FROGGY_E2E_PORT=3240 heavy bun run e2e e2e/card-checkout.spec.ts --workers=1`. Includes a held session-welcome regression proving no card metadata is requested before the owner’s workspace session is known.
 
-The default-off regression sends GET, POST, PUT and DELETE to every payment-method/checkout path family, including prepare, status, authorization, approve, stop, review and reconcile. Every request returns a versioned `403 card.disabled` before storage, body decoding or provider dispatch. Omitting the configuration flag selects disabled/unavailable mode. Account and browser purchase controls stay hidden while disabled, and checkout polling does not start. Card queries also wait for a server-issued workspace session ID so an unresolved session never shares a cache key.
+The original disabled-mode regressions were superseded when the owner directed removal of the checkout opt-in flag. Routes now accept owner requests without feature configuration, while live credential entry retains its separate verification requirement. Card queries also wait for a server-issued workspace session ID so an unresolved session never shares a cache key.
 
 ## Watchlist rebase verification
 
@@ -49,7 +49,20 @@ After installing main’s locked dependencies, verification on the merged tree p
 - Fresh migration through `0027_dashing_mad_thinker`: passed. The snapshot’s predecessor is main’s `0026`, and its only added tables are `payment_methods`, `payment_method_credentials` and `card_checkouts`; existing table snapshots are unchanged.
 - Persistence contracts with PostgreSQL enabled: **99 passed, 0 failed**, covering shared persistence, cards, credits, trading, launches, ledger, Hedera receiving, sales replay and watchlist. The disposable database and role were removed after testing.
 
-The first push was rejected because main had advanced to landing commit `78f1aa4`. A second rebase applied cleanly. On that merged tree, `heavy bun run check` passed again, the fresh migration and all **99 persistence contracts passed**, and direct web tests reported **176 passed, 0 failed**. Because the landing lane changed shared CSS and routing, the four card browser checks were repeated: **4 passed, 0 failed** in 23.8 seconds with `FROGGY_E2E_PORT=3240 heavy bun run e2e e2e/card-checkout.spec.ts --workers=1`. `CARD_CHECKOUT_ENABLED` and `CARD_CHECKOUT_IFRAMES_VERIFIED` remain off by default.
+The first push was rejected because main had advanced to landing commit `78f1aa4`. A second rebase applied cleanly. On that merged tree, `heavy bun run check` passed again, the fresh migration and all **99 persistence contracts passed**, and direct web tests reported **176 passed, 0 failed**. Because the landing lane changed shared CSS and routing, the four card browser checks were repeated: **4 passed, 0 failed** in 23.8 seconds with `FROGGY_E2E_PORT=3240 heavy bun run e2e e2e/card-checkout.spec.ts --workers=1`. The checkout opt-in flag was subsequently removed at the owner’s direction. `CARD_CHECKOUT_IFRAMES_VERIFIED` remains false by default pending acceptance for the path that handles real card credentials.
+
+## Always-available checkout verification
+
+The owner directed removal of the checkout opt-in flag. The change was made on main and rebased over alert commit `3836835`, preserving its configuration changes. Card routes and service operations no longer have a feature-disabled refusal. The metadata contract reports availability as literal `true`; the remaining iframe verification flag still defaults to false.
+
+- `bun run check:fast`: passed during implementation.
+- `heavy bun run check`: passed before and after the rebase. Exit 75 was retried while other lanes held the shared gate.
+- Direct `bun test` on merged main: server **820 passed, 2 skipped, 0 failed**; web **176 passed, 0 failed**. The server skips require PostgreSQL for history/watchlist.
+- Fresh migration and persistence contracts with PostgreSQL enabled: **99 passed, 0 failed** across nine files, including the watchlist contract. The disposable database and role were removed.
+- `FROGGY_E2E_PORT=3240 heavy bun run e2e e2e/card-checkout.spec.ts --workers=1`: **4 passed, 0 failed** in 22.9 seconds. Covered save/replace/revoke, masked responses, mobile layout and keyboard access, always-available Account controls with live entry unverified, session isolation, and browser errors.
+- New regressions cover owner route access without opt-in configuration, local stub defaults, unavailable funding configuration without synthetic funding, and refusal of unverified live credential entry before vault decryption or payment dispatch. Existing owner-only and synthetic-funding restrictions remain covered.
+
+These tests do not establish provider cross-origin credential acceptance. `CARD_CHECKOUT_IFRAMES_VERIFIED` remains false pending that test for the path handling real card credentials, as recorded in ADR 0036.
 
 ## Live-provider evidence and remaining work
 

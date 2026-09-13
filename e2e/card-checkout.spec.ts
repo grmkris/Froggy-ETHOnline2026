@@ -84,23 +84,23 @@ test("payment-method entry fits a narrow screen and remains keyboard accessible"
   expect(errors).toEqual([]);
 });
 
-test("disabled checkout stays hidden in Account", async ({ page }) => {
+test("checkout is available in Account while live card entry remains unverified", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/payment-methods", async (route) => {
-    await route.fulfill({
-      status: 403,
-      json: { v: 1, error: "card.disabled: Saved-card checkout is disabled." },
-    });
-  });
+  const methods = page.waitForResponse("**/api/payment-methods");
   await page.goto("/settings");
-  await expect(
-    page.getByRole("heading", { name: "Account", exact: true })
-  ).toBeVisible();
-  await expect(page.locator("#payment-methods")).toHaveCount(0);
+  const response = await methods;
+  expect(await response.json()).toMatchObject({
+    v: 1,
+    enabled: true,
+    liveCardEntry: false,
+  });
+  await expect(page.locator("#payment-methods")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Payment methods", exact: true })
-  ).toHaveCount(0);
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 

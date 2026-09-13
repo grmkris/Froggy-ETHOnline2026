@@ -201,12 +201,6 @@ export const handleCardCheckouts = async (
   ) {
     return null;
   }
-  if (services.environment.cards?.enabled !== true) {
-    return json(
-      { v: 1, error: "card.disabled: Saved-card checkout is disabled." },
-      403
-    );
-  }
   if (caller.agentTokenId !== null || caller.grantId !== null) {
     return json(
       {

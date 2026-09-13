@@ -283,7 +283,6 @@ const optionalResearchKey = (
 
 export interface Environment {
   readonly cards?: {
-    readonly enabled: boolean;
     readonly mode: "stub" | "live" | "unavailable";
     readonly vaultKey: Redacted.Redacted;
     readonly lineaRpc: Redacted.Redacted;
@@ -862,9 +861,6 @@ const loadCardConfiguration = Effect.fn("loadCardConfiguration")(
     privyLive: boolean,
     uniswapLive: boolean
   ) {
-    const cardEnabled = yield* Config.boolean("CARD_CHECKOUT_ENABLED").pipe(
-      Config.withDefault(false)
-    );
     const cardVaultKey = yield* secret(
       "CARD_VAULT_KEY",
       "replace-card-vault-key"
@@ -888,22 +884,21 @@ const loadCardConfiguration = Effect.fn("loadCardConfiguration")(
       privyLive &&
       uniswapLive;
     if (
-      cardEnabled &&
-      (!Number.isInteger(cardConfirmations) ||
-        cardConfirmations < 2 ||
-        cardConfirmations > 100 ||
-        (!cardStub && !cardLive))
+      !Number.isInteger(cardConfirmations) ||
+      cardConfirmations < 2 ||
+      cardConfirmations > 100
     ) {
       throw new Error(
-        "Invalid card checkout configuration: configure the vault key, Linea HTTPS RPC, sponsored Base execution and at least two Linea confirmations."
+        "Invalid card checkout configuration: Linea confirmations must be an integer from 2 to 100."
       );
     }
     let cardMode: "stub" | "live" | "unavailable" = "unavailable";
-    if (cardEnabled) {
-      cardMode = cardStub ? "stub" : "live";
+    if (cardStub) {
+      cardMode = "stub";
+    } else if (cardLive) {
+      cardMode = "live";
     }
     return {
-      enabled: cardEnabled,
       mode: cardMode,
       vaultKey: cardStub ? Redacted.make("e".repeat(64)) : cardVaultKey,
       lineaRpc,
