@@ -37,12 +37,11 @@ describe("service tool cards", () => {
       throw new Error("Service tool output disappeared.");
     }
     expect(call.input.service).toBe("image");
-    // The phase is named in the person's words: a quoted ticket is a
-    // payment still settling, and the detail says the provider was not called.
+    // Historical quoted states use a neutral task label without inventing payment settlement.
     expect(summarize(call)).toMatchObject({
-      headline: "image · settling your payment",
+      headline: "image · starting task",
       outcome: "info",
-      detail: "Settling your payment. The provider has not been called yet.",
+      detail: "Starting the task. The result will appear in Tools.",
       stubbed: true,
     });
   });
@@ -135,5 +134,38 @@ describe("address lookup cards", () => {
       detail: "Base: wallet, 0.0015 native, 12.5 USDC · Ethereum: unavailable",
       stubbed: false,
     });
+  });
+});
+
+describe("credit balance tool cards", () => {
+  it("decodes a structured balance and preserves the simulated marker", () => {
+    const part = {
+      type: "tool-credits_balance",
+      state: "output-available",
+      toolCallId: "credits-1",
+      input: {},
+      output: {
+        v: 1,
+        availableUnits: 980_000,
+        reservedUnits: 20_000,
+        spentUnits: 0,
+        limits: {
+          perTaskUnits: 2_000_000,
+          dailyUnits: 10_000_000,
+          expiresAt: null,
+          frozen: false,
+        },
+        stubbed: true,
+      },
+    };
+    const call = toolCallOf(part);
+    if (call === null) {
+      throw new Error("Credit balance disappeared.");
+    }
+    expect(summarize(call)).toMatchObject({
+      headline: "98 credits available",
+      stubbed: true,
+    });
+    expect(summarize(call)?.detail).toContain("2 credits held");
   });
 });

@@ -104,7 +104,12 @@ const CAPABILITIES: readonly Capability[] = [
     scope: "pay",
     writes: true,
   },
-  { names: ["history_search"], surfaces: ["chat"], scope: null, writes: false },
+  {
+    names: ["credits_balance", "history_search"],
+    surfaces: ["chat"],
+    scope: null,
+    writes: false,
+  },
   {
     names: [
       "browse_task",

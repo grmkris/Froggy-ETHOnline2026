@@ -10,7 +10,8 @@
 import { Schema } from "effect";
 
 import { AgentConnectionId } from "./agent-invocation";
-import { AgentTokenId, RunId, SaleId, TaskId } from "./id";
+import { CreditChargeStatus, CreditUnits } from "./credits";
+import { AgentTokenId, RunId, SaleId, TaskId, CreditChargeId } from "./id";
 import { UsdMicros } from "./money";
 
 /** `brief` is a paid data answer with no browser; `browse` drives the shared Chrome. */
@@ -55,6 +56,9 @@ export const Task = Schema.Struct({
   result: Schema.NullOr(Schema.Unknown),
   runId: Schema.NullOr(RunId),
   saleId: Schema.NullOr(SaleId),
+  chargeId: Schema.optional(CreditChargeId),
+  priceCreditUnits: Schema.optional(CreditUnits),
+  chargeStatus: Schema.optional(CreditChargeStatus),
   status: TaskStatus,
   updatedAt: Schema.Int,
 });

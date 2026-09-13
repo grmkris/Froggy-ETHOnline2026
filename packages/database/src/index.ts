@@ -85,3 +85,10 @@ export class Database extends Context.Service<
 }
 
 export { monitoringAccounts } from "./schema";
+
+export {
+  creditAccounts,
+  creditCharges,
+  creditPurchases,
+  creditEntries,
+} from "./schema";

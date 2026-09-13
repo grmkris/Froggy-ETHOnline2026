@@ -23,7 +23,7 @@ export const TradingServiceName = Schema.Literals([
 export type TradingServiceName = typeof TradingServiceName.Type;
 
 const requestFields = {
-  v: Schema.Literals([1]),
+  v: Schema.Literals([2]),
   idempotencyKey: Schema.String.check(
     Schema.isMinLength(1),
     Schema.isMaxLength(128)

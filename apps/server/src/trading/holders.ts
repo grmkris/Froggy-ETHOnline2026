@@ -176,7 +176,6 @@ export const reconstructHolders = async (
         ? input.toBlock
         : cursor + PAGE_BLOCKS - 1n;
     // Sequential: each page advances the cursor; parallel ranges would double-count.
-    // oxlint-disable-next-line eslint/no-await-in-loop -- log paging is ordered
     const logs = await readTransferPage(input.client, token, cursor, end);
     pagesUsed += 1;
     const slice =
@@ -291,7 +290,6 @@ export const firstMintCohort = async (input: {
       cursor + PAGE_BLOCKS - 1n > input.headBlock
         ? input.headBlock
         : cursor + PAGE_BLOCKS - 1n;
-    // oxlint-disable-next-line eslint/no-await-in-loop -- mint search walks history backward
     const logs = await input.client.getLogs({
       address: token,
       event: TRANSFER,

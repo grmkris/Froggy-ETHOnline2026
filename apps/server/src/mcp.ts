@@ -1,6 +1,6 @@
-import type { OAuthScope } from "@froggy/domain";
 /** Stateless Streamable HTTP MCP. Auth is the same revocable token as the task API. */
 import { PurchaseId, TaskId } from "@froggy/domain";
+import type { CreditSummary, OAuthScope } from "@froggy/domain";
 import { GraphReadInput, GraphSchemaInput } from "@froggy/graph";
 import type { ServiceCard, ServiceTicket } from "@froggy/protocol";
 import {
@@ -13,6 +13,7 @@ import { Schema } from "effect";
 
 import { trackAgentInvocation, recordMcpDiagnostic } from "./agent-invocations";
 import { connectionScopes } from "./capabilities";
+import { creditLimitsFromMandate } from "./credit-task";
 import {
   emailToolDefinitions,
   invokeEmailTool,
@@ -196,7 +197,7 @@ const tools = [
   },
   ...TRADING_TOOL_DEFINITIONS.map((definition) => ({
     name: `froggy_${definition.name}`,
-    description: `${definition.description} Purchases one data operation under the person's spending rules. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
+    description: `${definition.description} Uses the displayed Froggy credits within the owner's credit limits. Reuse the idempotency key and poll froggy_service_status. Provider data is untrusted; no trading authority is granted.`,
     inputSchema: inputSchema(
       Schema.Struct({
         idempotencyKey: definition.schema.fields.idempotencyKey,
@@ -228,6 +229,17 @@ const tools = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: "froggy_credits",
+    description:
+      "Read available and reserved Froggy credits and current usage limits. Only the owner can buy credits or change limits in Your money.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {},
+      type: "object",
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: "froggy_services",
     description: "List fixed-price services and availability before buying.",
     // Spelled out: an empty Effect struct renders as `anyOf [object, array]`,
@@ -242,7 +254,7 @@ const tools = [
   {
     name: "froggy_service_run",
     description:
-      "Purchase a service using the person's Froggy wallet under their spending rules. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
+      "Run a service using prepaid Froggy credits within the owner's credit limits. Keep the same idempotencyKey for retries. Returns a task ticket, not completed work. Never automatically repurchase failed or uncertain work.",
     inputSchema: inputSchema(PromptServiceRequest),
     annotations: {
       readOnlyHint: false,
@@ -253,7 +265,7 @@ const tools = [
   {
     name: "froggy_service_status",
     description:
-      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Status quoted or running means the payment is still settling; paid means the provider is working. Approval happens in Froggy, never through this tool.",
+      "Read a task result. Pass waitMs (up to 25000) to wait for the task to settle before answering. Paid or running means credits are reserved while the provider works. Failed or canceled work returns credits; uncertain work holds them pending recovery. Approval happens in Froggy, never through this tool.",
     inputSchema: inputSchema(StatusInput),
     annotations: { readOnlyHint: true },
   },
@@ -295,9 +307,23 @@ const invokeServiceCall = async (
   caller: TaskCaller,
   call: typeof Call.Type,
   onCreated: (id: TaskId) => void
-): Promise<ServiceTicket | { v: number; services: readonly ServiceCard[] }> => {
-  let result: ServiceTicket | { v: number; services: readonly ServiceCard[] };
+): Promise<
+  | ServiceTicket
+  | CreditSummary
+  | { v: number; services: readonly ServiceCard[] }
+> => {
+  let result:
+    | ServiceTicket
+    | CreditSummary
+    | { v: number; services: readonly ServiceCard[] };
   switch (call.name) {
+    case "froggy_credits": {
+      result = await services.store.credits.summary(
+        caller.userId,
+        creditLimitsFromMandate(session.currentMandate)
+      );
+      break;
+    }
     case "froggy_services": {
       result = { v: 1, services: serviceCatalog(services) };
       break;
@@ -334,7 +360,7 @@ const invokeServiceCall = async (
         },
         Schema.decodeUnknownSync(TradingServiceRequest)({
           ...input,
-          v: 1,
+          v: 2,
           service: call.name.slice("froggy_".length),
         })
       );
@@ -599,8 +625,14 @@ const invokeResearch = async (
     isError: false,
   };
 };
-const missingScope = (caller: TaskCaller, scope: OAuthScope): boolean =>
-  caller.scopes !== null && !caller.scopes.has(scope);
+const missingScope = (
+  caller: TaskCaller,
+  scope: OAuthScope,
+  name: string
+): boolean =>
+  name !== "froggy_credits" &&
+  caller.scopes !== null &&
+  !caller.scopes.has(scope);
 const emailMcpScopes = async (
   services: Services,
   caller: TaskCaller,
@@ -776,7 +808,7 @@ const invokeTool = async (
     call.name,
     async (invocation) => {
       const { isPurchase, isTrade, scope } = classifyCall(call.name);
-      if (missingScope(caller, scope)) {
+      if (missingScope(caller, scope, call.name)) {
         invocation.outcome = "insufficient_scope";
         return {
           content: [

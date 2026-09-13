@@ -8,32 +8,28 @@
  * this person has been welcomed.
  */
 
-import {
-  AgentToken,
-  DigestSchedule,
-  formatUsd,
-  OAuthGrant,
-} from "@froggy/domain";
-import type { WalletSummary } from "@froggy/protocol";
+import { AgentToken, DigestSchedule, OAuthGrant } from "@froggy/domain";
 import { Button } from "@froggy/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Result, Schema } from "effect";
 import { CheckIcon, TerminalIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { useCredits } from "../../hooks/use-credits";
 import { useSetup } from "../../hooks/use-setup";
+import { formatCredits } from "../../lib/credit-view";
 import { useWorkspace } from "../../lib/workspace-context";
 import { AgentOnboarding } from "../agents/copy-agent-prompt";
 import { Composer } from "../composer";
 import { CopyButton } from "../copy-button";
-import { AddFunds } from "../wallet/add-funds";
+import { BuyCredits } from "../wallet/buy-credits";
 import { StepActions, StepGlyph, StepHeading } from "./frame";
 
 /** In an order a $0.00 account can act on: research first, paid work last. */
 const STARTERS = [
   "Compare running shoes under $150",
   "What can you do for me?",
-  "Buy a lending brief for $0.05",
+  "Get a lending brief for 5 credits",
 ] as const;
 
 const decodeDigest = Schema.decodeUnknownResult(DigestSchedule);
@@ -110,25 +106,12 @@ const Row = ({
   </li>
 );
 
-const rulesDetail = (wallet: WalletSummary | null): string => {
-  const allowance = wallet?.agentAllowance ?? null;
-  if (wallet?.agentSigner !== "granted" || allowance === null) {
-    return "Not granted. Froggy cannot pay yet. Account › Let the agent pay.";
-  }
-  const ends = new Date(allowance.expiresAt).toLocaleDateString([], {
-    day: "numeric",
-    month: "short",
-  });
-  return `${formatUsd(allowance.askOverUsdMicros)} without asking · ${formatUsd(allowance.perSpendUsdMicros)} a payment · ${formatUsd(allowance.dailyUsdMicros)} a day · ends ${ends}`;
-};
-
 export const ReadyHere = ({
   busy,
   connected,
   onFinish,
   onSend,
   onStop,
-  wallet,
 }: {
   /** A turn is already running — someone replaying the welcome mid-task. */
   readonly busy: boolean;
@@ -137,19 +120,14 @@ export const ReadyHere = ({
   /** A first task, typed or picked: the flow ends and the conversation opens. */
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
-  readonly wallet: WalletSummary | null;
 }): ReactElement => {
   const setUp = useSetUp();
   const { seenAt } = useSetup();
-  const granted = wallet?.agentSigner === "granted";
+  const { summary } = useCredits();
   return (
     <>
       <StepHeading
-        detail={
-          granted
-            ? "Ask Froggy to look into something. Research is free; paying for anything waits for funds and stays inside your rules."
-            : "Ask Froggy to look into something. Research is free; paying for anything waits until you let Froggy pay."
-        }
+        detail="Start with a conversation. Paid tools use credits within your limits, without a new wallet payment each time."
         illustration={
           <img
             src="/froggy/setup-complete.png"
@@ -188,9 +166,13 @@ export const ReadyHere = ({
         </h2>
         <ul className="divide-y">
           <Row
-            detail={rulesDetail(wallet)}
-            done={granted}
-            label="Spending rules"
+            detail={
+              summary.data
+                ? `${formatCredits(summary.data.limits.perTaskUnits)} per task · ${formatCredits(summary.data.limits.dailyUnits)} in 24 hours`
+                : "Your credit limits are available in Your money."
+            }
+            done={summary.data !== undefined}
+            label="Credit limits"
           />
           <Row
             detail={
@@ -227,15 +209,15 @@ export const ReadyHere = ({
       >
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-section" id="ready-funds">
-            Add funds
+            Buy credits
           </h2>
           <span className="text-muted-foreground text-xs">optional</span>
         </div>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          You can look around without adding funds. Paid steps wait until there
-          is a balance.
+          You can talk and look around for free. Paid work waits until you buy
+          credits.
         </p>
-        <AddFunds wallet={wallet} />
+        <BuyCredits />
       </section>
       <StepActions
         primary={
@@ -250,7 +232,7 @@ export const ReadyHere = ({
 
 const NEXT = [
   "Your assistant reads llm.md and asks to connect.",
-  "A consent screen opens here. You choose what it may do: browse in your shared Chrome, pay for services under your rules, buy research briefs, read your history.",
+  "A consent screen opens here. You choose what it may do: browse in your shared Chrome, use credits for tools under your limits, buy research briefs, read your history.",
   "Ask it what Froggy can do. Disconnect it any time on Connections.",
 ] as const;
 
@@ -305,8 +287,8 @@ export const ReadyAssistant = ({
         </ol>
       </section>
       <p className="text-muted-foreground text-sm leading-relaxed">
-        It spends from your Froggy wallet, inside the rules you set. Add funds
-        from Wallet when it needs them.
+        It uses your Froggy credits within your limits. Buy credits from Your
+        money when you need them.
       </p>
       <StepActions
         primary={

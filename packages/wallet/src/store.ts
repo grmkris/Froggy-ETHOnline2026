@@ -51,6 +51,8 @@ import type {
  */
 import { Result, Schema } from "effect";
 
+import type { CreditStore } from "./credit-store";
+import { memoryCreditStore } from "./credit-store-memory";
 import type { HistoryStore } from "./history-store";
 import { memoryHistoryStore } from "./history-store";
 import { memoryLaunchStore } from "./launch-store";
@@ -127,6 +129,9 @@ type TaskPatch = Partial<
     | "result"
     | "runId"
     | "saleId"
+    | "chargeId"
+    | "priceCreditUnits"
+    | "chargeStatus"
     | "status"
   >
 > & { readonly updatedAt: number };
@@ -150,6 +155,12 @@ export type HederaCustody =
       readonly walletId: string;
     }
   | { readonly keyCiphertext: string; readonly kind: "sealed" };
+
+export interface HederaReceivingRecord {
+  /** Null until an external HBAR transfer creates the account for its persisted key. */
+  readonly accountId: string | null;
+  readonly custody: HederaCustody;
+}
 
 export interface HederaAccountRecord {
   /** `0.0.x`. */
@@ -280,6 +291,7 @@ export const BrowserProfileRecord = Schema.Struct({
 export type BrowserProfileRecord = typeof BrowserProfileRecord.Type;
 
 export interface Store {
+  readonly credits: CreditStore;
   readonly browsers: {
     readonly load: (userId: UserId) => Promise<BrowserProfileRecord | null>;
     readonly save: (
@@ -527,6 +539,14 @@ export interface Store {
    * returning person finds their balance where they left it.
    */
   readonly hedera: {
+    readonly loadReceiving: (
+      userId: UserId
+    ) => Promise<HederaReceivingRecord | null>;
+    /** Persist one canonical key before exposing its alias to a depositor. */
+    readonly prepareReceiving: (
+      userId: UserId,
+      custody: Extract<HederaCustody, { readonly kind: "privy" }>
+    ) => Promise<HederaReceivingRecord>;
     readonly load: (userId: UserId) => Promise<HederaAccountRecord | null>;
     readonly save: (
       userId: UserId,
@@ -765,7 +785,7 @@ export const memoryStore = (): Store => {
   const entries = new Map<UserId, DirectoryEntry[]>();
   const pockets = new Map<UserId, number>();
   const setupSeen = new Map<UserId, number>();
-  const hederaAccounts = new Map<UserId, HederaAccountRecord>();
+  const hederaAccounts = new Map<UserId, HederaReceivingRecord>();
   const personPolicies = new Map<UserId, PersonPolicyRecord>();
   const tokens = new Map<AgentTokenId, AgentTokenRow & { userId: UserId }>();
   const sales = new Map<SaleId, Sale>();
@@ -777,6 +797,10 @@ export const memoryStore = (): Store => {
     pairings.delete(userId);
   };
   return {
+    credits: memoryCreditStore(
+      tasks,
+      (owner) => personPolicies.get(owner)?.allowance ?? null
+    ),
     browsers: {
       load: async (userId) =>
         await Promise.resolve(structuredClone(browsers.get(userId) ?? null)),
@@ -1518,9 +1542,26 @@ export const memoryStore = (): Store => {
       receipts.delete(userId);
     },
     hedera: {
-      load: async (userId) => {
+      loadReceiving: async (userId) => {
         await Promise.resolve();
         return hederaAccounts.get(userId) ?? null;
+      },
+      prepareReceiving: async (userId, custody) => {
+        await Promise.resolve();
+        const existing = hederaAccounts.get(userId);
+        if (existing !== undefined) {
+          return existing;
+        }
+        const record = { accountId: null, custody };
+        hederaAccounts.set(userId, record);
+        return record;
+      },
+      load: async (userId) => {
+        await Promise.resolve();
+        const record = hederaAccounts.get(userId);
+        return record === undefined || record.accountId === null
+          ? null
+          : { accountId: record.accountId, custody: record.custody };
       },
       save: async (userId, record) => {
         await Promise.resolve();

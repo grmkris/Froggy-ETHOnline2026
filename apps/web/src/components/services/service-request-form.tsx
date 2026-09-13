@@ -3,7 +3,6 @@
  * button, and a plain word about what a simulated run is.
  */
 
-import { formatUsd } from "@froggy/domain";
 import type { ServiceCard } from "@froggy/protocol";
 import { PromptServiceRequest } from "@froggy/protocol";
 import {
@@ -25,6 +24,7 @@ import { useId, useState } from "react";
 import type { ReactElement } from "react";
 
 import type { ServiceApi } from "../../hooks/use-service-api";
+import { formatCredits } from "../../lib/credit-view";
 import { runLabel } from "../../lib/services-view";
 
 export const ServiceRequestForm = ({
@@ -43,7 +43,7 @@ export const ServiceRequestForm = ({
   // A fresh key per change: the same words twice are the same task, a
   // changed request is a new one.
   const [key, setKey] = useState(() => crypto.randomUUID());
-  const price = formatUsd(card.priceUsdMicros);
+  const price = formatCredits(card.priceCreditUnits ?? card.priceUsdMicros);
   return (
     <form
       aria-label={`Request ${card.title}`}
@@ -55,7 +55,7 @@ export const ServiceRequestForm = ({
         }
         run.mutate(
           Schema.decodeUnknownSync(PromptServiceRequest)({
-            v: 1,
+            v: 2,
             idempotencyKey: key,
             prompt,
             service: card.name,
@@ -117,7 +117,9 @@ export const ServiceRequestForm = ({
         {run.isError ? <FieldError>{run.error.message}</FieldError> : null}
       </Field>
       <p className="text-muted-foreground text-xs">
-        {card.note} Once paid, failed work is not automatically refunded.
+        {card.note} Credits are held while the task runs and used when its
+        result is saved. Failed or canceled work returns credits once the
+        outcome is known.
       </p>
       <Button
         className="min-h-11 self-start"

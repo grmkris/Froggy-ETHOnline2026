@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { captureScreen } from "./capture";
+import { fundCredits } from "./fund-credits";
 
 for (const width of [1440, 390, 320]) {
   test(`save, edit, attach and archive a product at ${width}px`, async ({
@@ -107,6 +108,7 @@ for (const [network, name] of [
 ] as const) {
   test(`token lookup and save preserve ${name} identity`, async ({ page }) => {
     await page.goto("/watchlist?discover=true");
+    await fundCredits(page);
     const discover = page.getByRole("region", { name: "Discover tokens" });
     await discover.getByLabel("Chain", { exact: true }).selectOption(network);
     await discover

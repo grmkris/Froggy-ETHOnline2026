@@ -22,7 +22,7 @@ for (const failure of ["http", "network"] as const) {
     await leash.applied;
     await page
       .getByRole("textbox", { name: "Message" })
-      .fill("Buy the lending snapshot");
+      .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
       timeout: 20_000,

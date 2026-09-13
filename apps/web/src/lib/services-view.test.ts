@@ -18,6 +18,7 @@ describe("services view", () => {
     );
     expect(statusWords("paused").label).toBe("Paused");
     expect(isSettling("running")).toBe(true);
+    expect(isSettling("uncertain")).toBe(true);
     expect(isSettling("done")).toBe(false);
   });
 

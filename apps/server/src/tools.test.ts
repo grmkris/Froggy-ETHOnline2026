@@ -148,8 +148,8 @@ describe("service tool input", () => {
       prompt: "Hunter Biden meme coin launch",
       idempotencyKey: "research-request-1",
     });
-    const wire = Schema.decodeUnknownSync(ServiceRequest)({ ...input, v: 1 });
-    expect(wire.v).toBe(1);
+    const wire = Schema.decodeUnknownSync(ServiceRequest)({ ...input, v: 2 });
+    expect(wire.v).toBe(2);
     const schema = std(ServiceToolInput)["~standard"].jsonSchema.input({
       target: "draft-2020-12",
     });

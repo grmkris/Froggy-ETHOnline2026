@@ -29,7 +29,7 @@ const IDLE_POLL_MS = 15_000;
 
 export type RunInput = ServiceRequest;
 
-export const useServiceApi = (taskId?: TaskId) => {
+export const useServiceApi = (taskId?: TaskId, loadOverview = true) => {
   const { getToken } = useSessionToken();
   const { app } = useWorkspace();
   const queries = useQueryClient();
@@ -55,6 +55,7 @@ export const useServiceApi = (taskId?: TaskId) => {
   );
 
   const catalog = useQuery({
+    enabled: loadOverview,
     queryFn: async () => {
       const response = await api("/api/services");
       return decodeCatalog(await response.json());
@@ -102,6 +103,7 @@ export const useServiceApi = (taskId?: TaskId) => {
     },
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: ["service-tasks"] });
+      void queries.invalidateQueries({ queryKey: ["credits"] });
     },
     retry: false,
   });

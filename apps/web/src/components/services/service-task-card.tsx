@@ -18,6 +18,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
+import { creditChargeWords, formatCredits } from "../../lib/credit-view";
 import { ServiceTaskResult } from "./service-task-result";
 import { TaskStatusBadge } from "./task-status-badge";
 
@@ -37,9 +38,10 @@ const Standing = ({
   if (task.status === "uncertain") {
     return (
       <Alert>
-        <AlertTitle>Payment uncertain.</AlertTitle>
+        <AlertTitle>Outcome pending.</AlertTitle>
         <AlertDescription>
-          Froggy is reconciling with the network. Do not buy this again.
+          Froggy is checking the saved task. Keep this task while its outcome is
+          resolved.
         </AlertDescription>
       </Alert>
     );
@@ -91,7 +93,9 @@ export const ServiceTaskCard = ({
           </Badge>
         ) : null}
         <span className="text-money ml-auto text-sm tabular-nums">
-          {formatUsd(task.priceUsdMicros)}
+          {task.priceCreditUnits === undefined
+            ? formatUsd(task.priceUsdMicros)
+            : `${formatCredits(task.priceCreditUnits)} ${creditChargeWords(task.chargeStatus)}`}
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

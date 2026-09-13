@@ -479,9 +479,10 @@ export const finishMonitorCheck = async (
   owner: UserId,
   id: MonitorCheckId,
   inputObservation: MonitorObservation | null,
-  spentUsdMicros: number,
+  inputSpentUsdMicros: number,
   inputError: string | null,
-  needsHelp = false
+  needsHelp = false,
+  creditBilling = false
 ) =>
   await store.monitoring.transact(owner, (book) => {
     const check = book.checks.find((entry) => entry.id === id);
@@ -497,6 +498,8 @@ export const finishMonitorCheck = async (
       inputObservation,
       inputError
     );
+    const spentUsdMicros =
+      creditBilling && observation === null ? 0 : inputSpentUsdMicros;
     const current =
       monitor.revision === check.revision && monitor.status !== "paused";
     const matched =

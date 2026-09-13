@@ -56,13 +56,14 @@ export const beginDataCheck = async (
       agentTokenId: caller.agentTokenId,
       connectionId: monitor.connectionId,
       interactive: false,
+      monitorCheckId: check.id,
       beforePayment: async () => {
         await assertMonitorCurrent(deps.services.store, owner, check);
       },
       budgetUsdMicros: MONITOR_CHECK_USD_MICROS,
     },
     Schema.decodeUnknownSync(ServiceRequest)({
-      v: 1,
+      v: 2,
       service: "token_inspect",
       idempotencyKey: `monitor:${check.id}`,
       input: { network: item.source.network, address: item.source.address },

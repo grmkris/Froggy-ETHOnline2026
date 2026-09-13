@@ -9,6 +9,7 @@
  */
 
 import {
+  CreditSummary,
   GraphQueryOutput,
   ServiceCatalog,
   ServiceTicket,
@@ -55,6 +56,7 @@ const ToolCallSchema = Schema.Struct({
       GraphQueryOutput,
       ServiceTicket,
       ServiceCatalog,
+      CreditSummary,
       Schema.Struct({ v: Schema.Literals([1]), error: Schema.String }),
     ])
   ),

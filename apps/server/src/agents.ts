@@ -94,7 +94,11 @@ const agentMayTrade = (pathname: string, method: string): boolean =>
   (/^\/api\/trades\/trd_[a-z0-9]+\/simulate$/u.test(pathname) &&
     method === "POST");
 
+const agentMayReadBalance = (pathname: string, method: string): boolean =>
+  method === "GET" && ["/api/credits", "/api/wallet"].includes(pathname);
+
 export const agentMayCall = (pathname: string, method: string): boolean =>
+  agentMayReadBalance(pathname, method) ||
   agentMayPurchase(pathname, method) ||
   agentMayTrade(pathname, method) ||
   (pathname.startsWith("/api/tasks") &&
@@ -105,7 +109,6 @@ export const agentMayCall = (pathname: string, method: string): boolean =>
   (pathname === "/api/services/run" && method === "POST") ||
   ((pathname === "/api/mcp" || pathname === "/mcp") &&
     (method === "POST" || method === "GET" || method === "DELETE")) ||
-  (pathname === "/api/wallet" && method === "GET") ||
   (pathname === "/api/wallet/pay" && method === "POST");
 
 /**

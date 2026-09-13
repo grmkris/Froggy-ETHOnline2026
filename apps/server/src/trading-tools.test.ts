@@ -12,6 +12,7 @@ import {
   RunId,
   TaskId,
   usdMicros,
+  creditUnits,
   userId,
 } from "@froggy/domain";
 import type { OAuthScope } from "@froggy/domain";
@@ -27,6 +28,7 @@ import { ConfigProvider, Effect, Schema } from "effect";
 
 import { ModelBudget } from "./budget";
 import { capabilityFor, canUseTool } from "./capabilities";
+import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { acceptHistory } from "./history";
@@ -146,6 +148,7 @@ const fixture = async (
     }
   );
   await session.hydrate();
+  await fundTestCredits(services.store, person, 2_000_000);
   // Trading tools must never reach for a page; a stub refuses loudly if they do.
   const browser = new StubCloudBrowser({});
   const workspaces = new Workspaces({
@@ -300,7 +303,7 @@ describe("named trading chat tools", () => {
   });
 
   it.each(["market_search", "quote_action"] as const)(
-    "executes %s through chat with the same durable task, sale, and receipt as the coordinator",
+    "executes %s through chat with one durable task and credit charge across coordinator retries",
     async (operation) => {
       const context = await fixture();
       const idempotencyKey = `chat-${operation}-${crypto.randomUUID()}`;
@@ -329,17 +332,20 @@ describe("named trading chat tools", () => {
       expect(result.stubbed).toBe(true);
       expect(result.data?.operation).toBe(operation);
       expect(result.data?.stubbed).toBe(true);
-      const [receipt] = context.session.history;
-      expect(context.session.history).toHaveLength(1);
-      expect(receipt?.stubbed).toBe(true);
-      expect(receipt?.runId).toBe(context.run.id);
-      expect(receipt?.intent.idempotencyKey).toBe(`service:${ticket.id}`);
-      if (result.saleId === null) {
-        throw new Error("Chat trading task did not retain its sale.");
-      }
-      const sale = await context.services.store.sales.byId(result.saleId);
-      expect(sale?.transactionId).toBe(receipt?.settlement?.transactionId);
-      expect(sale?.stubbed).toBe(true);
+      expect(context.session.history).toHaveLength(0);
+      expect(result.saleId).toBeNull();
+      const charge = await context.services.store.credits.findCharge(
+        context.session.userId,
+        ticket.id
+      );
+      expect(charge?.status).toBe("captured");
+      expect(charge?.stubbed).toBe(true);
+      const entries = await context.services.store.credits.entries(
+        context.session.userId
+      );
+      expect(entries.filter((entry) => entry.kind === "capture")).toHaveLength(
+        1
+      );
       const task = await context.services.store.tasks.byId(
         context.session.userId,
         ticket.id
@@ -348,7 +354,7 @@ describe("named trading chat tools", () => {
         Schema.decodeUnknownSync(ServiceResult)(task?.result).data
       ).toEqual(result.data);
       const request = Schema.decodeUnknownSync(ServiceRequest)({
-        v: 1,
+        v: 2,
         service: operation,
         input: INPUTS[operation],
         idempotencyKey,
@@ -366,7 +372,7 @@ describe("named trading chat tools", () => {
         request
       );
       expect(replay.id).toBe(ticket.id);
-      expect(context.session.history).toHaveLength(1);
+      expect(context.session.history).toHaveLength(0);
     }
   );
 });
@@ -716,10 +722,22 @@ const monitoringFixture = async (
   });
 };
 
-it("charges monitoring from the settled receipt when recording its sale fails", async () => {
+it("captures monitor credits once without any per-task sale bookkeeping", async () => {
   const context = await fixture();
   const services = {
     ...context.services,
+    trading: {
+      ...context.services.trading,
+      market: {
+        ...context.services.trading.market,
+        inspect: async (
+          input: Parameters<typeof context.services.trading.market.inspect>[0]
+        ) => {
+          const result = await context.services.trading.market.inspect(input);
+          return { ...result, token: { ...result.token, priceUsd: 2 } };
+        },
+      },
+    },
     store: {
       ...context.services.store,
       sales: {
@@ -740,26 +758,37 @@ it("charges monitoring from the settled receipt when recording its sale fails", 
     throw new Error("Missing monitor task");
   }
   const ticket = await completed(context, taskId);
-  expect(ticket.status).toBe("failed");
+  expect(ticket.status).toBe("done");
   expect(ticket.saleId).toBeNull();
+  expect(ticket.chargeStatus).toBe("reserved");
   await runner.tick();
   await runner.tick();
   const state = await monitoringState(services.store, owner);
-  expect(state.checks[0]?.status).toBe("failed");
+  expect(state.checks[0]?.error).toBeNull();
+  expect(state.checks[0]?.status).toBe("done");
   expect(state.checks[0]?.reservedUsdMicros).toBe(0);
   expect(state.checks[0]?.spentUsdMicros).toBe(12_000);
   expect(state.months[0]?.spentUsdMicros).toBe(12_000);
+  const charge = await services.store.credits.findCharge(owner, taskId);
+  expect(charge?.status).toBe("captured");
+  const balance = await services.store.credits.summary(owner);
+  expect(balance.availableUnits).toBe(creditUnits(1_988_000));
+  expect(await services.ledger.since(owner, 0)).toEqual([]);
 });
 
-it("releases a monitor reservation when the payment was refused before signing", async () => {
+it("releases the monitor allowance when the credit per-task cap refuses its charge", async () => {
   const context = await fixture();
   const services = {
     ...context.services,
-    // Synthetic payee deliberately outside the fixture's allowlist.
     oracle: { ...context.services.oracle, payTo: "0.0.999999" },
   };
   const runner = await monitoringFixture(context, services);
   const owner = context.session.userId;
+  const summary = await services.store.credits.summary(owner);
+  await services.store.credits.setLimits(owner, {
+    ...summary.limits,
+    perTaskUnits: creditUnits(0),
+  });
   await runner.tick();
   const started = await monitoringState(services.store, owner);
   const taskId = started.checks[0]?.taskId;

@@ -4,6 +4,7 @@ import type { BrowseTaskView } from "@froggy/protocol";
 import { BrowseTaskControl } from "@froggy/protocol";
 import { Schema } from "effect";
 
+import { finishCreditTask } from "./credit-task";
 import { controlHostedBrowse } from "./hosted-browse";
 import { hostedTask, publicBrowseTask } from "./hosted-browse-state";
 import { handleTaskGet, pauseBrowseTask, resumeBrowseTask } from "./tasks";
@@ -59,14 +60,23 @@ const controlLegacy = async (
   if (action === "continue" && task.status === "paused") {
     await resumeBrowseTask(deps, caller.userId);
   } else if (action === "stop" && task.status === "paused") {
-    await deps.services.store.tasks.update(caller.userId, task.id, {
-      status: "cancelled",
-      updatedAt: Date.now(),
-    });
+    await finishCreditTask(
+      deps.services,
+      caller.userId,
+      task,
+      {
+        status: "cancelled",
+        updatedAt: Date.now(),
+      },
+      "release"
+    );
     if (task.saleId !== null) {
       await deps.services.store.sales.update(task.saleId, {
         status: "failed",
-        error: "Stopped. The fixed task price was not refunded.",
+        error:
+          task.chargeId === undefined
+            ? "Stopped. The fixed task price was not refunded."
+            : "Stopped. Reserved credits were returned.",
       });
     }
   } else if (action === "stop" && run !== null && run.id === task.runId) {
@@ -125,7 +135,7 @@ export const handleBrowseTaskRoutes = async (
   }
   try {
     if (hostedTask(task)) {
-      if (task.saleId === null) {
+      if (task.saleId === null && task.chargeId === undefined) {
         return reply(
           {
             v: 1,

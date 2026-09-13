@@ -1,7 +1,7 @@
 import { MonitorConfig } from "@froggy/domain";
 import type { Monitor, MonitoringBook, WatchlistItem } from "@froggy/domain";
 import { Badge } from "@froggy/ui/components/badge";
-import { Button, buttonVariants } from "@froggy/ui/components/button";
+import { Button } from "@froggy/ui/components/button";
 import {
   Field,
   FieldDescription,
@@ -17,14 +17,11 @@ import { Link } from "@tanstack/react-router";
 import { Schema } from "effect";
 import { useId, useState } from "react";
 
+import { formatCredits } from "../../lib/credit-view";
 import { useMonitoring } from "../../lib/monitoring-client";
 import { useWatchlist } from "../../lib/watchlist-client";
 
 const zone = () => new Intl.DateTimeFormat().resolvedOptions().timeZone;
-const dollars = (micros: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    micros / 1_000_000
-  );
 
 const conditionOf = (kind: string, value: string, currency: string) => {
   if (kind === "price_below") {
@@ -89,8 +86,8 @@ export const MonitoringBudget = () => {
           A little attention, on your terms
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          Set one monthly limit for all your checks. Your wallet rules still
-          apply.
+          Set one monthly credit limit for all your checks. Your credit limits
+          also apply.
         </p>
       </div>
       <form
@@ -98,14 +95,16 @@ export const MonitoringBudget = () => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           const amount = Number(data.get("budget"));
-          if (!Number.isFinite(amount) || amount < 0 || amount > 1000) {
-            setFailure("Choose a monthly budget between $0 and $1,000.");
+          if (!Number.isFinite(amount) || amount < 0 || amount > 100_000) {
+            setFailure(
+              "Choose a monthly budget between 0 and 100,000 credits."
+            );
             return;
           }
           setFailure(null);
           budget.mutate(
             {
-              monthlyUsdMicros: Math.round(amount * 1_000_000),
+              monthlyUsdMicros: Math.round(amount * 10_000),
               timezone:
                 state.data !== undefined && state.data.checks.length > 0
                   ? state.data.budget.timezone
@@ -121,7 +120,9 @@ export const MonitoringBudget = () => {
       >
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor={id}>Monthly monitoring limit (USD)</FieldLabel>
+            <FieldLabel htmlFor={id}>
+              Monthly monitoring limit (credits)
+            </FieldLabel>
             <Input
               key={state.data?.budget.monthlyUsdMicros ?? "loading"}
               id={id}
@@ -129,29 +130,25 @@ export const MonitoringBudget = () => {
               name="budget"
               type="number"
               min="0"
-              max="1000"
+              max="100000"
               step="1"
-              defaultValue={
-                (state.data?.budget.monthlyUsdMicros ?? 0) / 1_000_000
-              }
+              defaultValue={(state.data?.budget.monthlyUsdMicros ?? 0) / 10_000}
               required
             />
             <FieldDescription>
-              Checks cost up to $1 each. A zero limit stops new checks. No
-              automatic budget increases.
+              Checks use up to 100 credits each. A zero limit stops new checks.
+              No automatic budget increases.
             </FieldDescription>
           </Field>
-          <Button
-            type="submit"
-            disabled={budget.isPending || state.isPending || state.isError}
-          >
+          <Button type="submit" disabled={budget.isPending || state.isPending}>
             {budget.isPending ? "Saving…" : "Save budget"}
           </Button>
         </FieldGroup>
       </form>
       <p className="text-muted-foreground text-xs">
-        This month: {dollars(spent)} spent, {dollars(held)} reserved. Budget
-        resets each calendar month in {state.data?.budget.timezone ?? zone()}.
+        This month: {formatCredits(spent)} spent, {formatCredits(held)}{" "}
+        reserved. Budget resets each calendar month in{" "}
+        {state.data?.budget.timezone ?? zone()}.
       </p>
       {failure !== null || state.error !== null ? (
         <p role="alert" className="text-destructive text-sm">
@@ -247,13 +244,13 @@ export const MonitorSetup = ({
               Choose a cadence
             </NativeSelectOption>
             <NativeSelectOption value="hourly">
-              Every hour · up to $744/month
+              Every hour · up to 74,400 credits/month
             </NativeSelectOption>
             <NativeSelectOption value="daily">
-              Every day · up to $31/month
+              Every day · up to 3,100 credits/month
             </NativeSelectOption>
             <NativeSelectOption value="weekly">
-              Every week · up to $5/month
+              Every week · up to 500 credits/month
             </NativeSelectOption>
           </NativeSelect>
           <FieldDescription>
@@ -440,15 +437,12 @@ export const ItemMonitoring = ({ item }: { readonly item: WatchlistItem }) => {
       ) : null}
       {monitor?.status === "needs_help" ? (
         <div className="flex flex-col gap-2">
-          <Link
-            className={buttonVariants({ variant: "outline" })}
-            to="/browser"
-          >
+          <Button variant="outline" render={<Link to="/browser" />}>
             Open browser to help
-          </Link>
+          </Button>
           <p className="text-muted-foreground text-sm">
             Complete the login or CAPTCHA, then use Resume in the browser. The
-            same paid check continues.
+            same check continues with its existing reservation.
           </p>
         </div>
       ) : null}
@@ -470,7 +464,7 @@ export const ItemMonitoring = ({ item }: { readonly item: WatchlistItem }) => {
                   <p>
                     {new Date(check.createdAt).toLocaleString()} ·{" "}
                     {check.status.replaceAll("_", " ")} ·{" "}
-                    {dollars(check.spentUsdMicros)}
+                    {formatCredits(check.spentUsdMicros)}
                   </p>
                   {check.observation ? (
                     <a

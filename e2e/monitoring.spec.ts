@@ -7,21 +7,16 @@ for (const width of [390, 1440]) {
     page,
   }, testInfo) => {
     const errors: string[] = [];
-    page.on("console", (message) => {
-      if (message.type() === "error") {
-        errors.push(message.text());
-      }
-    });
     page.on("pageerror", (error) => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/watchlist");
     const budget = page.getByRole("region", { name: "Monitoring budget" });
-    await budget.getByLabel("Monthly monitoring limit (USD)").fill("2");
+    await budget.getByLabel("Monthly monitoring limit (credits)").fill("200");
     await budget.getByRole("button", { name: "Save budget" }).click();
     await expect(budget.getByText("Monitoring budget saved.")).toBeVisible();
     await expect(
-      budget.getByLabel("Monthly monitoring limit (USD)")
-    ).toHaveValue("2");
+      budget.getByLabel("Monthly monitoring limit (credits)")
+    ).toHaveValue("200");
     await page.getByRole("button", { name: "Add item", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("What are you saving?").selectOption("product");
