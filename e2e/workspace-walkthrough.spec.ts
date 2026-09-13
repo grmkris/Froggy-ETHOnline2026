@@ -94,6 +94,7 @@ for (const size of [
       .locator('[data-slot="popover-content"]')
       .getByRole("link", { name: "Account" })
       .click();
+    await page.getByRole("tab", { name: "Account", exact: true }).click();
     await page.getByRole("button", { name: "Delete my data" }).click();
     await expect(page.getByRole("alertdialog")).toBeVisible();
     await captureScreen(page, testInfo, "delete-confirmation");

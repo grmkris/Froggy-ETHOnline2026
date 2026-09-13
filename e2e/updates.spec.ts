@@ -1,8 +1,9 @@
+import { createHash, randomBytes } from "node:crypto";
+
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { Schema } from "effect";
 
-import { AgentToken } from "../packages/domain/src/agent-token";
 import { UpdateId } from "../packages/domain/src/id";
 import { UpdatesPage } from "../packages/domain/src/update";
 import type { Update } from "../packages/domain/src/update";
@@ -171,24 +172,69 @@ test("Updates supports a direct link with reduced motion and a missing record", 
 
 test("an MCP notice reaches the real Updates feed and agents cannot mark it read", async ({
   page,
+  baseURL,
 }) => {
   await page.goto("/inbox?feed=updates");
   await expect(
-    page.getByRole("heading", { name: "All quiet for now" })
+    page
+      .getByRole("region", { name: "Updates list", exact: true })
+      .getByText("All quiet for now", { exact: true })
   ).toBeVisible();
   const ownerToken = await page.evaluate(() =>
     localStorage.getItem("froggy.local-identity")
   );
   const owner = { authorization: `Bearer ${ownerToken}` };
-  const response = await page.request.post("/api/agents", {
-    headers: owner,
-    data: { label: "Updates integration" },
+  const manual = `${baseURL}/oauth/manual`;
+  const registration = await page.request.post("/oauth/register", {
+    data: { client_name: "Updates integration", redirect_uris: [manual] },
   });
-  const minted = Schema.decodeUnknownSync(
-    Schema.Struct({ secret: Schema.String, token: AgentToken })
-  )(await response.json());
+  expect(registration.status()).toBe(201);
+  const { client_id: clientId } = Schema.decodeUnknownSync(
+    Schema.Struct({ client_id: Schema.String })
+  )(await registration.json());
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const authorize = new URL("/oauth/authorize", baseURL);
+  authorize.search = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: manual,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    scope: "notifications",
+    state: "updates-integration",
+    resource: `${baseURL}/mcp`,
+  }).toString();
+  // Keep Inbox open so the test observes the notice arriving over its socket.
+  const consent = await page.context().newPage();
+  let code: string;
+  try {
+    await consent.goto(authorize.toString());
+    await consent.getByRole("button", { name: "Allow", exact: true }).click();
+    await consent.waitForURL(/\/oauth\/manual\?/u);
+    code = await consent
+      .getByRole("textbox", { name: "Authorization code" })
+      .inputValue();
+  } finally {
+    await consent.close();
+  }
+  const exchange = await page.request.post("/oauth/token", {
+    form: {
+      client_id: clientId,
+      code,
+      code_verifier: verifier,
+      grant_type: "authorization_code",
+      redirect_uri: manual,
+      resource: `${baseURL}/mcp`,
+    },
+  });
+  expect(exchange.status()).toBe(200);
+  const issued = Schema.decodeUnknownSync(
+    Schema.Struct({ access_token: Schema.String, scope: Schema.String })
+  )(await exchange.json());
+  expect(issued.scope).toBe("notifications");
   const agent = {
-    authorization: `Bearer ${minted.secret}`,
+    authorization: `Bearer ${issued.access_token}`,
     accept: "application/json, text/event-stream",
   };
   const result = await page.request.post("/mcp", {
@@ -204,6 +250,7 @@ test("an MCP notice reaches the real Updates feed and agents cannot mark it read
     },
   });
   expect(result.ok()).toBe(true);
+  expect(await result.json()).not.toHaveProperty("result.isError", true);
   await expect(
     page
       .getByRole("navigation", { name: "Primary", exact: true })

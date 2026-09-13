@@ -46,6 +46,7 @@ test("Home keeps a local identity, and offers the welcome from its foot", async 
     .locator('[data-slot="popover-content"]')
     .getByRole("link", { name: "Account", exact: true })
     .click();
+  await page.getByRole("tab", { name: "Account", exact: true }).click();
   await page.getByRole("link", { name: "Show the welcome again" }).click();
   await expect(page).toHaveURL(/\/welcome$/u);
   await expect(
