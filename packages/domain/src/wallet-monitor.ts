@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
 import { EvmAddress } from "./address";
+import type { AddressPresence } from "./address-presence";
 import { AgentConnectionId } from "./agent-invocation";
 import {
   OnchainAlertRuleId,
@@ -55,6 +56,13 @@ export const OnchainAlertRule = Schema.Struct({
 });
 export type OnchainAlertRule = typeof OnchainAlertRule.Type;
 
+/** One chain the watch streams on, from the block it started there. Heads differ per chain. */
+export const WalletMonitorCoverage = Schema.Struct({
+  network: OnchainNetwork,
+  startBlock: blockNumber,
+});
+export type WalletMonitorCoverage = typeof WalletMonitorCoverage.Type;
+
 /** Stored with its saved item, so creating a watch cannot leave an orphan. */
 export const WalletMonitor = Schema.Struct({
   v: Schema.Literal(1),
@@ -71,8 +79,33 @@ export const WalletMonitor = Schema.Struct({
   rules: Schema.optional(
     Schema.Array(OnchainAlertRule).check(Schema.isMaxLength(4))
   ),
+  /** Every supported chain the address was seen on; `startBlock` above is the first entry, kept for older rows. */
+  networks: Schema.optional(
+    Schema.Array(WalletMonitorCoverage).check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(2)
+    )
+  ),
 });
 export type WalletMonitor = typeof WalletMonitor.Type;
+export const monitorCoverage = (
+  monitor: WalletMonitor
+): readonly WalletMonitorCoverage[] => monitor.networks ?? [];
+export const monitorStartBlock = (
+  monitor: WalletMonitor,
+  network: OnchainNetwork
+): number | null =>
+  monitorCoverage(monitor).find((entry) => entry.network === network)
+    ?.startBlock ?? null;
+/** The chains a watch can start on: observed, and streamed by a worker. */
+export const supportedPresence = (
+  rows: readonly AddressPresence[]
+): readonly OnchainNetwork[] =>
+  rows.flatMap((row) =>
+    row.status === "observed" && Schema.is(OnchainNetwork)(row.network)
+      ? [row.network]
+      : []
+  );
 
 export const WalletActivityFlow = Schema.Struct({
   asset: Schema.Union([Schema.Literal("native"), EvmAddress]),
@@ -165,6 +198,28 @@ export const WalletMonitorStatus = Schema.Struct({
   gapSince: Schema.NullOr(timestamp),
   coverage: Schema.String.check(Schema.isMaxLength(400)),
   stubbed: Schema.Boolean,
+  /** Per chain; the top-level fields report the worst of these. */
+  networks: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        network: OnchainNetwork,
+        state: Schema.Literals([
+          "saved",
+          "starting",
+          "watching",
+          "waiting_price",
+          "triggered",
+          "delayed",
+          "paused",
+          "expired",
+          "unavailable",
+        ]),
+        latestBlock: Schema.NullOr(blockNumber),
+        latestBlockAt: Schema.NullOr(timestamp),
+        stubbed: Schema.Boolean,
+      })
+    ).check(Schema.isMaxLength(2))
+  ),
 });
 export type WalletMonitorStatus = typeof WalletMonitorStatus.Type;
 

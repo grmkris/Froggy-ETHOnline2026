@@ -6,7 +6,7 @@ import {
   walletAlertWindows,
   walletStreamState,
 } from "@froggy/database";
-import { WatchlistItem } from "@froggy/domain";
+import { UserId, WatchlistItem } from "@froggy/domain";
 import { and, eq, inArray, sql as raw } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { Schema } from "effect";
@@ -127,6 +127,12 @@ export const postgresWatchlistStore = (sql: Sql): WatchlistStore => {
         }
         return structuredClone(result);
       }),
+    owners: async () => {
+      const rows = await db
+        .selectDistinct({ userId: savedItems.userId })
+        .from(savedItems);
+      return rows.map((row) => Schema.decodeUnknownSync(UserId)(row.userId));
+    },
     forget: async (owner) => {
       await db.transaction(async (tx) => {
         await tx.execute(

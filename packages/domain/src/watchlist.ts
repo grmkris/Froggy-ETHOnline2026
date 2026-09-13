@@ -51,6 +51,10 @@ export const WatchlistItem = Schema.Struct({
 });
 export type WatchlistItem = typeof WatchlistItem.Type;
 
+/** The short form people recognise: six leading and four trailing characters. */
+export const shortEvmAddress = (address: string): string =>
+  `${address.slice(0, 6)}…${address.slice(-4)}`;
+
 export const watchlistSourceKey = (source: WatchlistSource): string => {
   if (source._tag === "wallet") {
     return `wallet:${source.network}:${source.address.toLowerCase()}`;

@@ -159,6 +159,13 @@ export const memoryWalletActivityStores = (): WalletActivityMemoryStores => {
         items.set(owner, after);
         return await Promise.resolve(structuredClone(result));
       }),
+    owners: async () =>
+      await lock(async () => {
+        await Promise.resolve();
+        return [...items].flatMap(([owner, book]) =>
+          book.size > 0 ? [owner] : []
+        );
+      }),
     forget: async (owner) => {
       await lock(async () => {
         items.delete(owner);

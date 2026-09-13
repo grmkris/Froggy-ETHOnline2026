@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+import { AddressPresence } from "./address-presence";
 import { TaskId, WatchlistItemId } from "./id";
 import { publicHttpUrl } from "./url";
 
@@ -58,6 +59,22 @@ export const WatchlistData = Schema.Struct({
       note: ShortText,
     })
   ),
+  /** Where the address was seen, one row per chain checked. Absent on rows written before decision 0037. */
+  presence: Schema.optional(
+    Schema.Array(AddressPresence).check(Schema.isMaxLength(8))
+  ),
+  /** The free background check that fills `presence`; re-run only on an explicit request. */
+  discovery: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        key: Schema.String.check(Schema.isMaxLength(128)),
+        requestedAt: Time,
+        startedAt: Schema.NullOr(Time),
+        status: Schema.Literals(["queued", "running", "done", "failed"]),
+        note: ShortText,
+      })
+    )
+  ),
 });
 export type WatchlistData = typeof WatchlistData.Type;
 export const emptyWatchlistData = (itemId: WatchlistItemId): WatchlistData => ({
@@ -67,4 +84,6 @@ export const emptyWatchlistData = (itemId: WatchlistItemId): WatchlistData => ({
   observations: [],
   snapshotTaskId: null,
   enrichment: null,
+  presence: [],
+  discovery: null,
 });

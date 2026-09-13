@@ -297,8 +297,17 @@ export {
   WatchlistInput,
   WatchlistItem,
   WatchlistSource,
+  shortEvmAddress,
   watchlistSourceKey,
 } from "./watchlist";
+export {
+  AddressPresence,
+  TESTNETS,
+  isTestnet,
+  presenceTag,
+  presenceTitle,
+  visiblePresence,
+} from "./address-presence";
 
 export { MonitorId, MonitorCheckId } from "./id";
 export {
@@ -356,7 +365,11 @@ export {
   WalletActivity,
   WalletActivityFlow,
   WalletMonitor,
+  WalletMonitorCoverage,
   WalletMonitorStatus,
+  monitorCoverage,
+  monitorStartBlock,
+  supportedPresence,
   WALLET_MONITOR_DURATION_MS,
   WALLET_MONITOR_USER_LIMIT,
   WALLET_MONITOR_ADDRESS_LIMIT,

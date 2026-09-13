@@ -8,6 +8,8 @@ export interface WatchlistStore {
     owner: UserId,
     operation: (book: WatchlistBook) => T
   ) => Promise<T>;
+  /** Everyone with at least one saved item, for the background checks. */
+  readonly owners: () => Promise<readonly UserId[]>;
   readonly forget: (owner: UserId) => Promise<void>;
 }
 
