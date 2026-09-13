@@ -672,15 +672,25 @@ const buildRawTools = (deps: ToolDeps) => {
     }),
     market_search: tool({
       description:
-        "Buy a bounded token search or recent listings. Use null query for new listings. Reuse the idempotency key and poll service_status; discovery does not imply an executable route.",
+        "Buy a bounded token search or recent listings. Leave query out for new listings. Reuse the idempotency key and poll service_status; discovery does not imply an executable route.",
+      // The wire wants `query: null` for listings; the model, told a field
+      // is nullable, leaves it out instead. Optional here, null on the wire.
       inputSchema: std(
         Schema.Struct({
-          input: MarketSearchInput,
+          input: MarketSearchInput.mapFields((fields) => ({
+            ...fields,
+            query: Schema.optional(fields.query),
+          })),
           idempotencyKey: PromptServiceRequest.fields.idempotencyKey,
         })
       ),
-      execute: async (input) =>
-        await requestService({ ...input, v: 2, service: "market_search" }),
+      execute: async ({ input, idempotencyKey }) =>
+        await requestService({
+          input: { ...input, query: input.query ?? null },
+          idempotencyKey,
+          v: 2,
+          service: "market_search",
+        }),
     }),
     token_snapshot: tool({
       description:
@@ -1023,7 +1033,7 @@ const buildRawTools = (deps: ToolDeps) => {
         });
         const link = `${services.environment.appOrigin}${unlockPath(token)}`;
         return cap(
-          `${outcome.body}\n\n[Paid. The unlocked page for the person is ${link} — open it with browser_navigate so they see it in the shared browser. It opens once.]`
+          `${outcome.body}\n\n[Paid. The unlocked page for the person is ${link}. It opens once and expires in ten minutes: give them the link, or, inside a paid browser task, open it with browser_navigate.]`
         );
       },
       inputSchema: std(ChatPurchaseInput),
