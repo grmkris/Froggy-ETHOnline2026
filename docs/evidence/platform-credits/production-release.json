@@ -1,0 +1,65 @@
+{
+  "checkedAt": "2026-09-13T02:41:08.111Z",
+  "deploymentId": "22d613a9-e8b4-407f-b5ba-9c6d2b29372f",
+  "releaseCommit": "a8834a6ee45c0d51a1024867f0af30e7b648235a",
+  "publicUrl": "https://app-production-58dd.up.railway.app",
+  "runtimeFiles": [
+    {
+      "path": "apps/server/src/credit-funding.ts",
+      "exists": true,
+      "sha256": "1467f03d701162d7d2573468b7ed0de441e06493b9a5a68a3e0f3f406e6091ac",
+      "matchesRelease": true
+    },
+    {
+      "path": "apps/server/src/hedera-accounts.ts",
+      "exists": true,
+      "sha256": "f3e037f9f8ededbe6d74c172991e1de7e973f3be7966c0a807dbb498f0948858",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/wallet/src/store.ts",
+      "exists": true,
+      "sha256": "08bf7be201837aede9e0d6a573eb6797fa0abc5d4596abd0c82dcf6d367600d0",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/wallet/src/store-postgres.ts",
+      "exists": true,
+      "sha256": "b70c780945ece50e91486a8fab085f63ce24bc03a29105755bb64c37d6014319",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/wallet/src/credit-store.ts",
+      "exists": true,
+      "sha256": "7067221da531abeb810b1c395d437123d56408f3bd250bb0b56dd9b3986cab95",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/wallet/src/credit-store-postgres.ts",
+      "exists": true,
+      "sha256": "f0a872e52bcba625916f6ca03582ece2049927717e0404a86c8fce3c579de712",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/payments/src/credit-evm.ts",
+      "exists": true,
+      "sha256": "f6d590b86d96b0f7724ebd084a01f50cad347a4a6e961c9b117cd856e6e9fea6",
+      "matchesRelease": true
+    },
+    {
+      "path": "packages/database/drizzle/0025_dear_bullseye.sql",
+      "exists": true,
+      "sha256": "a7e290b741c6adab6e6bb51a711351ce8f8a47a0c2d1d2d10bfdefc678a189a3",
+      "matchesRelease": true
+    }
+  ],
+  "latestMigration": [
+    {
+      "hash": "a7e290b741c6adab6e6bb51a711351ce8f8a47a0c2d1d2d10bfdefc678a189a3",
+      "journal_timestamp": "1789263455896"
+    }
+  ],
+  "initialCreditBalancesZero": true,
+  "historicalTasksAndWalletHoldsPreserved": true,
+  "liveOwnerFundingVerified": false
+}
