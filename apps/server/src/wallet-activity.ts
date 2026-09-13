@@ -467,7 +467,7 @@ const explorer = (network: string): string =>
 /** "0.1 USDC", "100000 raw units of token 0x9aae…be43": the amount and what it is. */
 export const flowWords = (flow: WalletActivityFlow, network: string): string =>
   `${flowAmount(flow)} ${flowAsset(flow, network).label}`;
-export const flowLine = (flow: WalletActivityFlow, network: string): string =>
+const flowLine = (flow: WalletActivityFlow, network: string): string =>
   flow.direction === "sent"
     ? `Sent ${flowWords(flow, network)} to ${shortAddress(flow.counterparty)}`
     : `Received ${flowWords(flow, network)} from ${shortAddress(flow.counterparty)}`;
