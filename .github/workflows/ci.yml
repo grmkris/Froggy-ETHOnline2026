@@ -64,23 +64,34 @@ jobs:
   # The browser suite is the whole cost of this workflow: the gates take about
   # two minutes, the 236 specs took sixteen on a hosted runner's two workers.
   # Railway waits for the check suite, so wall clock is what a deploy pays.
-  # These now run on the netcup box (16 cores, two single-job runners), two
-  # shards of four workers each, which leaves half the box to the agent
-  # sessions that share it. The gates job stays hosted: it needs a Postgres
-  # service container and `ghrunner` is deliberately not in the docker group.
+  # Four hosted shards bring that to six minutes.
+  #
+  # The netcup box was tried on 13 Sep and is measurably worse *while agents
+  # are working on it*: two shards of four workers took 7.4 and 8.0 minutes
+  # against six hosted, and four specs failed on 30-second timeouts and
+  # ECONNRESET with the box at load 10. Sixteen cores do not help when the
+  # sessions running CI are also compiling on them. The runners froggy-1 and
+  # froggy-2 stay registered; flip `runs-on` back to
+  # [self-hosted, linux, x64, netcup] (two shards, the ports below) once the
+  # box is quiet, and it should beat hosted comfortably.
   e2e:
-    name: Browser smoke tests ${{ matrix.shard }}/2
-    runs-on: [self-hosted, linux, x64, netcup]
+    name: Browser smoke tests ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # The port is spelled out per shard rather than computed: GitHub's
-        # expression syntax has no arithmetic.
+        # A port per shard, spelled out because GitHub's expression syntax has
+        # no arithmetic. Harmless on hosted runners, required when several
+        # shards share one machine.
         include:
           - shard: 1
             port: 3610
           - shard: 2
             port: 3620
+          - shard: 3
+            port: 3630
+          - shard: 4
+            port: 3640
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -98,17 +109,17 @@ jobs:
       - name: Build applications
         run: bun run build
 
-      # No `--with-deps`: that shells out to apt, and the runner user has no
-      # sudo. The box already carries Chromium's libraries, and the browser
-      # itself caches in the runner's own HOME between jobs.
+      # `--with-deps` needs apt and so only works on a hosted runner; drop it
+      # when moving this job back to the netcup box, which already carries
+      # Chromium's libraries.
       - name: Install Chromium
-        run: bunx --bun playwright install chromium
+        run: bunx --bun playwright install --with-deps chromium
 
       # The suite runs against an in-memory store (`DATABASE_URL: ""` in
       # playwright.config.ts), so this job needs no Postgres service.
       # Both shards run on the same box, so each needs its own pair of ports;
       # the config derives the API port from this one.
       - name: Run browser smoke tests
-        run: bun run e2e -- --shard=${{ matrix.shard }}/2 --workers=4
+        run: bun run e2e -- --shard=${{ matrix.shard }}/4
         env:
           FROGGY_E2E_PORT: ${{ matrix.port }}
