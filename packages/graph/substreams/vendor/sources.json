@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/pinax-network/substreams-evm",
+  "commit": "970a665e15619de8ad7f686bd89412a1030d46dc",
+  "sha256": {
+    "proto/erc20-transfers.proto": "03a37792239c0566c78fa410f94af5d8bf547c3885e7bab0326681249d25992a",
+    "proto/native-transfers.proto": "95f3e559a37417ccbd0a6a7c9bf239aa2f8d9924f3cadc2e89c5f01d7f919f1b",
+    "vendor/erc20-transfers-v0.4.0.spkg": "81aedbea8f2ae1d89ce466a937417b61336c133eddce3a094927f69d4384c166",
+    "vendor/evm-native-transfers-v0.2.0.spkg": "7f0faae8203b754799de0cc7c7af798eb9a902854d953e5096e53daaa25f292b",
+    "vendor/LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "vendor/transfer-descriptors.bin": "73dd687ceeef9012fbe4762529eb4ba0474d7a1482a5c3ec5b46240429bc29ef",
+    "proto/wallet-activity.proto": "0acec010b89a1b9e2a008cf7895262f77e764541d58cca829dcbd543371e8571",
+    "froggy-wallet-activity-v0.1.0.spkg": "3ae6a411d679c10cd04cde1ae87e54562ea51c762b49aa8127fe3858f98db6ec"
+  },
+  "descriptorProvenance": "transfer-descriptors.bin is extracted from the pinned package protoFiles, not regenerated from the source checkout protobufs. Embedded ERC20 Log omits block_index; embedded Call has caller=1,index=2,depth=3,call_type=4.",
+  "froggyBuild": {
+    "rust": "1.90.0",
+    "substreamsCli": "1.22.0",
+    "wasmSha256": "7a7f0957c9a58c71b86ed1153b70f77855f7e9a533ddb41d50aca3b473560ff5",
+    "wireSchema": "froggy.wallet.v1 additive changed_sources/curves_pons",
+    "checkpointIdentity": "wallet-activity:v2:map_wallet_activity:<package SHA256>"
+  }
+}

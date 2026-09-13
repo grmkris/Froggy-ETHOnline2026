@@ -7,7 +7,11 @@
  * window is the same card with more room.
  */
 
-import type { BrowserClientMessage, BrowserState } from "@froggy/protocol";
+import type {
+  BrowserClientMessage,
+  BrowserState,
+  BrowseTaskView,
+} from "@froggy/protocol";
 import { Button } from "@froggy/ui/components/button";
 import { ChromeBar } from "@froggy/ui/components/chrome-bar";
 import {
@@ -23,10 +27,13 @@ import {
   HandIcon,
   PanelRightCloseIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import type { ReactElement } from "react";
 
+import { useBrowseControl } from "../../hooks/use-browse-control";
+import { taskTerminal } from "../../lib/browse-task-state";
 import type { BrowserPainter } from "../../lib/browser-painter";
+import { WorkspaceContext } from "../../lib/workspace-context";
 import { BrowserSurface } from "./browser-surface";
 
 interface PopOutActions {
@@ -36,6 +43,7 @@ interface PopOutActions {
 }
 
 interface LiveBrowserCardProps {
+  readonly hostedTask?: BrowseTaskView | undefined;
   readonly connected: boolean;
   readonly drive: DriveMode;
   /** Fill the parent's height rather than keeping the page's aspect ratio. */
@@ -127,6 +135,100 @@ const CloudIdleWarning = ({
   );
 };
 
+const HostedBrowserControls = ({
+  task,
+}: {
+  readonly task: BrowseTaskView;
+}): ReactElement => {
+  const actions = useBrowseControl(task);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {task.browse?.controls.takeControl === true ? (
+        <Button
+          className="min-h-11"
+          disabled={actions.pending !== null}
+          onClick={() => {
+            void actions.control("take_control");
+          }}
+          variant="outline"
+        >
+          {actions.pending === "take_control"
+            ? "Requesting control…"
+            : "Take control"}
+        </Button>
+      ) : null}
+      {task.browse?.controls.continue === true ? (
+        <Button
+          className="min-h-11"
+          disabled={actions.pending !== null}
+          onClick={() => {
+            void actions.control("continue");
+          }}
+          variant="outline"
+        >
+          {actions.pending === "continue" ? "Requesting continue…" : "Continue"}
+        </Button>
+      ) : null}
+      {actions.error === null ? null : (
+        <span className="text-destructive text-xs" role="alert">
+          {actions.error}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const BrowserActions = ({
+  task,
+  state,
+  connected,
+  running,
+  send,
+  popOut,
+}: Pick<LiveBrowserCardProps, "state" | "connected" | "send" | "popOut"> & {
+  readonly task: BrowseTaskView | undefined;
+  readonly running: boolean;
+}): ReactElement => (
+  <>
+    {task === undefined &&
+    state?.cloud !== undefined &&
+    state.cloud.control === "human" ? (
+      <Button
+        size="sm"
+        disabled={!connected}
+        variant="outline"
+        onClick={() => {
+          send({ type: "browser.resume", v: 1 });
+        }}
+      >
+        Resume
+      </Button>
+    ) : null}
+    {state?.cloud?.control === "stopping" ? (
+      <span className="text-muted-foreground text-xs">Stopping…</span>
+    ) : null}
+    {task === undefined ? (
+      <Button
+        aria-label="Take the page"
+        disabled={
+          !connected || !running || state?.cloud?.control === "stopping"
+        }
+        onClick={() => {
+          send({ type: "browser.take", v: 1 });
+        }}
+        size="icon"
+        title="Take the page"
+        variant="ghost"
+      >
+        <HandIcon />
+      </Button>
+    ) : (
+      <HostedBrowserControls task={task} />
+    )}
+    {popOut === undefined ? null : <PopOutButtons actions={popOut} />}
+  </>
+);
+
 export const LiveBrowserCard = ({
   connected,
   drive,
@@ -136,8 +238,19 @@ export const LiveBrowserCard = ({
   popOut,
   send,
   state,
+  hostedTask,
 }: LiveBrowserCardProps): ReactElement => {
   const [draft, setDraft] = useState("");
+  const workspace = useContext(WorkspaceContext);
+  const task =
+    hostedTask ??
+    workspace?.app.browseTasks.find(
+      (item) => item.browse?.executor === "hosted" && !taskTerminal(item)
+    );
+  const canNavigate =
+    connected &&
+    interactive &&
+    (state?.cloud === undefined || state.cloud.control === "human");
   const current = state?.tabs.find((tab) => tab.id === state.activeTabId);
   const running = state?.status === "running";
   return (
@@ -148,7 +261,7 @@ export const LiveBrowserCard = ({
             onSubmit={(event) => {
               event.preventDefault();
               const url = draft.trim();
-              if (url === "") {
+              if (url === "" || !canNavigate) {
                 return;
               }
               send({ type: "browser.navigate", url, v: 1 });
@@ -157,6 +270,7 @@ export const LiveBrowserCard = ({
           >
             <Input
               aria-label="Address"
+              disabled={!canNavigate}
               className="text-machine bg-paper-deep/70 h-7 rounded-full px-3"
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -169,41 +283,20 @@ export const LiveBrowserCard = ({
         leading={
           <span className="flex items-center gap-1.5 pl-1 text-xs whitespace-nowrap">
             <DrivingDot mode={drive} />
-            <span className="hidden sm:inline">
+            <span className="text-xs">
               {interactive ? DRIVE_LABEL[drive] : "Watch only on a phone"}
             </span>
           </span>
         }
         trailing={
-          <>
-            {state?.cloud !== undefined && state.cloud.control === "human" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  send({ type: "browser.resume", v: 1 });
-                }}
-              >
-                Resume
-              </Button>
-            ) : null}
-            {state?.cloud?.control === "stopping" ? (
-              <span className="text-muted-foreground text-xs">Stopping…</span>
-            ) : null}
-            <Button
-              aria-label="Take the page"
-              disabled={!running || state?.cloud?.control === "stopping"}
-              onClick={() => {
-                send({ type: "browser.take", v: 1 });
-              }}
-              size="icon-sm"
-              title="Take the page"
-              variant="ghost"
-            >
-              <HandIcon />
-            </Button>
-            {popOut === undefined ? null : <PopOutButtons actions={popOut} />}
-          </>
+          <BrowserActions
+            task={task}
+            state={state}
+            connected={connected}
+            running={running}
+            send={send}
+            popOut={popOut}
+          />
         }
       />
       <CloudIdleWarning state={state} send={send} />

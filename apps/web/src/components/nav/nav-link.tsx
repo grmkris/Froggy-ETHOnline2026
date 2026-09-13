@@ -1,75 +1,48 @@
-/** Router-owned current-page state, with a waiting badge that reserves no layout. */
 import { cn } from "@froggy/ui/lib/utils";
 import { Link, useLocation } from "@tanstack/react-router";
-import { motion, useReducedMotion } from "motion/react";
 import type { ReactElement } from "react";
 
-import { keyboardInteraction, UI_SPRING } from "../../lib/motion";
 import type { NavItem } from "../../lib/nav";
-
-const NAV_LINK_CLASS =
-  "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring data-[status=active]:text-brand relative isolate flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset active:bg-muted";
-
-/** The surface travels; the link and its focus ring never do. */
-const NavIndicator = (): ReactElement => {
-  const reduced = useReducedMotion() === true;
-  return (
-    <motion.span
-      aria-hidden
-      className="bg-card shadow-control pointer-events-none absolute inset-0 -z-10 rounded-full"
-      data-slot="navigation-indicator"
-      layoutId="navigation-active"
-      transition={
-        reduced || keyboardInteraction() ? { duration: 0 } : UI_SPRING
-      }
-    />
-  );
-};
 
 export const NavLink = ({
   item,
-  more = false,
-  onNavigate,
   waiting = 0,
 }: {
   readonly item: NavItem;
-  readonly more?: boolean;
-  readonly onNavigate?: () => void;
   readonly waiting?: number;
 }): ReactElement => {
-  const pathname = useLocation({ select: (location) => location.pathname });
-  // Home owns the conversation routes: a chat is something a task has.
-  const chatActive = item.to === "/" && pathname.startsWith("/chat");
+  const path = useLocation({ select: (location) => location.pathname });
+  const active =
+    item.to === "/"
+      ? path === "/" || path.startsWith("/chat")
+      : path.startsWith(item.to);
   const Icon = item.icon;
-  const name =
-    waiting > 0
-      ? `${item.label}, ${waiting} approval${waiting === 1 ? "" : "s"} waiting`
-      : item.label;
   return (
     <Link
-      activeOptions={{ exact: item.to === "/" }}
-      aria-label={name}
-      aria-current={chatActive ? "page" : undefined}
-      data-status={chatActive ? "active" : undefined}
+      aria-current={active ? "page" : undefined}
+      aria-label={
+        waiting > 0
+          ? `${item.label}, ${waiting} approval${waiting === 1 ? "" : "s"} waiting`
+          : item.label
+      }
       className={cn(
-        NAV_LINK_CLASS,
-        more &&
-          "data-[status=active]:bg-card data-[status=active]:shadow-control flex-row justify-start gap-3 rounded-lg px-3 text-sm"
+        "focus-visible:ring-ring flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-3 py-1 text-xs font-medium outline-none focus-visible:ring-2",
+        active
+          ? "bg-brand-soft text-brand"
+          : "text-muted-foreground hover:bg-muted"
       )}
-      onClick={onNavigate}
       to={item.to}
     >
-      {!more && (pathname === item.to || chatActive) ? <NavIndicator /> : null}
       <span className="relative">
         <Icon aria-hidden className="size-5" />
         {waiting > 0 ? (
           <span
             aria-hidden
-            className="bg-drive-agent absolute -top-0.5 -right-0.5 size-2 rounded-full"
+            className="bg-drive-agent absolute -top-1 -right-1 size-2 rounded-full"
           />
         ) : null}
       </span>
-      <span aria-hidden>{item.label}</span>
+      {item.label}
     </Link>
   );
 };

@@ -44,22 +44,28 @@ import {
   resolveAgentSecret,
 } from "./agents";
 import { authenticate, bearerFromRequest } from "./auth";
+import { handleBrowseTaskRoutes } from "./browse-task-routes";
 import { ModelBudgetExhaustedError } from "./budget";
 import type { ModelBudget } from "./budget";
+import { handleCardCheckouts } from "./card-routes";
 import type { ChatRequest } from "./chat";
 import { handleChat } from "./chat";
 import { serveCli } from "./cli-route";
+import { handleCredits } from "./credit-routes";
 import { addToDirectory, probeUrl, removeFromDirectory } from "./directory";
 import type { AddOutcome } from "./directory";
 import { handleDiscovery } from "./discovery-route";
 import { doorSkillText } from "./door-skill";
+import { handleEmail, handleEmailWebhook } from "./email-routes";
 import type { Environment } from "./environment";
 import type { AgentGrants } from "./grants";
 import { handleHistory } from "./history-routes";
+import { hasHostedBrowse, controlCurrentHostedBrowse } from "./hosted-browse";
 import type { InteractionRegistry } from "./interactions";
 import { digestJob, runScheduledFor } from "./jobs";
 import type { JobDeps, JobReport } from "./jobs";
 import { handleMcp } from "./mcp";
+import { handleMonitoring } from "./monitoring-routes";
 import type { Notices } from "./notices";
 import {
   handleOAuth,
@@ -97,9 +103,17 @@ import type { TelegramPager } from "./telegram/pager";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
+import { walletMonitorDependencies } from "./wallet-monitor";
+import { handleWalletMonitor } from "./wallet-monitor-routes";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
-import type { Workspaces } from "./workspaces";
+import { handleWatchlistImage } from "./watchlist-image";
+import { handleWatchlistData } from "./watchlist-data";
+import { handleWatchlistEmail } from "./watchlist-email";
+import { handleWatchlistCapture } from "./watchlist-enrichment";
+import { handleWatchlistResolve } from "./watchlist-resolve";
+import { handleWatchlist } from "./watchlist-routes";
+import type { Workspace, Workspaces } from "./workspaces";
 import { handleX402Demo } from "./x402-demo";
 
 export const ORACLE_PATH = "/oracle/snapshot";
@@ -136,6 +150,10 @@ type ResponseBody =
       };
       readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
+      readonly onchainAlerts: {
+        readonly base: Environment["walletStream"]["mode"];
+        readonly robinhood: Environment["walletStream"]["robinhood"]["mode"];
+      };
       readonly runtime: string;
       readonly status: string;
       readonly trading: {
@@ -377,6 +395,17 @@ const handleScheduling = async (
   userId: UserId,
   pathname: string
 ): Promise<Response | null> => {
+  if (pathname === "/api/watchlist/from-email") { return await handleWatchlistEmail(deps.services, request, userId); }
+  if (pathname === "/api/watchlist/capture") {
+    return await handleWatchlistCapture(
+      taskDependencies(deps),
+      request,
+      userId
+    );
+  }
+  if (pathname === "/api/watchlist/resolve") {
+    return await handleWatchlistResolve(deps.services, request, userId);
+  }
   if (pathname === "/api/digest") {
     return await handleDigest(deps.services.store, request, userId);
   }
@@ -396,7 +425,22 @@ const handleScheduling = async (
       summary: report.summary,
     });
   }
-  return await handleSchedules(deps.services.store, request, userId, pathname);
+  return (
+    (await handleWalletMonitor(
+      walletMonitorDependencies(deps.services),
+      request,
+      userId,
+      pathname
+    )) ??
+    (await handleWatchlistData(
+      deps.services.store,
+      request,
+      userId,
+      pathname
+    )) ??
+    (await handleWatchlist(deps.services.store, request, userId, pathname)) ??
+    (await handleSchedules(deps.services.store, request, userId, pathname))
+  );
 };
 
 const oauthDeps = (deps: RouterDeps) => ({
@@ -515,12 +559,25 @@ const handleMcpRoute = async (
     deps.services,
     workspace.session,
     resolved.caller,
-    request
+    request,
+    deps.notices
   );
 };
 
 const TASK_EVENTS = /^\/api\/tasks\/(?<id>[^/]+)\/events$/u;
 const TASK_ONE = /^\/api\/tasks\/(?<id>[^/]+)$/u;
+
+const taskDependencies = (deps: RouterDeps): TaskDeps => ({
+  budget: deps.budget,
+  interactions: deps.interactions,
+  notices: deps.notices,
+  oracleUrl: deps.oracleUrl,
+  runs: deps.runs,
+  services: deps.services,
+  tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
+  unlocks: deps.unlocks,
+  workspaces: deps.workspaces,
+});
 
 /** Tasks and the wallet's signing endpoint: the routes an agent token may reach. */
 const handleTasks = async (
@@ -530,17 +587,16 @@ const handleTasks = async (
   caller: TaskCaller,
   pathname: string
 ): Promise<Response | null> => {
-  const taskDeps: TaskDeps = {
-    budget: deps.budget,
-    interactions: deps.interactions,
-    notices: deps.notices,
-    oracleUrl: deps.oracleUrl,
-    runs: deps.runs,
-    services: deps.services,
-    tasksUrl: `${deps.environment.appOrigin}${TASKS_PATH}`,
-    unlocks: deps.unlocks,
-    workspaces: deps.workspaces,
-  };
+  const taskDeps = taskDependencies(deps);
+  const browseResponse = await handleBrowseTaskRoutes(
+    taskDeps,
+    request,
+    workspace,
+    caller
+  );
+  if (browseResponse !== null) {
+    return browseResponse;
+  }
   if (pathname === "/api/services" || pathname.startsWith("/api/services/")) {
     return await handleServices(
       deps.services,
@@ -702,10 +758,12 @@ const handleChatRoutes = async (
 
   if (pathname === "/api/chat/stop" && request.method === "POST") {
     const stopped = deps.runs.abort(sessionId);
-    await deps.services.purchases.cancelAll(
-      workspace.userId,
-      workspace.browser
-    );
+    if (!hasHostedBrowse(workspace.userId)) {
+      await deps.services.purchases.cancelAll(
+        workspace.userId,
+        workspace.browser
+      );
+    }
     return json({ stopped });
   }
 
@@ -814,6 +872,63 @@ const handleGranted = async (
   );
 };
 
+const handleEmailOrHistory = async (
+  deps: RouterDeps,
+  request: Request,
+  caller: TaskCaller
+) => {
+  const monitoring = await handleMonitoring(
+    deps.services.store,
+    caller,
+    request
+  );
+  if (monitoring !== null) {
+    return monitoring;
+  }
+  const email = await handleEmail(deps.services, caller, request);
+  if (email !== null) {
+    return email;
+  }
+  return await handleHistory(
+    deps.services.store,
+    request,
+    caller.userId,
+    async (id) => {
+      await deps.services.email?.removeConversation(caller.userId, id);
+    }
+  );
+};
+
+const removeAccountEmails = async (services: Services, userId: UserId) => {
+  await services.email?.removeConversation(userId);
+};
+
+const deleteAccount = async (
+  deps: RouterDeps,
+  userId: UserId,
+  workspace: Workspace
+): Promise<Response> => {
+  // Their run stops, their browser closes, their profile and their records
+  // go. The ledger's spend rows stay: money that moved is not a preference.
+  if (await controlCurrentHostedBrowse(userId, "stop")) {
+    return json(
+      {
+        error:
+          "Your browser task is stopping. Wait for its result, then delete your account again.",
+      },
+      409
+    );
+  }
+  deps.runs.abort(workspace.session.id);
+  await deps.services.trades.stopAndRevoke(userId);
+  await deps.services.launches.cancelAll(userId);
+  await deps.services.purchases.cancelAll(userId, workspace.browser);
+  await deps.workspaces.forget(userId);
+  await removeAccountEmails(deps.services, userId);
+  await deps.services.store.forget(userId);
+  return json({ deleted: true });
+};
+
 const handleApi = async (
   deps: RouterDeps,
   request: Request,
@@ -834,10 +949,29 @@ const handleApi = async (
   const { caller } = resolved;
   const { userId } = caller;
   const workspace = await deps.workspaces.hydrate(userId);
-  const sessionId = workspace.session.id;
 
   if (pathname === "/api/browser/viewer" && request.method === "GET") {
     return await browserViewer(workspace, caller);
+  }
+
+  const credits = await handleCredits(
+    deps.services,
+    workspace,
+    caller,
+    request
+  );
+  if (credits !== null) {
+    return credits;
+  }
+
+  const card = await handleCardCheckouts(
+    deps.services,
+    workspace,
+    caller,
+    request
+  );
+  if (card !== null) {
+    return card;
   }
 
   const trade = await handleTrades(deps.services, workspace, caller, request);
@@ -880,7 +1014,7 @@ const handleApi = async (
     return oauth;
   }
 
-  const history = await handleHistory(deps.services.store, request, userId);
+  const history = await handleEmailOrHistory(deps, request, caller);
   if (history !== null) {
     return history;
   }
@@ -908,15 +1042,7 @@ const handleApi = async (
   }
 
   if (pathname === "/api/me" && request.method === "DELETE") {
-    // Their run stops, their browser closes, their profile and their records
-    // go. The ledger's spend rows stay: money that moved is not a preference.
-    deps.runs.abort(sessionId);
-    await deps.services.trades.stopAndRevoke(userId);
-    await deps.services.launches.cancelAll(userId);
-    await deps.services.purchases.cancelAll(userId, workspace.browser);
-    await deps.workspaces.forget(userId);
-    await deps.services.store.forget(userId);
-    return json({ deleted: true });
+    return await deleteAccount(deps, userId, workspace);
   }
 
   if (pathname === "/api/receipts") {
@@ -946,7 +1072,7 @@ const handleInstallation = async (
     ["/froggy-mcp.mjs", "/froggy-mcp.js"].includes(pathname) &&
     request.method === "GET"
   ) {
-    return await serveAgentDoor(origin);
+    return serveAgentDoor(origin);
   }
   if (
     ["/llm.md", "/skill.md", "/froggy/SKILL.md"].includes(pathname) &&
@@ -957,7 +1083,7 @@ const handleInstallation = async (
       headers: { "content-type": "text/markdown; charset=utf-8" },
     });
   }
-  // The door's own skill, for an agent with no Froggy account at all.
+  // Historical install links explain the authenticated MCP migration.
   if (
     ["/door-skill.md", "/froggy-door/SKILL.md"].includes(pathname) &&
     request.method === "GET"
@@ -989,6 +1115,10 @@ export const handleRequest = async (
       /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
+      onchainAlerts: {
+        base: deps.environment.walletStream.mode,
+        robinhood: deps.environment.walletStream.robinhood.mode,
+      },
       trading: {
         enso: deps.environment.trading.ensoMode,
         jupiter: deps.environment.trading.jupiterMode,
@@ -1018,6 +1148,15 @@ export const handleRequest = async (
     return renderUnlock(deps.unlocks.take(pathname.slice("/unlocked/".length)));
   }
 
+  const emailWebhook = await handleEmailWebhook(
+    deps.services,
+    deps.notices,
+    request
+  );
+  if (emailWebhook !== null) {
+    return emailWebhook;
+  }
+
   const installation = await handleInstallation(
     deps.environment.appOrigin,
     request,
@@ -1035,9 +1174,6 @@ export const handleRequest = async (
   if (pathname === ORACLE_PATH) {
     return await handleOracleRequest(
       {
-        gate: deps.services.oracle,
-        graph: deps.services.graph,
-        hcs: deps.services.hcs,
         publicUrl: deps.oracleUrl,
         store: deps.services.store,
       },

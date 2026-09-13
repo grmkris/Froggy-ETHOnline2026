@@ -46,7 +46,11 @@ interface SavedParts {
 const jsonParts = (parts: UIMessage["parts"]): SavedParts => {
   // Provider reasoning and binary attachments are deliberately not archived.
   const visible = parts.filter(
-    (part) => part.type !== "reasoning" && part.type !== "file"
+    (part) =>
+      part.type !== "reasoning" &&
+      part.type !== "file" &&
+      !part.type.startsWith("tool-email_") &&
+      !(part.type === "dynamic-tool" && part.toolName.startsWith("email_"))
   );
   const safe = historyPreview(
     decodeHistoryJson(JSON.stringify(visible)),
@@ -528,8 +532,11 @@ export const executeHistoryTool = async ({
       references === undefined
         ? { taskId: null, purchaseId: null, receiptIds: [] }
         : await references(output);
-    const result = historyPreview(output);
-    const artifact = historyPreview(output, ARTIFACT_CAP);
+    const savedOutput = name.startsWith("email_")
+      ? { redacted: true, reason: "Read the original through email tools." }
+      : output;
+    const result = historyPreview(savedOutput);
+    const artifact = historyPreview(savedOutput, ARTIFACT_CAP);
     const at = Date.now();
     await store.transaction(userId, async (tx) => {
       assertHistoryLease(tx, run);
@@ -603,7 +610,9 @@ export const historyTools = (
               run,
               name,
               toolCallId: options.toolCallId,
-              input: decodeHistoryJson(JSON.stringify(input)),
+              input: name.startsWith("email_")
+                ? { redacted: true }
+                : decodeHistoryJson(JSON.stringify(input)),
               abort,
               references: async (output) => {
                 const receipts = await store.receipts.forRun(userId, run.id);

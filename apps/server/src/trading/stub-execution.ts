@@ -51,6 +51,7 @@ export const stubTradeBackend = (
           deposit: "deposit",
           withdraw: "withdraw",
           swap: "swap",
+          bridge: "bridge",
           claim: "claim",
           withdraw_swap: "withdraw",
           claim_swap: "claim",

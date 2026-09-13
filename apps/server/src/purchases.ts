@@ -172,7 +172,7 @@ export interface PurchaseContext {
   readonly session: WorkspaceSession;
   readonly source: Purchase["source"];
   readonly browser?: BrowserHandle;
-  readonly run?: ChatRun | undefined;
+  readonly run?: Pick<ChatRun, "id" | "signal"> | undefined;
   readonly connectionId?: AgentConnectionId;
   readonly toolCallId?: string;
   readonly budgetUsdMicros?: number;

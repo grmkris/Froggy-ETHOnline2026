@@ -22,10 +22,14 @@ for (const viewport of [
     await page.goto("/wallet");
     const wallet = page.getByRole("region", { name: "Wallet", exact: true });
     await expect(
+      page.getByRole("region", { name: "Platform credits", exact: true })
+    ).toBeVisible();
+    await wallet.scrollIntoViewIfNeeded();
+    await expect(
       wallet.getByRole("heading", { name: "Your wallet" })
     ).toBeInViewport();
     await expect(
-      wallet.getByRole("button", { name: "Copy for your agent" })
+      wallet.getByRole("button", { name: "Add funds", exact: true })
     ).toBeInViewport();
     // The stub knows no USDC balance: the total is unavailable, not zero.
     await expect(wallet.getByText("Total unavailable")).toBeVisible();
@@ -250,6 +254,9 @@ test("wallet and activity load without showing false empty or unavailable states
     await page.evaluate(async () => {
       await document.fonts.ready;
     });
+    await page
+      .getByRole("button", { name: "Add funds", exact: true })
+      .scrollIntoViewIfNeeded();
     const activity = page.getByRole("heading", {
       name: "Activity",
       exact: true,

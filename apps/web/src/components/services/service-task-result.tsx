@@ -7,6 +7,8 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { artifactFilename, safeLink } from "../../lib/services-view";
+import { MarketResults } from "../watchlist/market-results";
+import { PriceHistory } from "../watchlist/price-history";
 import { ServiceImagePreview } from "./service-image-preview";
 import {
   TokenResearchResultView,
@@ -25,6 +27,13 @@ export const ServiceTaskResult = ({
   const research = tryTokenResearchFacts(task);
   return (
     <div className="flex flex-col gap-3">
+      {task.data?.operation === "token_snapshot" ? (
+        <PriceHistory snapshot={task.data} />
+      ) : null}
+      {task.data?.operation === "market_search" ||
+      task.data?.operation === "token_inspect" ? (
+        <MarketResults result={task.data} />
+      ) : null}
       {research === null ? null : <TokenResearchResultView facts={research} />}
       {task.text === "" || research !== null ? null : (
         <p className="text-sm break-words whitespace-pre-wrap">{task.text}</p>

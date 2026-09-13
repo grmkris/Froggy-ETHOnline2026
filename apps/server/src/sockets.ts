@@ -35,13 +35,14 @@ import type {
 import { Result } from "effect";
 
 import { detached } from "./detached";
+import { controlCurrentHostedBrowse, hasHostedBrowse } from "./hosted-browse";
 import type { InteractionRegistry } from "./interactions";
 import type { PersonPolicies } from "./person-policies";
 import type { ChatRunRegistry } from "./runs";
 import type { Services } from "./services";
 import { pauseBrowseTask } from "./tasks";
 import { BrowserLimitReachedError } from "./workspaces";
-import type { Workspaces } from "./workspaces";
+import type { Workspace, Workspaces } from "./workspaces";
 
 type SocketKind = "app" | "browser";
 
@@ -218,6 +219,42 @@ export const createSocketHandlers = (deps: SocketDeps) => {
     }
   };
 
+  const handleHostedControl = async (
+    workspace: Workspace,
+    message: BrowserClientMessage
+  ): Promise<boolean> => {
+    if (!hasHostedBrowse(workspace.userId)) {
+      return false;
+    }
+    if (message.type === "browser.take" || message.type === "browser.resume") {
+      try {
+        await controlCurrentHostedBrowse(
+          workspace.userId,
+          message.type === "browser.take" ? "take_control" : "continue"
+        );
+      } catch {
+        publishApp(workspace.userId, {
+          v: 1,
+          type: "protocol.error",
+          code: "handover_unconfirmed",
+          message:
+            "Browser control could not be confirmed. Use the task card to retry.",
+        });
+      }
+      return true;
+    }
+    if (seizesPage(message.type, workspace.browser.state().cloud?.control)) {
+      publishApp(workspace.userId, {
+        v: 1,
+        type: "protocol.error",
+        code: "handover_required",
+        message: "Take control from the task card before using the page.",
+      });
+      return true;
+    }
+    return false;
+  };
+
   const handlers: Bun.WebSocketHandler<SocketData> = {
     close(ws) {
       appSockets.delete(ws);
@@ -275,6 +312,9 @@ export const createSocketHandlers = (deps: SocketDeps) => {
         }
         const workspace = deps.workspaces.for(ws.data.userId);
         deps.workspaces.touch(ws.data.userId);
+        if (await handleHostedControl(workspace, message)) {
+          return;
+        }
         // A person who types a URL or clicks the page has taken it, whether
         // or not they pressed the button first: the human always wins
         // immediately. The hosted browser has explicit ownership rather than

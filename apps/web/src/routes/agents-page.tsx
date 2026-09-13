@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 
 import { AgentList } from "../components/agents/agent-list";
 import { AgentTokenSetup } from "../components/agents/agent-token-setup";
-import { CopyAgentPrompt } from "../components/agents/copy-agent-prompt";
+import { AgentOnboarding } from "../components/agents/copy-agent-prompt";
 import { TelegramSettings } from "../components/agents/telegram-settings";
 import { Page } from "../components/nav/page";
 import { DappConnections } from "../components/settings/dapp-connections";
@@ -30,7 +30,7 @@ export const AgentsPage = (): ReactElement => {
           It installs the skill and connects to Froggy; you approve access in
           your browser.
         </p>
-        <CopyAgentPrompt />
+        <AgentOnboarding />
       </section>
       <AgentList agents={agents} revoke={revoke} />
       <TelegramSettings active configured={app.modes?.telegram === "live"} />

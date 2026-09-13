@@ -18,6 +18,8 @@ import { Composer } from "../composer";
 import { MotionItem, useArrivalDelays } from "../motion-item";
 import { StopFeedback } from "../stop-feedback";
 import type { useStopRun } from "../stop-feedback";
+import { AttachedItem } from "../watchlist/attached-item";
+import { ConversationOptions } from "./conversation-options";
 
 export const ComposerStack = ({
   app,
@@ -62,9 +64,12 @@ export const ComposerStack = ({
     document.querySelector<HTMLTextAreaElement>("#composer-message")?.focus();
   }, [approvalCount]);
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-3 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <NoticeList
-        notices={[...chatNotices, ...app.notices]}
+        notices={[
+          ...chatNotices,
+          ...app.notices.filter((notice) => !notice.id.startsWith("browse:")),
+        ]}
         onDismiss={(id) => {
           if (id === CHAT_ERROR_ID) {
             onClearError();
@@ -108,6 +113,12 @@ export const ComposerStack = ({
         }}
       />
       <Composer
+        tools={
+          <>
+            <ConversationOptions />
+            <AttachedItem />
+          </>
+        }
         asking={app.approvals.length > 0}
         busy={busy}
         disabledReason={disabledReason}

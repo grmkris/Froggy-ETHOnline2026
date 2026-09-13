@@ -95,6 +95,7 @@ const agentMayTrade = (pathname: string, method: string): boolean =>
     method === "POST");
 
 export const agentMayCall = (pathname: string, method: string): boolean =>
+  (pathname === "/api/credits" && method === "GET") ||
   agentMayPurchase(pathname, method) ||
   agentMayTrade(pathname, method) ||
   (pathname.startsWith("/api/tasks") &&

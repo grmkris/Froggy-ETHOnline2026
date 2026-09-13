@@ -3,6 +3,8 @@ import { Schema } from "effect";
 import { AgentConnectionId } from "./agent-invocation";
 import {
   ApprovalId,
+  PaymentMethodId,
+  CardCheckoutId,
   LaunchEventId,
   LaunchWatchId,
   ReceiptId,
@@ -43,6 +45,7 @@ export const TradeAction = Schema.Literals([
   "claim",
   "withdraw_swap",
   "claim_swap",
+  "bridge",
 ]);
 export type TradeAction = typeof TradeAction.Type;
 
@@ -57,6 +60,16 @@ export const TradeInput = Schema.Struct({
   tokenOut: TradeAsset,
   amount: PositiveUnits,
   position: Schema.NullOr(TradingAddress),
+  bridge: Schema.optionalKey(
+    Schema.Struct({
+      destinationNetwork: Schema.Literal("eip155:59144"),
+      recipient: TradingAddress,
+      provenance: Schema.Literal("user"),
+      paymentMethodId: PaymentMethodId,
+      paymentMethodRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+      checkoutId: CardCheckoutId,
+    })
+  ),
   slippageBps: Schema.Int.check(
     Schema.isBetween({ minimum: 1, maximum: 5000 })
   ),
@@ -150,6 +163,7 @@ export const TradeStep = Schema.Struct({
   kind: Schema.Literals([
     "approve",
     "permit",
+    "bridge",
     "swap",
     "deposit",
     "withdraw",
@@ -394,6 +408,9 @@ export const tradeRuleRefusal = (input: {
   readonly research?: TokenResearchFacts | null;
 }): string | null => {
   const { rule, trade, now, usage } = input;
+  if (trade.action === "bridge" || trade.bridge !== undefined) {
+    return "trade.human_only: card funding requires exact owner approval.";
+  }
   if (input.frozen) {
     return "trade.frozen: the person froze this workspace.";
   }

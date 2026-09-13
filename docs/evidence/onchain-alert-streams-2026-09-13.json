@@ -1,0 +1,64 @@
+[
+  {
+    "network": "base",
+    "phases": [
+      {
+        "phase": "source-discovered",
+        "block": 51235482,
+        "contract": "0x60555ab88a0caaf893ab284c1332c9d0a05af222"
+      },
+      {
+        "phase": "price-only",
+        "block": 51235482,
+        "hash": "0xf91fbe105e9d76a7453301c7d5cfa3b0690a6b159f9543e13a09d95c329f4f31",
+        "extended": true,
+        "changedSources": ["probe:token"],
+        "walletTransactions": 0,
+        "lagMs": 6082
+      },
+      {
+        "phase": "changed-params-resume",
+        "block": 51235483,
+        "hash": "0x1f0bf2f36e315255c41ba228eb7c80580e457b7009df1a06722a9a8712b60513",
+        "extended": true,
+        "changedSources": [],
+        "walletTransactions": 0
+      }
+    ],
+    "priceChanged": true,
+    "resumed": true,
+    "emptyProgress": true,
+    "identity": "wallet-activity:v2:map_wallet_activity:3ae6a411d679c10cd04cde1ae87e54562ea51c762b49aa8127fe3858f98db6ec"
+  },
+  {
+    "network": "robinhood",
+    "phases": [
+      {
+        "phase": "source-discovered",
+        "block": 61540462,
+        "contract": "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      },
+      {
+        "phase": "price-only",
+        "block": 61540462,
+        "hash": "0x384438c36469e2e8f025c030421823060b11d27c49aea6f80cc23a033841291b",
+        "extended": true,
+        "changedSources": ["probe:token"],
+        "walletTransactions": 0,
+        "lagMs": 2169
+      },
+      {
+        "phase": "changed-params-resume",
+        "block": 61540463,
+        "hash": "0x0543bce3315e6efbcab6bcbd3b4c1308cb708d9ff6c88ca1da9e09a4e780d293",
+        "extended": true,
+        "changedSources": [],
+        "walletTransactions": 0
+      }
+    ],
+    "priceChanged": true,
+    "resumed": true,
+    "emptyProgress": true,
+    "identity": "wallet-activity:v2:map_wallet_activity:3ae6a411d679c10cd04cde1ae87e54562ea51c762b49aa8127fe3858f98db6ec"
+  }
+]

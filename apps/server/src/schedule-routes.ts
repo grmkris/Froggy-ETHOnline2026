@@ -1,3 +1,4 @@
+import { DigestSchedule, NO_DIGEST, ScheduleId } from "@froggy/domain";
 /**
  * Schedules over HTTP, and the one place a schedule is created.
  *
@@ -10,14 +11,13 @@
  * The digest keeps its old wire shape (`{hour, timezone}`) and is stored
  * as a daily schedule underneath, so the Settings control needs no change.
  */
-
-import { DigestSchedule, NO_DIGEST, ScheduleId } from "@froggy/domain";
-import type { Schedule, UserId } from "@froggy/domain";
+import type { AgentConnectionId, Schedule, UserId } from "@froggy/domain";
 import { ScheduleRequest } from "@froggy/protocol";
 import type { ScheduleList, ScheduleRequestBody } from "@froggy/protocol";
 import type { Store } from "@froggy/wallet";
 import { Schema } from "effect";
 
+import { connectionScopes } from "./capabilities";
 import { cadenceOf, isTimezone, nextRunAfter } from "./schedules";
 
 /** Active schedules a person may hold. A ticker is not a job queue. */
@@ -45,10 +45,11 @@ export type CreateOutcome =
  * twenty-first active schedule, and persist.
  */
 export const createSchedule = async (
-  store: Pick<Store, "schedules">,
+  store: Store,
   userId: UserId,
   request: ScheduleRequestBody,
-  now: number
+  now: number,
+  connectionId: AgentConnectionId | null = null
 ): Promise<CreateOutcome> => {
   if (request.timezone !== undefined && !isTimezone(request.timezone)) {
     return {
@@ -81,8 +82,29 @@ export const createSchedule = async (
       status: 409,
     };
   }
+  const action =
+    request.action._tag === "prompt"
+      ? { ...request.action, connectionId }
+      : request.action;
+  if (
+    action._tag === "prompt" &&
+    action.permissions !== undefined &&
+    action.permissions.length > 0
+  ) {
+    const scopes = await connectionScopes(store, userId, connectionId);
+    if (
+      scopes !== null &&
+      action.permissions.some((scope) => !scopes.has(scope))
+    ) {
+      return {
+        kind: "refused",
+        reason: "This connection lacks the requested email permissions.",
+        status: 409,
+      };
+    }
+  }
   const schedule: Schedule = {
-    action: request.action,
+    action,
     cadence,
     createdAt: now,
     id: ScheduleId.generate(),
@@ -108,7 +130,7 @@ const json = (body: ScheduleResponse, status = 200): Response =>
 
 /** `GET`, `POST /api/schedules`, `DELETE /api/schedules/:id`; null for any other path. */
 export const handleSchedules = async (
-  store: Pick<Store, "schedules">,
+  store: Store,
   request: Request,
   userId: UserId,
   pathname: string
@@ -155,7 +177,7 @@ const digestOf = (schedule: Schedule | null): DigestSchedule => {
 
 /** The digest schedule: read it, or replace it. */
 export const handleDigest = async (
-  store: Pick<Store, "schedules">,
+  store: Store,
   request: Request,
   userId: UserId
 ): Promise<Response> => {

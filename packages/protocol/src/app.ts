@@ -26,6 +26,7 @@ import {
 } from "@froggy/domain";
 import { Schema } from "effect";
 
+import { BrowseTaskView } from "./browse";
 import { WalletRequestView } from "./browser-wallet";
 
 const Envelope = { v: ProtocolVersion };
@@ -71,6 +72,7 @@ export type ServiceModes = typeof ServiceModes.Type;
  * can be honest about which surface the person actually saw it on.
  */
 export const NoticeSource = Schema.Literals([
+  "email",
   "notify",
   "reminder",
   "scheduled_run",
@@ -305,6 +307,12 @@ export const WalletSummary = Schema.Struct({
 export type WalletSummary = typeof WalletSummary.Type;
 
 export const AppServerMessage = Schema.Union([
+  Schema.Struct({ v: Schema.Literal(1), type: Schema.Literal("watchlist.changed") }),
+  Schema.Struct({
+    ...Envelope,
+    type: Schema.Literal("browse.task.updated"),
+    task: BrowseTaskView,
+  }),
   Schema.Struct({
     ...Envelope,
     type: Schema.Literal("history.changed"),

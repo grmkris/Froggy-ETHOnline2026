@@ -106,3 +106,26 @@ export type {
 export type { TelegramCacheMessage } from "./history-store";
 
 export type { PrivyExecution } from "./privy-execution";
+
+export type { MonitoringStore } from "./monitoring-store";
+
+export type {
+  WalletActivityStore,
+  WalletActivityTransaction,
+  WalletStreamCheckpoint,
+  WalletAlert,
+  OwnedWalletItem,
+  StoredWalletActivity,
+  WalletStreamNetwork,
+} from "./wallet-activity-store";
+
+export { CreditStoreError, FundingPurchase } from "./credit-store";
+export type {
+  CreditStore,
+  CreditTaskPatch,
+  CreditTaskResult,
+  FundingPatch,
+} from "./credit-store";
+
+export type { CardStore, CardBook } from "./card-store";
+export { memoryCardStore } from "./card-store";

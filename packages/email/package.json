@@ -1,0 +1,29 @@
+{
+  "name": "@froggy/email",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@froggy/domain": "workspace:*",
+    "@froggy/protocol": "workspace:*",
+    "@napi-rs/canvas": "1.0.9",
+    "@pdf-lib/fontkit": "1.1.1",
+    "effect": "4.0.0-rc.112",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
+    "postal-mime": "3.0.0",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.1",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,23 +1,21 @@
-import { beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 
 import type { BrowserHandle } from "@froggy/browser";
 import {
-  OAUTH_SCOPES,
-  SaleId,
-  defaultAllowance,
+  OAuthGrantId,
+  OAuthClientId,
+  TaskId,
+  creditUnits,
   SessionId,
-  usdMicros,
   userId,
 } from "@froggy/domain";
 import type { Task } from "@froggy/domain";
-import { decodePaymentChallenge } from "@froggy/payments";
-import { BrowseChallenge, BrowseQuoteResponse } from "@froggy/protocol";
 import { Effect, Schema } from "effect";
 
-import { agentDetail } from "./agent-invocations";
 import { mintAgentToken } from "./agents";
 import { handleBrowseQuote } from "./browse-quotes";
 import { ModelBudget } from "./budget";
+import { fundTestCredits } from "./credit-fixture";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { InteractionRegistry } from "./interactions";
@@ -60,10 +58,6 @@ const noop = (): void => {
   // These tests read state, not events.
 };
 
-const Challenge = Schema.Struct({
-  accepts: Schema.Array(Schema.Struct({ network: Schema.String })),
-});
-const Paid = Schema.Struct({ header: Schema.String });
 const WithTask = Schema.Struct({
   task: Schema.Struct({
     id: Schema.String,
@@ -74,8 +68,6 @@ const WithTask = Schema.Struct({
     status: Schema.String,
   }),
 });
-const challengeOf = Schema.decodeUnknownSync(Challenge);
-const paidOf = Schema.decodeUnknownSync(Paid);
 const taskOf = Schema.decodeUnknownSync(WithTask);
 
 let services: Services;
@@ -96,6 +88,7 @@ const registryThatOnlyTouches = (): Workspaces => {
 
 /** What the tests post: the wire shape of a task request. */
 interface TaskRequestBody {
+  readonly v?: number;
   readonly idempotencyKey?: string;
   readonly instruction?: string;
   readonly budgetUsd?: number;
@@ -112,7 +105,7 @@ const workspace = () => ({
   userId: ALICE,
 });
 
-beforeAll(async () => {
+beforeEach(async () => {
   for (const [key, value] of Object.entries(PLACEHOLDERS)) {
     process.env[key] = value;
   }
@@ -139,7 +132,8 @@ beforeAll(async () => {
     browserUseApiKey: "bu_task_fixture_key",
     browserModelInputRate: 2,
     browserModelOutputRate: 6,
-    modes: { ...loaded.modes, browser: "live" },
+    browseExecutor: "legacy",
+    modes: { ...loaded.modes, browser: "stub", model: "stub" },
   };
   services = createServices({ environment });
   const { quote } = createQuotes(services.rates);
@@ -166,6 +160,7 @@ beforeAll(async () => {
     { hosts: ["localhost:3000"], payeeIds: [services.oracle.payTo] }
   );
   await session.hydrate();
+  await fundTestCredits(services.store, ALICE, 10_000_000);
   deps = {
     budget: new ModelBudget({ exempt: null, runsPerDay: 5, stepsPerDay: 50 }),
     interactions: new InteractionRegistry({
@@ -190,7 +185,7 @@ const post = (
   headers: Record<string, string> = {}
 ): Request =>
   new Request(TASKS_URL, {
-    body: JSON.stringify(body),
+    body: JSON.stringify({ v: 2, ...body }),
     headers: { "content-type": "application/json", ...headers },
     method: "POST",
   });
@@ -200,549 +195,307 @@ const settle = async (): Promise<void> => {
   await Bun.sleep(50);
 };
 
-describe("a paid brief, from 402 to result", () => {
-  it("quotes the task in HBAR, signs a payment under the mandate, records the sale, runs and answers by id", async () => {
-    const { token } = await mintAgentToken(
-      services.store,
-      ALICE,
-      "Task agent",
-      Date.now()
-    );
-    const caller = {
-      agentTokenId: token.id,
-      grantId: null,
-      scopes: null,
-      userId: ALICE,
-    };
-    const quoted = await handleTaskPost(
-      deps,
-      post({ kind: "brief", symbol: "USDC" }),
-      workspace(),
-      caller
-    );
-    expect(quoted.status).toBe(402);
-    const raw: unknown = await quoted.json();
-    const challenge = challengeOf(raw);
-    expect(challenge.accepts[0]?.network).toBe("hedera:testnet");
+const caller = {
+  agentTokenId: null,
+  grantId: null,
+  scopes: null,
+  userId: ALICE,
+};
+const quoteBody = (key: string) => ({
+  v: 2 as const,
+  kind: "browse" as const,
+  instruction: "Read a public page",
+  budgetUsd: 1 as const,
+  idempotencyKey: key,
+});
+const quoteView = (task: Task) => ({
+  ...task,
+  browse: null,
+  approval: [],
+  receipts: [],
+});
 
-    // The caller holds no key: the person's Froggy wallet signs, under the
-    // mandate, and hands back only the header.
-    const before = session.pocket ?? 0;
-    const signed = await handleWalletPay(
-      deps,
-      new Request("http://localhost:3000/api/wallet/pay", {
-        body: JSON.stringify({ challenge: raw }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
-      workspace(),
-      caller
-    );
-    expect(signed.status).toBe(200);
-    const { header } = paidOf(await signed.json());
-    expect(session.pocket ?? 0).toBeLessThan(before);
-
-    const paid = await handleTaskPost(
-      deps,
-      post({ kind: "brief", symbol: "USDC" }, { "x-payment": header }),
-      workspace(),
-      caller
-    );
-    expect(paid.status).toBe(202);
-    const created = taskOf(await paid.json()).task;
-    expect(created.id).toMatch(/^tsk_/u);
-    expect(created.status).toBe("paid");
-    expect(created.priceUsdMicros).toBe(TASK_PRICE_USD_MICROS.brief);
-    expect(created.saleId).toMatch(/^sal_/u);
-
-    await settle();
-    const fetched = await handleTaskGet(deps, workspace(), caller, created.id);
-    const done = taskOf(await fetched.json()).task;
-    expect(done.status).toBe("done");
-    expect(done.result?.symbol).toBe("USDC");
-    const saleId = created.saleId ?? "";
-    expect(SaleId.is(saleId)).toBe(true);
-    if (SaleId.is(saleId)) {
-      const sale = await services.store.sales.byId(saleId);
-      expect(sale?.status).toBe("delivered");
-    }
-
-    // The same proof again is the same task, not a second bill.
-    const replayed = await handleTaskPost(
-      deps,
-      post({ kind: "brief", symbol: "USDC" }, { "x-payment": header }),
-      workspace(),
-      caller
-    );
-    expect(replayed.status).toBe(200);
-    expect(taskOf(await replayed.json()).task.id).toBe(created.id);
-    const history = await agentDetail(services.store, ALICE, token.id);
-    expect(history?.invocations).toHaveLength(4);
-    expect(history?.invocations.map((row) => row.outcome)).toEqual([
-      "replayed",
-      "accepted",
-      "signed",
-      "payment_required",
-    ]);
-    expect(history?.invocations[0]?.usdMicros).toBeNull();
-    expect(history?.invocations[1]?.usdMicros).toBe(
-      TASK_PRICE_USD_MICROS.brief
-    );
-    expect(history?.invocations[2]?.usdMicros).toBeGreaterThan(0);
-    expect(JSON.stringify(history)).not.toContain(header);
-    expect(history?.agent.scopes).toEqual([...OAUTH_SCOPES]);
-    const stranger = await mintAgentToken(
-      services.store,
-      ALICE,
-      "Other",
-      Date.now()
-    );
-    const peek = await handleTaskGet(
-      deps,
-      workspace(),
-      {
-        agentTokenId: stranger.token.id,
-        grantId: null,
-        scopes: null,
-        userId: ALICE,
-      },
-      created.id
-    );
-    expect(peek.status).toBe(404);
-    const listed = await handleTaskList(deps, workspace(), {
-      agentTokenId: stranger.token.id,
-      grantId: null,
-      scopes: null,
-      userId: ALICE,
-    });
-    const body: unknown = await listed.json();
-    expect(JSON.stringify(body)).not.toContain(created.id);
-  });
-
-  it("returns the earlier task for a repeated idempotency key before asking for money", async () => {
-    const caller = {
-      agentTokenId: null,
-      grantId: null,
-      scopes: null,
-      userId: ALICE,
-    };
-    const first = await handleTaskPost(
-      deps,
-      post({ idempotencyKey: "hermes-brief-1", kind: "brief", symbol: "USDC" }),
-      workspace(),
-      caller
-    );
-    // Unpaid, so a 402: no task exists yet for the key.
-    expect(first.status).toBe(402);
-
-    const challenge: unknown = await first.json();
-    const signed = await handleWalletPay(
-      deps,
-      new Request("http://localhost:3000/api/wallet/pay", {
-        body: JSON.stringify({ challenge }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
-      workspace(),
-      caller
-    );
-    const { header } = paidOf(await signed.json());
-    const paid = await handleTaskPost(
-      deps,
-      post(
-        { idempotencyKey: "hermes-brief-1", kind: "brief", symbol: "USDC" },
-        { "x-payment": header }
-      ),
-      workspace(),
-      caller
-    );
-    expect(paid.status).toBe(202);
-    const created = taskOf(await paid.json()).task;
-    const again = await handleTaskPost(
-      deps,
-      post({ idempotencyKey: "hermes-brief-1", kind: "brief", symbol: "USDC" }),
-      workspace(),
-      caller
-    );
-    expect(again.status).toBe(200);
-    expect(taskOf(await again.json()).task.id).toBe(created.id);
-  });
-
-  it("claims concurrent paid retries before settling and rejects changed input", async () => {
-    const caller = {
-      agentTokenId: null,
-      grantId: null,
-      scopes: null,
-      userId: ALICE,
-    };
-    const body = {
-      idempotencyKey: "concurrent-legacy-task",
-      kind: "brief",
-      symbol: "USDC",
-    };
-    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
-    const challenge: unknown = await quoted.json();
-    const signed = await handleWalletPay(
-      deps,
-      new Request("http://localhost:3000/api/wallet/pay", {
-        method: "POST",
-        body: JSON.stringify({ challenge }),
-      }),
-      workspace(),
-      caller
-    );
-    const { header } = paidOf(await signed.json());
-    let settlements = 0;
-    const guarded = {
+describe("credit-funded task API", () => {
+  it("funds once and completes multiple briefs without signatures or sales", async () => {
+    let payments = 0;
+    const testDeps = {
       ...deps,
       services: {
         ...services,
+        rates: { ...services.rates, current: () => null },
         oracle: {
           ...services.oracle,
-          settle: async (
-            payment: string,
-            requirement: Parameters<Services["oracle"]["settle"]>[1]
-          ) => {
-            settlements += 1;
-            await Bun.sleep(10);
-            return await services.oracle.settle(payment, requirement);
+          settle: async () => {
+            payments += 1;
+            return await Promise.reject(new Error("must not settle"));
           },
+        },
+        hederaPayerFor: async () => {
+          payments += 1;
+          return await Promise.reject(new Error("must not sign"));
         },
       },
     };
-    const replies = await Promise.all([
-      handleTaskPost(
-        guarded,
-        post(body, { "x-payment": header }),
-        workspace(),
-        caller
-      ),
-      handleTaskPost(
-        guarded,
-        post(body, { "x-payment": header }),
-        workspace(),
-        caller
-      ),
-    ]);
-    const tasks = await Promise.all(
-      replies.map(async (response) => taskOf(await response.json()).task)
+    await Promise.all(
+      ["USDC", "WETH"].map(async (symbol) => {
+        const response = await handleTaskPost(
+          testDeps,
+          post({ kind: "brief", symbol, idempotencyKey: symbol }),
+          workspace(),
+          caller
+        );
+        expect(response.status).toBe(202);
+        const { task } = taskOf(await response.json());
+        await settle();
+        const result = await handleTaskGet(
+          testDeps,
+          workspace(),
+          caller,
+          task.id
+        );
+        expect(taskOf(await result.json()).task.status).toBe("done");
+        const saved = await services.store.tasks.byIdempotencyKey(
+          ALICE,
+          symbol
+        );
+        expect(saved?.chargeStatus).toBe("captured");
+        expect(saved?.saleId).toBeNull();
+      })
     );
-    expect(new Set(tasks.map((task) => task.id)).size).toBe(1);
-    expect(settlements).toBe(1);
-    const conflict = await handleTaskPost(
+    expect(payments).toBe(0);
+    const checkedResult22 = await services.store.credits.summary(ALICE);
+    expect(checkedResult22.spentUnits).toBe(
+      creditUnits(2 * TASK_PRICE_USD_MICROS.brief)
+    );
+    expect(session.history).toHaveLength(0);
+  });
+
+  it("rejects v1 and task-signing requests before any credit or wallet change", async () => {
+    const before = await services.store.credits.summary(ALICE);
+    const old = await handleTaskPost(
       deps,
-      post({ ...body, symbol: "ETH" }),
+      post({ v: 1, kind: "brief", symbol: "USDC", idempotencyKey: "old" }),
       workspace(),
       caller
     );
-    expect(conflict.status).toBe(409);
+    expect(old.status).toBe(426);
+    const proof = await handleTaskPost(
+      deps,
+      post(
+        { kind: "brief", symbol: "USDC", idempotencyKey: "proof" },
+        { "payment-signature": "old-proof" }
+      ),
+      workspace(),
+      caller
+    );
+    expect(proof.status).toBe(426);
+    const checkedResult21 = await handleWalletPay(
+      deps,
+      new Request(TASKS_URL),
+      workspace(),
+      caller
+    );
+    expect(checkedResult21.status).toBe(410);
+    expect(await services.store.credits.summary(ALICE)).toEqual(before);
+    expect(await services.store.tasks.list(ALICE, 10)).toHaveLength(0);
   });
-  it("refuses a malformed task and an unknown id", async () => {
-    const caller = {
-      agentTokenId: null,
-      grantId: null,
-      scopes: null,
-      userId: ALICE,
+
+  it("claims concurrent retries once and refuses changed input", async () => {
+    const body = { kind: "brief", symbol: "USDC", idempotencyKey: "same" };
+    const responses = await Promise.all(
+      [1, 2, 3].map(
+        async () => await handleTaskPost(deps, post(body), workspace(), caller)
+      )
+    );
+    const ids = await Promise.all(
+      responses.map(async (response) => taskOf(await response.json()).task.id)
+    );
+    expect(new Set(ids).size).toBe(1);
+    await settle();
+    const checkedResult17 = await services.store.credits.summary(ALICE);
+    expect(checkedResult17.spentUnits).toBe(
+      creditUnits(TASK_PRICE_USD_MICROS.brief)
+    );
+    expect(
+      handleTaskPost(
+        deps,
+        post({ ...body, symbol: "WETH" }),
+        workspace(),
+        caller
+      )
+    ).rejects.toThrow("idempotency key");
+  });
+
+  it("keeps tasks and idempotency replay private to the initiating connection", async () => {
+    const checkedResult16 = await mintAgentToken(
+      services.store,
+      ALICE,
+      "First",
+      Date.now()
+    );
+    const first = checkedResult16.token;
+    const checkedResult15 = await mintAgentToken(
+      services.store,
+      ALICE,
+      "Second",
+      Date.now()
+    );
+    const second = checkedResult15.token;
+    const a = { ...caller, agentTokenId: first.id };
+    const b = { ...caller, agentTokenId: second.id };
+    const body = { kind: "brief", symbol: "USDC", idempotencyKey: "private" };
+    const response = await handleTaskPost(deps, post(body), workspace(), a);
+    const { id } = taskOf(await response.json()).task;
+    const checkedResult13 = await handleTaskGet(deps, workspace(), b, id);
+    expect(checkedResult13.status).toBe(404);
+    const checkedResult12 = await handleTaskGet(deps, workspace(), caller, id);
+    expect(checkedResult12.status).toBe(200);
+    const checkedResult10 = await handleTaskList(deps, workspace(), b);
+    expect(await checkedResult10.json()).toEqual({
+      v: 1,
+      tasks: [],
+    });
+    expect(handleTaskPost(deps, post(body), workspace(), b)).rejects.toThrow(
+      "connection"
+    );
+    await settle();
+  });
+
+  it("returns structured insufficient-credit errors without a payment challenge", async () => {
+    const noFunds = userId("did:privy:unfunded-task");
+    const response = await handleTaskPost(
+      deps,
+      post({ kind: "brief", symbol: "USDC", idempotencyKey: "empty" }),
+      { ...workspace(), userId: noFunds },
+      { ...caller, userId: noFunds }
+    );
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain("insufficient_credits");
+    expect(response.headers.has("payment-required")).toBe(false);
+  });
+
+  it("requires current brief scope before reserving", async () => {
+    const id = OAuthGrantId.generate();
+    await services.store.oauth.grants.create(ALICE, {
+      id,
+      clientId: OAuthClientId.generate(),
+      clientName: "Browser only",
+      createdAt: Date.now(),
+      lastUsedAt: null,
+      revokedAt: null,
+      scopes: ["browse"],
+    });
+    const response = await handleTaskPost(
+      deps,
+      post({ kind: "brief", symbol: "USDC", idempotencyKey: "scope" }),
+      workspace(),
+      { ...caller, grantId: id, scopes: new Set(["browse" as const]) }
+    );
+    expect(response.status).toBe(403);
+    expect(await services.store.tasks.list(ALICE, 10)).toHaveLength(0);
+  });
+
+  it("releases credits when a brief provider fails", async () => {
+    const testDeps = {
+      ...deps,
+      services: {
+        ...services,
+        graph: {
+          ...services.graph,
+          lendingMarkets: async () =>
+            await Promise.reject(new Error("Provider unavailable")),
+        },
+      },
     };
-    const bad = await handleTaskPost(
+    const response = await handleTaskPost(
+      testDeps,
+      post({ kind: "brief", symbol: "USDC", idempotencyKey: "fails" }),
+      workspace(),
+      caller
+    );
+    expect(response.status).toBe(202);
+    await settle();
+    const saved = await services.store.tasks.byIdempotencyKey(ALICE, "fails");
+    expect(saved?.status).toBe("failed");
+    expect(saved?.chargeStatus).toBe("released");
+    const checkedResult7 = await services.store.credits.summary(ALICE);
+    expect(checkedResult7.availableUnits).toBe(creditUnits(10_000_000));
+  });
+
+  it("refuses malformed tasks and unknown ids", async () => {
+    const checkedResult6 = await handleTaskPost(
       deps,
       post({ kind: "brief" }),
       workspace(),
       caller
     );
-    expect(bad.status).toBe(400);
-    const missing = await handleTaskGet(deps, workspace(), caller, "tsk_nope");
-    expect(missing.status).toBe(404);
+    expect(checkedResult6.status).toBe(400);
+    const checkedResult5 = await handleTaskGet(
+      deps,
+      workspace(),
+      caller,
+      TaskId.generate()
+    );
+    expect(checkedResult5.status).toBe(404);
   });
 });
 
-const quoteBody = (key: string) => ({
-  kind: "browse" as const,
-  instruction: "Read the fixture page",
-  budgetUsd: 1 as const,
-  idempotencyKey: key,
-});
-const quoteView = (task: Task) => ({ ...task, approval: [], receipts: [] });
-
-describe("bounded browser quotes", () => {
-  const caller = {
-    agentTokenId: null,
-    grantId: null,
-    scopes: null,
-    userId: ALICE,
-  };
-
-  it("rejects malformed budgets instead of selling a legacy browse", async () => {
-    const response = await handleTaskPost(
-      deps,
-      post({ ...quoteBody("bad-budget"), budgetUsd: 2 }),
-      workspace(),
-      caller
-    );
-    expect(response.status).toBe(400);
-    expect(
-      await services.store.tasks.byIdempotencyKey(ALICE, "bad-budget")
-    ).toBeNull();
-  });
-
-  it("freezes the quote and refuses expired payment without settlement", async () => {
-    const body = quoteBody("expiring-browser-quote");
-    const first = await handleTaskPost(deps, post(body), workspace(), caller);
-    expect(first.status).toBe(402);
-    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const replay = await handleTaskPost(deps, post(body), workspace(), caller);
-    expect(
-      Schema.decodeUnknownSync(BrowseQuoteResponse)(await replay.json())
-    ).toEqual(initial);
-    // A payment that arrives after the quote lapsed is refused, never
-    // re-priced under it.
-    const expired = await handleTaskPost(
-      { ...deps, now: () => initial.quote.expiresAt },
-      post(
-        { ...body, quoteTaskId: initial.quote.taskId },
-        { "x-payment": "late-fixture-proof" }
-      ),
-      workspace(),
-      caller
-    );
-    expect(expired.status).toBe(410);
-    const task = await services.store.tasks.byId(ALICE, initial.quote.taskId);
-    expect(task?.status).toBe("quoted");
-    expect(task?.saleId).toBeNull();
-  });
-
-  it("re-prices an unpaid quote when the card asks for another budget", async () => {
-    const body = quoteBody("requote-another-budget");
-    const first = await handleTaskPost(deps, post(body), workspace(), caller);
-    expect(first.status).toBe(402);
-    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const second = await handleTaskPost(
-      deps,
-      post({ ...body, budgetUsd: 3 }),
-      workspace(),
-      caller
-    );
-    expect(second.status).toBe(402);
-    const repriced = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await second.json()
-    );
-    // Same card, same task: only the numbers moved.
-    expect(repriced.quote.taskId).toBe(initial.quote.taskId);
-    expect(repriced.quote.budgetUsd).toBe(3);
-    expect(repriced.quote.priceUsdMicros).toBe(3_000_000);
-    expect(repriced.quote.executionMs).toBe(20 * 60_000);
-    expect(repriced.accepts[0]?.amount).not.toBe(initial.accepts[0]?.amount);
-    const stored = await services.store.tasks.byId(ALICE, initial.quote.taskId);
-    expect(stored?.priceUsdMicros).toBe(usdMicros(3_000_000));
-    // Paying names the new budget; the old one no longer matches.
-    const stale = await handleTaskPost(
-      deps,
-      post(
-        { ...body, quoteTaskId: initial.quote.taskId },
-        { "x-payment": "stale-budget-proof" }
-      ),
-      workspace(),
-      caller
-    );
-    expect(stale.status).toBe(409);
-  });
-
-  it("re-prices an expired unpaid quote instead of leaving the card stuck", async () => {
-    const body = quoteBody("requote-after-expiry");
-    const first = await handleTaskPost(deps, post(body), workspace(), caller);
-    const initial = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const later = initial.quote.expiresAt + 1;
-    const again = await handleTaskPost(
-      { ...deps, now: () => later },
-      post(body),
-      workspace(),
-      caller
-    );
-    expect(again.status).toBe(402);
-    const fresh = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await again.json()
-    );
-    expect(fresh.quote.taskId).toBe(initial.quote.taskId);
-    expect(fresh.quote.budgetUsd).toBe(1);
-    expect(fresh.quote.expiresAt).toBeGreaterThan(later);
-  });
-
-  it("never re-prices a quote that already has a signed payment", async () => {
-    const body = quoteBody("requote-after-signing");
-    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
-    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await quoted.json()
-    );
-    // What `/api/wallet/pay` leaves behind once a header is signed, without
-    // spending the shared fixture pocket to get there.
-    await services.store.tasks.update(ALICE, quote.taskId, {
-      result: { paymentProofHash: "signed-fixture-hash" },
-      updatedAt: Date.now(),
-    });
-    const changed = await handleTaskPost(
-      deps,
-      post({ ...body, budgetUsd: 5 }),
-      workspace(),
-      caller
-    );
-    expect(changed.status).toBe(409);
-    const stored = await services.store.tasks.byId(ALICE, quote.taskId);
-    expect(stored?.priceUsdMicros).toBe(usdMicros(1_000_000));
-  });
-
-  it("accepts the browser card's decoded challenge and never signs the quote twice", async () => {
-    const body = quoteBody("quote-wallet-sign-once");
-    const quoted = await handleTaskPost(deps, post(body), workspace(), caller);
-    const raw: unknown = await quoted.json();
-    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
-    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
-    const pay = () =>
-      new Request("http://localhost:3000/api/wallet/pay", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
-      });
-    const first = await handleWalletPay(deps, pay(), workspace(), caller);
-    expect(first.status).toBe(200);
-    const after = session.pocket;
-    const duplicate = await handleWalletPay(deps, pay(), workspace(), caller);
-    expect(duplicate.status).toBe(402);
-    expect(session.pocket).toBe(after);
-  });
-
-  it("keeps an ambiguous settlement retrievable without trying the provider again", async () => {
-    const body = quoteBody("uncertain-browser-settlement");
-    let settlements = 0;
+describe("browser credit allowances", () => {
+  it("starts directly with one reserved charge and immutable execution allowance", async () => {
     let executions = 0;
-    const uncertainDeps: TaskDeps = {
-      ...deps,
-      services: {
-        ...services,
-        oracle: {
-          ...services.oracle,
-          settle: async () => {
-            settlements += 1;
-            await Promise.resolve();
-            throw new Error("Fixture transport ended after dispatch");
-          },
+    const body = quoteBody("browse");
+    const submit = async () =>
+      await handleBrowseQuote(
+        deps,
+        post(body),
+        workspace(),
+        caller,
+        body,
+        () => {
+          executions += 1;
         },
-      },
-    };
-    const executeQuote = (): void => {
-      executions += 1;
-    };
-    const first = await handleBrowseQuote(
-      uncertainDeps,
-      post(body),
-      workspace(),
-      caller,
-      body,
-      executeQuote,
-      quoteView
-    );
-    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
-    const paid = await handleBrowseQuote(
-      uncertainDeps,
-      post(paying, { "x-payment": "uncertain-fixture-proof" }),
-      workspace(),
-      caller,
-      paying,
-      executeQuote,
-      quoteView
-    );
-    expect(paid.status).toBe(502);
-    const uncertain = await services.store.tasks.byId(
-      ALICE,
-      quoted.quote.taskId
-    );
-    expect(uncertain?.status).toBe("uncertain");
-    const replay = await handleBrowseQuote(
-      uncertainDeps,
-      post(paying, { "x-payment": "uncertain-fixture-proof" }),
-      workspace(),
-      caller,
-      paying,
-      executeQuote,
-      quoteView
-    );
-    expect(replay.status).toBe(202);
-    expect(settlements).toBe(1);
-    expect(executions).toBe(0);
-  });
-
-  it("claims one settlement and one execution for simultaneous proof replays", async () => {
-    const body = quoteBody("concurrent-browser-proof");
-    let executions = 0;
-    const executeQuote = (): void => {
-      executions += 1;
-    };
-    const first = await handleBrowseQuote(
-      deps,
-      post(body),
-      workspace(),
-      caller,
-      body,
-      executeQuote,
-      quoteView
-    );
-    expect(first.status).toBe(402);
-    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const challenge = decodePaymentChallenge(quoted);
-    if (challenge._tag === "Failure") {
-      throw new Error("Fixture challenge did not decode");
-    }
-    const signed = await services.payer.pay(challenge.success);
-    if (signed.header === null) {
-      throw new Error("Fixture did not sign");
-    }
-    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
-    const responses = await Promise.all(
-      Array.from(
-        { length: 4 },
-        async () =>
-          await handleBrowseQuote(
-            deps,
-            post(paying, { "x-payment": signed.header ?? "" }),
-            workspace(),
-            caller,
-            paying,
-            executeQuote,
-            quoteView
-          )
-      )
-    );
+        quoteView
+      );
+    const responses = await Promise.all([submit(), submit(), submit()]);
     expect(responses.every((response) => response.status === 202)).toBe(true);
+    const saved = await services.store.tasks.byIdempotencyKey(
+      ALICE,
+      body.idempotencyKey
+    );
+    expect(saved?.chargeStatus).toBe("reserved");
+    expect(saved?.saleId).toBeNull();
+    expect(saved?.input["quote"]).toMatchObject({
+      budgetUsd: 1,
+      priceUsdMicros: 1_000_000,
+      modelAllowanceUsdMicros: 500_000,
+      executionMs: 600_000,
+    });
     expect(executions).toBe(1);
-    const task = await services.store.tasks.byId(ALICE, quoted.quote.taskId);
-    expect(task?.status).toBe("paid");
-    expect(task?.saleId).not.toBeNull();
-    const repeated = await handleBrowseQuote(
+    const changed = { ...body, budgetUsd: 3 as const };
+    const checkedResult4 = await handleBrowseQuote(
       deps,
-      post(paying, { "x-payment": signed.header }),
+      post(changed),
       workspace(),
       caller,
-      paying,
-      executeQuote,
+      changed,
+      noop,
       quoteView
     );
-    expect(repeated.status).toBe(202);
-    expect(executions).toBe(1);
+    expect(checkedResult4.status).toBe(409);
+    const checkedResult3 = await services.store.credits.summary(ALICE);
+    expect(checkedResult3.reservedUnits).toBe(creditUnits(1_000_000));
   });
 
-  it("refuses to resume an exhausted allowance without buying or signing again", async () => {
-    const body = quoteBody("exhausted-resume-fixture");
-    const first = await handleBrowseQuote(
+  it("rejects invalid budgets and concurrent different browser tasks", async () => {
+    const checkedResult2 = await handleTaskPost(
+      deps,
+      post({ ...quoteBody("bad"), budgetUsd: 2 }),
+      workspace(),
+      caller
+    );
+    expect(checkedResult2.status).toBe(400);
+    const body = quoteBody("one");
+    await handleBrowseQuote(
       deps,
       post(body),
       workspace(),
@@ -751,31 +504,36 @@ describe("bounded browser quotes", () => {
       noop,
       quoteView
     );
-    const quoted = Schema.decodeUnknownSync(BrowseQuoteResponse)(
-      await first.json()
-    );
-    const challenge = decodePaymentChallenge(quoted);
-    if (challenge._tag === "Failure") {
-      throw new Error("Fixture challenge did not decode");
-    }
-    const signed = await services.payer.pay(challenge.success);
-    if (signed.header === null) {
-      throw new Error("Fixture did not sign");
-    }
-    const paying = { ...body, quoteTaskId: quoted.quote.taskId };
-    const paid = await handleBrowseQuote(
+    const other = quoteBody("two");
+    const checkedResult1 = await handleBrowseQuote(
       deps,
-      post(paying, { "x-payment": signed.header }),
+      post(other),
       workspace(),
       caller,
-      paying,
+      other,
       noop,
       quoteView
     );
-    expect(paid.status).toBe(202);
-    const task = await services.store.tasks.byId(ALICE, quoted.quote.taskId);
+    expect(checkedResult1.status).toBe(409);
+  });
+
+  it("refuses to resume an exhausted allowance and returns its reservation", async () => {
+    const body = quoteBody("exhausted");
+    await handleBrowseQuote(
+      deps,
+      post(body),
+      workspace(),
+      caller,
+      body,
+      noop,
+      quoteView
+    );
+    const task = await services.store.tasks.byIdempotencyKey(
+      ALICE,
+      body.idempotencyKey
+    );
     if (task === null) {
-      throw new Error("Expected the purchased fixture task");
+      throw new Error("Expected the browser task");
     }
     await services.store.tasks.update(ALICE, task.id, {
       status: "paused",
@@ -785,7 +543,7 @@ describe("bounded browser quotes", () => {
           spentUsdMicros: 500_000,
           steps: 2,
           activeMs: 1000,
-          summary: "Partial fixture result",
+          summary: "Partial result",
         },
       },
     });
@@ -793,182 +551,11 @@ describe("bounded browser quotes", () => {
     Object.defineProperty(registry, "hydrate", {
       value: async () => await Promise.resolve(workspace()),
     });
-    // Resume takes a person, not a task: it picks the newest of their resumable
-    // browse tasks. Every test in this file shares one person and one store, so
-    // an earlier test's task left `paid` is also a candidate — and which of the
-    // two is "newest" comes down to whether they landed in the same millisecond,
-    // which is a property of the machine rather than of the code. Retiring the
-    // others first makes this test assert what its name says: that *this*
-    // exhausted task fails rather than sitting resumable.
-    const others = await services.store.tasks.list(ALICE, 100);
-    await Promise.all(
-      others
-        .filter((other) => other.id !== task.id && other.kind === "browse")
-        .map(async (other) => {
-          await services.store.tasks.update(ALICE, other.id, {
-            status: "done",
-            updatedAt: Date.now(),
-          });
-        })
-    );
-    const before = session.pocket;
-    await resumeBrowseTask({ ...deps, workspaces: registry }, ALICE);
+    await resumeBrowseTask({ ...deps, workspaces: registry }, ALICE, task.id);
     await settle();
     const stopped = await services.store.tasks.byId(ALICE, task.id);
     expect(stopped?.status).toBe("failed");
     expect(stopped?.error).toContain("allowance is exhausted");
-    expect(stopped?.saleId).toBe(task.saleId);
-    expect(session.pocket).toBe(before);
-  });
-});
-
-describe("paying a quote under the ask line", () => {
-  const BOB = userId("did:privy:tasks-test-ask-line");
-  /**
-   * A second person with their own pocket and their own numbers, so what this
-   * asserts does not depend on what the tests above left in Alice's.
-   */
-  const sessionFor = async (): Promise<WorkspaceSession> => {
-    const fresh = new WorkspaceSession(
-      SessionId.generate(),
-      BOB,
-      {
-        ledger: services.ledger,
-        modes: services.environment.modes,
-        onPolicyDecision: noop,
-        balances: {
-          hbar: async () => await Promise.resolve(null),
-          usdc: async () => await Promise.resolve(null),
-        },
-        networks: { evm: "eip155:84532", hedera: "hedera:testnet" },
-        onReceipt: noop,
-        pocket: {
-          networks: ["hedera:testnet"],
-          startingUsdMicrosFor: () => 5_000_000,
-        },
-        quote: createQuotes(services.rates).quote,
-        store: services.store,
-      },
-      { hosts: ["localhost:3000"], payeeIds: [services.oracle.payTo] }
-    );
-    await fresh.hydrate();
-    // The person's own numbers: a $1 quote is well over this ask line, so the
-    // policy says `ask` whatever the HBAR rounding does to the last micro.
-    fresh.applyAllowance({
-      allowance: {
-        ...defaultAllowance(Date.now()),
-        askOverUsdMicros: usdMicros(500_000),
-      },
-      policyId: "policy-fixture-bob",
-    });
-    return fresh;
-  };
-  const payFor = async (
-    who: WorkspaceSession,
-    caller: Parameters<typeof handleWalletPay>[3],
-    key: string
-  ): Promise<Response> => {
-    const place = {
-      // SAFETY: nothing here browses; the handle only satisfies the shape.
-      browser: {} as BrowserHandle,
-      session: who,
-      userId: BOB,
-    };
-    const quoted = await handleTaskPost(
-      deps,
-      post(quoteBody(key)),
-      place,
-      caller
-    );
-    expect(quoted.status).toBe(402);
-    const raw: unknown = await quoted.json();
-    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
-    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
-    return await handleWalletPay(
-      deps,
-      new Request("http://localhost:3000/api/wallet/pay", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
-      }),
-      place,
-      caller
-    );
-  };
-
-  it("takes the person's own tap on Pay as the answer, and still refuses over the cap", async () => {
-    const who = await sessionFor();
-    const person = {
-      agentTokenId: null,
-      grantId: null,
-      scopes: null,
-      userId: BOB,
-    };
-    const signed = await payFor(who, person, "ask-line-person");
-    expect(signed.status).toBe(200);
-    const { receipt } = Schema.decodeUnknownSync(
-      Schema.Struct({
-        header: Schema.String,
-        receipt: Schema.Struct({
-          decision: Schema.Struct({ _tag: Schema.String }),
-        }),
-      })
-    )(await signed.json());
-    expect(receipt.decision._tag).toBe("allow");
-    // The tap answers the question; it does not move the ceiling.
-    const place = {
-      // SAFETY: as above.
-      browser: {} as BrowserHandle,
-      session: who,
-      userId: BOB,
-    };
-    const big = await handleTaskPost(
-      deps,
-      post({ ...quoteBody("ask-line-over-cap"), budgetUsd: 3 }),
-      place,
-      person
-    );
-    const raw: unknown = await big.json();
-    const { quote } = Schema.decodeUnknownSync(BrowseQuoteResponse)(raw);
-    const challenge = Schema.decodeUnknownSync(BrowseChallenge)(raw);
-    const refused = await handleWalletPay(
-      deps,
-      new Request("http://localhost:3000/api/wallet/pay", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challenge, quoteTaskId: quote.taskId }),
-      }),
-      place,
-      person
-    );
-    expect(refused.status).toBe(403);
-    expect(
-      Schema.decodeUnknownSync(Schema.Struct({ error: Schema.String }))(
-        await refused.json()
-      ).error
-    ).toContain("per-transaction cap");
-  });
-
-  it("does not take an agent's request as anybody's answer", async () => {
-    const who = await sessionFor();
-    const { token } = await mintAgentToken(
-      services.store,
-      BOB,
-      "Ask-line agent",
-      Date.now()
-    );
-    const agent = {
-      agentTokenId: token.id,
-      grantId: null,
-      scopes: null,
-      userId: BOB,
-    };
-    const refused = await payFor(who, agent, "ask-line-agent");
-    expect(refused.status).toBe(403);
-    expect(
-      Schema.decodeUnknownSync(Schema.Struct({ error: Schema.String }))(
-        await refused.json()
-      ).error
-    ).toContain("no one to ask");
+    expect(stopped?.chargeStatus).toBe("released");
   });
 });

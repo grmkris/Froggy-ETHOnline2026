@@ -50,6 +50,30 @@ export const alwaysAllowed: readonly string[] = ["bun", "bun:test"];
 
 export const nodes: readonly Node[] = [
   {
+    dir: "apps/email-worker",
+    name: "@froggy/email-worker",
+    layer: "app",
+    role: "Cloudflare email intake, durable send deduplication and private object transport.",
+    mayImport: ["@froggy/email", "@froggy/protocol"],
+  },
+  {
+    dir: "packages/email",
+    name: "@froggy/email",
+    layer: "adapter",
+    role: "Private mail storage, document processing and Cloudflare transport; no wallet or browser authority.",
+    mayImport: ["@froggy/domain", "@froggy/protocol"],
+    mayUse: [
+      "effect",
+      "postgres",
+      "postal-mime",
+      "pdf-lib",
+      "@pdf-lib/fontkit",
+      "pdfjs-dist",
+      "@napi-rs/canvas",
+      "node:crypto",
+    ],
+  },
+  {
     dir: "apps/web",
     name: "@froggy/web",
     layer: "app",
@@ -65,6 +89,7 @@ export const nodes: readonly Node[] = [
       "@froggy/browser",
       "@froggy/domain",
       "@froggy/graph",
+      "@froggy/email",
       "@froggy/payments",
       "@froggy/protocol",
       "@froggy/wallet",
@@ -127,6 +152,8 @@ export const nodes: readonly Node[] = [
       "@x402/hedera",
       "@x402/svm",
       "@solana/kit",
+      // Credit funding verifies receipts and settles USDC through the Privy relayer.
+      "viem",
       "effect",
     ],
   },
@@ -136,7 +163,7 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "The Graph gateway. The eyes: why a spend was worth making.",
     mayImport: [],
-    mayUse: ["effect"],
+    mayUse: ["effect", "@substreams/core", "@connectrpc/connect-web"],
   },
   {
     dir: "packages/ui",

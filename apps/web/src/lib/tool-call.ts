@@ -8,7 +8,10 @@
  * crash.
  */
 
+import { WatchlistItem } from "@froggy/domain";
 import {
+  AddressLookupResult,
+  WatchlistList,
   GraphQueryOutput,
   ServiceCatalog,
   ServiceTicket,
@@ -55,6 +58,9 @@ const ToolCallSchema = Schema.Struct({
       GraphQueryOutput,
       ServiceTicket,
       ServiceCatalog,
+      WatchlistItem,
+      WatchlistList,
+      AddressLookupResult,
       Schema.Struct({ v: Schema.Literals([1]), error: Schema.String }),
     ])
   ),
@@ -118,4 +124,22 @@ export const toolCallOf = (part: {
     state: raw.state,
     toolCallId: raw.toolCallId,
   };
+};
+
+const RichToolResult = Schema.Union([
+  ServiceTicket,
+  WatchlistItem,
+  WatchlistList,
+  AddressLookupResult,
+]);
+export const richResultOf = (
+  call: ToolCall
+): typeof RichToolResult.Type | null => {
+  if (call.output === null || call.output.length > 200_000) {
+    return null;
+  }
+  const result = Schema.decodeUnknownResult(
+    Schema.fromJsonString(RichToolResult)
+  )(call.output);
+  return result._tag === "Success" ? result.success : null;
 };

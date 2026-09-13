@@ -188,10 +188,17 @@ export const recordTelegramIntent = async (
   store: Store,
   userId: UserId,
   threadId: string,
-  text: string
+  text: string,
+  stableId?: MessageId
 ): Promise<MessageId> => {
   await recoverTelegramHistory(store, userId);
   return await store.history.transaction(userId, async (tx) => {
+    if (stableId) {
+      const previous = await tx.get(stableId);
+      if (previous?.kind === "message") {
+        return stableId;
+      }
+    }
     const now = Date.now();
     const existing = await telegramConversation(tx, threadId);
     const conversation =
@@ -204,7 +211,7 @@ export const recordTelegramIntent = async (
       },
       conversation.revision
     );
-    const id = MessageId.generate();
+    const id = stableId ?? MessageId.generate();
     const safe = historyPreview(text, 60_000);
     await tx.save(
       {

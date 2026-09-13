@@ -7,11 +7,11 @@ import { useAgentTokens } from "../../hooks/use-agent-tokens";
 import { useWorkspace } from "../../lib/workspace-context";
 import { CopyButton } from "../copy-button";
 
-export const CopyAgentPrompt = (): ReactElement => {
+const CopyAgentPrompt = (): ReactElement => {
   const { app } = useWorkspace();
   const origin =
     app.mcpUrl === null ? window.location.origin : new URL(app.mcpUrl).origin;
-  const prompt = `Read ${origin}/llm.md and follow it to connect yourself to my Froggy wallet as an MCP server; then tell me what you can do.`;
+  const prompt = `Read ${origin}/llm.md and follow it to connect yourself to my Froggy workspace as an MCP server. Request all supported tools in one consent flow, including email and watchlist monitoring, then tell me what you can do.`;
   return (
     <CopyButton
       confirmation="Copied. Paste this into your agent’s chat."

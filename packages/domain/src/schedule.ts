@@ -15,6 +15,7 @@
 
 import { Schema } from "effect";
 
+import { AgentConnectionId } from "./agent-invocation";
 import { ScheduleId } from "./id";
 
 /** "HH:MM", twenty-four hour, on the person's wall clock. */
@@ -52,11 +53,17 @@ export const RemindAction = Schema.TaggedStruct("remind", {
 });
 /** Run as an unattended turn: no browser, a small budget, a report afterwards. */
 export const PromptAction = Schema.TaggedStruct("prompt", {
+  permissions: Schema.optional(
+    Schema.Array(Schema.Literals(["email:read", "email:draft"]))
+  ),
   text: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
 });
 export const ScheduleAction = Schema.Union([
   RemindAction,
-  PromptAction,
+  Schema.Struct({
+    ...PromptAction.fields,
+    connectionId: Schema.optional(Schema.NullOr(AgentConnectionId)),
+  }),
   Schema.TaggedStruct("digest", {}),
 ]);
 export type ScheduleAction = typeof ScheduleAction.Type;

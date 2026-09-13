@@ -6,7 +6,7 @@ export const UI_EASE = [0.23, 1, 0.32, 1] as const;
 export const UI_SPRING = {
   type: "spring",
   duration: 0.3,
-  bounce: 0.2,
+  bounce: 0,
 } as const;
 
 export const keyboardInteraction = (): boolean =>
@@ -64,11 +64,11 @@ export const initializeMotionInput = (): void => {
   document.addEventListener("pointercancel", release, { capture: true });
   document.documentElement.style.setProperty(
     "--motion-spring",
-    spring({ keyframes: [0, 1], duration: 300, bounce: 0.2 }).toString()
+    spring({ keyframes: [0, 1], duration: 300, bounce: 0 }).toString()
   );
   document.documentElement.style.setProperty(
     "--motion-press",
-    spring({ keyframes: [0, 1], duration: 240, bounce: 0.2 }).toString()
+    spring({ keyframes: [0, 1], duration: 240, bounce: 0 }).toString()
   );
   document.documentElement.dataset["motionInput"] = "initial";
   document.addEventListener(

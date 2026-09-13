@@ -41,6 +41,9 @@ export default defineConfig({
       // `environment.ts` spells "unset".
       env: {
         DATABASE_URL: "",
+        EMAIL_DOMAIN: "",
+        EMAIL_WORKER_URL: "",
+        EMAIL_WEBHOOK_SECRET: "",
         BROWSER_USE_API_KEY: "REPLACE_ME_BROWSER_USE_KEY",
         ANTHROPIC_API_KEY: "sk-ant-REPLACE_ME",
         OPENAI_COMPATIBLE_API_KEY: "",

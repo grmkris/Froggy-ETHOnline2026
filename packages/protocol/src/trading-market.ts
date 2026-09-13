@@ -77,3 +77,21 @@ export const TokenInspectResult = Schema.Struct({
   }),
 });
 export type TokenInspectResult = typeof TokenInspectResult.Type;
+
+export const TokenPriceSeries = Schema.Struct({
+  window: Schema.Literals(["24h", "7d"]),
+  interval: Schema.Literals(["15m", "1H"]),
+  status: Schema.Literals(["observed", "unavailable"]),
+  points: Schema.Array(
+    Schema.Struct({ at: Timestamp, close: NonNegative })
+  ).check(Schema.isMaxLength(250)),
+});
+export type TokenPriceSeries = typeof TokenPriceSeries.Type;
+export const TokenSnapshotResult = Schema.Struct({
+  ...common,
+  operation: Schema.Literal("token_snapshot"),
+  address: TradingAddress,
+  token: Schema.NullOr(MarketToken),
+  series: Schema.Array(TokenPriceSeries).check(Schema.isMaxLength(2)),
+});
+export type TokenSnapshotResult = typeof TokenSnapshotResult.Type;

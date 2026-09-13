@@ -13,7 +13,7 @@
  * one signed-in person approving another's spend by guessing an id.
  */
 
-import type { UserId } from "@froggy/domain";
+import type { RunId, UserId } from "@froggy/domain";
 import type { ApprovalRequest } from "@froggy/protocol";
 
 export type ApprovalOutcome =
@@ -148,6 +148,14 @@ export class InteractionRegistry {
     }
     entry.settle({ accessToken, kind: "answered", optionId });
     return true;
+  }
+
+  abortRun(userId: UserId, runId: RunId, reason: string): void {
+    for (const entry of this.parked.values()) {
+      if (entry.userId === userId && entry.request.runId === runId) {
+        entry.settle({ kind: "aborted", reason });
+      }
+    }
   }
 
   /** Every card this user has open is denied. "Stop the agent" is the usual caller. */

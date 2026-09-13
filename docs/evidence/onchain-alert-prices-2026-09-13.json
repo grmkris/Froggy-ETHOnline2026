@@ -1,0 +1,225 @@
+{
+  "v": 1,
+  "date": "2026-09-13",
+  "scope": "Read-only price-source verification; no signing, funds, database writes, Telegram delivery, or deployment.",
+  "observations": [
+    {
+      "network": "eip155:8453",
+      "label": "ETH/USD oracle",
+      "proof": "substreams_sealed_header",
+      "source": {
+        "v": 1,
+        "key": "eip155:8453:native:oracle:0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+        "network": "eip155:8453",
+        "token": "native",
+        "quoteCurrency": "USD",
+        "label": "ETH/USD oracle",
+        "basis": "per_token",
+        "limitations": [],
+        "kind": "oracle",
+        "oracle": {
+          "proxy": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+          "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+          "decimals": 8,
+          "heartbeatSeconds": 1200,
+          "sequencer": "0xbcf85224fc0756b9fa45aa7892530b47e10b6433",
+          "stockToken": null
+        }
+      },
+      "observation": {
+        "v": 1,
+        "sourceKey": "eip155:8453:native:oracle:0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+        "network": "eip155:8453",
+        "blockNumber": 51236115,
+        "blockHash": "0xfde83a52f30df56d969836440c4d0447eff7de69877f76428e70251e76222a05",
+        "blockTime": 1789261577000,
+        "status": "available",
+        "price": "2524.56578916",
+        "numerator": "252456578916",
+        "denominator": "100000000",
+        "reason": null,
+        "stubbed": false
+      }
+    },
+    {
+      "network": "eip155:8453",
+      "label": "Base ETH direct USDC pool",
+      "proof": "substreams_sealed_header",
+      "source": {
+        "v": 1,
+        "key": "eip155:8453:0x96d4b53a38337a5733179751781178a2613306063c511b78cd02684739288c0a:USDC",
+        "network": "eip155:8453",
+        "token": "native",
+        "quoteCurrency": "USDC",
+        "label": "uniswap_v4 USDC spot price",
+        "basis": "per_token",
+        "limitations": [
+          "Pool spot prices can move within a block; the liquidity floor does not guarantee execution at this price."
+        ],
+        "kind": "pool",
+        "pool": {
+          "protocol": "uniswap_v4",
+          "contract": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+          "factory": null,
+          "poolId": "0x96d4b53a38337a5733179751781178a2613306063c511b78cd02684739288c0a",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "tokenDecimals": 18,
+          "quoteToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "quoteDecimals": 6,
+          "quoteSymbol": "USDC",
+          "fee": 500,
+          "tickSpacing": 10,
+          "hook": "0x0000000000000000000000000000000000000000",
+          "stateView": "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71"
+        },
+        "conversion": null
+      },
+      "observation": {
+        "v": 1,
+        "sourceKey": "eip155:8453:0x96d4b53a38337a5733179751781178a2613306063c511b78cd02684739288c0a:USDC",
+        "network": "eip155:8453",
+        "blockNumber": 51236115,
+        "blockHash": "0xfde83a52f30df56d969836440c4d0447eff7de69877f76428e70251e76222a05",
+        "blockTime": 1789261577000,
+        "status": "available",
+        "price": "2524.991916138847763451508716942213299416517190588308088444575369764024320861575459",
+        "numerator": "15849631138632501599674098159791571882687811312489000000000000000000",
+        "denominator": "6277101735386680763835789423207666416102355444464034512896000000",
+        "reason": null,
+        "stubbed": false
+      }
+    },
+    {
+      "network": "eip155:4663",
+      "label": "ETH/USD oracle",
+      "proof": "public_rpc_header_only",
+      "source": {
+        "v": 1,
+        "key": "eip155:4663:native:oracle:0x5058adee53b04e374d8bedbad634bc4778f50b22",
+        "network": "eip155:4663",
+        "token": "native",
+        "quoteCurrency": "USD",
+        "label": "ETH/USD oracle",
+        "basis": "per_token",
+        "limitations": [
+          "No official sequencer uptime feed is published for this network; alerts require a fresh, hash-matched sealed block."
+        ],
+        "kind": "oracle",
+        "oracle": {
+          "proxy": "0x5058adee53b04e374d8bedbad634bc4778f50b22",
+          "aggregator": "0x6091e64eb7138eef066a80fd3a0d7427b91f2721",
+          "decimals": 8,
+          "heartbeatSeconds": 86400,
+          "sequencer": null,
+          "stockToken": null
+        }
+      },
+      "observation": {
+        "v": 1,
+        "sourceKey": "eip155:4663:native:oracle:0x5058adee53b04e374d8bedbad634bc4778f50b22",
+        "network": "eip155:4663",
+        "blockNumber": 61553009,
+        "blockHash": "0xdc662f193b01c6da1e6578c75b1126bebcb0247e90dc02616722664bff3fd56a",
+        "blockTime": 1789261586000,
+        "status": "available",
+        "price": "2516.61512973",
+        "numerator": "251661512973",
+        "denominator": "100000000",
+        "reason": null,
+        "stubbed": false
+      }
+    },
+    {
+      "network": "eip155:4663",
+      "label": "NVDA per-token USD",
+      "proof": "public_rpc_header_only",
+      "source": {
+        "v": 1,
+        "key": "eip155:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:oracle:0xcf169363636d73dbbf77733629cb38919d14232d",
+        "network": "eip155:4663",
+        "token": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+        "quoteCurrency": "USD",
+        "label": "NVDA/USD oracle",
+        "basis": "per_token",
+        "limitations": [
+          "No official sequencer uptime feed is published for this network; alerts require a fresh, hash-matched sealed block.",
+          "Price is USD per token, already adjusted by the issuer multiplier; stock feeds follow market hours."
+        ],
+        "kind": "oracle",
+        "oracle": {
+          "proxy": "0xcf169363636d73dbbf77733629cb38919d14232d",
+          "aggregator": "0xc9d16e4f2569b9e3ea0468fd85844953713dc2a2",
+          "decimals": 8,
+          "heartbeatSeconds": 86400,
+          "sequencer": null,
+          "stockToken": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+        }
+      },
+      "observation": {
+        "v": 1,
+        "sourceKey": "eip155:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:oracle:0xcf169363636d73dbbf77733629cb38919d14232d",
+        "network": "eip155:4663",
+        "blockNumber": 61553009,
+        "blockHash": "0xdc662f193b01c6da1e6578c75b1126bebcb0247e90dc02616722664bff3fd56a",
+        "blockTime": 1789261586000,
+        "status": "unavailable",
+        "price": null,
+        "numerator": null,
+        "denominator": null,
+        "reason": "The USD oracle is stale or returned an invalid round.",
+        "stubbed": false
+      }
+    },
+    {
+      "network": "eip155:4663",
+      "label": "pools.trade ETH quote",
+      "proof": "public_rpc_header_only",
+      "source": {
+        "v": 1,
+        "key": "eip155:4663:0x9e3ce8a652954bd9b43019286b7f3b5d18cfb93bf8e35e1de6a5e93ee5a4c33f:ETH",
+        "network": "eip155:4663",
+        "token": "0xFcb999Fa31Cc0abf3A072bEc610a621eaEE62998",
+        "quoteCurrency": "ETH",
+        "label": "uniswap_v4 ETH spot price",
+        "basis": "per_token",
+        "limitations": [
+          "Pool spot prices can move within a block; the liquidity floor does not guarantee execution at this price.",
+          "No official sequencer uptime feed is published for this network; alerts require a fresh, hash-matched sealed block."
+        ],
+        "kind": "pool",
+        "pool": {
+          "protocol": "uniswap_v4",
+          "contract": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+          "factory": null,
+          "poolId": "0x9e3ce8a652954bd9b43019286b7f3b5d18cfb93bf8e35e1de6a5e93ee5a4c33f",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0xfcb999fa31cc0abf3a072bec610a621eaee62998",
+          "tokenDecimals": 18,
+          "quoteToken": "0x0000000000000000000000000000000000000000",
+          "quoteDecimals": 18,
+          "quoteSymbol": "ETH",
+          "fee": 2500,
+          "tickSpacing": 25,
+          "hook": "0x0000000000000000000000000000000000000000",
+          "stateView": "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b"
+        },
+        "conversion": null
+      },
+      "observation": {
+        "v": 1,
+        "sourceKey": "eip155:4663:0x9e3ce8a652954bd9b43019286b7f3b5d18cfb93bf8e35e1de6a5e93ee5a4c33f:ETH",
+        "network": "eip155:4663",
+        "blockNumber": 61553009,
+        "blockHash": "0xdc662f193b01c6da1e6578c75b1126bebcb0247e90dc02616722664bff3fd56a",
+        "blockTime": 1789261586000,
+        "status": "available",
+        "price": "0.000000024806806591133843731468849094954068768313295001736215119727813702827",
+        "numerator": "6277101735386680763835789423207666416102355444464034512896000000000000000000",
+        "denominator": "253039491896154357937261289571291942033154205911603585240490459136000000000000000000",
+        "reason": null,
+        "stubbed": false
+      }
+    }
+  ]
+}

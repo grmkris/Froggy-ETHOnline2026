@@ -3,22 +3,18 @@ import { expect, test } from "@playwright/test";
 import { captureResponsive } from "./capture";
 import { lowerApprovalThreshold } from "./mandate";
 
-/**
- * The approval round trip, end to end, with no key in sight.
- *
- * The scripted model pays the oracle a fraction of a cent, which is under
- * every default cap. Lowering the threshold below that makes the same turn
- * ask — and the answer, given from the pinned ticket, is what the receipt
- * records.
- */
-test("a spend over the threshold asks, and the answer is on the receipt", async ({
+/** Wallet transfers keep their explicit approval and receipt flow. */
+test("a wallet transfer asks, and the answer is on the receipt", async ({
   page,
 }, testInfo) => {
   const leash = await lowerApprovalThreshold(page, 0.001);
   await page.goto("/chat");
   await leash.applied;
 
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
 
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
@@ -58,7 +54,10 @@ test("saying no files a refusal, and nothing is paid", async ({ page }) => {
   await page.goto("/chat");
   await leash.applied;
 
-  await page.getByText("Buy the lending snapshot").click();
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   const ticket = page.getByLabel(/^Approve .* to /u);
   await expect(ticket).toBeVisible({ timeout: 20_000 });
   await ticket.getByRole("button", { name: "Not this time" }).click();

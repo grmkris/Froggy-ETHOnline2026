@@ -72,16 +72,18 @@ const validateSimulation = (
   const partial = input.venue === "pons" && phase === "curve";
   if (
     spent === undefined ||
-    received === undefined ||
+    (input.action !== "bridge" && received === undefined) ||
     actualInput <= 0n ||
     (partial
       ? actualInput > BigInt(input.amount)
       : actualInput !== BigInt(input.amount)) ||
-    BigInt(received.after) - BigInt(received.before) <
-      minimumTradeOutput(
-        { input, phase, minimumOutput: minimum },
-        actualInput.toString()
-      )
+    (input.action !== "bridge" &&
+      received !== undefined &&
+      BigInt(received.after) - BigInt(received.before) <
+        minimumTradeOutput(
+          { input, phase, minimumOutput: minimum },
+          actualInput.toString()
+        ))
   ) {
     throw new Error(
       "trade.simulation: token changes do not match the approved input and minimum output."
@@ -100,7 +102,10 @@ export const simulateEvmTrade = async (
   if (blockNumber > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("trade.block: block exceeds the simulator range.");
   }
-  const tokens = [input.tokenIn, input.tokenOut];
+  const tokens =
+    input.action === "bridge"
+      ? [input.tokenIn]
+      : [input.tokenIn, input.tokenOut];
   const assets = await Promise.all(
     tokens.map(async (address) => {
       const balance = await tradeTokenBalance(

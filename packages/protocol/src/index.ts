@@ -117,6 +117,8 @@ export {
   MarketSearchResult,
   TokenInspectInput,
   TokenInspectResult,
+  TokenSnapshotResult,
+  TokenPriceSeries,
 } from "./trading-market";
 export { SwapQuoteInput, SwapQuoteResult } from "./trading-quote";
 export { RpcReadInput, RpcReadResult } from "./trading-rpc";
@@ -131,6 +133,7 @@ export {
   LaunchWatchRequest,
   MarketSearchRequest,
   TokenInspectRequest,
+  TokenSnapshotRequest,
   RpcReadRequest,
   SwapQuoteRequest,
   TokenResearchRequest,
@@ -164,7 +167,68 @@ export {
   BrowseQuote,
   BrowseQuoteResponse,
   BrowseChallenge,
+  BrowseActivity,
+  BrowsePhase,
+  BrowseTaskProgress,
+  BrowseTaskView,
+  BrowseTaskResponse,
+  BrowseTasksResponse,
+  BrowseTaskControl,
 } from "./browse";
 
 export { LaunchWatchTicket, LaunchWatchResult } from "./trading-launches";
 export { HistoryBusiness, HistoryDetail, HistoryUpdate } from "./history";
+
+export {
+  EmailClaim,
+  EmailDraftRequest,
+  EmailRevision,
+  EmailStatus,
+  EmailPage,
+  EmailInbound,
+  EmailDelivery,
+  EmailMove,
+  EmailWorkerSend,
+  EmailSendResult,
+} from "./email";
+
+export {
+  WatchlistCreate,
+  WatchlistPatch,
+  WatchlistList,
+  WatchlistResolve,
+  WatchlistPreview,
+  WatchlistCapture,
+  WatchlistCaptured,
+  WatchlistDetails,
+  WatchlistDetailsList,
+} from "./watchlist";
+
+export {
+  MonitoringBudgetRequest,
+  MonitorRequest,
+  MonitorAction,
+  MonitoringState,
+  TaskOutcome,
+} from "./monitoring";
+
+export {
+  TrackWalletInput,
+  WalletMonitorUpdate,
+  WalletMonitorStart,
+  WalletMonitorView,
+} from "./wallet-monitor";
+
+export { OnchainMonitorConfigure } from "./wallet-monitor";
+
+export {
+  CreditSummary,
+  CreditLimits,
+  CreditPurchase,
+  CreditUnits,
+  CreditLimitsUpdate,
+  CreditActivity,
+  CreditState,
+} from "./credits";
+
+export * from "./card-checkout";

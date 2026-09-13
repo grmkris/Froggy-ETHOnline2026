@@ -31,3 +31,18 @@ export type {
   GraphSnapshot,
   LendingMarket,
 } from "./types";
+
+export {
+  liveWalletStream,
+  stubWalletStream,
+  packagedWalletStream,
+  demoWalletStream,
+} from "./wallet-stream";
+export type {
+  WalletStream,
+  WalletStreamMessage,
+  WalletStreamBlock,
+  WalletStreamTransaction,
+  WalletStreamRequest,
+  WalletStreamPriceSource,
+} from "./wallet-stream";

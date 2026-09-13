@@ -17,6 +17,7 @@ import { recordCloudUsage } from "./cloud-usage";
 import type { CloudUsage } from "./cloud-usage";
 import { BrowserSessionClosedError, BrowserStartError } from "./errors";
 import type { BrowserHandle } from "./handle";
+import { HostedBrowserExpiredError } from "./hosted-agent";
 import type { FrameSubscriber } from "./screencast";
 import { BrowserSession } from "./session";
 import type { BrowserSessionOptions } from "./session";
@@ -24,6 +25,7 @@ import type { TabView } from "./tabs";
 
 /** Only provider identifiers are persisted; viewer/CDP credentials are fetched afresh. */
 export interface CloudBrowserRecord {
+  readonly apiVersion?: 3 | 4 | undefined;
   readonly profileId: string;
   readonly browserId: string | null;
   readonly uncertain: boolean;
@@ -32,12 +34,13 @@ export interface CloudBrowserRecord {
 
 export interface CloudBrowserOptions extends BrowserSessionOptions {
   readonly api: CloudApi;
+  readonly hostedApi?: CloudApi;
   readonly userKey: string;
   readonly load: () => Promise<CloudBrowserRecord | null>;
   readonly save: (record: CloudBrowserRecord) => Promise<void>;
 }
 
-/** Cloud owns Chrome; Froggy remains the only agent allowed to drive it. */
+/** One browser, with the hosted worker and human input under explicit ownership. */
 export class CloudBrowser implements BrowserHandle {
   private session: BrowserSession;
   private connection: CloudCdp | null = null;
@@ -48,6 +51,7 @@ export class CloudBrowser implements BrowserHandle {
   private generation = 0;
   private closing = false;
   private failure: string | null = null;
+  private hostedDriving = false;
   private readonly listeners = new Set<
     (request: BrowserPaymentRequest) => void
   >();
@@ -61,13 +65,117 @@ export class CloudBrowser implements BrowserHandle {
     this.session = this.build();
   }
 
+  readonly hosted = {
+    prepare: async (): Promise<string> => {
+      this.hostedDriving = true;
+      await this.close();
+      this.hostedDriving = true;
+      this.control = "agent";
+      const previous = await this.options.load();
+      this.record = previous ?? {
+        profileId: await this.options.api.profile(this.options.userKey),
+        browserId: null,
+        uncertain: false,
+      };
+      await this.options.save(this.record);
+      return this.record.profileId;
+    },
+    attach: async (browserId: string): Promise<void> => {
+      this.hostedDriving = true;
+      const previous = this.record ?? (await this.options.load());
+      if (previous === null) {
+        throw new BrowserStartError("The hosted browser profile is missing.");
+      }
+      if (previous.browserId !== null && previous.browserId !== browserId) {
+        throw new BrowserStartError(
+          "The hosted worker opened an unexpected browser. Stop it before continuing."
+        );
+      }
+      const adopted: CloudBrowserRecord = {
+        ...previous,
+        browserId,
+        apiVersion: 4,
+        uncertain: false,
+      };
+      const info = await this.browserApi(adopted).get(browserId);
+      if (info.status === "stopped") {
+        throw new HostedBrowserExpiredError();
+      }
+      this.record = adopted;
+      this.info = info;
+      await this.options.save(this.record);
+      this.reconnectIfFailed();
+      await this.session.start();
+    },
+    stopUnexpected: async (browserId: string): Promise<void> => {
+      const api = this.options.hostedApi;
+      if (api === undefined) {
+        throw new BrowserStartError("Hosted browser adapter unavailable.");
+      }
+      await api.stop(browserId);
+      const info = await api.get(browserId);
+      if (info.status !== "stopped") {
+        throw new BrowserStartError(
+          "Replacement browser shutdown is unconfirmed."
+        );
+      }
+      const record = this.record ?? (await this.options.load());
+      if (record !== null) {
+        this.record = {
+          ...record,
+          usage: recordCloudUsage(record.usage, browserId, info, Date.now()),
+        };
+        await this.options.save(this.record);
+      }
+    },
+    detach: (): void => {
+      this.closing = true;
+      this.connection?.close();
+      this.session.close();
+      this.connection = null;
+      this.info = null;
+      this.closing = false;
+    },
+    control: async (control: "agent" | "human" | "stopping"): Promise<void> => {
+      this.hostedDriving = true;
+      this.control = control;
+      this.generation += 1;
+      if (control === "human") {
+        await this.session.takePage();
+      }
+      this.publish();
+    },
+    release: (): void => {
+      this.hostedDriving = false;
+    },
+  };
+
+  private browserApi(record: CloudBrowserRecord | null): CloudApi {
+    if (record?.apiVersion === 4) {
+      if (this.options.hostedApi === undefined) {
+        throw new BrowserStartError(
+          "The hosted browser adapter is unavailable."
+        );
+      }
+      return this.options.hostedApi;
+    }
+    return this.options.api;
+  }
+
   state(): BrowserState {
     const state = this.session.state();
+    let { interaction } = state;
+    if (this.hostedDriving) {
+      interaction = "agent";
+    }
+    if (this.control === "human") {
+      interaction = "human";
+    }
     return {
       ...state,
       error: this.failure ?? state.error,
       status: this.failure === null ? state.status : "crashed",
-      interaction: this.control === "human" ? "human" : state.interaction,
+      interaction,
       cloud: {
         control: this.control,
         viewerReady: this.info?.liveUrl !== null && this.info !== null,
@@ -91,6 +199,16 @@ export class CloudBrowser implements BrowserHandle {
   }
 
   async handleClientMessage(message: BrowserClientMessage): Promise<void> {
+    if (
+      this.hostedDriving &&
+      (message.type === "browser.take" ||
+        message.type === "browser.resume" ||
+        (message.type === "browser.start" && message.url !== undefined))
+    ) {
+      throw new Error(
+        "Use the browser task controls to hand over this browser."
+      );
+    }
     if (message.type === "browser.take") {
       await this.takePage();
       return;
@@ -118,6 +236,9 @@ export class CloudBrowser implements BrowserHandle {
   async agentNavigate(url: string) {
     return await this.agent(async () => await this.session.agentNavigate(url));
   }
+  async checkoutFrames() {
+    return await this.session.checkoutFrames();
+  }
   async agentSnapshot() {
     return await this.agent(async () => await this.session.agentSnapshot());
   }
@@ -138,6 +259,9 @@ export class CloudBrowser implements BrowserHandle {
   async replayPayment(
     payment: BrowserPaymentReplay
   ): Promise<BrowserPaymentResult> {
+    if (this.hostedDriving) {
+      return await this.session.replayPayment(payment);
+    }
     return await this.agent(
       async () => await this.session.replayPayment(payment)
     );
@@ -176,6 +300,9 @@ export class CloudBrowser implements BrowserHandle {
   }
 
   async takePage(): Promise<void> {
+    if (this.hostedDriving) {
+      throw new Error("Wait for the hosted worker to release the browser.");
+    }
     this.generation += 1;
     this.control = "stopping";
     this.publish();
@@ -196,7 +323,15 @@ export class CloudBrowser implements BrowserHandle {
         // lifecycle call and the accounting read. It is deliberately not
         // caught: a browser we failed to stop must keep its id in the record,
         // or nothing will ever stop it and the provider keeps billing.
-        const finalInfo = await this.options.api.stop(record.browserId);
+        const api = this.browserApi(record);
+        const stopped = await api.stop(record.browserId);
+        const finalInfo =
+          record.apiVersion === 4 ? await api.get(record.browserId) : stopped;
+        if (record.apiVersion === 4 && finalInfo?.status !== "stopped") {
+          throw new BrowserStartError(
+            "Browser shutdown is not confirmed. Human input remains locked."
+          );
+        }
         const usage = recordCloudUsage(
           record.usage,
           record.browserId,
@@ -206,6 +341,7 @@ export class CloudBrowser implements BrowserHandle {
         await this.options.save({
           ...record,
           browserId: null,
+          apiVersion: 3,
           uncertain: false,
           usage,
         });
@@ -216,6 +352,7 @@ export class CloudBrowser implements BrowserHandle {
       this.info = null;
       this.record = null;
       this.failure = null;
+      this.hostedDriving = false;
       this.session = this.build();
     } finally {
       this.closing = false;
@@ -238,6 +375,11 @@ export class CloudBrowser implements BrowserHandle {
       await bestEffort(previous);
       if (generation !== this.generation || this.closing) {
         throw new BrowserSessionClosedError();
+      }
+      if (this.hostedDriving) {
+        throw new Error(
+          "A delegated browser task owns this browser. Use its task controls."
+        );
       }
       if (this.control !== "agent") {
         throw new Error(
@@ -302,12 +444,17 @@ export class CloudBrowser implements BrowserHandle {
     };
     await this.options.save(this.record);
     if (this.record.browserId !== null) {
-      this.info = await this.options.api.get(this.record.browserId);
+      this.info = await this.browserApi(this.record).get(this.record.browserId);
       if (this.info.status === "stopped") {
         this.info = null;
       }
     }
     if (this.info === null) {
+      if (this.record.apiVersion === 4) {
+        throw new BrowserStartError(
+          "The hosted browser expired. Reconnect explicitly before continuing."
+        );
+      }
       // Persist the uncertain dispatch before calling the paid provider.
       await this.options.save({ ...this.record, uncertain: true });
       this.info = await this.options.api.create(this.record.profileId);

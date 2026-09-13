@@ -34,6 +34,7 @@ import { MarkerRow } from "./marker-row";
 import { Turn } from "./turn";
 
 interface StreamProps {
+  readonly context?: ReactElement;
   /** An approval card is open somewhere on the page. */
   readonly asking: boolean;
   readonly busy: boolean;
@@ -88,6 +89,7 @@ const ThinkingMarker = (): ReactElement => (
 );
 
 export const Stream = ({
+  context,
   asking,
   busy,
   items,
@@ -125,6 +127,11 @@ export const Stream = ({
             className="mx-auto w-full max-w-3xl gap-5"
             role="log"
           >
+            {context ? (
+              <MessageScrollerItem messageId="email-context">
+                {context}
+              </MessageScrollerItem>
+            ) : null}
             {liveAtTop ? (
               <MessageScrollerItem messageId="live">
                 {liveCard}

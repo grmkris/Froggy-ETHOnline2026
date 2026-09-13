@@ -196,6 +196,14 @@ export class TradeCoordinator {
   ): Promise<TradeTicket> {
     const decoded = Schema.decodeUnknownSync(TradePrepare)(request);
     const { input } = decoded;
+    if (input.bridge !== undefined && input.action !== "bridge") {
+      throw new Error(
+        "trade.bridge_identity: recipient overrides apply only to card funding."
+      );
+    }
+    if (input.action === "bridge" && context.connectionId !== null) {
+      throw new Error("trade.human_only: agents cannot prepare card funding.");
+    }
     const backend = this.backend(input);
     const owner = context.session.userId;
     if (!backend.stubbed) {

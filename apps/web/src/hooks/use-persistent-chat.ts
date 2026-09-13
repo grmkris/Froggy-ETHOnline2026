@@ -16,19 +16,23 @@ const routeConversation = (path: string): ConversationId | null => {
   return Schema.is(ConversationId)(id) ? id : null;
 };
 const messagesOf = async (records: readonly HistoryMessage[]) =>
-  await validateUIMessages<FroggyMessage>({
-    messages: records
-      .toSorted((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-      .map((record) => ({
-        id: record.id,
-        role: record.role,
-        parts: record.parts,
-        metadata: {
-          at: record.createdAt,
-          runId: record.runId ?? undefined,
-        },
-      })),
-  });
+  records.length === 0
+    ? []
+    : await validateUIMessages<FroggyMessage>({
+        messages: records
+          .toSorted(
+            (a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+          )
+          .map((record) => ({
+            id: record.id,
+            role: record.role,
+            parts: record.parts,
+            metadata: {
+              at: record.createdAt,
+              runId: record.runId ?? undefined,
+            },
+          })),
+      });
 
 export const usePersistentChat = (client: HistoryClient) => {
   const { pathname } = useLocation();

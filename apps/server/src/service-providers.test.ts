@@ -8,7 +8,7 @@ import { Effect, Redacted } from "effect";
 import { loadEnvironment } from "./environment";
 import type { Environment } from "./environment";
 import { boundedBytes } from "./outbound";
-import { runServiceProvider } from "./service-providers";
+import { resumeServiceProvider, runServiceProvider } from "./service-providers";
 import { createServices } from "./services";
 
 let environment: Environment;
@@ -101,7 +101,7 @@ const fixture = (answers: readonly Response[]) => {
   };
 };
 const input = {
-  v: 1 as const,
+  v: 2 as const,
   service: "web_search" as const,
   prompt: "train tickets",
   idempotencyKey: "provider-test",
@@ -282,6 +282,27 @@ describe("service providers", () => {
     expect(setup.requests[2]?.payment).toBe("test-proof");
     expect(setup.requests[2]?.url).toContain("/images/generations/img_fixture");
     expect(setup.signatures()).toBe(1);
+  });
+  it("recovers a saved image job using only its original authorization", async () => {
+    const setup = fixture([
+      Response.json({ data: [{ b64_json: "iVBORw0KGgo=" }] }),
+    ]);
+    const result = await resumeServiceProvider(
+      {
+        providerJob: {
+          id: "img_saved",
+          headers: { "payment-signature": "saved-authorization" },
+          transactionId: "saved-settlement",
+        },
+      },
+      setup.outbound
+    );
+    expect(result.artifact?.mime).toBe("image/png");
+    expect(result.upstreamTransactionId).toBe("saved-settlement");
+    expect(setup.requests).toHaveLength(1);
+    expect(setup.requests[0]?.url).toContain("/images/generations/img_saved");
+    expect(setup.requests[0]?.payment).toBe("saved-authorization");
+    expect(setup.signatures()).toBe(0);
   });
   it("accepts the inline raster fallback without another fetch or signature", async () => {
     const setup = fixture([

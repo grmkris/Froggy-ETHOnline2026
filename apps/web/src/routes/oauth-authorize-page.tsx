@@ -28,6 +28,52 @@ interface ScopeCopy {
 
 const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   [
+    "watchlist:read",
+    {
+      title: "Read your watchlist",
+      detail: "Read saved items and their observations.",
+    },
+  ],
+  [
+    "watchlist:write",
+    {
+      title: "Manage saved items",
+      detail:
+        "Save, edit, and archive items. Monitoring needs separate automation permission.",
+    },
+  ],
+  [
+    "automation",
+    {
+      title: "Manage automation",
+      detail:
+        "Configure and pause checks within your monitoring budget. Cannot raise limits.",
+    },
+  ],
+  [
+    "notifications",
+    {
+      title: "Notify you",
+      detail: "Send updates to Froggy and your paired Telegram chat.",
+    },
+  ],
+  [
+    "email:read",
+    {
+      title: "Read your whole email mailbox",
+      detail:
+        "Read and search all Froggy email messages and supported attachments.",
+    },
+  ],
+  [
+    "email:draft",
+    {
+      title: "Prepare email drafts",
+      detail:
+        "Create documents and drafts. Only you can approve sending in Froggy.",
+    },
+  ],
+  [
     "history",
     {
       title: "Read this connection’s activity",
@@ -37,26 +83,27 @@ const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   ],
   [
     "brief",
-    { detail: "$0.05 each, from The Graph.", title: "Buy lending briefs" },
+    { detail: "5 credits each, from The Graph.", title: "Buy lending briefs" },
   ],
   [
     "browse",
     {
-      detail: "$0.50 per task, up to forty steps.",
+      detail: "Use your credits within each task’s budget and browsing limit.",
       title: "Browse on your shared Chrome",
     },
   ],
   [
     "pay",
     {
-      detail: "Pay a 402 from your wallet for a task the agent brings.",
+      detail:
+        "Pay external x402 sellers from your wallet within its permissions.",
       title: "Sign x402 payments",
     },
   ],
   [
     "services",
     {
-      detail: "Search, images, inference and speech at fixed prices.",
+      detail: "Search, images, inference and speech at fixed credit prices.",
       title: "Buy services",
     },
   ],
@@ -112,7 +159,7 @@ const requestFromSearch = (search: string): AuthorizeRequest | null => {
 /** The scopes the client asked for, in the page's order; all of them when it named none. */
 const requestedScopes = (scope: string | undefined): readonly OAuthScope[] => {
   if (scope === undefined || scope.trim() === "") {
-    return OAUTH_SCOPES;
+    return ["brief", "browse", "pay", "services", "history"];
   }
   const names = new Set(scope.split(" "));
   return OAUTH_SCOPES.filter((known) => names.has(known));
@@ -221,9 +268,7 @@ const Consent = ({
           className="font-display text-xl font-semibold tracking-tight"
           id="consent-heading"
         >
-          {client.isPending
-            ? "Loading…"
-            : `${name} wants to use your Froggy wallet`}
+          {client.isPending ? "Loading…" : `${name} wants to connect to Froggy`}
         </h1>
         <p className="text-muted-foreground mt-2">
           It returns to{" "}
