@@ -92,8 +92,8 @@ describe("owner credit funding", () => {
       expect("paymentHeader" in quote).toBe(false);
       expect("challenge" in quote).toBe(false);
       await Promise.all([
-        services.creditFunding.pay(owner, quote.id, "local-owner"),
-        services.creditFunding.pay(owner, quote.id, "local-owner"),
+        services.creditFunding.pay(owner, quote.id),
+        services.creditFunding.pay(owner, quote.id),
       ]);
       const completed = await waitForFunding(context, quote.id);
       expect(completed.status).toBe("confirmed");
@@ -162,10 +162,10 @@ describe("owner credit funding", () => {
       },
       defaultCreditLimits()
     );
-    const paying = services.creditFunding.pay(owner, quote.id, "local-owner");
-    expect(
-      services.creditFunding.pay(other, quote.id, "different-owner")
-    ).rejects.toThrow("not found");
+    const paying = services.creditFunding.pay(owner, quote.id);
+    expect(services.creditFunding.pay(other, quote.id)).rejects.toThrow(
+      "not found"
+    );
     expect(services.creditFunding.get(other, quote.id)).rejects.toThrow(
       "not found"
     );

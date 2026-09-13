@@ -8,7 +8,6 @@ import {
 import { CreditStoreError } from "@froggy/wallet";
 import { Schema } from "effect";
 
-import { bearerFromRequest } from "./auth";
 import { CreditPurchaseRequest } from "./credit-funding";
 import { creditLimitsFromMandate } from "./credit-task";
 import { boundedBytes } from "./outbound";
@@ -64,11 +63,7 @@ const paymentRoute = async (
   Schema.decodeUnknownSync(
     Schema.fromJsonString(Schema.Struct({ v: Schema.Literal(1) }))
   )(await readBody(request));
-  const accessToken = bearerFromRequest(request);
-  if (accessToken === null) {
-    return json({ v: 1, error: "Sign in to buy credits." }, 401);
-  }
-  return json(await services.creditFunding.pay(owner, id, accessToken), 202);
+  return json(await services.creditFunding.pay(owner, id), 202);
 };
 
 const errorStatus = (code: string): number => {

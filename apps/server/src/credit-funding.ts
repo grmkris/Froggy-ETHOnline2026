@@ -10,9 +10,9 @@ import {
   creditEvmAuthorization,
   creditEvmPayer,
   describePayment,
-  evmPayer,
   isEvmNetwork,
   lookupHederaTransactionDetails,
+  verifyCreditAuthorization,
 } from "@froggy/payments";
 import type { CreditSettlement, EvmCreditSettlement } from "@froggy/payments";
 import type { CreditState, HederaReceiving } from "@froggy/protocol";
@@ -416,6 +416,38 @@ export class CreditFunding {
           "The payment must come from your connected USDC wallet."
         );
       }
+      // A claimed purchase replays idempotently below; only an unpaid quote is
+      // checked here, so a bad signature is refused while the quote can still
+      // be signed again rather than claimed and failed at settlement.
+      if (purchase.status === "quoted") {
+        if (purchase.expiresAt <= Date.now()) {
+          throw new CreditStoreError(
+            "quote_expired",
+            "This quote expired. Review a new quote before paying."
+          );
+        }
+        const [offer] = Schema.decodeUnknownSync(PaymentChallenge)(
+          purchase.challenge
+        ).accepts;
+        const domain = Schema.decodeUnknownSync(
+          Schema.Struct({ name: Schema.String, version: Schema.String })
+        )(offer?.extra);
+        const check = await verifyCreditAuthorization({
+          header,
+          network: purchase.network,
+          asset: purchase.asset,
+          payTo: purchase.payTo,
+          amount: purchase.amount,
+          domain,
+          now: Date.now(),
+          latestValidBefore:
+            Math.floor(purchase.expiresAt / 1000) +
+            (offer?.maxTimeoutSeconds ?? 120),
+        });
+        if (!check.ok) {
+          throw new CreditStoreError("invalid_payment", check.reason);
+        }
+      }
       authorizationKey = creditEvmAuthorization(header);
     } else {
       const description = describePayment(header);
@@ -445,17 +477,13 @@ export class CreditFunding {
     return publicPurchase(claimed.purchase);
   }
 
-  async pay(
-    owner: UserId,
-    id: CreditPurchaseId,
-    accessToken: string
-  ): Promise<CreditPurchase> {
+  async pay(owner: UserId, id: CreditPurchaseId): Promise<CreditPurchase> {
     await this.require(owner, id);
     const existing = this.signing.get(id);
     if (existing !== undefined) {
       return await existing;
     }
-    const operation = this.sign(owner, id, accessToken);
+    const operation = this.sign(owner, id);
     this.signing.set(id, operation);
     try {
       return await operation;
@@ -466,8 +494,7 @@ export class CreditFunding {
 
   private async sign(
     owner: UserId,
-    id: CreditPurchaseId,
-    accessToken: string
+    id: CreditPurchaseId
   ): Promise<CreditPurchase> {
     const purchase = await this.require(owner, id);
     if (purchase.status !== "quoted") {
@@ -497,12 +524,18 @@ export class CreditFunding {
       ).toString("base64");
       authorizationKey = `stub:${id}`;
     } else {
-      const payer = isEvmNetwork(purchase.network)
-        ? await this.ownerBasePayer(owner, accessToken, purchase.network)
-        : await this.deps.hederaPayerFor({
-            userId: owner,
-            openingUsdMicros: 0,
-          });
+      if (isEvmNetwork(purchase.network)) {
+        // The server holds no credential that may sign for the person; the
+        // browser signs the USDC authorization and posts it as payment-signature.
+        throw new CreditStoreError(
+          "signature_required",
+          "Sign the USDC payment in your browser. If this keeps happening, reload the page."
+        );
+      }
+      const payer = await this.deps.hederaPayerFor({
+        userId: owner,
+        openingUsdMicros: 0,
+      });
       const payment = await payer.pay(challenge);
       if (payment.header === null || payment.stubbed) {
         throw new CreditStoreError(
@@ -512,12 +545,10 @@ export class CreditFunding {
       }
       ({ header } = payment);
       const described = describePayment(header);
-      authorizationKey = isEvmNetwork(purchase.network)
-        ? creditEvmAuthorization(header)
-        : `${purchase.network}:${described.transactionId ?? ""}`;
-      if (!isEvmNetwork(purchase.network) && described.transactionId === null) {
+      if (described.transactionId === null) {
         throw new Error("The signed HBAR payment has no transaction identity.");
       }
+      authorizationKey = `${purchase.network}:${described.transactionId}`;
     }
     const claimed = await this.deps.store.credits.claimFunding(owner, id, {
       paymentHeader: header,
@@ -528,24 +559,6 @@ export class CreditFunding {
       this.launch(owner, id);
     }
     return publicPurchase(claimed.purchase);
-  }
-
-  private async ownerBasePayer(
-    owner: UserId,
-    accessToken: string,
-    network: Parameters<typeof evmPayer>[0]["network"]
-  ) {
-    const signer = await this.deps.privy.ownerEvmSigner({
-      did: owner,
-      accessToken,
-    });
-    if (signer === null) {
-      throw new CreditStoreError(
-        "wallet_unavailable",
-        "Your USDC wallet is unavailable."
-      );
-    }
-    return evmPayer({ network, signer });
   }
 
   private async require(
@@ -598,6 +611,9 @@ export class CreditFunding {
             id
           )
         : await this.settleHedera(owner, purchase);
+      console.info(
+        `credit funding ${id}: ${outcome.status} ${outcome.transactionId ?? ""}`.trimEnd()
+      );
       if (outcome.status === "confirmed" && outcome.transactionId !== null) {
         await this.deps.store.credits.confirmFunding(owner, id, {
           transactionId: outcome.transactionId,
