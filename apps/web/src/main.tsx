@@ -1,5 +1,4 @@
 import "@froggy/ui/globals.css";
-import "@froggy/ui/playground.css";
 import { TooltipProvider } from "@froggy/ui/components/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";

@@ -10,7 +10,6 @@
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
-    "./playground.css": "./src/styles/playground.css",
     "./components/*": "./src/components/*.tsx",
     "./lib/*": "./src/lib/*.ts"
   },
