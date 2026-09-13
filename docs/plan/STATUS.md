@@ -245,3 +245,7 @@ Merges back to `main` are rebases by Session M, in the order the lanes finish.
 Owner-visible on the live URL after deploy: `/wallet` shows one dollar total; `/services`, `/agents`, `/settings` are pages. Lane 4 (schedules, notify) and lane 5 (MCP OAuth, `froggy login`) continue in their worktrees.
 
 - **Lane 5 landed on its branch (agent B, 7 Sep):** `c0b4e03` the three OAuth tables and `Store.oauth` (migration to be generated after merge, as 0009); `eb78e13` the authorization server, scopes, `/mcp` with the resource-metadata 401, grants beside tokens on `/api/agents`; `3dd40d2` the consent and manual pages with `e2e/oauth.spec.ts`; `1907f66` `froggy login`/`logout` and the secret-free skill; ADR 0012. Note for the merge: the minted-token input was added to `apps/web/src/components/drawer/agent-settings.tsx`, which `main` has since moved to `components/agents/agent-settings.tsx`. Still owed: `docs/evidence/HERMES.md` and the live checks in plan 5.6.
+
+## Card funding, credentials and the bridge — researched 13 Sep, not started
+
+Post-submission lane. Research (wallet injection mechanics, Browser Use `secretBindings`, PCI stance on cards, Uniswap cross-chain `/quote` → `/swap_5792` → Privy 7702 batch, three swap-then-bridge shapes) in `docs/research/card-funding-and-credentials-2026-09-13.md`; the lane plan with a "Resume here" section in `docs/plan/CARD_FUNDING_IMPLEMENTATION.md`. Nothing built; the one live Uniswap probe that settles the design has not been run and needs the key from Railway. No ADR until it has.
