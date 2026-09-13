@@ -446,6 +446,40 @@ export const updateWalletMonitor = async (
     return next;
   }, deps.network);
 };
+export type WalletStreamHealth =
+  | "stub"
+  | "unavailable"
+  | "idle"
+  | "connecting"
+  | "live"
+  | "delayed";
+
+/** Configuration permits a connection; only fresh stream progress proves it live. */
+export const walletStreamHealth = async (
+  deps: WalletMonitorDeps
+): Promise<WalletStreamHealth> => {
+  if (!deps.source.available) {
+    return "unavailable";
+  }
+  if (deps.source.stubbed) {
+    return "stub";
+  }
+  const checkpoint = await deps.store.walletActivity.transact(
+    async (tx) => await Promise.resolve(tx.checkpoint),
+    deps.network
+  );
+  if (checkpoint.error !== null) {
+    return "unavailable";
+  }
+  if (checkpoint.leaseUntil <= deps.now()) {
+    return "idle";
+  }
+  if (checkpoint.blockAt === 0) {
+    return "connecting";
+  }
+  return deps.now() - checkpoint.blockAt > 15_000 ? "delayed" : "live";
+};
+
 export const walletMonitorStatus = async (
   initial: WalletMonitorDeps,
   owner: UserId,
@@ -477,7 +511,7 @@ export const walletMonitorStatus = async (
         state = "expired";
       } else if (item.archived || !monitor.enabled) {
         state = "paused";
-      } else if (!deps.source.available) {
+      } else if (!deps.source.available || tx.checkpoint.error !== null) {
         state = "unavailable";
       } else if (
         prices.length > 0 &&
@@ -486,10 +520,7 @@ export const walletMonitorStatus = async (
         state = "triggered";
       } else if (tx.checkpoint.block < monitor.startBlock) {
         state = "starting";
-      } else if (
-        now - tx.checkpoint.blockAt > 15_000 ||
-        tx.checkpoint.error !== null
-      ) {
+      } else if (now - tx.checkpoint.blockAt > 15_000) {
         state = "delayed";
       } else if (prices.some((rule) => rule.latest?.status !== "available")) {
         state = "waiting_price";

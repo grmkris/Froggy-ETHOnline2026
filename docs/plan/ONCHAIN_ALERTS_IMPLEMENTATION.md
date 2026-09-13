@@ -1,6 +1,6 @@
 # Onchain alert implementation — 13 September 2026
 
-The Base and Robinhood Watchlist alerts are integrated onto main `0366039` in `/tmp/froggy-alert-main-integration`, without editing the shared checkout. Main supplies the credits, research, browser and existing Watchlist implementations; the Watchlist enrichment and saved-card lanes are retained alongside the alert feature. This record does not assert a production rollout.
+The Base and Robinhood Watchlist alerts are integrated onto main `0366039` in `/tmp/froggy-alert-main-integration`, without editing the shared checkout. Main supplies the credits, research, browser and existing Watchlist implementations; the Watchlist enrichment and saved-card lanes are retained alongside the alert feature. The integration landed on main as `83622af`; the rollout now configures both network sources without deployment switches.
 
 ## Implemented
 
@@ -38,6 +38,6 @@ After rebasing onto `0366039` and regenerating migration `0028`, all checks pass
 
 The coordinated checks used `heavy` without pipelines, retrying exit 75 when another lane held the slot. Main's Watchlist and card migrations and the landing stylesheet remain unchanged.
 
-The code defaults `WALLET_STREAM_ENABLED` and `ROBINHOOD_STREAM_ENABLED` to false. After a green main deployment and migration, each production stream needs its configured Pinax credential, network RPC and explicit enabled flag, followed by an authenticated Watchlist activation and real Telegram delivery. No production variables, migration or deployment have been changed during this integration.
+Both network sources now select the real adapter automatically when `PINAX_API_KEY` is configured. The validated endpoints, RPC, and actual provider responses determine availability. `/health.onchainAlerts` separates idle/connecting sources from fresh live progress, stale progress, and unavailable connections. Missing production credentials remain unavailable; local credential-free demos remain explicitly labelled. Active watches still require owner configuration, and real Telegram delivery must be verified independently. See decision 0035 for the rollout and runtime availability contract.
 
 The prior Robinhood credential probe rejected by automatic approval review was not rerun. Existing public stream and price evidence remains linked above; no new claim of live Robinhood Telegram delivery is made.

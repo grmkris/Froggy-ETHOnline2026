@@ -97,6 +97,40 @@ describe("refuseStubbedBoot", () => {
 });
 
 describe("loadEnvironment", () => {
+  test("configures both real stream adapters automatically from the Pinax credential", async () => {
+    const environment = await Effect.runPromise(
+      loadEnvironment().pipe(
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromUnknown({ PINAX_API_KEY: "test-pinax-credential" })
+        )
+      )
+    );
+    expect(environment.walletStream.mode).toBe("live");
+    expect(environment.walletStream.robinhood.mode).toBe("live");
+    expect(environment.walletStream.endpoint).toBe(
+      "https://base.substreams.pinax.network:443"
+    );
+    expect(environment.walletStream.robinhood.endpoint).toBe(
+      "https://robinhood.substreams.pinax.network:443"
+    );
+  });
+
+  for (const credential of ["", "REPLACE_ME_PINAX_API_KEY"]) {
+    test(`keeps credential-free loopback streams explicitly simulated (${credential || "empty"})`, async () => {
+      const environment = await Effect.runPromise(
+        loadEnvironment().pipe(
+          Effect.provideService(
+            ConfigProvider.ConfigProvider,
+            ConfigProvider.fromUnknown({ PINAX_API_KEY: credential })
+          )
+        )
+      );
+      expect(environment.walletStream.mode).toBe("stub");
+      expect(environment.walletStream.robinhood.mode).toBe("stub");
+    });
+  }
+
   test("refuses a public origin that would still attach stub adapters", async () => {
     const result = await Effect.runPromiseExit(
       loadEnvironment().pipe(

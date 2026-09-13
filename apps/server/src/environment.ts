@@ -148,12 +148,10 @@ const isLoopback = (origin: string): boolean => {
 };
 
 const walletStreamMode = (
-  enabled: boolean,
   apiKey: Redacted.Redacted,
   origin: string
 ): "live" | "stub" | "unavailable" => {
   if (
-    enabled &&
     Redacted.value(apiKey) !== "" &&
     !isPlaceholder(Redacted.value(apiKey), "REPLACE_ME_PINAX_API_KEY")
   ) {
@@ -1004,9 +1002,6 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       Config.withDefault(false)
     );
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
-    const walletStreamEnabled = yield* Config.boolean(
-      "WALLET_STREAM_ENABLED"
-    ).pipe(Config.withDefault(false));
     const walletStreamEndpoint = yield* Config.string(
       "WALLET_STREAM_ENDPOINT"
     ).pipe(Config.withDefault("https://base.substreams.pinax.network:443"));
@@ -1014,9 +1009,6 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       walletStreamEndpoint,
       "https://base.substreams.pinax.network:443"
     );
-    const robinhoodStreamEnabled = yield* Config.boolean(
-      "ROBINHOOD_STREAM_ENABLED"
-    ).pipe(Config.withDefault(false));
     const robinhoodStreamEndpoint = yield* Config.string(
       "ROBINHOOD_STREAM_ENDPOINT"
     ).pipe(
@@ -1283,12 +1275,12 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       defiLlamaYieldsUrl,
       graphApiKey: Redacted.value(graphApiKey),
       walletStream: {
-        mode: walletStreamMode(walletStreamEnabled, pinaxKey, appOrigin),
+        mode: walletStreamMode(pinaxKey, appOrigin),
         apiKey: pinaxKey,
         endpoint: walletStreamEndpoint,
         network: "eip155:8453",
         robinhood: {
-          mode: walletStreamMode(robinhoodStreamEnabled, pinaxKey, appOrigin),
+          mode: walletStreamMode(pinaxKey, appOrigin),
           endpoint: robinhoodStreamEndpoint,
         },
       },

@@ -69,8 +69,6 @@ export default defineConfig({
           '[{"network":"eip155:8453","routerVersion":"2.1.1"},{"network":"eip155:84532","routerVersion":"2.1.1"},{"network":"eip155:1","routerVersion":"2.1.1"},{"network":"eip155:11155111","routerVersion":"2.1.1"}]',
         GRAPH_PAY_PER_QUERY: "false",
         PINAX_API_KEY: "",
-        WALLET_STREAM_ENABLED: "false",
-        ROBINHOOD_STREAM_ENABLED: "false",
         HEDERA_ACCOUNT_ID: "0.0.0",
         HEDERA_PRIVATE_KEY: "0xREPLACE_ME",
         HEDERA_KEK: "REPLACE_ME_HEDERA_KEK",

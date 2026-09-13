@@ -104,7 +104,11 @@ import type { TelegramPager } from "./telegram/pager";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
-import { walletMonitorDependencies } from "./wallet-monitor";
+import {
+  walletMonitorDependencies,
+  walletStreamHealth,
+} from "./wallet-monitor";
+import type { WalletStreamHealth } from "./wallet-monitor";
 import { handleWalletMonitor } from "./wallet-monitor-routes";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
@@ -155,8 +159,8 @@ type ResponseBody =
       readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
       readonly onchainAlerts: {
-        readonly base: Environment["walletStream"]["mode"];
-        readonly robinhood: Environment["walletStream"]["robinhood"]["mode"];
+        readonly base: WalletStreamHealth;
+        readonly robinhood: WalletStreamHealth;
       };
       readonly runtime: string;
       readonly status: string;
@@ -1138,8 +1142,12 @@ export const handleRequest = async (
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
       onchainAlerts: {
-        base: deps.environment.walletStream.mode,
-        robinhood: deps.environment.walletStream.robinhood.mode,
+        base: await walletStreamHealth(
+          walletMonitorDependencies(deps.services)
+        ),
+        robinhood: await walletStreamHealth(
+          walletMonitorDependencies(deps.services, "eip155:4663")
+        ),
       },
       trading: {
         enso: deps.environment.trading.ensoMode,

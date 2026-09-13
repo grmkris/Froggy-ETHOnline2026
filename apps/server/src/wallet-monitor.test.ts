@@ -17,6 +17,7 @@ import {
   trackWallet,
   updateWalletMonitor,
   walletMonitorStatus,
+  walletStreamHealth,
 } from "./wallet-monitor";
 import {
   commitWalletBlock,
@@ -813,5 +814,73 @@ describe("wallet alert delivery integration", () => {
     expect(
       archived.alerts.filter((alert) => alert.kind === "activity")
     ).toHaveLength(0);
+  });
+});
+
+describe("observed onchain stream health", () => {
+  for (const network of ["eip155:8453", "eip155:4663"] as const) {
+    test(`distinguishes configuration, connection failure, and fresh recovery on ${network}`, async () => {
+      const s = setup(network);
+      const deps = { ...s.deps, source: { ...s.deps.source, stubbed: false } };
+      expect(await walletStreamHealth(deps)).toBe("idle");
+      await s.fence();
+      expect(await walletStreamHealth(deps)).toBe("connecting");
+      await s.store.walletActivity.transact(async (tx) => {
+        await tx.saveCheckpoint({
+          ...tx.checkpoint,
+          error: "Provider refused the connection.",
+        });
+      }, network);
+      expect(await walletStreamHealth(deps)).toBe("unavailable");
+      await s.store.walletActivity.transact(async (tx) => {
+        await tx.saveCheckpoint({
+          ...tx.checkpoint,
+          error: null,
+          block: 1000,
+          blockAt: s.deps.now(),
+          blockHash: hash("a"),
+        });
+      }, network);
+      expect(await walletStreamHealth(deps)).toBe("live");
+      s.advance(16_000);
+      expect(await walletStreamHealth(deps)).toBe("delayed");
+      s.advance(30_000);
+      expect(await walletStreamHealth(deps)).toBe("idle");
+    });
+  }
+
+  test("missing providers remain unavailable and demos remain labelled", async () => {
+    const s = setup();
+    expect(await walletStreamHealth(s.deps)).toBe("stub");
+    expect(
+      await walletStreamHealth({
+        ...s.deps,
+        source: { ...s.deps.source, available: false, stubbed: false },
+      })
+    ).toBe("unavailable");
+  });
+
+  test("an initial connection failure is unavailable instead of stuck starting, and recovers from real progress", async () => {
+    const s = setup();
+    const deps = { ...s.deps, source: { ...s.deps.source, stubbed: false } };
+    const item = await trackWallet(deps, owner, input, {
+      ...options,
+      telegram: false,
+    });
+    await s.store.walletActivity.transact(async (tx) => {
+      await tx.saveCheckpoint({
+        ...tx.checkpoint,
+        error: "Provider refused the connection.",
+      });
+    });
+    const failed = await walletMonitorStatus(deps, owner, item.id);
+    expect(failed.state).toBe("unavailable");
+    const fence = await s.fence();
+    await commitWalletBlock(deps, fence, { ...s.block(1001), stubbed: false });
+    const recovered = await walletMonitorStatus(deps, owner, item.id);
+    expect(recovered.state).toBe("watching");
+    await updateWalletMonitor(deps, owner, item.id, "pause");
+    const paused = await walletMonitorStatus(deps, owner, item.id);
+    expect(paused.state).toBe("paused");
   });
 });

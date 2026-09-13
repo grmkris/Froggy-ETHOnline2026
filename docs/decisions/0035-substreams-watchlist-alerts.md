@@ -1,6 +1,6 @@
 # 0035 — Substreams alerts belong to Watchlist
 
-Accepted 13 September 2026. Implemented and verified locally; production rollout remains pending.
+Accepted 13 September 2026. Rolled out with the Watchlist integration and migration 0028; deployment switches were removed by owner direction. Provider availability remains an observed runtime condition, not a rollout setting.
 
 ## Product behavior
 
@@ -34,4 +34,6 @@ The exact-file `no-await-in-loop` exceptions in `oxlint.config.ts` cover ordered
 
 ## Verification and rollout
 
-Local adapters label streams, price sources and resulting records as demo/stubbed. A stub cannot prove live data or Telegram delivery. Required checks are the full repository gate, browser flows, PostgreSQL migration/concurrency tests, reproducible package build and live stream/price/delivery evidence. Per-network environment flags remain disabled by default. A rollout must preserve changes already live from other agents, apply the migration through the existing release path, and verify the exact deployed revision before announcing the app ready.
+Local adapters label streams, price sources and resulting records as demo/stubbed. A stub cannot prove live data or Telegram delivery. Required checks are the full repository gate, browser flows, PostgreSQL migration/concurrency tests, reproducible package build and live stream/price/delivery evidence. Both network sources are always configured at their validated Pinax endpoints. A nonempty, non-placeholder `PINAX_API_KEY` selects the real adapter automatically; missing credentials are unavailable in production and use explicitly labelled demo adapters only on loopback. Browser tests clear that credential rather than disabling either source.
+
+Workers connect when an owner has an active watch or pending reconciliation. `/health.onchainAlerts` reports `idle` before a subscription, `connecting` before its first block, `live` only with a held lease and fresh sealed-block progress, `delayed` for stale progress, and `unavailable` for missing credentials or a recorded connection error. A working key alone is not evidence that an endpoint answers. Failed connections retain their checkpoint and retry with bounded backoff; active Watchlist monitors show unavailable until recovery. No network failure substitutes a demo adapter. Paused and expired watches retain their own status. Stream, price-source, and Telegram delivery evidence remain separate; a production readiness claim must verify the deployed revision and actual data and delivery.
