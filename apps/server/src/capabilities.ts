@@ -42,7 +42,7 @@ const CAPABILITIES: readonly Capability[] = [
     writes: true,
   },
   {
-    names: ["watchlist_get", "watchlist_list"],
+    names: ["watchlist_get", "watchlist_list", "wallet_monitor_status"],
     surfaces: ["chat", "browse", "schedule", "monitor"],
     scope: "watchlist:read",
     writes: false,
@@ -55,6 +55,9 @@ const CAPABILITIES: readonly Capability[] = [
   },
   {
     names: [
+      "onchain_alert_configure",
+      "track_wallet",
+      "wallet_monitor_update",
       "monitor_configure",
       "monitor_list",
       "monitor_pause",

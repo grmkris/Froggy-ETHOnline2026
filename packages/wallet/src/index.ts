@@ -120,3 +120,12 @@ export type {
 
 export type { CardStore, CardBook } from "./card-store";
 export { memoryCardStore } from "./card-store";
+export type {
+  WalletActivityStore,
+  WalletActivityTransaction,
+  WalletStreamCheckpoint,
+  WalletAlert,
+  OwnedWalletItem,
+  StoredWalletActivity,
+  WalletStreamNetwork,
+} from "./wallet-activity-store";

@@ -5,6 +5,7 @@ import { memoryStore } from "@froggy/wallet";
 
 import { canUseTool, connectionScopes } from "./capabilities";
 import { handleMonitoring } from "./monitoring-routes";
+import { invokeWorkspaceTool } from "./workspace-tools";
 
 test("delegated permissions are owner scoped and revocation is checked on every use", async () => {
   const store = memoryStore();
@@ -31,6 +32,10 @@ test("delegated permissions are owner scoped and revocation is checked on every 
   expect(canUseTool("email_read", "browse", scopes)).toBe(true);
   expect(canUseTool("email_draft", "browse", scopes)).toBe(false);
   expect(canUseTool("watchlist_list", "browse", scopes)).toBe(false);
+  expect(canUseTool("track_wallet", "chat", scopes)).toBe(true);
+  expect(
+    invokeWorkspaceTool(store, owner, id, "track_wallet", {})
+  ).rejects.toThrow("lacks permission");
   expect(connectionScopes(store, other, id)).rejects.toThrow("revoked");
   const budget = await handleMonitoring(
     store,
@@ -47,4 +52,7 @@ test("delegated permissions are owner scoped and revocation is checked on every 
   expect(budget?.status).toBe(403);
   await store.oauth.grants.revoke(owner, id, Date.now());
   expect(connectionScopes(store, owner, id)).rejects.toThrow("revoked");
+  expect(
+    invokeWorkspaceTool(store, owner, id, "track_wallet", {})
+  ).rejects.toThrow("revoked");
 });

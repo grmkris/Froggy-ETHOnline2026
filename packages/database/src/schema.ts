@@ -21,6 +21,7 @@
  */
 
 import {
+  WalletActivityId,
   CardCheckoutId,
   PaymentMethodId,
   CreditChargeId,
@@ -57,6 +58,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -996,6 +998,117 @@ export const cardCheckouts = pgTable(
     uniqueIndex("card_checkout_owner_key").on(
       table.userId,
       table.idempotencyKey
+    ),
+  ]
+);
+
+export const walletStreamState = pgTable("wallet_stream_state", {
+  network: text("network").primaryKey(),
+  document: jsonb("document").notNull(),
+});
+export const walletActivities = pgTable(
+  "wallet_activities",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    itemId: typeIdColumn(WatchlistItemId, "item_id")
+      .notNull()
+      .references(() => savedItems.id, { onDelete: "cascade" }),
+    network: text("network").notNull().default("eip155:8453"),
+    transactionHash: text("transaction_hash"),
+    blockNumber: bigint("block_number", { mode: "number" }).notNull(),
+    observedAt: bigint("observed_at", { mode: "number" }).notNull(),
+    finality: text("finality").notNull(),
+    delivery: text("delivery").notNull().default("waiting"),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    uniqueIndex("wallet_activities_item_transaction").on(
+      table.userId,
+      table.itemId,
+      table.transactionHash
+    ),
+    index("wallet_activities_owner_item").on(
+      table.userId,
+      table.itemId,
+      table.id
+    ),
+    index("wallet_activities_finality_block").on(
+      table.network,
+      table.finality,
+      table.id
+    ),
+    index("wallet_activities_delivery").on(
+      table.network,
+      table.delivery,
+      table.id
+    ),
+    index("wallet_activities_retention").on(table.observedAt),
+  ]
+);
+export const walletAlerts = pgTable(
+  "wallet_alerts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    itemId: typeIdColumn(WatchlistItemId, "item_id").references(
+      () => savedItems.id,
+      { onDelete: "cascade" }
+    ),
+    monitorId: text("monitor_id"),
+    network: text("network").notNull().default("eip155:8453"),
+    summaryId: text("summary_id"),
+    key: text("key").notNull().unique(),
+    state: text("state").notNull(),
+    notBefore: bigint("not_before", { mode: "number" }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    index("wallet_alerts_due").on(table.network, table.state, table.notBefore),
+    index("wallet_alerts_monitor").on(table.monitorId, table.id),
+    index("wallet_alerts_summary").on(table.summaryId, table.id),
+    index("wallet_alerts_retention").on(table.createdAt),
+  ]
+);
+export const walletAlertWindows = pgTable(
+  "wallet_alert_windows",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    minute: bigint("minute", { mode: "number" }).notNull(),
+    slots: bigint("slots", { mode: "number" }).notNull(),
+    summaryId: text("summary_id"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.minute] }),
+    index("wallet_alert_windows_retention").on(table.minute),
+  ]
+);
+export const walletPriceEvaluations = pgTable(
+  "wallet_price_evaluations",
+  {
+    id: typeIdPrimaryKey(WalletActivityId),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.did, { onDelete: "cascade" }),
+    itemId: typeIdColumn(WatchlistItemId, "item_id")
+      .notNull()
+      .references(() => savedItems.id, { onDelete: "cascade" }),
+    network: text("network").notNull(),
+    blockNumber: bigint("block_number", { mode: "number" }).notNull(),
+    document: jsonb("document").notNull(),
+  },
+  (table) => [
+    index("wallet_price_evaluations_rollback").on(
+      table.network,
+      table.blockNumber,
+      table.id
     ),
   ]
 );

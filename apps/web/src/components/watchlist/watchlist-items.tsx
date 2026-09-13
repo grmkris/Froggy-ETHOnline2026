@@ -30,6 +30,7 @@ import { CompareItems } from "./compare-items";
 import { sourceWords, sourceSearch } from "./item-identity";
 import { marketPrice } from "./market-results";
 import { SavedItemCard } from "./saved-item-card";
+import { WalletMonitorBadge } from "./wallet-monitor-panel";
 
 const emptyTitle = (query: string, archived: boolean): string => {
   if (query) {
@@ -67,14 +68,17 @@ const ItemStatus = ({
 }: {
   readonly item: WatchlistItem;
   readonly monitors: readonly Monitor[];
-}): ReactElement => (
-  <>
-    {monitoringLabel(
-      item,
-      monitors.find((monitor) => monitor.itemId === item.id)
-    )}
-  </>
-);
+}): ReactElement =>
+  item.walletMonitor ? (
+    <WalletMonitorBadge item={item} />
+  ) : (
+    <>
+      {monitoringLabel(
+        item,
+        monitors.find((monitor) => monitor.itemId === item.id)
+      )}
+    </>
+  );
 
 export const WatchlistItems = ({
   compact = false,

@@ -86,6 +86,7 @@ import type {
   Store,
 } from "./store";
 import { postgresTradingStore } from "./trading-store-postgres";
+import { postgresWalletActivityStore } from "./wallet-activity-store-postgres";
 import { postgresWatchlistDataStore } from "./watchlist-data-store-postgres";
 import { postgresWatchlistStore } from "./watchlist-store-postgres";
 
@@ -314,6 +315,7 @@ export const postgresStore = (sql: Sql): Store => {
   const watchlistData = postgresWatchlistDataStore(sql);
   const monitoring = postgresMonitoringStore(sql);
   const watchlist = postgresWatchlistStore(sql);
+  const walletActivity = postgresWalletActivityStore(sql);
   return {
     credits: postgresCreditStore(sql),
     browsers: {
@@ -342,6 +344,7 @@ export const postgresStore = (sql: Sql): Store => {
     history,
     watchlist,
     watchlistData,
+    walletActivity,
     monitoring,
     cards: postgresCardStore(sql),
     trading: postgresTradingStore(sql),
@@ -1439,6 +1442,7 @@ export const postgresStore = (sql: Sql): Store => {
     forget: async (userId) => {
       await watchlistData.forget(userId);
       await watchlist.forget(userId);
+      await walletActivity.forget(userId);
       await monitoring.forget(userId);
       await database
         .delete(browserProfiles)

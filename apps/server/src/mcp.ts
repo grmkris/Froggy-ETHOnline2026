@@ -50,6 +50,7 @@ import {
   TradeStatusInput,
   tradeToolResult,
 } from "./trading/tools";
+import { walletMonitorDependencies } from "./wallet-monitor";
 import {
   workspaceToolDefinitions,
   invokeWorkspaceTool,
@@ -745,13 +746,19 @@ const invokeWorkspaceMcp = async (
             `Explicit ${definition?.scope ?? "workspace"} permission is required. Reconnect in Agents.`
           );
         }
+        const walletInventory =
+          call.name === "froggy_track_wallet"
+            ? await services.privy.paymentWallets(caller.userId)
+            : null;
         const result = await invokeWorkspaceTool(
           services.store,
           caller.userId,
           caller.grantId ?? caller.agentTokenId,
           call.name,
           Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
-          notices
+          notices,
+          walletMonitorDependencies(services),
+          walletInventory?.ethereum?.address
         );
         invocation.outcome = "completed";
         const text = JSON.stringify(result);

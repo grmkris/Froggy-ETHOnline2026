@@ -290,3 +290,10 @@ export const PaymentMethodId = makeIdSchema("pmt", "PaymentMethodId");
 export type PaymentMethodId = typeof PaymentMethodId.Type;
 export const CardCheckoutId = makeIdSchema("cco", "CardCheckoutId");
 export type CardCheckoutId = typeof CardCheckoutId.Type;
+export const WalletMonitorId = makeIdSchema("wmon", "WalletMonitorId");
+export type WalletMonitorId = typeof WalletMonitorId.Type;
+export const WalletActivityId = makeIdSchema("wact", "WalletActivityId");
+export type WalletActivityId = typeof WalletActivityId.Type;
+
+export const OnchainAlertRuleId = makeIdSchema("oar", "OnchainAlertRuleId");
+export type OnchainAlertRuleId = typeof OnchainAlertRuleId.Type;

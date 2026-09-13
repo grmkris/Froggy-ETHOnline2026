@@ -33,6 +33,7 @@ import { RecentUpdates } from "../components/watchlist/recent-updates";
 import { RefreshItem } from "../components/watchlist/refresh-item";
 import { ReminderForm } from "../components/watchlist/reminder-form";
 import { TokenDiscovery } from "../components/watchlist/token-discovery";
+import { WalletMonitorPanel } from "../components/watchlist/wallet-monitor-panel";
 import { WatchlistItems } from "../components/watchlist/watchlist-items";
 import { useServiceApi } from "../hooks/use-service-api";
 import { useChatSurface } from "../lib/chat-context";
@@ -193,6 +194,7 @@ const ItemDetail = ({
           Ask Froggy about this
         </Button>
       </div>
+      <WalletMonitorPanel item={item} />
       {snapshot === null ? null : (
         <section
           aria-label="Token snapshot"

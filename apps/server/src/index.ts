@@ -12,6 +12,7 @@
  */
 
 import { BunRuntime } from "@effect/platform-bun";
+import type { UserId } from "@froggy/domain";
 import { WS_PROTOCOL } from "@froggy/protocol";
 import { Config, Context, Effect, Layer } from "effect";
 
@@ -57,7 +58,13 @@ import type { TelegramPager } from "./telegram/pager";
 import { LaunchReactor } from "./trading/reactions";
 import { createTradeRecovery } from "./trading/recovery";
 import { UnlockTokens } from "./unlock";
+import { walletVenueVerifier } from "./wallet-activity";
 import { chainIdHex } from "./wallet-call";
+import { walletMonitorDependencies } from "./wallet-monitor";
+import {
+  dispatchWalletAlerts,
+  runWalletMonitorWorker,
+} from "./wallet-monitor-worker";
 import { WalletRequests } from "./wallet-requests";
 import { enrichSavedItems } from "./watchlist-enrichment";
 import { Workspaces } from "./workspaces";
@@ -487,7 +494,63 @@ class FroggyServer extends Context.Service<
               workspaces,
             })
           : stubTelegramPager();
+      yield* Effect.addFinalizer(() => Effect.promise(pager.shutdown));
       sinks.pager = pager;
+      const walletMonitorDeps = (["eip155:8453", "eip155:4663"] as const).map(
+        (network) => ({
+          ...walletMonitorDependencies(services, network),
+          verifier: walletVenueVerifier(services.trading.rpc, network),
+          appUrl: environment.appOrigin,
+          deliver: pager.deliverWalletAlert,
+          invalidate: (owner: UserId) => {
+            sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
+          },
+        })
+      );
+      const walletStreamController = new AbortController();
+      for (const monitor of walletMonitorDeps) {
+        yield* Effect.promise(
+          async () =>
+            await services.store.walletActivity.transact(
+              async (tx) => await Promise.resolve(tx.checkpoint),
+              monitor.network
+            )
+        );
+      }
+      const walletStreamTask = Promise.all(
+        walletMonitorDeps.map(async (monitor) => {
+          await runWalletMonitorWorker(monitor, walletStreamController.signal);
+        })
+      );
+      let walletDeliveryTask: Promise<unknown> | null = null;
+      const dispatchWalletTick = async (): Promise<void> => {
+        try {
+          await Promise.all(
+            walletMonitorDeps.map(async (monitor) => {
+              await dispatchWalletAlerts(monitor);
+            })
+          );
+        } catch {
+          console.error(
+            "Onchain alert dispatch failed; saved delivery state retained."
+          );
+        } finally {
+          walletDeliveryTask = null;
+        }
+      };
+      const walletAlertTick = setInterval(() => {
+        if (walletDeliveryTask || walletStreamController.signal.aborted) {
+          return;
+        }
+        walletDeliveryTask = dispatchWalletTick();
+      }, 1000);
+      const closeWalletMonitoring = async (): Promise<void> => {
+        clearInterval(walletAlertTick);
+        walletStreamController.abort();
+        await walletStreamTask;
+        await walletDeliveryTask;
+      };
+      yield* Effect.addFinalizer(() => Effect.promise(closeWalletMonitoring));
 
       // Reminders, scheduled prompts and the digest, on one clock. A run
       // happens unattended, under the person's own mandate, with nobody to
@@ -776,6 +839,7 @@ class FroggyServer extends Context.Service<
             await running.stop(true);
             const preserved = await suspendHostedBrowses();
             await workspaces.closeAll(preserved);
+            await closeWalletMonitoring();
             await services.shutdown();
           })
       );

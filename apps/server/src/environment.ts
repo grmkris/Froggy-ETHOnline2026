@@ -147,6 +147,27 @@ const isLoopback = (origin: string): boolean => {
   }
 };
 
+const walletStreamMode = (
+  enabled: boolean,
+  apiKey: Redacted.Redacted,
+  origin: string
+): "live" | "stub" | "unavailable" => {
+  if (
+    enabled &&
+    Redacted.value(apiKey) !== "" &&
+    !isPlaceholder(Redacted.value(apiKey), "REPLACE_ME_PINAX_API_KEY")
+  ) {
+    return "live";
+  }
+  return isLoopback(origin) ? "stub" : "unavailable";
+};
+
+const assertStreamEndpoint = (actual: string, expected: string): void => {
+  if (actual !== expected) {
+    throw new Error("Unsupported onchain stream endpoint.");
+  }
+};
+
 /** Names that would attach a stub adapter. Empty means every integration is live or unavailable. */
 export const stubbedNames = (
   modes: ServiceModes,
@@ -311,6 +332,16 @@ export interface Environment {
   readonly defiLlamaApiUrl: string;
   readonly defiLlamaYieldsUrl: string;
   readonly graphApiKey: string;
+  readonly walletStream: {
+    readonly mode: "live" | "stub" | "unavailable";
+    readonly apiKey: Redacted.Redacted;
+    readonly endpoint: string;
+    readonly network: "eip155:8453";
+    readonly robinhood: {
+      readonly mode: "live" | "stub" | "unavailable";
+      readonly endpoint: string;
+    };
+  };
   readonly graphGatewayUrl: string;
   /**
    * Pay The Graph per query with x402 from the person's own wallet, when
@@ -973,6 +1004,29 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       Config.withDefault(false)
     );
     const graphApiKey = yield* secret("GRAPH_API_KEY", PLACEHOLDER.graphApiKey);
+    const walletStreamEnabled = yield* Config.boolean(
+      "WALLET_STREAM_ENABLED"
+    ).pipe(Config.withDefault(false));
+    const walletStreamEndpoint = yield* Config.string(
+      "WALLET_STREAM_ENDPOINT"
+    ).pipe(Config.withDefault("https://base.substreams.pinax.network:443"));
+    assertStreamEndpoint(
+      walletStreamEndpoint,
+      "https://base.substreams.pinax.network:443"
+    );
+    const robinhoodStreamEnabled = yield* Config.boolean(
+      "ROBINHOOD_STREAM_ENABLED"
+    ).pipe(Config.withDefault(false));
+    const robinhoodStreamEndpoint = yield* Config.string(
+      "ROBINHOOD_STREAM_ENDPOINT"
+    ).pipe(
+      Config.withDefault("https://robinhood.substreams.pinax.network:443")
+    );
+    assertStreamEndpoint(
+      robinhoodStreamEndpoint,
+      "https://robinhood.substreams.pinax.network:443"
+    );
+
     const graphGatewayUrl = yield* Config.string("GRAPH_GATEWAY_URL").pipe(
       Config.withDefault("https://gateway.thegraph.com/api")
     );
@@ -1228,6 +1282,16 @@ export const loadEnvironment = Effect.fn("loadEnvironment")(
       defiLlamaApiUrl,
       defiLlamaYieldsUrl,
       graphApiKey: Redacted.value(graphApiKey),
+      walletStream: {
+        mode: walletStreamMode(walletStreamEnabled, pinaxKey, appOrigin),
+        apiKey: pinaxKey,
+        endpoint: walletStreamEndpoint,
+        network: "eip155:8453",
+        robinhood: {
+          mode: walletStreamMode(robinhoodStreamEnabled, pinaxKey, appOrigin),
+          endpoint: robinhoodStreamEndpoint,
+        },
+      },
       graphGatewayUrl,
       graphPayPerQuery,
       hederaAccountId,

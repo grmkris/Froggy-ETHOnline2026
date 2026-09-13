@@ -11,7 +11,12 @@ import type {
   HostedAgentApi,
 } from "@froggy/browser";
 import { KNOWN_ASSETS } from "@froggy/domain";
-import type { CreditPurchaseId, TradingNetwork, UserId } from "@froggy/domain";
+import type {
+  CreditPurchaseId,
+  TradingNetwork,
+  UserId,
+  OnchainNetwork,
+} from "@froggy/domain";
 import {
   Email,
   memoryEmailStore,
@@ -34,8 +39,15 @@ import {
  * process, it is `workspaces.ts` that owns it. This file owns everything a
  * user does not have their own copy of.
  */
-import type { GraphClient, SubgraphDiscovery } from "@froggy/graph";
+import type {
+  GraphClient,
+  SubgraphDiscovery,
+  WalletStream,
+} from "@froggy/graph";
 import {
+  packagedWalletStream,
+  demoWalletStream,
+  stubWalletStream,
   liveGraphClient,
   liveSubgraphDiscovery,
   graphExplorer,
@@ -86,7 +98,7 @@ import {
   sendErc20Transfer,
   stubPrivyServer,
 } from "@froggy/wallet";
-import type { Redacted } from "effect";
+import { Redacted } from "effect";
 import postgres from "postgres";
 import { erc20Abi, getAddress } from "viem";
 
@@ -96,6 +108,8 @@ import { CreditFunding } from "./credit-funding";
 import type { Environment } from "./environment";
 import { createHederaAccounts } from "./hedera-accounts";
 import type { HederaAccounts } from "./hedera-accounts";
+import { createPriceResolver, stubPriceResolver } from "./onchain-price";
+import type { PriceResolver } from "./onchain-price";
 import { safeFetch } from "./outbound";
 import { Purchases } from "./purchases";
 import { indexedHolderFact, createResearchData } from "./research-data";
@@ -162,6 +176,9 @@ const createEmail = (
 };
 export interface Services {
   readonly cards: CardCheckouts;
+  readonly walletStream: WalletStream;
+  readonly walletStreams: Readonly<Record<OnchainNetwork, WalletStream>>;
+  readonly onchainPrices: PriceResolver;
   readonly creditFunding: CreditFunding;
   readonly hostedAgent: HostedAgentApi;
   readonly email: Email | null;
@@ -641,6 +658,64 @@ export const createServices = (options: ServiceOptions): Services => {
   } else if (environment.allowStubs) {
     ponsReader = stubPonsLaunchReader(Date.now);
   }
+  const streamFor = (config: {
+    readonly mode: "live" | "stub" | "unavailable";
+    readonly endpoint: string;
+  }): WalletStream => {
+    if (config.mode === "live") {
+      return packagedWalletStream({
+        endpoint: config.endpoint,
+        apiKey: Redacted.value(environment.walletStream.apiKey),
+      });
+    }
+    return config.mode === "stub" ? demoWalletStream() : stubWalletStream();
+  };
+  const walletStreams = {
+    "eip155:8453": streamFor(environment.walletStream),
+    "eip155:4663": streamFor(environment.walletStream.robinhood),
+  };
+  const priceClients = new Map<
+    OnchainNetwork,
+    ReturnType<typeof tradeEvmClient>
+  >();
+  const liveOnchainPrices = createPriceResolver({
+    rpc: trading.rpc,
+    now: Date.now,
+    getBlockHash: async (network, number) => {
+      let client = priceClients.get(network);
+      if (!client) {
+        const endpoint = environment.trading.rpcEndpoints[network];
+        if (!endpoint) {
+          throw new Error(
+            "Price verification RPC is unavailable on this network."
+          );
+        }
+        client = tradeEvmClient({ endpoint });
+        priceClients.set(network, client);
+      }
+      const block = await client.getBlock({ blockNumber: BigInt(number) });
+      return block.hash;
+    },
+  });
+  const demoOnchainPrices = stubPriceResolver({ now: Date.now });
+  const priceResolvers: Readonly<Record<OnchainNetwork, PriceResolver>> = {
+    "eip155:8453":
+      environment.walletStream.mode === "stub"
+        ? demoOnchainPrices
+        : liveOnchainPrices,
+    "eip155:4663":
+      environment.walletStream.robinhood.mode === "stub"
+        ? demoOnchainPrices
+        : liveOnchainPrices,
+  };
+  const onchainPrices: PriceResolver = {
+    resolve: async (input) =>
+      await priceResolvers[input.network].resolve(input),
+    read: async (source, block) =>
+      await priceResolvers[source.network].read(source, block),
+    streamSubscriptions: (source) =>
+      priceResolvers[source.network].streamSubscriptions(source),
+  };
   let treasuryTail: Promise<null> = Promise.resolve(null);
   const withTreasuryLock = async <T>(
     operation: () => Promise<T>,
@@ -809,6 +884,9 @@ export const createServices = (options: ServiceOptions): Services => {
       await sql?.end({ timeout: 5 });
     },
     store,
+    walletStream: walletStreams["eip155:8453"],
+    walletStreams,
+    onchainPrices,
     treasuryPayer: treasuryPayer(),
   };
   const treasurySigner =

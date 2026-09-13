@@ -63,9 +63,10 @@ import { memoryMonitoringStore } from "./monitoring-store";
 import type { MonitoringStore } from "./monitoring-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
+import type { WalletActivityStore } from "./wallet-activity-store";
+import { memoryWalletActivityStores } from "./wallet-activity-store-memory";
 import type { WatchlistDataStore } from "./watchlist-data-store";
 import { memoryWatchlistDataStore } from "./watchlist-data-store";
-import { memoryWatchlistStore } from "./watchlist-store";
 import type { WatchlistStore } from "./watchlist-store";
 
 /** A token row with the one field the domain record leaves out. */
@@ -305,6 +306,7 @@ export interface Store {
   };
   readonly watchlist: WatchlistStore;
   readonly watchlistData: WatchlistDataStore;
+  readonly walletActivity: WalletActivityStore;
   readonly monitoring: MonitoringStore;
   readonly history: HistoryStore;
   readonly cards: CardStore;
@@ -768,7 +770,7 @@ export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
   const watchlistData = memoryWatchlistDataStore();
-  const watchlist = memoryWatchlistStore();
+  const { watchlist, walletActivity } = memoryWalletActivityStores();
   const monitoring = memoryMonitoringStore();
   const purchases = new Map<
     PurchaseId,
@@ -827,6 +829,7 @@ export const memoryStore = (): Store => {
     history,
     watchlist,
     watchlistData,
+    walletActivity,
     monitoring,
     cards: memoryCardStore(),
     trading: memoryTradingStore(),
@@ -1510,6 +1513,7 @@ export const memoryStore = (): Store => {
     forget: async (userId) => {
       await watchlistData.forget(userId);
       await watchlist.forget(userId);
+      await walletActivity.forget(userId);
       await monitoring.forget(userId);
       browsers.delete(userId);
       setupSeen.delete(userId);

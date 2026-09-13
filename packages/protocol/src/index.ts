@@ -235,3 +235,12 @@ export {
   CardCheckoutControl,
   CardCheckoutReconcile,
 } from "./card-checkout";
+
+export {
+  TrackWalletInput,
+  WalletMonitorUpdate,
+  WalletMonitorStart,
+  WalletMonitorView,
+} from "./wallet-monitor";
+
+export { OnchainMonitorConfigure } from "./wallet-monitor";

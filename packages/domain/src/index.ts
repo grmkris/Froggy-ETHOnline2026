@@ -351,3 +351,38 @@ export {
   cardCheckoutReserved,
 } from "./card-checkout";
 export { PaymentMethodId, CardCheckoutId } from "./id";
+
+export {
+  WalletActivity,
+  WalletActivityFlow,
+  WalletMonitor,
+  WalletMonitorStatus,
+  WALLET_MONITOR_DURATION_MS,
+  WALLET_MONITOR_USER_LIMIT,
+  WALLET_MONITOR_ADDRESS_LIMIT,
+} from "./wallet-monitor";
+
+export { WalletMonitorId, WalletActivityId } from "./id";
+
+export { OnchainAlertRuleId } from "./id";
+export {
+  OnchainNetwork,
+  OnchainAsset,
+  OnchainAlertCondition,
+  OnchainAlertRule,
+  WalletPriceEvaluation,
+} from "./wallet-monitor";
+
+export {
+  OnchainPriceNetwork,
+  PriceAsset,
+  PriceDecimal,
+  PriceObservation,
+  PriceOracleFeed,
+  PriceQuoteCurrency,
+  ResolvedPriceSource,
+  matchesPriceThreshold,
+  priceDecimalRatio,
+  priceRatioDecimal,
+} from "./onchain-price";
+export type { PriceRatio } from "./onchain-price";

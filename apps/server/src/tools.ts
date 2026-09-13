@@ -101,6 +101,7 @@ import { treasuryFetch } from "./treasury";
 import { unlockPath } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import { sendUsdc } from "./usdc-transfer";
+import { walletMonitorDependencies } from "./wallet-monitor";
 import { readItemDetails } from "./watchlist-data";
 import { saveWatchlistItem } from "./watchlist-routes";
 import { buildWorkspaceTools } from "./workspace-tools";
@@ -452,7 +453,9 @@ const buildRawTools = (deps: ToolDeps) => {
     ...buildWorkspaceTools(
       services.store,
       session.userId,
-      deps.connectionId ?? null
+      deps.connectionId ?? null,
+      walletMonitorDependencies(services),
+      session.embeddedWallet?.address
     ),
     task_report: tool({
       description:

@@ -8,6 +8,7 @@
  * the summary; the JSON is for when someone wants to check.
  */
 
+import { WalletMonitorStatus } from "@froggy/domain";
 import type { Receipt } from "@froggy/domain";
 import {
   Collapsible,
@@ -15,6 +16,8 @@ import {
   CollapsibleTrigger,
 } from "@froggy/ui/components/collapsible";
 import { cn } from "@froggy/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import { Schema } from "effect";
 import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
@@ -56,6 +59,80 @@ const OUTCOME_TEXT: Record<Outcome, string> = {
   refused: "text-refused",
 };
 
+const monitorOutput = Schema.decodeUnknownResult(
+  Schema.fromJsonString(
+    Schema.Struct({ v: Schema.Literal(1), status: WalletMonitorStatus })
+  )
+);
+const onchainStatusOf = (call: ToolCall): WalletMonitorStatus | null => {
+  if (
+    ![
+      "track_wallet",
+      "onchain_alert_configure",
+      "wallet_monitor_update",
+      "wallet_monitor_status",
+    ].includes(call.name) ||
+    call.output === null ||
+    call.output.length > 200_000
+  ) {
+    return null;
+  }
+  const parsed = monitorOutput(call.output);
+  return parsed._tag === "Success" ? parsed.success.status : null;
+};
+const OnchainSummary = ({
+  status,
+}: {
+  readonly status: WalletMonitorStatus;
+}): ReactElement => {
+  const [rule] = status.monitor?.rules ?? [];
+  let condition = "Wallet activity";
+  if (rule?.condition._tag === "price") {
+    condition = `Price ${rule.condition.comparison} ${rule.condition.threshold} ${rule.condition.quoteCurrency}`;
+  } else if (rule?.condition._tag === "transfer") {
+    condition = {
+      both: "Wallet sends and receives",
+      sent: "Wallet sends",
+      received: "Wallet receives",
+    }[rule.condition.direction];
+  } else if (rule?.condition._tag === "swap") {
+    condition = {
+      both: "Wallet buys and sells",
+      bought: "Wallet buys",
+      sold: "Wallet sells",
+    }[rule.condition.side];
+  }
+  const state =
+    status.state === "triggered"
+      ? "price matched"
+      : status.state.replaceAll("_", " ");
+  return (
+    <div className="flex flex-col gap-1 px-3 pb-3 pl-9">
+      <p className="font-medium">
+        {condition} · {state}
+      </p>
+      {status.monitor ? (
+        <p className="text-muted-foreground text-xs">
+          Until {new Date(status.monitor.expiresAt).toLocaleString()} ·{" "}
+          {status.telegramPaired
+            ? "Telegram connected"
+            : "Telegram not connected"}
+        </p>
+      ) : null}
+      {status.stubbed ? (
+        <span className="text-muted-foreground text-xs">Simulated stream</span>
+      ) : null}
+      <Link
+        to="/watchlist/$itemId"
+        params={{ itemId: status.itemId }}
+        className="text-primary w-fit text-xs underline underline-offset-4"
+      >
+        View in Watchlist
+      </Link>
+    </div>
+  );
+};
+
 /** What sits under the header: the receipt, the Graph, the wallet, or one line. */
 const Body = ({
   call,
@@ -77,6 +154,10 @@ const Body = ({
   }
   if (richResultOf(call) !== null) {
     return null;
+  }
+  const onchain = onchainStatusOf(call);
+  if (onchain !== null) {
+    return <OnchainSummary status={onchain} />;
   }
   if (call.graph !== null) {
     return <GraphSummary graph={call.graph} />;

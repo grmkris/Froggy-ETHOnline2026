@@ -24,21 +24,3 @@ export const validateWatchlistBook = (book: WatchlistBook): void => {
     }
   }
 };
-
-export const memoryWatchlistStore = (): WatchlistStore => {
-  const owners = new Map<UserId, WatchlistBook>();
-  return {
-    transact: async (owner, operation) => {
-      await Promise.resolve();
-      const book = structuredClone(owners.get(owner) ?? new Map());
-      const result = structuredClone(operation(book));
-      validateWatchlistBook(book);
-      owners.set(owner, structuredClone(book));
-      return result;
-    },
-    forget: async (owner) => {
-      owners.delete(owner);
-      await Promise.resolve();
-    },
-  };
-};

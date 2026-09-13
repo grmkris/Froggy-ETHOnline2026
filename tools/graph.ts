@@ -163,7 +163,12 @@ export const nodes: readonly Node[] = [
     layer: "adapter",
     role: "The Graph gateway. The eyes: why a spend was worth making.",
     mayImport: [],
-    mayUse: ["effect", "graphql"],
+    mayUse: [
+      "effect",
+      "graphql",
+      "@connectrpc/connect-web",
+      "@substreams/core",
+    ],
   },
   {
     dir: "packages/ui",

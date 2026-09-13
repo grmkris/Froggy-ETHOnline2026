@@ -307,6 +307,7 @@ export const WalletSummary = Schema.Struct({
 export type WalletSummary = typeof WalletSummary.Type;
 
 export const AppServerMessage = Schema.Union([
+  Schema.Struct({ ...Envelope, type: Schema.Literal("watchlist.changed") }),
   Schema.Struct({
     ...Envelope,
     type: Schema.Literal("browse.task.updated"),

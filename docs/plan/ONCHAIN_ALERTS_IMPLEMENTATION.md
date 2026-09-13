@@ -1,6 +1,6 @@
 # Onchain alert implementation — 13 September 2026
 
-The Base and Robinhood Watchlist alert implementation is captured for the review branch `codex/onchain-alerts-integration-20260913`. The operator explicitly requested a commit and push after being informed that the full repository gate is failing. This is an application integration checkpoint, not a production-ready release. It includes the shared application dependencies present at capture time; local video skill installations, design captures and unrelated evidence are excluded. The shared checkout and its main branch remain untouched by the temporary-index commit process. Production remains on its prior release.
+The Base and Robinhood Watchlist alerts are integrated onto main `0366039` in `/tmp/froggy-alert-main-integration`, without editing the shared checkout. Main supplies the credits, research, browser and existing Watchlist implementations; the Watchlist enrichment and saved-card lanes are retained alongside the alert feature. This record does not assert a production rollout.
 
 ## Implemented
 
@@ -13,9 +13,9 @@ The Base and Robinhood Watchlist alert implementation is captured for the review
 - Explicit local stream and price demo adapters; no signing or transaction submission.
 - Cold-start Telegram initialization before outbound sends, recoverable initialization failures and Effect-owned SDK shutdown.
 
-The architectural contract and limitations are in [decision 0033](../decisions/0033-substreams-watchlist-alerts.md). The migration is `packages/database/drizzle/0026_rare_rumiko_fujikawa.sql` and its journal/snapshot entry; it builds on the existing local migration sequence. Other agents have subsequently added migrations and funding changes, which must remain intact.
+The architectural contract and limitations are in [decision 0033](../decisions/0033-substreams-watchlist-alerts.md). The migration is `packages/database/drizzle/0028_lethal_sentry.sql` and its journal/snapshot entry; it follows main's `0026_busy_silvermane` Watchlist and `0027_dashing_mad_thinker` card migrations. The full merged sequence applied successfully to a fresh disposable local PostgreSQL database. Historical checkpoint migrations are excluded.
 
-## Verified
+## Prior feature evidence
 
 - The final focused backend run passed all 90 tests across nine files, with 389 assertions and no skipped cases. It includes ten real PostgreSQL cases, transaction/concurrency checks, cancellation across a 205-row boundary, and four Telegram cold-start, receipt, deduplication and recovery regressions. Provider transports in the regression tests are stubbed; PostgreSQL uses a disposable local database.
 - Type-aware lint passed across the alert backend/persistence/domain/protocol slice and the new Telegram regression test. Domain, wallet, web and server typechecks passed at the alert handoff. During the subsequent push preparation, another whole-project typecheck found new errors in concurrently edited card-bridge tests, watchlist-email and watchlist-image. These focused results do not replace the failing whole-repository gate. The fresh alert regression rerun passed 80 tests with the ten PostgreSQL cases skipped; the earlier 90-test run included those database cases.
@@ -24,16 +24,20 @@ The architectural contract and limitations are in [decision 0033](../decisions/0
 - Real Base sealed-stream/RPC price checks passed. Robinhood public RPC checks passed for ETH/USD and a qualifying pools.trade ETH quote; stale stock prices remained unavailable. [Price evidence and primary sources](../evidence/ONCHAIN_ALERT_PRICES.md).
 - Real Base stream → local PostgreSQL → Telegram activity delivery passed using the actual pager/outbox path. The initial readiness attempt remained uncertain and was never retried; its still-unattempted companion activity delivered after the cold-start SDK fix. [Delivery evidence](../evidence/ONCHAIN_ALERT_DELIVERY.md).
 
-## Release blockers and remaining proof
+## Main integration verification
 
-`bun run check:fast` and `bun run check` were run. The final full check stops on shared formatting failures and invalid HTML in a newly installed video skill template (`.agents/skills/talking-head-recut/references/frames/polaroid.html`). Separate whole-project lint/test runs also identify concurrent credit/service/checkout changes. The full browser run completed with 189 passes and 20 failures: nineteen unrelated existing service/credits/Home/discovery expectations, and one alert request interrupted by Vite reloading during shared edits. All five alert cases passed again after those edits. These are not green whole-project gates, and the tests were not weakened to hide failures. The repository [verification skill](../../.agents/skills/froggy-verification/SKILL.md) states that `bun run check` “must pass before a commit”. The operator subsequently explicitly requested committing and pushing after this failure was explained. That instruction authorizes the review checkpoint; it does not turn the failing checks green or make the snapshot suitable for deployment.
+The initial integration on `03bd957` passed the full gate, 796 direct server tests, 174 direct web tests, 20 wallet persistence tests including real PostgreSQL, and 12 Chromium alert/Watchlist flows. Those checks predate the final Watchlist/card rebase.
 
-Read-only release inspection found production healthy at deployment `17e473fa-88e4-419c-8399-987fc12f157e`, based on release `6614144`. This local branch is one commit ahead and eight behind `origin/main`, with extensive shared uncommitted work. Reconcile the release ancestry and preserve the hosted-browser/email/monitoring changes before a deployment; do not upload this older checkout over the current release.
+After rebasing onto `0366039` and regenerating migration `0028`, all checks passed on the merged tree:
 
-The remaining release steps are:
+- `heavy bun run check`: formatting, type-aware lint, all workspace typechecks, boundary and repository checks, tests and dead-code detection.
+- `bun test` directly in `apps/server`: 824 passed, zero failures or skipped tests; the configured disposable PostgreSQL database exercised history and Watchlist persistence.
+- `bun test` directly in `apps/web`: 176 passed, zero failures.
+- All nine wallet PostgreSQL contract test files: 118 passed, zero failures or skipped tests, covering alerts, cards, credits and existing persistence behavior.
+- `bun run e2e e2e/onchain-alerts.spec.ts e2e/watchlist.spec.ts --workers=2`: all 12 Chromium flows passed on the merged UI, including desktop/mobile alerts, existing saved items, token identity and reminders.
 
-1. Let the other active lanes settle, integrate the newer release history in this same checkout, and obtain green full repository and browser gates on the exact release state.
-2. Merge the verified integration into main, confirm CI, apply migrations through the existing deploy path, then enable and verify each network's stream flag.
-3. Exercise an authenticated production Watchlist configuration and real Telegram delivery before announcing the production URL ready.
+The coordinated checks used `heavy` without pipelines, retrying exit 75 when another lane held the slot. Main's Watchlist and card migrations and the landing stylesheet remain unchanged.
 
-Automatic approval review rejected a later probe sending the production Pinax credential to the Robinhood stream endpoint, interpreting the explicit destination approval as Base-only. That rejected command did not run and was not retried. The already completed independent Robinhood stream evidence is retained; any newly blocked use of that credential/destination still requires resolving that approval. No production alert configuration, database migration or deployment was changed by this lane. The review branch is based on local `631624d`; it intentionally does not claim integration with the newer release commits or a clean local checkout.
+The code defaults `WALLET_STREAM_ENABLED` and `ROBINHOOD_STREAM_ENABLED` to false. After a green main deployment and migration, each production stream needs its configured Pinax credential, network RPC and explicit enabled flag, followed by an authenticated Watchlist activation and real Telegram delivery. No production variables, migration or deployment have been changed during this integration.
+
+The prior Robinhood credential probe rejected by automatic approval review was not rerun. Existing public stream and price evidence remains linked above; no new claim of live Robinhood Telegram delivery is made.

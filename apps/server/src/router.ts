@@ -104,6 +104,8 @@ import type { TelegramPager } from "./telegram/pager";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
+import { walletMonitorDependencies } from "./wallet-monitor";
+import { handleWalletMonitor } from "./wallet-monitor-routes";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
 import { handleWatchlistData } from "./watchlist-data";
@@ -152,6 +154,10 @@ type ResponseBody =
       };
       readonly hederaAccounts: "host" | "own";
       readonly modes: Environment["modes"];
+      readonly onchainAlerts: {
+        readonly base: Environment["walletStream"]["mode"];
+        readonly robinhood: Environment["walletStream"]["robinhood"]["mode"];
+      };
       readonly runtime: string;
       readonly status: string;
       readonly trading: {
@@ -460,6 +466,12 @@ const handleScheduling = async (
   return (
     (await handleWatchlistData(
       deps.services.store,
+      request,
+      userId,
+      pathname
+    )) ??
+    (await handleWalletMonitor(
+      walletMonitorDependencies(deps.services),
       request,
       userId,
       pathname
@@ -1125,6 +1137,10 @@ export const handleRequest = async (
       /** Whether people get Hedera accounts of their own, or pay from the host pocket. */
       hederaAccounts: deps.environment.hederaAccounts ? "own" : "host",
       modes: deps.environment.modes,
+      onchainAlerts: {
+        base: deps.environment.walletStream.mode,
+        robinhood: deps.environment.walletStream.robinhood.mode,
+      },
       trading: {
         enso: deps.environment.trading.ensoMode,
         jupiter: deps.environment.trading.jupiterMode,

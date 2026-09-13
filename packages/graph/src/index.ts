@@ -32,3 +32,18 @@ export type {
   LendingMarket,
 } from "./types";
 export { graphExplorer, GraphSchemaInput, GraphReadInput } from "./explorer";
+
+export {
+  liveWalletStream,
+  stubWalletStream,
+  packagedWalletStream,
+  demoWalletStream,
+} from "./wallet-stream";
+export type {
+  WalletStream,
+  WalletStreamMessage,
+  WalletStreamBlock,
+  WalletStreamTransaction,
+  WalletStreamRequest,
+  WalletStreamPriceSource,
+} from "./wallet-stream";

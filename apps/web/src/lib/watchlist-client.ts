@@ -14,7 +14,7 @@ import type {
 } from "@froggy/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Schema } from "effect";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useSessionToken } from "./session-token";
 import { useWorkspace } from "./workspace-context";
@@ -24,6 +24,12 @@ export const useWatchlist = () => {
   const { canConnect, getToken } = useSessionToken();
   const queries = useQueryClient();
   const key = ["watchlist", app.sessionId];
+  useEffect(() => {
+    if (app.watchlistSequence === 0) {
+      return;
+    }
+    void queries.invalidateQueries({ queryKey: ["watchlist", app.sessionId] });
+  }, [app.watchlistSequence, app.sessionId, queries]);
   const request = useCallback(
     async (path: string, init: RequestInit = {}) => {
       const token = await getToken();

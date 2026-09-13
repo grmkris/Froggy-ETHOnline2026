@@ -4,6 +4,7 @@ import { EvmAddress } from "./address";
 import { EmailId, WatchlistItemId } from "./id";
 import { EvmTradingNetwork } from "./trading";
 import { publicHttpUrl } from "./url";
+import { WalletMonitor } from "./wallet-monitor";
 
 /** Saved identity is independent of a paid service or a scheduled check. */
 const SourceUrl = Schema.String.check(
@@ -46,6 +47,7 @@ export const WatchlistItem = Schema.Struct({
   updatedAt: Schema.Int,
   revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
   archived: Schema.Boolean,
+  walletMonitor: Schema.optional(WalletMonitor),
 });
 export type WatchlistItem = typeof WatchlistItem.Type;
 

@@ -100,3 +100,11 @@ export {
   paymentMethodCredentials,
   cardCheckouts,
 } from "./schema";
+
+export {
+  walletStreamState,
+  walletActivities,
+  walletAlerts,
+  walletAlertWindows,
+  walletPriceEvaluations,
+} from "./schema";
