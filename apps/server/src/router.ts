@@ -114,6 +114,11 @@ import { handleWalletMonitor } from "./wallet-monitor-routes";
 import type { WalletRequests } from "./wallet-requests";
 import { handleWalletRoutes } from "./wallet-routes";
 import { handleWatchlistData } from "./watchlist-data";
+import {
+  discoveryDependencies,
+  handleWatchlistDiscover,
+  handleWatchlistTrack,
+} from "./watchlist-discovery";
 import { handleWatchlistEmail } from "./watchlist-email";
 import {
   handleWatchlistCapture,
@@ -397,6 +402,43 @@ const handleDirectory = async (
   return json({ error: "Not found." }, 404);
 };
 
+const watchlistChanged =
+  (deps: RouterDeps) =>
+  (owner: UserId): void => {
+    deps.publishApp?.(owner, { v: 1, type: "watchlist.changed" });
+  };
+
+/** Track an address now, or check a saved one again: the free background read of decision 0037. */
+const handleWatchlistDiscovery = async (
+  deps: RouterDeps,
+  request: Request,
+  userId: UserId,
+  pathname: string
+): Promise<Response | null> => {
+  if (request.method !== "POST") {
+    return null;
+  }
+  if (pathname === "/api/watchlist/track") {
+    return await handleWatchlistTrack(
+      discoveryDependencies(deps.services, watchlistChanged(deps)),
+      request,
+      userId
+    );
+  }
+  const discoverItem = /^\/api\/watchlist\/(?<id>[^/]+)\/discover$/u.exec(
+    pathname
+  )?.groups?.["id"];
+  if (discoverItem === undefined || !WatchlistItemId.is(discoverItem)) {
+    return null;
+  }
+  return await handleWatchlistDiscover(
+    discoveryDependencies(deps.services, watchlistChanged(deps)),
+    request,
+    userId,
+    discoverItem
+  );
+};
+
 const taskDependencies = (deps: RouterDeps): TaskDeps => ({
   budget: deps.budget,
   interactions: deps.interactions,
@@ -435,6 +477,15 @@ const handleScheduling = async (
       userId,
       refreshItem
     );
+  }
+  const discovered = await handleWatchlistDiscovery(
+    deps,
+    request,
+    userId,
+    pathname
+  );
+  if (discovered !== null) {
+    return discovered;
   }
   if (pathname === "/api/watchlist/from-email") {
     return await handleWatchlistEmail(deps.services, request, userId);

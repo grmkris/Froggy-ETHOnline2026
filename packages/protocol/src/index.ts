@@ -216,6 +216,8 @@ export {
   WatchlistPreview,
   WatchlistCapture,
   WatchlistCaptured,
+  WatchlistTrack,
+  WatchlistDiscover,
   WatchlistRefresh,
   WatchlistDetails,
   WatchlistDetailsList,

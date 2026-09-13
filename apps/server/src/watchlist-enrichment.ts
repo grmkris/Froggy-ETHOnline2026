@@ -19,6 +19,11 @@ import { awaitServiceTask, purchaseService } from "./service-tasks";
 import { handleTaskPost } from "./tasks";
 import type { TaskDeps } from "./tasks";
 import { ingestItemTasks, recordItemObservation } from "./watchlist-data";
+import {
+  discoverSavedItems,
+  discoveryDependencies,
+  queueDiscovery,
+} from "./watchlist-discovery";
 import { watchlistPreviewFor } from "./watchlist-resolve";
 import { saveWatchlistItem } from "./watchlist-routes";
 
@@ -418,6 +423,26 @@ export const handleWatchlistCapture = async (
   detached("saved item enrichment", async () => {
     await enrichSavedItems(deps, owner);
   });
+  if (
+    (item.source._tag === "wallet" || item.source._tag === "token") &&
+    (data.presence ?? []).length === 0 &&
+    (data.discovery ?? null) === null
+  ) {
+    const discovery = discoveryDependencies(deps.services);
+    const { queued } = await queueDiscovery(
+      deps.services.store,
+      owner,
+      item.id,
+      `discover:${item.id}:first`,
+      "Checking which chains this address is on.",
+      Date.now()
+    );
+    if (queued) {
+      detached("saved item discovery", async () => {
+        await discoverSavedItems(discovery, owner);
+      });
+    }
+  }
   return Response.json(
     { v: 1, item, data },
     { status: 201, headers: { "cache-control": "no-store" } }

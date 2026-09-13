@@ -66,6 +66,10 @@ import {
   runWalletMonitorWorker,
 } from "./wallet-monitor-worker";
 import { WalletRequests } from "./wallet-requests";
+import {
+  discoverSavedItems,
+  discoveryDependencies,
+} from "./watchlist-discovery";
 import { enrichSavedItems } from "./watchlist-enrichment";
 import { Workspaces } from "./workspaces";
 
@@ -624,6 +628,17 @@ class FroggyServer extends Context.Service<
                 },
                 owner
               );
+            })
+          );
+          // Every person with a saved address, not only those with facts: a
+          // migrated or agent-saved row gets its first chain check from here.
+          const discovery = discoveryDependencies(services, (owner) => {
+            sockets.publishApp(owner, { v: 1, type: "watchlist.changed" });
+          });
+          const discoveryOwners = await services.store.watchlist.owners();
+          await Promise.all(
+            discoveryOwners.map(async (owner) => {
+              await discoverSavedItems(discovery, owner);
             })
           );
         });

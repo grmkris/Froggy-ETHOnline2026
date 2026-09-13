@@ -2,6 +2,7 @@ import {
   WatchlistData,
   WatchlistObservation,
   WatchlistPreviewId,
+  EvmAddress,
   EvmTradingNetwork,
   WatchlistInput,
   WatchlistItem,
@@ -68,6 +69,16 @@ export const WatchlistCaptured = Schema.Struct({
   item: WatchlistItem,
   data: WatchlistData,
 });
+
+/** Paste an address: saved at once, free; where it lives is found in the background. */
+export const WatchlistTrack = Schema.Struct({
+  v: Schema.Literal(1),
+  address: EvmAddress,
+  notes: Schema.optional(WatchlistInput.fields.notes),
+  previewRef: Schema.optional(WatchlistPreviewId),
+});
+/** "Check again": the only way a finished discovery runs a second time. */
+export const WatchlistDiscover = Schema.Struct({ v: Schema.Literal(1) });
 
 export const WatchlistRefresh = Schema.Struct({
   v: Schema.Literal(1),
