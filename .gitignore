@@ -70,3 +70,14 @@ pr-to-video
 remotion-to-hyperframes
 slideshow
 talking-head-recut/
+
+# Local landing design handoff assets
+/Froggy_Playground_Landing_Handoff.zip
+/apps/web/public/froggy/landing/originals/balance.png
+/apps/web/public/froggy/landing/originals/card-checkout.png
+/apps/web/public/froggy/landing/originals/chatgpt-mcp.png
+/apps/web/public/froggy/landing/originals/coding-agent.png
+/apps/web/public/froggy/landing/originals/email.png
+/apps/web/public/froggy/landing/originals/telegram.png
+/apps/web/public/froggy/landing/originals/trading.png
+/apps/web/public/froggy/landing/originals/watchlist.png
