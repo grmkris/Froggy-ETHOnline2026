@@ -180,6 +180,7 @@ const runnable = (tool: ToolCatalogEntry, card: ServiceCard | undefined) =>
 
 const ToolRow = ({
   card,
+  fallbackIcon,
   now,
   open,
   onOpenChange,
@@ -188,6 +189,8 @@ const ToolRow = ({
   tool,
 }: {
   readonly card: ServiceCard | undefined;
+  /** The group's icon, for a tool with no card of its own. */
+  readonly fallbackIcon: LucideIcon;
   readonly now: number;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -212,7 +215,7 @@ const ToolRow = ({
             aria-hidden
             className="bg-muted text-muted-foreground mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg"
           >
-            <span className="text-machine">·</span>
+            {createElement(fallbackIcon, { className: "size-4 opacity-70" })}
           </span>
         ) : (
           <span className="bg-brand-soft text-brand mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg">
@@ -351,6 +354,7 @@ const GroupSection = ({
       {group.tools.map((tool) => (
         <ToolRow
           card={cards.find((card) => card.name === tool.name)}
+          fallbackIcon={GROUP_ICONS.get(group.id) ?? CompassIcon}
           key={tool.name}
           now={now}
           onOpenChange={(next) => {
