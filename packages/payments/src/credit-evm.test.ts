@@ -14,7 +14,11 @@ import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { CreditEvmOptions, CreditEvmSubmission } from "./credit-evm";
-import { creditEvmAuthorization, evmCreditSettlement } from "./credit-evm";
+import {
+  creditEvmAuthorization,
+  evmCreditSettlement,
+  verifyCreditAuthorization,
+} from "./credit-evm";
 
 const payer = `0x${"11".repeat(20)}`;
 const recipient = `0x${"22".repeat(20)}`;
@@ -463,5 +467,146 @@ describe("USDC credit settlement and recovery", () => {
     } finally {
       await fixture.server.stop(true);
     }
+  });
+});
+
+describe("browser-signed authorization checks", () => {
+  const terms = {
+    network: "eip155:84532" as const,
+    asset: token,
+    payTo: recipient,
+    amount: "1000000",
+    domain: { name: "USD Coin", version: "2" },
+    now: Date.now(),
+    latestValidBefore: 9_999_999_999,
+  };
+
+  it("recovers the paying wallet from a signature over the quoted terms", async () => {
+    const payment = await signedEnvelope();
+    const result = await verifyCreditAuthorization({
+      ...terms,
+      header: header(payment),
+    });
+    expect(result).toEqual({
+      ok: true,
+      from: account.address,
+      nonce: payment.payload.authorization.nonce,
+    });
+  });
+
+  it("refuses a signature from another key, even over the same terms", async () => {
+    const payment = await signedEnvelope();
+    const stranger = privateKeyToAccount(
+      "0x2222222222222222222222222222222222222222222222222222222222222222"
+    );
+    const forged = await stranger.signTypedData({
+      domain: {
+        name: "USD Coin",
+        version: "2",
+        chainId: 84_532,
+        verifyingContract: getAddress(token),
+      },
+      types: authorizationTypes,
+      primaryType: "TransferWithAuthorization",
+      message: {
+        from: account.address,
+        to: getAddress(recipient),
+        value: 1_000_000n,
+        validAfter: 0n,
+        validBefore: 9_999_999_999n,
+        nonce: hexBytes(payment.payload.authorization.nonce),
+      },
+    });
+    const result = await verifyCreditAuthorization({
+      ...terms,
+      header: header({
+        ...payment,
+        payload: { ...payment.payload, signature: forged },
+      }),
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: "The signature does not belong to the paying wallet.",
+    });
+  });
+
+  it("refuses when the quote's EIP-712 domain differs from the one signed", async () => {
+    const payment = await signedEnvelope();
+    const result = await verifyCreditAuthorization({
+      ...terms,
+      domain: { name: "USDC", version: "2" },
+      header: header(payment),
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses terms that do not match the frozen quote before recovering anything", async () => {
+    const payment = await signedEnvelope();
+    const wrongRecipient = await verifyCreditAuthorization({
+      ...terms,
+      payTo: payer,
+      header: header(payment),
+    });
+    const wrongAmount = await verifyCreditAuthorization({
+      ...terms,
+      amount: "999999",
+      header: header(payment),
+    });
+    const reason = "The signed authorization does not match this credit quote.";
+    expect(wrongRecipient).toEqual({ ok: false, reason });
+    expect(wrongAmount).toEqual({ ok: false, reason });
+  });
+
+  it("refuses windows that are already over, not yet open, or longer than the quote", async () => {
+    const payment = await signedEnvelope();
+    const withWindow = (patch: { validAfter?: string; validBefore?: string }) =>
+      header({
+        ...payment,
+        payload: {
+          ...payment.payload,
+          authorization: { ...payment.payload.authorization, ...patch },
+        },
+      });
+    expect(
+      await verifyCreditAuthorization({
+        ...terms,
+        header: withWindow({ validBefore: "1" }),
+      })
+    ).toEqual({
+      ok: false,
+      reason:
+        "The authorization expired before it reached Froggy. Sign it again.",
+    });
+    expect(
+      await verifyCreditAuthorization({
+        ...terms,
+        header: withWindow({ validAfter: "9999999998" }),
+      })
+    ).toEqual({ ok: false, reason: "The authorization is not valid yet." });
+    expect(
+      await verifyCreditAuthorization({
+        ...terms,
+        latestValidBefore: 9_999_999_998,
+        header: header(payment),
+      })
+    ).toEqual({
+      ok: false,
+      reason: "The authorization outlives this quote. Sign it again.",
+    });
+  });
+
+  it("answers a payload it cannot read with a sentence, not a throw", async () => {
+    const payment = envelope();
+    const result = await verifyCreditAuthorization({
+      ...terms,
+      header: header({
+        ...payment,
+        payload: { permit2Authorization: { owner: payer } },
+      }),
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: "The payment proof is not a USDC authorization Froggy can read.",
+    });
   });
 });

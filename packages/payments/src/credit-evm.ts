@@ -8,10 +8,12 @@ import {
   erc20Abi,
   http,
   isAddress,
+  isAddressEqual,
   isHex,
   keccak256,
   parseEventLogs,
   parseAbi,
+  recoverTypedDataAddress,
 } from "viem";
 import type { Abi, Hex } from "viem";
 
@@ -61,10 +63,18 @@ export const creditEvmPayer = (header: string): string =>
   decodeEnvelope(Buffer.from(header, "base64").toString("utf-8")).payload
     .authorization.from;
 
+interface OfferTerms {
+  readonly scheme: string;
+  readonly network: string;
+  readonly amount: string;
+  readonly asset: string;
+  readonly payTo: string;
+}
+
 const matchingTerms = (
   envelope: typeof Envelope.Type,
-  offer: PaymentChallenge["accepts"][number] | undefined,
-  options: CreditEvmOptions,
+  offer: OfferTerms | undefined,
+  options: Pick<CreditEvmOptions, "network" | "payTo" | "token">,
   payer: string
 ): boolean => {
   if (offer === undefined) {
@@ -149,6 +159,112 @@ export const creditEvmAuthorization = (header: string): string => {
 };
 
 /** A private facilitator for Froggy's own USDC credit sales, never a public relay. */
+export type CreditAuthorizationCheck =
+  | { readonly ok: true; readonly from: string; readonly nonce: string }
+  | { readonly ok: false; readonly reason: string };
+
+const decodeEnvelopeResult = Schema.decodeUnknownResult(
+  Schema.fromJsonString(Envelope)
+);
+
+/**
+ * Everything about a browser-signed authorization that can be checked without
+ * the chain: the terms match the frozen quote, the window is sane, and the
+ * signature recovers to the wallet that claims to pay. Settlement repeats the
+ * signature check through the facilitator, which also understands contract
+ * accounts; this one is the fail-fast answer that keeps a refused quote signable.
+ */
+export const verifyCreditAuthorization = async (input: {
+  readonly header: string;
+  readonly network: EvmNetwork;
+  readonly asset: string;
+  readonly payTo: string;
+  readonly amount: string;
+  readonly domain: { readonly name: string; readonly version: string };
+  /** Milliseconds. */
+  readonly now: number;
+  /** Unix seconds; an authorization that outlives the quote by more is refused. */
+  readonly latestValidBefore: number;
+}): Promise<CreditAuthorizationCheck> => {
+  const decoded = decodeEnvelopeResult(
+    Buffer.from(input.header, "base64").toString("utf-8")
+  );
+  if (decoded._tag !== "Success") {
+    return {
+      ok: false,
+      reason: "The payment proof is not a USDC authorization Froggy can read.",
+    };
+  }
+  const envelope = decoded.success;
+  const { authorization: auth } = envelope.payload;
+  const offer = {
+    scheme: "exact",
+    network: input.network,
+    amount: input.amount,
+    asset: input.asset,
+    payTo: input.payTo,
+  };
+  const options = {
+    network: input.network,
+    payTo: input.payTo,
+    token: input.asset,
+  };
+  if (!matchingTerms(envelope, offer, options, auth.from)) {
+    return {
+      ok: false,
+      reason: "The signed authorization does not match this credit quote.",
+    };
+  }
+  const nowSeconds = BigInt(Math.floor(input.now / 1000));
+  if (BigInt(auth.validAfter) > nowSeconds) {
+    return { ok: false, reason: "The authorization is not valid yet." };
+  }
+  // The facilitator refuses anything closer than six seconds to its own clock.
+  if (BigInt(auth.validBefore) <= nowSeconds + 6n) {
+    return {
+      ok: false,
+      reason:
+        "The authorization expired before it reached Froggy. Sign it again.",
+    };
+  }
+  if (BigInt(auth.validBefore) > BigInt(input.latestValidBefore)) {
+    return {
+      ok: false,
+      reason: "The authorization outlives this quote. Sign it again.",
+    };
+  }
+  let recovered: string;
+  try {
+    recovered = await recoverTypedDataAddress({
+      domain: {
+        ...input.domain,
+        chainId: EVM_CHAIN_IDS[input.network],
+        verifyingContract: address(input.asset),
+      },
+      types: authorizationTypes,
+      primaryType: "TransferWithAuthorization",
+      message: {
+        from: address(auth.from),
+        to: address(auth.to),
+        value: BigInt(auth.value),
+        validAfter: BigInt(auth.validAfter),
+        validBefore: BigInt(auth.validBefore),
+        nonce: hex(auth.nonce),
+      },
+      signature: hex(envelope.payload.signature),
+    });
+  } catch {
+    return { ok: false, reason: "The signature could not be read." };
+  }
+  if (!isAddressEqual(address(recovered), address(auth.from))) {
+    return {
+      ok: false,
+      reason: "The signature does not belong to the paying wallet.",
+    };
+  }
+  return { ok: true, from: auth.from, nonce: auth.nonce };
+};
+
 export const evmCreditSettlement = (options: CreditEvmOptions) => {
   const client = createPublicClient({ transport: http(options.rpcUrl) });
   const token = address(options.token);

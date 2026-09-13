@@ -2,8 +2,10 @@ export {
   creditEvmAuthorization,
   creditEvmPayer,
   evmCreditSettlement,
+  verifyCreditAuthorization,
 } from "./credit-evm";
 export type {
+  CreditAuthorizationCheck,
   CreditEvmSubmission,
   CreditSettlement,
   EvmCreditSettlement,
