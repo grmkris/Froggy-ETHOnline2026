@@ -200,6 +200,56 @@ export const foreignSigner = (
   activity.flows.some((flow) => flow.direction === "sent")
     ? activity.transactionFrom
     : null;
+interface ExchangeLegs {
+  readonly sent: WalletActivityFlow;
+  readonly received: WalletActivityFlow;
+}
+/**
+ * The two legs of an exchange no verified pool vouched for: exactly one
+ * asset out and one in. Titled a swap on an unverified route rather than a
+ * transfer, because an exchange is what the person will recognise.
+ */
+export const exchangeLegs = (
+  activity: Pick<WalletActivity, "kind" | "flows">
+): ExchangeLegs | null => {
+  if (activity.kind === "swap" || activity.kind === "price") {
+    return null;
+  }
+  const sent = activity.flows.filter((flow) => flow.direction === "sent");
+  const received = activity.flows.filter(
+    (flow) => flow.direction === "received"
+  );
+  const [out] = sent;
+  const [into] = received;
+  return sent.length === 1 &&
+    received.length === 1 &&
+    out !== undefined &&
+    into !== undefined &&
+    out.asset !== into.asset
+    ? { sent: out, received: into }
+    : null;
+};
+/**
+ * A transfer that is probably somebody else's lie: something "left" the
+ * wallet in a transaction the wallet did not sign, and every token that left
+ * is one nobody can vouch for. An address-poisoning batch looks exactly like
+ * this; a relayed send of a known asset from a smart account does not.
+ */
+export const suspectedPoisoning = (
+  activity: Pick<
+    WalletActivity,
+    "wallet" | "transactionFrom" | "flows" | "network"
+  >
+): boolean => {
+  if (foreignSigner(activity) === null) {
+    return false;
+  }
+  const sent = activity.flows.filter((flow) => flow.direction === "sent");
+  return (
+    sent.length > 0 &&
+    sent.every((flow) => flowAsset(flow, activity.network).doubt !== null)
+  );
+};
 export const WalletActivity = Schema.Struct({
   v: Schema.Literal(1),
   id: WalletActivityId,

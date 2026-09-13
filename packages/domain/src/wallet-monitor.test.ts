@@ -13,6 +13,8 @@ import {
   monitorStartBlock,
   shortAddress,
   supportedPresence,
+  exchangeLegs,
+  suspectedPoisoning,
 } from "./wallet-monitor";
 
 const monitor = Schema.decodeUnknownSync(WalletMonitor)({
@@ -108,6 +110,91 @@ test("amounts use the token's decimals and fall back to raw units", () => {
   expect(flowAmount({ amount: "100000", decimals: null })).toBe(
     "100000 raw units of"
   );
+});
+
+test("an exchange no pool vouched for has two legs; anything else has none", () => {
+  const evm = Schema.decodeUnknownSync(EvmAddress);
+  const stranger = evm("0xefbb49a7ebf66f8a10435a2a2ffd19981f719c8e");
+  const usdc = evm("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+  const sentEth = {
+    asset: "native" as const,
+    amount: "1",
+    direction: "sent" as const,
+    counterparty: stranger,
+    symbol: null,
+    decimals: 18,
+  };
+  const gotUsdc = {
+    ...sentEth,
+    asset: usdc,
+    direction: "received" as const,
+    symbol: "USDC",
+    decimals: 6,
+  };
+  expect(exchangeLegs({ kind: "transfer", flows: [sentEth, gotUsdc] })).toEqual(
+    { sent: sentEth, received: gotUsdc }
+  );
+  // A verified swap is already a swap; one leg, or the same asset both ways, is not an exchange.
+  expect(exchangeLegs({ kind: "swap", flows: [sentEth, gotUsdc] })).toBeNull();
+  expect(exchangeLegs({ kind: "transfer", flows: [sentEth] })).toBeNull();
+  expect(
+    exchangeLegs({
+      kind: "activity",
+      flows: [sentEth, { ...sentEth, direction: "received" as const }],
+    })
+  ).toBeNull();
+});
+
+test("a transfer a stranger signed of a token nobody can vouch for is suspected poisoning", () => {
+  const evm = Schema.decodeUnknownSync(EvmAddress);
+  const wallet = evm("0x0Cf84F01C311Dc093969136B1814F05B5b3167F6");
+  const stranger = evm("0xefbb49a7ebf66f8a10435a2a2ffd19981f719c8e");
+  const fake = evm("0x6c9458b7e1c1742c68d2662ea6a41ac5de43d28c");
+  const usdc = evm("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+  const network = "eip155:8453";
+  const fakeSend = {
+    asset: fake,
+    amount: "100000",
+    direction: "sent" as const,
+    counterparty: stranger,
+    symbol: "UṢDC",
+    decimals: 6,
+  };
+  expect(
+    suspectedPoisoning({
+      wallet,
+      network,
+      transactionFrom: stranger,
+      flows: [fakeSend],
+    })
+  ).toBe(true);
+  // The same lie signed by the wallet itself is the wallet's own doing.
+  expect(
+    suspectedPoisoning({
+      wallet,
+      network,
+      transactionFrom: wallet,
+      flows: [fakeSend],
+    })
+  ).toBe(false);
+  // A relayed send of the real USDC is a smart account at work, not poisoning.
+  expect(
+    suspectedPoisoning({
+      wallet,
+      network,
+      transactionFrom: stranger,
+      flows: [{ ...fakeSend, asset: usdc, symbol: "USDC" }],
+    })
+  ).toBe(false);
+  // Receiving a fake token is spam, not a forged send.
+  expect(
+    suspectedPoisoning({
+      wallet,
+      network,
+      transactionFrom: stranger,
+      flows: [{ ...fakeSend, direction: "received" as const }],
+    })
+  ).toBe(false);
 });
 
 test("a foreign signer is named only when something left the wallet", () => {

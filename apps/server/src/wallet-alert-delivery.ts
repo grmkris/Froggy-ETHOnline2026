@@ -10,6 +10,7 @@ import type {
 } from "@froggy/domain";
 import type { WalletActivityTransaction, WalletAlert } from "@froggy/wallet";
 
+import { activityLines } from "./wallet-activity";
 import {
   monitorIsActive,
   monitorNetworkName,
@@ -70,8 +71,13 @@ export const recordCorrection = async (
   const gap = activity.finality === "unverified";
   const key = `${gap ? "gap-correction" : "correction"}:${activity.id}:${activity.blockHash}`;
   const reason = gap
-    ? "could not be reverified after a monitoring gap"
-    : "was removed by a chain reorganization";
+    ? "Froggy could not re-verify it after a gap in the stream"
+    : "the chain reorganized and the transaction is gone";
+  // Which alert, in its own words, so the correction is not a riddle.
+  const what =
+    activity.kind === "price"
+      ? "Price evidence"
+      : (activityLines(activity)[0] ?? "Wallet activity");
   if (!(await tx.alert(key))) {
     await tx.saveAlert(
       alertFor(
@@ -80,7 +86,13 @@ export const recordCorrection = async (
         activity.network,
         "correction",
         key,
-        `Correction: provisional ${monitorNetworkName(activity.network)} ${activity.kind === "price" ? "price evidence" : "wallet activity"} ${reason}.\n${appUrl}/watchlist/${item.id}`,
+        [
+          `Correction · ${monitorNetworkName(activity.network)}`,
+          `Watch: ${item.title}`,
+          what,
+          `This alert was still confirming and is withdrawn: ${reason}.`,
+          `Open in Froggy: ${appUrl}/watchlist/${item.id}`,
+        ].join("\n"),
         now,
         [activity.id]
       )
@@ -235,7 +247,7 @@ const claimSummary = async (
   }
   return {
     ...alert,
-    text: `${count} more onchain alerts matched your watches this minute.\nOpen Watchlist for the amounts, prices, networks and confirmation status.\n${deps.appUrl}/watchlist`,
+    text: `${count} more onchain ${count === 1 ? "alert" : "alerts"} matched your watches this minute.\nOpen the Watchlist in Froggy for the amounts, prices, networks and confirmation status.\nOpen in Froggy: ${deps.appUrl}/watchlist`,
   };
 };
 const deliverAndReconcile = async (

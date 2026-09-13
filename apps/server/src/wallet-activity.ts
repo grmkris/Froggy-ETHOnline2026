@@ -1,6 +1,7 @@
 import {
   EvmAddress,
   WalletActivityFlow,
+  exchangeLegs,
   flowAmount,
   flowAsset,
   foreignSigner,
@@ -517,33 +518,48 @@ const watchLine = (
   return `Watch: ${title}${named ? "" : ` (${shortAddress(activity.wallet)})`}`;
 };
 
+/**
+ * What an alert is called. A verified swap is a swap; one asset out and one
+ * in through pools nobody could verify is still an exchange to the person,
+ * so it is called one, with the route's standing beside it.
+ */
+const activityHeading = (activity: WalletActivity): string => {
+  if (activity.kind === "swap") {
+    return "Wallet swap";
+  }
+  if (exchangeLegs(activity) !== null) {
+    return "Wallet swap (unverified route)";
+  }
+  return activity.kind === "transfer" ? "Wallet transfer" : "Wallet activity";
+};
+/**
+ * The state every alert is sent in. A block is reported two blocks after it
+ * lands and confirmed once the chain finalizes it; the one word for the
+ * time in between, here, in the Inbox and on the watch panel, is this.
+ */
+const STILL_CONFIRMING = "confirming";
+
 export const walletActivityText = (
   activity: WalletActivity,
   appUrl: string,
   title: string
 ): string => {
-  const link = `${appUrl}/watchlist/${activity.itemId}`;
+  const link = `Open in Froggy: ${appUrl}/watchlist/${activity.itemId}`;
   if (activity.kind === "price" && activity.price) {
     const { price } = activity;
     return [
-      `Price alert · ${chainName(activity.network)} · provisional`,
+      `Price alert · ${chainName(activity.network)} · ${STILL_CONFIRMING}`,
       `Watch: ${title}`,
       `${price.initiallyMatched ? "Price already" : "Price moved"} ${price.comparison} ${price.threshold} ${price.quoteCurrency}`,
       `Observed ${price.observation.price} ${price.quoteCurrency} · ${price.sourceLabel}`,
       link,
     ].join("\n");
   }
-  const titles = {
-    swap: "Wallet swap",
-    transfer: "Wallet transfer",
-    activity: "Wallet activity",
-    price: "Price alert",
-  };
   return [
-    `${titles[activity.kind]} · ${chainName(activity.network)} · provisional`,
+    `${activityHeading(activity)} · ${chainName(activity.network)} · ${STILL_CONFIRMING}`,
     watchLine(activity, title),
     ...activityLines(activity),
-    `https://${explorer(activity.network)}/tx/${activity.transactionHash}`,
+    `Transaction: https://${explorer(activity.network)}/tx/${activity.transactionHash}`,
     link,
   ].join("\n");
 };

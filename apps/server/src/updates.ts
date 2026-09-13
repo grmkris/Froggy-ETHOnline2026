@@ -1,4 +1,10 @@
-import { listChainNames, visiblePresence, UpdateId } from "@froggy/domain";
+import {
+  exchangeLegs,
+  listChainNames,
+  suspectedPoisoning,
+  visiblePresence,
+  UpdateId,
+} from "@froggy/domain";
 import type {
   AddressPresence,
   Update,
@@ -48,7 +54,7 @@ const record = (input: Omit<Update, "v" | "id" | "readAt">): Update => ({
 const chain = (activity: WalletActivity): string =>
   activity.network === "eip155:4663" ? "Robinhood" : "Base";
 const finality = (activity: WalletActivity): string =>
-  `${chain(activity)} · ${activity.finality === "finalized" ? "confirmed" : "provisional until confirmed"}`;
+  `${chain(activity)} · ${activity.finality === "finalized" ? "confirmed" : "confirming"}`;
 const priceUpdate = (item: WatchlistItem, activity: WalletActivity): Update => {
   const { price } = activity;
   return record({
@@ -76,10 +82,18 @@ export const activityUpdate = (
   const lines = activityLines(activity);
   const sent = activity.flows.find((flow) => flow.direction === "sent");
   const received = activity.flows.find((flow) => flow.direction === "received");
+  const exchange = exchangeLegs(activity);
   const [first] = activity.flows;
+  // Filed here and kept off the phone: the wallet did not sign it, and the
+  // token that "left" is one nobody can vouch for.
+  const ignored = suspectedPoisoning(activity);
   let title = `${item.title} had onchain activity`;
-  if (activity.kind === "swap" && sent && received) {
+  if (ignored) {
+    title = `${item.title}: a likely fake transfer was ignored`;
+  } else if (activity.kind === "swap" && sent && received) {
     title = `${item.title} swapped ${flowWords(sent, activity.network)} for ${flowWords(received, activity.network)}`;
+  } else if (exchange !== null) {
+    title = `${item.title} swapped ${flowWords(exchange.sent, activity.network)} for ${flowWords(exchange.received, activity.network)} (unverified route)`;
   } else if (first) {
     title = `${item.title} ${first.direction} ${flowWords(first, activity.network)}`;
   }
@@ -91,7 +105,11 @@ export const activityUpdate = (
     at: activity.observedAt,
     stubbed: activity.stubbed,
     title,
-    body: [...lines, finality(activity)].join("\n"),
+    body: [
+      ...(ignored ? ["Not sent to Telegram."] : []),
+      ...lines,
+      finality(activity),
+    ].join("\n"),
   });
 };
 export const correctionUpdate = (
@@ -105,8 +123,8 @@ export const correctionUpdate = (
     activityId: activity.id,
     at: now,
     stubbed: activity.stubbed,
-    title: "Correction to provisional activity",
-    body: `The provisional ${chain(activity)} ${activity.kind === "price" ? "price evidence" : "wallet activity"} ${activity.finality === "unverified" ? "could not be reverified after a monitoring gap" : "was removed by a chain reorganization"}.`,
+    title: `Correction: ${activity.kind === "price" ? "price evidence" : "wallet activity"} withdrawn`,
+    body: `The ${chain(activity)} ${activity.kind === "price" ? "price evidence" : "wallet activity"} that was still confirming ${activity.finality === "unverified" ? "could not be re-verified after a gap in the stream" : "was removed by a chain reorganization"}.`,
   });
 export const foundUpdate = (
   item: WatchlistItem,

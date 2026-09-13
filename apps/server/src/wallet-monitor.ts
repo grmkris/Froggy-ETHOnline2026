@@ -846,7 +846,7 @@ export const walletMonitorStatus = async (
     coverage:
       networks.length === 0
         ? "No supported chain has been found for this address yet."
-        : `${listChainNames(networks)}: ETH and ERC20 transfers; verified Uniswap v2/v3/v4 swaps, Aerodrome classic on Base and registered Pons on Robinhood. Price source and units are shown per rule. Alerts are provisional until finalized.`,
+        : `${listChainNames(networks)}: ETH and ERC20 transfers; verified Uniswap v2/v3/v4 swaps, Aerodrome classic on Base and registered Pons on Robinhood. Price source and units are shown per rule. Alerts go out while a block is still confirming and are corrected if the chain reorganizes.`,
     stubbed: entries.some((entry) => entry.stubbed),
     networks: entries.map(({ gapSince: _gap, ...entry }) => entry),
   };

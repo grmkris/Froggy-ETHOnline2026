@@ -410,7 +410,9 @@ describe("price rules on the shared stream", () => {
     await dispatchWalletAlerts(s.deps);
     const ready = s.sent.filter((alert) => alert.kind === "ready");
     expect(ready).toHaveLength(1);
-    expect(ready[0]?.text).toContain("Waiting for a valid price observation.");
+    expect(ready[0]?.text).toContain(
+      "The price alert starts once a price is available."
+    );
     expect(s.sent.filter((alert) => alert.kind === "activity")).toEqual([]);
   });
 
@@ -443,9 +445,7 @@ describe("price rules on the shared stream", () => {
     expect(s.sent.filter((alert) => alert.kind === "activity")).toHaveLength(2);
     const corrections = s.sent.filter((alert) => alert.kind === "correction");
     expect(corrections).toHaveLength(1);
-    expect(corrections[0]?.text).toContain(
-      "could not be reverified after a monitoring gap"
-    );
+    expect(corrections[0]?.text).toContain("gap in the stream");
     expect(corrections[0]?.text).not.toContain("chain reorganization");
     expect(corrections[0]?.key).toStartWith("gap-correction:");
   });
@@ -561,7 +561,7 @@ describe("price rules on the shared stream", () => {
     expect(previous?.telegramMessageId).toBe("telegram:gap-late");
     const corrections = s.sent.filter((alert) => alert.kind === "correction");
     expect(corrections).toHaveLength(1);
-    expect(corrections[0]?.text).toContain("monitoring gap");
+    expect(corrections[0]?.text).toContain("gap in the stream");
     expect(corrections[0]?.text).not.toContain("chain reorganization");
     expect(s.sent.filter((alert) => alert.kind === "activity")).toHaveLength(2);
   });

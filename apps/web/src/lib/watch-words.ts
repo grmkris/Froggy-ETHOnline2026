@@ -310,7 +310,7 @@ export const flowSentence = (flow: Flow, label: AssetLabel): string =>
   `${flow.direction === "sent" ? "Sent" : "Received"} ${flowWords(flow, label)} ${flow.direction === "sent" ? "to" : "from"} ${shortEvmAddress(flow.counterparty)}`;
 
 const finalityWords: Record<WalletActivity["finality"], string> = {
-  provisional: "awaiting confirmation",
+  provisional: "confirming",
   finalized: "confirmed",
   reverted: "reverted",
   unverified: "unverified",

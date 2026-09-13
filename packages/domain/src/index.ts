@@ -372,6 +372,8 @@ export {
   flowAmount,
   flowAsset,
   foreignSigner,
+  exchangeLegs,
+  suspectedPoisoning,
   monitorCoverage,
   monitorStartBlock,
   shortAddress,

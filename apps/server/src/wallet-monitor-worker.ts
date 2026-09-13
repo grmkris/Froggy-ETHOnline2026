@@ -1,11 +1,16 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 
-import { EvmAddress, WalletActivityId } from "@froggy/domain";
+import {
+  EvmAddress,
+  WalletActivityId,
+  suspectedPoisoning,
+} from "@froggy/domain";
 import type {
   OnchainAlertRule,
   UserId,
   WalletActivity,
+  WalletMonitor,
   WalletPriceEvaluation,
   WatchlistItem,
 } from "@froggy/domain";
@@ -51,6 +56,15 @@ interface Fence {
   readonly epoch: number;
   readonly generation: number;
 }
+/**
+ * Filed in the Inbox but not sent to the phone: the person asked for no
+ * Telegram, or the activity is a likely fake transfer, which is exactly
+ * what the poisoning batch after a real send would put on their phone.
+ */
+const keptOffTelegram = (
+  monitor: WalletMonitor,
+  activity: WalletActivity
+): boolean => !monitor.telegram || suspectedPoisoning(activity);
 const ownsFence = (
   tx: WalletActivityTransaction,
   fence: Fence,
@@ -115,7 +129,7 @@ const advanceActivities = async (
         continue;
       }
       await tx.saveUpdate(owner, activityUpdate(item, activity));
-      if (!monitor.telegram) {
+      if (keptOffTelegram(monitor, activity)) {
         await tx.saveActivity(owner, { ...activity, delivery: "cancelled" });
         continue;
       }
@@ -261,8 +275,12 @@ const recordReady = async (
       );
     }) ??
       false);
-  const waiting = waitingPrice ? " Waiting for a valid price observation." : "";
+  const waiting = waitingPrice
+    ? " The price alert starts once a price is available."
+    : "";
   const mode = block.stubbed ? "Demo: " : "";
+  // Hours, not an ISO instant in UTC: the phone has no idea what zone that was.
+  const hours = Math.max(1, Math.round((monitor.expiresAt - now) / 3_600_000));
   await tx.saveAlert(
     alertFor(
       owner,
@@ -270,7 +288,7 @@ const recordReady = async (
       deps.network,
       "ready",
       key,
-      `${mode}Watching ${item.title} on ${monitorNetworkName(deps.network)} until ${new Date(monitor.expiresAt).toISOString()}.${waiting}\n${deps.appUrl}/watchlist/${item.id}`,
+      `${mode}Watching ${item.title} on ${monitorNetworkName(deps.network)} for the next ${hours} hours.${waiting}\nOpen in Froggy: ${deps.appUrl}/watchlist/${item.id}`,
       now
     )
   );

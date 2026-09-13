@@ -5,6 +5,8 @@ import {
   emptyWatchlistData,
   userId,
   WALLET_MONITOR_DURATION_MS,
+  WalletActivityId,
+  WalletMonitorId,
 } from "@froggy/domain";
 import type {
   OnchainNetwork,
@@ -580,9 +582,116 @@ describe("wallet trade attribution", () => {
     expect(text).not.toContain("not signed by the watched wallet");
     expect(text).toContain(`token ${token.slice(0, 6)}…${token.slice(-4)}`);
     expect(text).toContain("Unverified token");
-    expect(text.startsWith("Wallet transfer · Base · provisional\n")).toBe(
-      true
+    expect(text.startsWith("Wallet transfer · Base · confirming\n")).toBe(true);
+    expect(text).toContain("Transaction: https://basescan.org/tx/");
+    expect(text).toContain("Open in Froggy: https://froggy.example/watchlist/");
+  });
+  test("a forged send of a lookalike token is filed in the Inbox and kept off Telegram", async () => {
+    const s = setup();
+    const deps: WalletWorkerDeps = {
+      ...s.deps,
+      verifier: {
+        verify: async () => await Promise.resolve(false),
+        metadata: async () =>
+          await Promise.resolve({ symbol: "UṢDC", decimals: 6 }),
+      },
+    };
+    const item = await trackWallet(deps, owner, input, options);
+    const fence = await s.fence();
+    const poisoned = transaction({
+      hash: hash("c"),
+      transactionFrom: recipient,
+      transfers: [
+        {
+          asset: token,
+          from: wallet,
+          to: recipient,
+          amount: "100000",
+          ordinal: "20",
+          callIndex: 2,
+          callKnown: true,
+          logIndex: 1,
+        },
+      ],
+    });
+    await commitWalletBlock(deps, fence, s.block(1001, [poisoned]));
+    await commitWalletBlock(deps, fence, s.block(1003));
+    await dispatchWalletAlerts(deps);
+    expect(s.alerts.filter((alert) => alert.kind === "activity")).toHaveLength(
+      0
     );
+    const [activity] = await s.store.walletActivity.list(owner, item.id);
+    expect(activity?.delivery).toBe("cancelled");
+    const page = await s.store.updates.list(owner);
+    const filed = page.updates.find((row) => row.kind === "activity");
+    expect(filed?.title).toBe(
+      `${item.title}: a likely fake transfer was ignored`
+    );
+    expect(filed?.body).toContain("Not sent to Telegram.");
+    expect(filed?.body).toContain("Unverified token");
+  });
+  test("one asset out and one in through no verified pool is called a swap on an unverified route", async () => {
+    const s = setup();
+    const item = await trackWallet(s.deps, owner, input, options);
+    const exchange = transaction({
+      hash: hash("d"),
+      transactionFrom: wallet,
+      transfers: [
+        {
+          asset: "native",
+          from: wallet,
+          to: pool,
+          amount: "1000000000000000",
+          ordinal: "20",
+          callIndex: 2,
+          callKnown: true,
+          logIndex: 1,
+        },
+        {
+          asset: token,
+          from: pool,
+          to: wallet,
+          amount: "2000000",
+          ordinal: "21",
+          callIndex: 2,
+          callKnown: true,
+          logIndex: 2,
+        },
+      ],
+    });
+    const described = await describeWalletActivity(
+      exchange,
+      1001,
+      s.deps.verifier
+    );
+    expect(described.kind).toBe("transfer");
+    const text = walletActivityText(
+      {
+        ...described,
+        v: 1,
+        id: WalletActivityId.generate(),
+        itemId: item.id,
+        monitorId: item.walletMonitor?.id ?? WalletMonitorId.generate(),
+        monitorRevision: 1,
+        network: "eip155:8453",
+        wallet,
+        transactionFrom: wallet,
+        transactionHash: hash("d"),
+        blockHash: hash("e"),
+        blockNumber: 1001,
+        blockTime: 1,
+        observedAt: 1,
+        finality: "provisional",
+        delivery: "waiting",
+        telegramMessageId: null,
+        stubbed: true,
+      },
+      "https://froggy.example",
+      item.title
+    );
+    expect(
+      text.startsWith("Wallet swap (unverified route) · Base · confirming\n")
+    ).toBe(true);
   });
   test("a sponsor or router is not substituted for the watched wallet", async () => {
     const s = setup();

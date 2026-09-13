@@ -492,8 +492,7 @@ const EventNotes = ({ activity }: { readonly activity: WalletActivity }) => {
     <>
       {activity.finality === "unverified" ? (
         <p className="watch-row-words">
-          Froggy could not confirm this provisional activity after a stream
-          interruption.
+          Froggy could not confirm this activity after a gap in the stream.
         </p>
       ) : null}
       {signer === null ? null : (
