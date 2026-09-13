@@ -64,7 +64,10 @@ test("landing media captures the shared browser and a saved watchlist item", asy
       "A little green for the workspace. Demonstration item, no monitoring or purchase enabled."
     );
   await dialog.getByRole("button", { name: "Save item" }).click();
-  await dialog.getByRole("button", { name: "Save without monitoring" }).click();
+  // Saving now confirms inside the dialog and offers an alert; the capture
+  // wants the list behind it, so dismiss rather than answer the offer.
+  await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(
     page.getByRole("link", { name: /The desk garden/u })
