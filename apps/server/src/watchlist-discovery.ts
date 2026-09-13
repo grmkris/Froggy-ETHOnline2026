@@ -90,7 +90,7 @@ const CHAIN_NAMES = new Map([
   ["eip155:11155111", "Sepolia"],
   ["eip155:84532", "Base Sepolia"],
 ]);
-export const chainName = (network: string): string =>
+const chainName = (network: string): string =>
   CHAIN_NAMES.get(network) ?? network;
 
 const listNames = (networks: readonly string[]): string => {
@@ -186,10 +186,8 @@ const describeRow = (row: AddressPresence): string => {
     if (name === null) {
       return "Contract without ERC-20 metadata";
     }
-    const symbol =
-      row.token?.symbol && row.token.symbol !== name
-        ? ` (${row.token.symbol})`
-        : "";
+    const ticker = row.token?.symbol ?? "";
+    const symbol = ticker !== "" && ticker !== name ? ` (${ticker})` : "";
     const decimals =
       row.token?.decimals === null || row.token?.decimals === undefined
         ? ""

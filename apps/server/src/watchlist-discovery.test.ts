@@ -331,7 +331,10 @@ test("only one discovery runs per owner, the queue drains in order, and done ite
   const during = await store.watchlistData.transact(owner, (book) =>
     [...book.values()].map((data) => data.discovery?.status)
   );
-  expect(during.toSorted()).toEqual(["queued", "running"]);
+  expect(during.toSorted((a, b) => (a ?? "").localeCompare(b ?? ""))).toEqual([
+    "queued",
+    "running",
+  ]);
   gate.resolve(null);
   await running;
   const after = await store.watchlistData.transact(owner, (book) => [
