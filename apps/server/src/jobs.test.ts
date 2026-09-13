@@ -5,8 +5,6 @@ import type { Schedule } from "@froggy/domain";
 
 import { digestJob, promptJob } from "./jobs";
 
-const ORACLE = "http://localhost:3000/oracle/snapshot";
-
 describe("promptJob", () => {
   test("names the label, the instruction, when it was set and the cadence, with no browser tool", () => {
     const schedule: Schedule = {
@@ -23,12 +21,12 @@ describe("promptJob", () => {
       status: "active",
       timezone: "Europe/Berlin",
     };
-    const job = promptJob(schedule, ORACLE);
+    const job = promptJob(schedule);
     expect(job.instructions).toContain('"Monday rates"');
     expect(job.instructions).toContain("under 3%");
     expect(job.instructions).toContain("Sat 5 Sept, 08:30 (Europe/Berlin)");
     expect(job.instructions).toContain("every Monday at 09:00 (Europe/Berlin)");
-    expect(job.instructions).toContain(ORACLE);
+    expect(job.instructions).not.toContain("snapshot");
     expect(job.scheduleId).toBe(schedule.id);
     expect(job.surface).toBe("schedule");
     expect(job.title).toBe("Monday rates");
@@ -38,7 +36,8 @@ describe("promptJob", () => {
   });
 
   test("the digest keeps its three tools and five cents", () => {
-    const job = digestJob(ORACLE);
+    const job = digestJob();
+    expect(job.instructions).not.toContain("snapshot at");
     expect(job.tools).toEqual(["graph_query", "x402_fetch", "wallet_status"]);
     expect(job.budgetUsdMicros).toBe(50_000);
     expect(job.surface).toBe("digest");
@@ -60,13 +59,13 @@ describe("promptJob", () => {
       status: "active",
       timezone: "UTC",
     };
-    expect(promptJob(schedule, ORACLE).tools).toContain("email_read");
-    expect(promptJob(schedule, ORACLE).tools).not.toContain("email_draft");
+    expect(promptJob(schedule).tools).toContain("email_read");
+    expect(promptJob(schedule).tools).not.toContain("email_draft");
     expect(
-      promptJob(
-        { ...schedule, action: { _tag: "prompt", text: "Check the inbox" } },
-        ORACLE
-      ).tools
+      promptJob({
+        ...schedule,
+        action: { _tag: "prompt", text: "Check the inbox" },
+      }).tools
     ).not.toContain("email_read");
   });
 });

@@ -530,11 +530,7 @@ const handleScheduling = async (
   // delivered the same way, so a person can see the digest land before the
   // hour comes round. Busy is a report too, not an error.
   if (pathname === "/api/digest/test" && request.method === "POST") {
-    const report = await runScheduledFor(
-      deps.jobs,
-      userId,
-      digestJob(deps.oracleUrl)
-    );
+    const report = await runScheduledFor(deps.jobs, userId, digestJob());
     return json({
       outcome: report.outcome,
       reason: report.reason,

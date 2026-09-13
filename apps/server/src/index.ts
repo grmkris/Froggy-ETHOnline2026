@@ -590,8 +590,8 @@ class FroggyServer extends Context.Service<
           }
           const job =
             schedule.action._tag === "digest"
-              ? digestJob(oracleUrl)
-              : promptJob(schedule, oracleUrl);
+              ? digestJob()
+              : promptJob(schedule);
           const report = await runScheduledFor(jobDeps, userId, job);
           return report.outcome === "skipped" ? "busy" : "done";
         },

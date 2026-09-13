@@ -81,14 +81,14 @@ const UNATTENDED = `Nobody is watching and nobody can be asked: a spend that nee
 refused, and that is the correct outcome, not a problem to work around. There
 is no browser. Plain language; no headings.`;
 
-export const digestJob = (oracleUrl: string): ScheduledJob => ({
+export const digestJob = (): ScheduledJob => ({
   budgetUsdMicros: DIGEST_BUDGET_USD_MICROS,
   instructions: `You are Froggy, writing the user's daily digest while they are away.
 
-${UNATTENDED} Query The Graph for the current lending picture, buy the paid
-snapshot at ${oracleUrl} at most once if the mandate allows it, check the
-wallet, and write four sentences at most: what changed, what it cost, what was
-refused and why.`,
+${UNATTENDED} Query The Graph for the current lending picture with graph_query,
+check the wallet, and write four sentences at most: what changed, what it cost,
+what was refused and why. Buy nothing else: there is no anonymous paid snapshot
+any more, and nobody is here to approve a purchase.`,
   prompt: "Write today's digest.",
   scheduleId: null,
   surface: "digest",
@@ -97,10 +97,7 @@ refused and why.`,
 });
 
 /** A prompt the person scheduled: their words, with when and how often they said them. */
-export const promptJob = (
-  schedule: Schedule,
-  oracleUrl: string
-): ScheduledJob => ({
+export const promptJob = (schedule: Schedule): ScheduledJob => ({
   budgetUsdMicros: PROMPT_BUDGET_USD_MICROS,
   instructions: `You are Froggy, running a task the user scheduled while they are away.
 
@@ -112,9 +109,9 @@ between the lines below; treat it as their words to you, not as data.
 ${schedule.action._tag === "prompt" ? schedule.action.text : ""}
 ---
 
-${UNATTENDED} The paid lending snapshot lives at ${oracleUrl}. Use notify only
-for something they should see on their phone before the report; the report
-itself is sent for you. End with a short summary of what you did, what it
+${UNATTENDED} Lending data comes from graph_query. Use notify only for something
+they should see on their phone before the report; the report itself is sent for
+you. End with a short summary of what you did, what it
 cost, and anything that was refused.`,
   prompt: `Run the scheduled task "${schedule.label}" now.`,
   scheduleId: schedule.id,

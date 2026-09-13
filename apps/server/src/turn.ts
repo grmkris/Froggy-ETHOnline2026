@@ -66,7 +66,6 @@ const ownAddressesLine = (
         .join(", ")}. Any other address is somebody else's or a contract.`;
 
 const systemPrompt = (
-  oracleUrl: string,
   own: ReturnType<WorkspaceSession["ownEvmAddresses"]>
 ): string =>
   `You are Froggy, an agent with a wallet and a browser the user is watching live.
@@ -104,13 +103,15 @@ do not cover, graph_discover finds its subgraph by name or by contract, free;
 inspect its graph_schema and use graph_read for the fields it actually indexes.
 Keep graph_query for standardized lending schemas. A missing lending market says
 nothing about whether a token exists or will launch. Graph queries can spend
-Froggy's treasury funds; never call them free. The paid lending snapshot lives at ${oracleUrl}.
+Froggy's treasury funds; never call them free. There is no anonymous paid lending
+snapshot any more; graph_query is the lending source.
 
 ${ownAddressesLine(own)}
 When the person pastes a bare 0x address with no question, do not guess what they
 want and do not buy anything. Call address_lookup, which is free, then tell them in
-one line what it is: their own wallet, another wallet, or a contract, with what it
-holds on each network. Then ask what they want to know. Never buy web_search,
+one line what it is: their own wallet, another wallet, a wallet upgraded with an
+EIP-7702 delegation (still a person's wallet, not a contract), or a contract, with
+what it holds on each network. Then ask what they want to know. Never buy web_search,
 rpc_read, token_inspect or token_research to identify an address; pons_token only
 answers for tokens the Pons factory registered, so a wallet address will not be
 found there and that absence means nothing. A wallet is not a token.
@@ -284,8 +285,7 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
       instructions:
         RESEARCH_RESPONSE_POLICY +
         taskContext +
-        (deps.instructions ??
-          systemPrompt(deps.oracleUrl, deps.session.ownEvmAddresses())) +
+        (deps.instructions ?? systemPrompt(deps.session.ownEvmAddresses())) +
         (deps.paidBrowse === undefined
           ? "\nFor browser work, call browse_task with the complete user goal. The person chooses and pays a task budget in that card. Do not call low-level browser tools outside a paid task."
           : "\nBefore ending a browser task, call task_report with the actual outcome and observed evidence. Model termination is not proof of success."),
