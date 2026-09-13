@@ -34,9 +34,9 @@ for (const size of [
     await page.getByRole("button", { name: "Workspace menu" }).click();
     await page
       .locator('[data-slot="popover-content"]')
-      .getByRole("link", { name: "Tools", exact: true })
+      .getByRole("link", { name: "Activity", exact: true })
       .click();
-    await page.goto("/services");
+    await page.goto("/activity?tab=tools");
     await page.getByRole("button", { name: "Choose search the web" }).click();
     await page
       .getByLabel("Your request")
@@ -55,11 +55,7 @@ for (const size of [
 
     // The secondary places live in the rail at desktop width and in the top
     // bar below it — exactly one of the two exists at any given width.
-    await page.getByRole("button", { name: "Workspace menu" }).click();
-    await page
-      .locator('[data-slot="popover-content"]')
-      .getByRole("link", { name: "Connections" })
-      .click();
+    await page.goto("/activity?tab=agents");
     await expect(
       page.getByRole("button", { name: "Copy for your agent" })
     ).toBeVisible();

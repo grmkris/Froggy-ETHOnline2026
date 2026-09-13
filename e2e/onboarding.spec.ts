@@ -81,7 +81,7 @@ test("Advanced agent setup is recoverable", async ({ page }) => {
     await route.continue();
   });
   await page.goto("/agents");
-  await expect(page).toHaveURL(/\/agents$/u);
+  await expect(page).toHaveURL(/\/activity\?tab=agents$/u);
   await page.getByText("Advanced: connect with a token").click();
   await page.getByLabel("Agent name").fill("My agent");
   await page.getByRole("button", { name: "Create connection" }).click();

@@ -12,7 +12,7 @@ const waitForRules = async (page: Page) => {
 };
 
 const runSearch = async (page: Page, prompt: string) => {
-  await page.goto("/services?service=web_search");
+  await page.goto("/activity?tab=tools&service=web_search");
   await page.getByLabel("Your request").fill(prompt);
   await page.getByRole("button", { name: "Try simulated · 1 credit" }).click();
 };

@@ -80,9 +80,12 @@ for (const theme of ["passbook", "lilypad"] as const) {
         await page.getByRole("button", { name: "Workspace menu" }).click();
         await page
           .locator('[data-slot="popover-content"]')
-          .getByRole("link", { name: "Connections" })
+          .getByRole("link", { name: "Activity" })
           .click();
-        await expect(page).toHaveURL(/\/agents$/u);
+        await expect(page).toHaveURL(/\/activity$/u);
+        // The old address for Connections still arrives, as a tab.
+        await page.goto("/agents");
+        await expect(page).toHaveURL(/\/activity\?tab=agents$/u);
         await page.getByRole("button", { name: "Workspace menu" }).click();
         await page
           .locator('[data-slot="popover-content"]')

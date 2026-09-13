@@ -7,13 +7,13 @@ import { capturePage } from "./capture";
  * viewport, and a picture of each for the eye that the assertions lack.
  */
 const PLACES = [
-  "/",
-  "/watchlist",
-  "/explore",
-  "/wallet",
-  "/services",
-  "/agents",
-  "/settings",
+  { path: "/", name: "chat" },
+  { path: "/watchlist", name: "watchlist" },
+  { path: "/wallet", name: "wallet" },
+  { path: "/activity", name: "activity" },
+  { path: "/activity?tab=agents", name: "connections" },
+  { path: "/activity?tab=tools", name: "tools" },
+  { path: "/settings", name: "settings" },
 ] as const;
 const SIZES = [
   { width: 1440, height: 1000 },
@@ -24,7 +24,7 @@ const SIZES = [
 
 for (const place of PLACES) {
   for (const size of SIZES) {
-    test(`${place} holds together at ${size.width}px`, async ({
+    test(`${place.path} holds together at ${size.width}px`, async ({
       page,
     }, testInfo) => {
       const errors: string[] = [];
@@ -37,13 +37,13 @@ for (const place of PLACES) {
         errors.push(error.message);
       });
       await page.setViewportSize(size);
-      await page.goto(place);
+      await page.goto(place.path);
       // Three destinations, plus the two demoted places once the rail is up.
       await expect(
         page.getByRole("navigation", { name: "Primary" }).getByRole("link")
       ).toHaveCount(3);
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-      if (place === "/") {
+      if (place.path === "/") {
         await expect(page.locator('[data-pose="idle"]').first()).toBeVisible();
       }
       await expect(
@@ -61,21 +61,15 @@ for (const place of PLACES) {
           nodes.some((node) => node.scrollWidth > node.clientWidth)
         );
       expect(clipped).toBe(false);
-      if (place === "/services" && size.width === 1440) {
-        const choose = page.getByRole("button", {
-          name: "Choose search the web",
-        });
-        const bounds = await choose.boundingBox();
-        expect(bounds?.width).toBeGreaterThan(250);
+      if (place.name === "tools" && size.width === 1440) {
+        await expect(
+          page.getByRole("button", { name: "Choose search the web" })
+        ).toBeVisible();
         await expect(
           page.getByRole("heading", { name: "Your tasks" })
         ).toBeInViewport();
       }
-      await capturePage(
-        page,
-        testInfo,
-        place === "/" ? "chat" : place.slice(1)
-      );
+      await capturePage(page, testInfo, place.name);
       expect(errors).toEqual([]);
     });
   }

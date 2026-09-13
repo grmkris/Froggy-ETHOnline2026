@@ -107,7 +107,7 @@ test("connection counts update without removing the copy action", async ({
   await page.goto("/agents");
   await expect(
     page.getByRole("link", { name: "2 agents connected" })
-  ).toHaveAttribute("href", "/agents");
+  ).toHaveAttribute("href", "/activity?tab=agents");
   await expect(
     page.getByRole("button", { name: "Copy for your agent" })
   ).toBeVisible();

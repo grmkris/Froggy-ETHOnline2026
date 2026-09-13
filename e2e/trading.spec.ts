@@ -1,8 +1,100 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { Schema } from "effect";
 
-import { TradeList } from "../packages/protocol/src/trade-execution";
+import {
+  TradeCapabilities,
+  TradeList,
+  TradeTicket,
+} from "../packages/protocol/src/trade-execution";
 import { fundCredits } from "./fund-credits";
+
+const SOLANA = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+const WEI_FEE = "1000000000000000";
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+interface TradeSpec {
+  readonly network: string;
+  readonly venue: string;
+  readonly action: string;
+  readonly tokenIn: string;
+  readonly tokenOut: string;
+  readonly amount?: string;
+  readonly maxNativeFee?: string;
+  readonly sourceTradeId?: string;
+}
+
+const positionFor = (spec: TradeSpec): string | null => {
+  if (spec.action === "deposit") {
+    return spec.tokenOut;
+  }
+  return spec.action === "withdraw" ? spec.tokenIn : null;
+};
+
+/**
+ * Prepare a trade the way an agent does, through the API, so the page only
+ * has to do what a person does: read it and approve one step.
+ */
+const prepareTrade = async (
+  page: Page,
+  spec: TradeSpec
+): Promise<typeof TradeTicket.Type> => {
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(() => localStorage.getItem("froggy.local-identity"))
+    )
+    .not.toBeNull();
+  const token = await page.evaluate(() =>
+    localStorage.getItem("froggy.local-identity")
+  );
+  const headers = { authorization: `Bearer ${token}` };
+  const listed = await page.request.get("/api/trades/capabilities", {
+    headers,
+  });
+  const capabilities = Schema.decodeUnknownSync(TradeCapabilities)(
+    await listed.json()
+  );
+  const route = capabilities.routes.find(
+    (entry) =>
+      entry.venue === spec.venue &&
+      entry.network === spec.network &&
+      entry.action === spec.action
+  );
+  if (route === undefined || route.wallet === null) {
+    throw new Error(
+      `No wallet for ${spec.venue} ${spec.action} on ${spec.network}`
+    );
+  }
+  const input = {
+    network: spec.network,
+    venue: spec.venue,
+    action: spec.action,
+    wallet: route.wallet,
+    tokenIn: spec.tokenIn,
+    tokenOut: spec.tokenOut,
+    amount: spec.amount ?? "1000000",
+    position: positionFor(spec),
+    slippageBps: 100,
+    maxNativeFee: spec.maxNativeFee ?? WEI_FEE,
+  };
+  const base = { v: 1, idempotencyKey: crypto.randomUUID(), input };
+  const data =
+    spec.sourceTradeId === undefined
+      ? base
+      : { ...base, sourceTradeId: spec.sourceTradeId };
+  const response = await page.request.post("/api/trades", { headers, data });
+  expect(response.ok()).toBe(true);
+  return Schema.decodeUnknownSync(TradeTicket)(await response.json());
+};
+
+const noSidewaysScroll = async (page: Page): Promise<void> => {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true);
+};
 
 test("token search uses structured inputs and keeps its result after reload", async ({
   page,
@@ -11,7 +103,7 @@ test("token search uses structured inputs and keeps its result after reload", as
   page.on("pageerror", (error) => {
     errors.push(error.message);
   });
-  await page.goto("/services?service=market_search");
+  await page.goto("/activity?tab=tools&service=market_search");
   await page.getByLabel("Token name or symbol").fill("frog");
   await page.getByLabel("Maximum results").fill("3");
   const response = page.waitForResponse(
@@ -28,7 +120,7 @@ test("token search uses structured inputs and keeps its result after reload", as
   expect(ticket.service).toBe("market_search");
   await expect(page.getByLabel("Service tasks")).toContainText("Done");
   await expect(page.getByLabel("Service tasks")).toContainText("DEMO");
-  await page.goto(`/services?task=${ticket.id}`);
+  await page.goto(`/activity?tab=tools&task=${ticket.id}`);
   const result = page.getByLabel("Selected service task");
   await expect(result).toContainText("frog");
   await result.getByText("Structured provider data").click();
@@ -46,7 +138,7 @@ test("token research renders launcher and per-source status", async ({
   page.on("pageerror", (error) => {
     errors.push(error.message);
   });
-  await page.goto("/services?service=token_research");
+  await page.goto("/activity?tab=tools&service=token_research");
   await page
     .getByLabel("Token address", { exact: true })
     .fill(`0x${"a".repeat(40)}`);
@@ -65,7 +157,7 @@ test("token research renders launcher and per-source status", async ({
   )(await created.json());
   expect(ticket.service).toBe("token_research");
   await expect(page.getByLabel("Service tasks")).toContainText("Done");
-  await page.goto(`/services?task=${ticket.id}`);
+  await page.goto(`/activity?tab=tools&task=${ticket.id}`);
   const result = page.getByLabel("Selected service task");
   const research = result.getByLabel("Token research result");
   await expect(research).toBeVisible();
@@ -88,7 +180,7 @@ test("an unsigned swap quote is inspectable on a narrow screen", async ({
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?service=quote_action");
+  await page.goto("/activity?tab=tools&service=quote_action");
   // Synthetic fixture identities, never production token configuration.
   await page
     .getByLabel("Wallet address", { exact: true })
@@ -113,7 +205,7 @@ test("an unsigned swap quote is inspectable on a narrow screen", async ({
   await expect(page.getByLabel("Service tasks")).toContainText(
     "No trade was submitted"
   );
-  await page.goto(`/services?task=${ticket.id}`);
+  await page.goto(`/activity?tab=tools&task=${ticket.id}`);
   const result = page.getByLabel("Selected service task");
   await expect(result).toContainText("Unsigned quote");
   await result.getByText("Structured provider data").click();
@@ -140,16 +232,15 @@ test("a simulated trade is reviewed, approved once and recoverable after reload"
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?view=trading");
-  const desk = page.getByRole("region", { name: "Trading desk", exact: true });
-  await desk.getByLabel("Token to spend").fill(`0x${"2".repeat(40)}`);
-  await desk.getByLabel("Token to receive").fill(`0x${"3".repeat(40)}`);
-  await desk.getByLabel("Input amount · smallest units").fill("1000000");
-  await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
-  await desk
-    .getByRole("button", { name: "Prepare trade", exact: true })
-    .click();
-  const history = desk.getByLabel("Trade history");
+  await page.goto("/activity?tab=tools");
+  await prepareTrade(page, {
+    network: "eip155:8453",
+    venue: "uniswap",
+    action: "swap",
+    tokenIn: `0x${"2".repeat(40)}`,
+    tokenOut: `0x${"3".repeat(40)}`,
+  });
+  const history = page.getByLabel("Trade history");
   await expect(history).toContainText("Simulated · no funds move");
   await expect(history).toContainText("Simulation passed");
   await history.getByText("Review exact transaction").click();
@@ -162,12 +253,8 @@ test("a simulated trade is reviewed, approved once and recoverable after reload"
   await expect(history).toContainText("trade.approval: exact human approval.");
   await page.reload();
   await expect(page.getByLabel("Trade history")).toContainText("completed");
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
-    )
-  ).toBe(true);
-  await desk.scrollIntoViewIfNeeded();
+  await noSidewaysScroll(page);
+  await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
   await page.screenshot({
     path: testInfo.outputPath("trade-execution-mobile.png"),
   });
@@ -182,22 +269,16 @@ test("a simulated Jupiter native swap uses the Solana wallet and lamport budget"
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?view=trading");
-  const desk = page.getByRole("region", { name: "Trading desk", exact: true });
-  await desk
-    .getByLabel("Network & route", { exact: true })
-    .selectOption({ label: "Solana · Jupiter swap" });
-  await desk.getByLabel("Token to spend").fill("native");
-  await desk
-    .getByLabel("Token to receive")
-    .fill("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-  await desk.getByLabel("Input amount · smallest units").fill("1000000");
-  await desk.getByLabel("Maximum native fee · lamports").fill("2500000");
-  await expect(desk).toContainText("1 SOL = 1000000000 lamports.");
-  await desk
-    .getByRole("button", { name: "Prepare trade", exact: true })
-    .click();
-  const history = desk.getByLabel("Trade history");
+  await page.goto("/activity?tab=tools");
+  await prepareTrade(page, {
+    network: SOLANA,
+    venue: "jupiter",
+    action: "swap",
+    tokenIn: "native",
+    tokenOut: USDC_MINT,
+    maxNativeFee: "2500000",
+  });
+  const history = page.getByLabel("Trade history");
   await expect(history).toContainText("Simulated · no funds move");
   await expect(
     page.getByRole("link", { name: "Review trades", exact: true })
@@ -208,20 +289,26 @@ test("a simulated Jupiter native swap uses the Solana wallet and lamport budget"
     .getByRole("button", { name: "Approve this step", exact: true })
     .click();
   await expect(history).toContainText("completed");
-  await desk.getByRole("button", { name: "Stop trading", exact: true }).click();
-  await expect(
-    desk.getByRole("button", { name: "Prepare trade", exact: true })
-  ).toBeDisabled();
-  await page.reload();
-  await expect(page.getByLabel("Trade history")).toContainText("completed");
+  // The stop switch lives with the other leashes, on Account.
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Stop trading", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Resume trading", exact: true })
   ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
-    )
-  ).toBe(true);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Resume trading", exact: true })
+  ).toBeVisible();
+  // Back the way a person goes: the menu, then the tab, without a full load.
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page
+    .locator('[data-slot="popover-content"]')
+    .getByRole("link", { name: "Activity", exact: true })
+    .click();
+  await page.getByRole("tab", { name: "Tools" }).click();
+  await expect(page).toHaveURL(/\/activity\?tab=tools$/u);
+  await expect(page.getByLabel("Trade history")).toContainText("completed");
+  await noSidewaysScroll(page);
   await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
   await page.screenshot({
     path: testInfo.outputPath("jupiter-trade-mobile.png"),
@@ -238,30 +325,15 @@ for (const action of ["deposit", "withdraw"] as const) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services?view=trading");
-    const desk = page.getByRole("region", {
-      name: "Trading desk",
-      exact: true,
+    await page.goto("/activity?tab=tools");
+    await prepareTrade(page, {
+      network: "eip155:1",
+      venue: "enso",
+      action,
+      tokenIn: `0x${"2".repeat(40)}`,
+      tokenOut: `0x${"3".repeat(40)}`,
     });
-    await desk
-      .getByLabel("Network & route", { exact: true })
-      .selectOption(`enso:eip155:1:${action}`);
-    await desk
-      .getByLabel(
-        action === "withdraw" ? "Vault shares to redeem" : "Token to spend"
-      )
-      .fill(`0x${"2".repeat(40)}`);
-    await desk
-      .getByLabel(
-        action === "deposit" ? "Vault shares to receive" : "Token to receive"
-      )
-      .fill(`0x${"3".repeat(40)}`);
-    await desk.getByLabel("Input amount · smallest units").fill("1000000");
-    await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
-    await desk
-      .getByRole("button", { name: "Prepare trade", exact: true })
-      .click();
-    const history = desk.getByLabel("Trade history");
+    const history = page.getByLabel("Trade history");
     await expect(history).toContainText(`Enso · ${action}`);
     await expect(history).toContainText("Simulated · no funds move");
     await history
@@ -273,11 +345,7 @@ for (const action of ["deposit", "withdraw"] as const) {
       `Enso · ${action}`
     );
     await expect(page.getByLabel("Trade history")).toContainText("completed");
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth
-      )
-    ).toBe(true);
+    await noSidewaysScroll(page);
     await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
     await page.screenshot({
       path: testInfo.outputPath(`enso-${action}-mobile.png`),
@@ -294,46 +362,38 @@ test("vault positions fund a separately approved swap only after withdrawal conf
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?view=trading");
-  const desk = page.getByRole("region", { name: "Trading desk", exact: true });
-  await desk
-    .getByRole("button", { name: "Refresh positions", exact: true })
-    .click();
-  await expect(desk).toContainText("Simulated · no wallet funds");
-  await desk
-    .getByRole("button", { name: "Prepare withdrawal", exact: true })
-    .click();
-  await expect(desk.getByLabel("Vault shares to redeem")).toHaveValue(
-    `0x${"3".repeat(40)}`
-  );
-  await expect(desk.getByLabel("Input amount · smallest units")).toHaveValue(
-    "1000000"
-  );
-  await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
-  await desk
-    .getByRole("button", { name: "Prepare trade", exact: true })
-    .click();
-  const history = desk.getByLabel("Trade history");
-  await expect(
-    history.getByRole("button", { name: "Use proceeds in a swap", exact: true })
-  ).toHaveCount(0);
+  await page.goto("/activity?tab=tools");
+  const withdrawal = await prepareTrade(page, {
+    network: "eip155:1",
+    venue: "enso",
+    action: "withdraw",
+    tokenIn: `0x${"3".repeat(40)}`,
+    tokenOut: `0x${"2".repeat(40)}`,
+  });
+  const history = page.getByLabel("Trade history");
+  await expect(history).toContainText("Enso · withdraw");
   await history
     .getByRole("button", { name: "Approve this step", exact: true })
     .click();
   await expect(history).toContainText("completed");
-  await history
-    .getByRole("button", { name: "Use proceeds in a swap", exact: true })
-    .click();
-  await expect(desk).toContainText("Use confirmed withdrawal proceeds");
-  await expect(desk.getByLabel("Token to spend")).toBeDisabled();
-  await expect(desk.getByLabel("Token to spend")).toHaveValue(
-    `0x${"2".repeat(40)}`
+  const token = await page.evaluate(() =>
+    localStorage.getItem("froggy.local-identity")
   );
-  await desk.getByLabel("Token to receive").fill(`0x${"6".repeat(40)}`);
-  await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
-  await desk
-    .getByRole("button", { name: "Prepare trade", exact: true })
-    .click();
+  const read = await page.request.get(`/api/trades/${withdrawal.id}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const confirmed = Schema.decodeUnknownSync(TradeTicket)(await read.json());
+  expect(confirmed.status).toBe("completed");
+  expect(confirmed.actualOutput).not.toBeNull();
+  await prepareTrade(page, {
+    network: "eip155:1",
+    venue: "uniswap",
+    action: "swap",
+    tokenIn: `0x${"2".repeat(40)}`,
+    tokenOut: `0x${"6".repeat(40)}`,
+    amount: confirmed.actualOutput ?? "1",
+    sourceTradeId: withdrawal.id,
+  });
   await expect(history).toContainText("Uniswap · swap");
   await expect(history).toContainText("Funded from confirmed withdrawal");
   await history
@@ -344,11 +404,7 @@ test("vault positions fund a separately approved swap only after withdrawal conf
   await expect(
     page.getByLabel("Trade history").getByText("completed", { exact: true })
   ).toHaveCount(2);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
-    )
-  ).toBe(true);
+  await noSidewaysScroll(page);
   await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
   await page.screenshot({
     path: testInfo.outputPath("withdrawal-proceeds-mobile.png"),
@@ -365,23 +421,16 @@ for (const buy of [true, false]) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services?view=trading");
-    const desk = page.getByRole("region", {
-      name: "Trading desk",
-      exact: true,
+    await page.goto("/activity?tab=tools");
+    await prepareTrade(page, {
+      network: SOLANA,
+      venue: "pump",
+      action: "swap",
+      tokenIn: buy ? "native" : USDC_MINT,
+      tokenOut: buy ? USDC_MINT : "native",
+      maxNativeFee: "2500000",
     });
-    await desk
-      .getByLabel("Network & route", { exact: true })
-      .selectOption({ label: "Solana · Pump swap" });
-    const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-    await desk.getByLabel("Token to spend").fill(buy ? "native" : mint);
-    await desk.getByLabel("Token to receive").fill(buy ? mint : "native");
-    await desk.getByLabel("Input amount · smallest units").fill("1000000");
-    await desk.getByLabel("Maximum native fee · lamports").fill("2500000");
-    await desk
-      .getByRole("button", { name: "Prepare trade", exact: true })
-      .click();
-    const history = desk.getByLabel("Trade history");
+    const history = page.getByLabel("Trade history");
     await expect(history).toContainText("Simulated · no funds move");
     await expect(history).toContainText("Approved phase: bonding curve");
     await expect(history).toContainText("Maximum input");
@@ -394,11 +443,7 @@ for (const buy of [true, false]) {
     await expect(page.getByLabel("Trade history")).toContainText(
       "Actual input used: 1000000"
     );
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth
-      )
-    ).toBe(true);
+    await noSidewaysScroll(page);
     await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
     await page.screenshot({
       path: testInfo.outputPath("pump-trade-mobile.png"),
@@ -416,24 +461,18 @@ for (const buy of [true, false]) {
       errors.push(error.message);
     });
     await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto("/services?view=trading");
-    const desk = page.getByRole("region", {
-      name: "Trading desk",
-      exact: true,
-    });
-    await desk
-      .getByLabel("Network & route", { exact: true })
-      .selectOption({ label: "Robinhood · Pons" });
+    await page.goto("/activity?tab=tools");
     const mint = "0x2222222222222222222222222222222222222222";
     const quote = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
-    await desk.getByLabel("Token to spend").fill(buy ? quote : mint);
-    await desk.getByLabel("Token to receive").fill(buy ? mint : quote);
-    await desk.getByLabel("Input amount · smallest units").fill("1000000");
-    await desk.getByLabel("Maximum native fee · wei").fill("2500000");
-    await desk
-      .getByRole("button", { name: "Prepare trade", exact: true })
-      .click();
-    const history = desk.getByLabel("Trade history");
+    await prepareTrade(page, {
+      network: "eip155:4663",
+      venue: "pons",
+      action: "swap",
+      tokenIn: buy ? quote : mint,
+      tokenOut: buy ? mint : quote,
+      maxNativeFee: "2500000",
+    });
+    const history = page.getByLabel("Trade history");
     await expect(history).toContainText("Simulated · no funds move");
     await expect(history).toContainText("Approved phase: bonding curve");
     await expect(history).toContainText("Maximum input");
@@ -448,11 +487,7 @@ for (const buy of [true, false]) {
     await expect(page.getByLabel("Trade history")).toContainText(
       "Actual input used: 1000000"
     );
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth
-      )
-    ).toBe(true);
+    await noSidewaysScroll(page);
     await page.getByLabel("Trade history").scrollIntoViewIfNeeded();
     await page.screenshot({
       path: testInfo.outputPath("pons-trade-mobile.png"),
@@ -469,7 +504,7 @@ test("a listing watch shows fixed capacity and stays stopped after a mobile relo
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?service=watch_launches");
+  await page.goto("/activity?tab=tools&service=watch_launches");
   await page.getByLabel("Duration (minutes)").fill("5");
   await page.getByLabel("Minimum reported liquidity").fill("100");
   await page.getByLabel("Listing source (optional)").fill("pump");
@@ -510,7 +545,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
     errors.push(error.message);
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/services?service=watch_launches");
+  await page.goto("/activity?tab=tools&service=watch_launches");
   await page
     .getByRole("form", { name: "Request Watch token listings" })
     .getByLabel("Network", { exact: true })
@@ -521,7 +556,7 @@ test("a human authorizes and revokes a bounded Pons watch rule on mobile", async
   await expect(
     page.getByRole("region", { name: "Listing watches", exact: true })
   ).toContainText("5-minute listing watch");
-  await page.goto("/services?view=trading");
+  await page.goto("/settings");
   const rules = page.getByRole("region", {
     name: "Trading rules",
     exact: true,
@@ -586,7 +621,7 @@ test("a Uniswap rule can require a holder-concentration cap without launcher pre
   page.on("pageerror", (error) => {
     errors.push(error.message);
   });
-  await page.goto("/services?view=trading");
+  await page.goto("/settings");
   const rules = page.getByRole("region", {
     name: "Trading rules",
     exact: true,
@@ -740,16 +775,15 @@ test("sponsored approval explains gas and delegation, and missing owner authoriz
     }
     await route.fulfill({ response });
   });
-  await page.goto("/services?view=trading");
-  const desk = page.getByRole("region", { name: "Trading desk", exact: true });
-  await desk.getByLabel("Token to spend").fill(`0x${"2".repeat(40)}`);
-  await desk.getByLabel("Token to receive").fill(`0x${"3".repeat(40)}`);
-  await desk.getByLabel("Input amount · smallest units").fill("1000000");
-  await desk.getByLabel("Maximum native fee · wei").fill("1000000000000000");
-  await desk
-    .getByRole("button", { name: "Prepare trade", exact: true })
-    .click();
-  const history = desk.getByLabel("Trade history");
+  await page.goto("/activity?tab=tools");
+  await prepareTrade(page, {
+    network: "eip155:8453",
+    venue: "uniswap",
+    action: "swap",
+    tokenIn: `0x${"2".repeat(40)}`,
+    tokenOut: `0x${"3".repeat(40)}`,
+  });
+  const history = page.getByLabel("Trade history");
   await expect(history).toContainText("Gas paid by Froggy");
   await expect(history).toContainText("EIP-7702");
   await history

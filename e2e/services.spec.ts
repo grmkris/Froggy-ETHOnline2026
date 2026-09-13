@@ -14,7 +14,7 @@ test("buy a demo service and recover its result after reload", async ({
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/services");
+  await page.goto("/activity?tab=tools");
   await page.getByRole("button", { name: "Choose search the web" }).click();
   await page.getByLabel("Your request").fill("Find affordable train tickets");
   await fundCredits(page);
@@ -28,14 +28,14 @@ test("buy a demo service and recover its result after reload", async ({
   await expect(page.getByLabel("Service tasks")).toContainText(
     "Find affordable train tickets"
   );
-  await page.screenshot({ path: testInfo.outputPath("services-desktop.png") });
+  await page.screenshot({ path: testInfo.outputPath("tools-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth
     )
   ).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath("services-mobile.png") });
+  await page.screenshot({ path: testInfo.outputPath("tools-mobile.png") });
   expect(errors).toEqual([]);
 });
 
@@ -139,7 +139,7 @@ test("the distributed Node CLI speaks MCP over stdio", async ({
 test("a discarded service name is a dismissible notice, not a silent catalog", async ({
   page,
 }) => {
-  await page.goto("/services?service=not-a-service");
+  await page.goto("/activity?tab=tools&service=not-a-service");
   await expect(page.getByRole("alert")).toContainText(
     "That link could not be opened"
   );

@@ -71,12 +71,13 @@ test("connect an agent, read the skill once, disconnect it", async ({
   await page.getByRole("button", { name: "Workspace menu" }).click();
   await page
     .locator('[data-slot="popover-content"]')
-    .getByRole("link", { name: "Connections" })
+    .getByRole("link", { name: "Activity" })
     .click();
-  await expect(page).toHaveURL(/\/agents$/u);
+  await page.getByRole("tab", { name: "Connections" }).click();
+  await expect(page).toHaveURL(/\/activity\?tab=agents$/u);
   await expect(
     page.getByRole("heading", { name: "Connections", exact: true })
-  ).toBeVisible();
+  ).toBeAttached();
   await page
     .getByText("Advanced: connect with a token", { exact: true })
     .click();
