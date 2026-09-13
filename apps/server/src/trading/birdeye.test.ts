@@ -487,9 +487,9 @@ it("snapshot windows fail independently and request real unpadded historical ran
       success: true,
       data: {
         items: [
-          { unixTime: 30, c: 1 },
-          { unixTime: 60, c: 2 },
-          { unixTime: 60, c: 2 },
+          { unix_time: 30, c: 1 },
+          { unix_time: 60, c: 2 },
+          { unix_time: 60, c: 2 },
         ],
       },
     }),

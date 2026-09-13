@@ -46,75 +46,92 @@ const concepts = [
 const features = [
   {
     number: "01",
-    title: "Browse and buy.",
-    subtitle: "Give the busywork a buddy.",
+    title: "Start with a task.",
+    subtitle: "Your next idea starts here.",
     description:
-      "Research a purchase, compare options and share a real browser with your agent. Take over whenever you need to. Review supported card checkouts before they go through.",
-    tags: ["Shared Chrome", "Saved-card checkout", "Human handoff"],
-    image: "card-checkout",
-    screen: "browser",
-    label: "The shared Froggy browser in a labelled local demonstration",
+      "Ask a question, research an idea or hand over a task. Your conversation and tools share one workspace.",
+    tags: ["Free conversation", "Workspace context", "Useful tools"],
+    screen: "home",
+    label: "Froggy Home with a research request ready to send",
   },
   {
     number: "02",
-    title: "Research and trade.",
-    subtitle: "An idea. A quote. Your call.",
+    title: "See the work happen.",
+    subtitle: "Every step. Every receipt.",
     description:
-      "Explore onchain data and trading routes in one workspace. Inspect the quote and spending controls before a trade. Keep the receipt after it.",
-    tags: ["Onchain research", "Swap quotes", "Spending controls"],
-    image: "trading",
-    screen: "trading",
-    label: "Froggy trading tools with demonstration providers labelled",
+      "Follow tool activity in the conversation and inspect the amount on a receipt. Pick up the same workspace on your phone.",
+    tags: ["Tool activity", "Receipts", "Mobile chat"],
+    screen: "chat",
+    label: "Froggy chat with tool activity and a labelled simulated receipt",
   },
   {
     number: "03",
-    title: "Watch and follow up.",
-    subtitle: "Less checking. More knowing.",
+    title: "Set the spending limits.",
+    subtitle: "A balance with boundaries.",
     description:
-      "Keep interesting things on your watchlist. Set a routine, catch an update, and follow the conversation through email or Telegram.",
-    tags: ["Watchlists", "Scheduled routines", "Email + Telegram"],
-    image: "watchlist",
-    screen: "watchlist",
-    label: "Froggy watchlist in the local demonstration workspace",
+      "See your available credits and set caps per task and per day. Keep usage credits separate from the wallet that pays for purchases and trades.",
+    tags: ["Credits", "Task and daily caps", "Stop controls"],
+    screen: "wallet",
+    label: "Froggy wallet with funded demonstration credits and credit limits",
   },
   {
     number: "04",
+    title: "Watch and follow up.",
+    subtitle: "Keep the things worth checking.",
+    description:
+      "Save an item for research and return to its observations and recorded price history. Compare periods without buying another snapshot.",
+    tags: ["Saved items", "Price history", "Monitoring"],
+    screen: "watchlist",
+    label: "A saved USDC item in Froggy with recorded Birdeye price history",
+  },
+  {
+    number: "05",
+    title: "Share a browser.",
+    subtitle: "A place to get things done.",
+    description:
+      "Follow browsing work in a hosted Chrome session. Take over the same page when you need to, then hand it back to Froggy.",
+    tags: ["Hosted browser", "Human handoff", "Shared workspace"],
+    screen: "browser",
+    label:
+      "Froggy showing a live hosted browser on IANA’s Example Domains page, with Take the page visible",
+  },
+  {
+    number: "06",
     title: "Connect your agents.",
     subtitle: "Bring your favourite brains.",
     description:
-      "Give your coding agent a browser and useful tools. Connect compatible MCP clients, including ChatGPT where custom connectors are available, to the same Froggy workspace.",
-    tags: ["Coding agents", "MCP", "OAuth connections"],
-    image: "coding-agent",
+      "Connect a compatible MCP client to Froggy’s tools. Approve access, give it a connection token and disconnect it from your workspace whenever you need to.",
+    tags: ["Coding agents", "MCP", "Connection controls"],
     screen: "connections",
     label:
-      "The real Froggy agent connections screen in local demonstration mode",
+      "Froggy Connections with a local MCP client, its disposable token and connection controls",
   },
 ] as const;
 
 const steps = [
   {
     name: "Give it a balance.",
-    image: "balance",
+    icon: WalletIcon,
     text: "Add credits for running tasks. Fund your wallet separately for supported purchases and trades.",
   },
   {
     name: "Make room for mail.",
-    image: "email",
+    icon: MailIcon,
     text: "Set up an inbox for messages, replies and the attachments that come with getting things done.",
   },
   {
     name: "Keep in touch.",
-    image: "telegram",
+    icon: GlobeIcon,
     text: "Connect Telegram to continue a conversation and receive updates away from your desk.",
   },
   {
     name: "Bring a coding agent.",
-    image: "coding-agent",
+    icon: SparklesIcon,
     text: "Connect your development tools to Froggy’s browser and workspace capabilities.",
   },
   {
     name: "Connect your chat.",
-    image: "chatgpt-mcp",
+    icon: ShieldCheckIcon,
     text: "Use MCP to bring the workspace into a compatible chat client, with a connection you approve.",
   },
 ] as const;
@@ -261,22 +278,34 @@ const FeatureSections = () => (
                 froggy workspace <span>· local demo</span>
               </p>
             </div>
-            <img
-              src={landingAsset(`screens/${feature.screen}.webp`)}
-              alt={feature.label}
-              width={1440}
-              height={1000}
-              loading="lazy"
-            />
+            <a
+              href={landingAsset(`screens/${feature.screen}.webp`)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`View full-size screen: ${feature.title}`}
+            >
+              <picture>
+                {feature.screen === "chat" ? (
+                  <source
+                    media="(max-width: 600px)"
+                    srcSet={landingAsset("screens/chat-mobile.webp")}
+                    width={390}
+                    height={844}
+                  />
+                ) : null}
+                <img
+                  src={landingAsset(`screens/${feature.screen}.webp`)}
+                  alt={feature.label}
+                  width={1440}
+                  height={900}
+                  loading="lazy"
+                />
+              </picture>
+            </a>
           </div>
-          <img
-            className="landing-feature-frog"
-            src={landingAsset(`${feature.image}.webp`)}
-            alt=""
-            width={640}
-            height={640}
-            loading="lazy"
-          />
+          <p className="landing-screen-caption">
+            Actual workspace · local demonstration · View full size ↗
+          </p>
         </div>
       </article>
     ))}
@@ -348,15 +377,9 @@ const SetupPreview = () => (
     </div>
     <ol className="landing-steps">
       {steps.map((step, index) => (
-        <li key={step.image}>
+        <li key={step.name}>
           <span className="landing-step-index">0{index + 1}</span>
-          <img
-            src={landingAsset(`${step.image}.webp`)}
-            alt=""
-            width={640}
-            height={640}
-            loading="lazy"
-          />
+          <step.icon className="landing-step-icon" aria-hidden />
           <h3>{step.name}</h3>
           <p>{step.text}</p>
         </li>
@@ -375,13 +398,6 @@ const LandingFooter = () => (
         <span>Froggy’s got you.</span>
       </h2>
       <LandingSignIn />
-      <img
-        src={landingAsset("telegram.webp")}
-        width={640}
-        height={640}
-        loading="lazy"
-        alt="Froggy sending a little paper plane on its way"
-      />
     </section>
     <footer className="landing-footer landing-container">
       <Link to="/landing" className="landing-wordmark">

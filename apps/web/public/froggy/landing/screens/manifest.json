@@ -1,11 +1,113 @@
 {
-  "capture": "Actual app UI, Playwright, all external providers stubbed, local identity. Labels retained.",
-  "sources": {
-    "browser": "e2e/landing-assets.spec.ts: actual Froggy browser controls around explicitly labelled synthetic merchant.",
-    "trading": "/tmp/froggy-feature-review/details/trading.png",
-    "watchlist": "e2e/landing-assets.spec.ts: real local watchlist containing an explicitly labelled demo item.",
-    "connections": "/tmp/froggy-feature-review/screens--agents-holds-together-at-1440px-chromium/agents-1440.png",
-    "wallet": "/tmp/froggy-feature-review/screens--wallet-holds-together-at-1440px-chromium/wallet-1440.png",
-    "inbox": "/tmp/froggy-feature-review/details/inbox.png"
-  }
+  "v": 1,
+  "capture": "Playwright Chromium against the local dev app; viewport screenshots encoded directly as WebP. No DOM content replacement, mockup, invented market data or image overlays.",
+  "command": "FROGGY_E2E_PORT=3540 bun run e2e e2e/landing-assets.spec.ts --workers=1",
+  "source": "e2e/landing-assets.spec.ts",
+  "origin": "http://127.0.0.1:3540",
+  "identity": "The e2e suite’s automatically generated froggy.local-identity. Identity, wallet, payments and credit funding remain stubbed. Browser and chart evidence were acquired separately under the owner’s $1 provider-spend authorization.",
+  "credentials": "The pictured MCP token was created only on the disposable local stub server, exercised against /mcp, then revoked.",
+  "screens": [
+    {
+      "name": "home",
+      "title": "Home — task draft",
+      "file": "home.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/",
+      "seed": "Research task typed into the Home composer; not submitted.",
+      "status": "captured",
+      "sha256": "e1a297e83ab998cb3e983544559b554b94d8bf43418519ad3eda506215b59216"
+    },
+    {
+      "name": "chat",
+      "title": "Chat — tool, receipt and approval",
+      "file": "chat.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/chat",
+      "seed": "Local e2e merchant purchased through chat and approved through the app. A second transfer request holds at human approval. The receipt amount comes from the merchant and the receipt remains labelled stubbed.",
+      "status": "captured",
+      "sha256": "198ef8b8833dd6ce11d9e7883768b85ba45f9e40f5c9514494fe10114ead9a8d"
+    },
+    {
+      "name": "wallet",
+      "title": "Wallet — credits, caps and Stop",
+      "file": "wallet.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/wallet",
+      "seed": "Funded through e2e/fund-credits.ts using the real local credit-purchase engine. Opened Credit limits and navigated from the active conversation to retain Stop.",
+      "status": "captured",
+      "sha256": "83b2692153da52b0db7909fb0f527eabb5167182a899d7bae10787bcac0df0f2"
+    },
+    {
+      "name": "watchlist",
+      "title": "Watchlist — saved item and recorded price chart",
+      "file": "watchlist.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/watchlist",
+      "seed": "Saved real Base USDC through /api/watchlist/capture without enrichment. Replayed the recorded TokenSnapshotResult into the saved item details using the existing watchlist-capture.spec.ts route-replay pattern. The app renders all chart points; no invented prices or DOM replacement.",
+      "status": "captured",
+      "sha256": "19cd0863093417386f05786ccb487394bdbcfe28daf20973e100cd85df9ce0df"
+    },
+    {
+      "name": "browser",
+      "title": "Hosted browser — takeover control",
+      "file": "browser.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/browser",
+      "seed": "Temporary live Browser Use session, opened through the shipped CloudBrowser adapter and displayed by the actual hosted viewer in the local app. Take the page control visible and exercised after capture. Session closed and verified stopped.",
+      "status": "captured",
+      "sha256": "0eaafda6b628b7f0fb9168bfc38c86241a50e0c9dfdca38104972a72d2cd407d"
+    },
+    {
+      "name": "connections",
+      "title": "Connections — MCP token and Disconnect",
+      "file": "connections.webp",
+      "width": 1440,
+      "height": 900,
+      "route": "/activity?tab=agents",
+      "seed": "Created a connection through the UI, used its token for /mcp tools/list, refreshed the connection list, captured, disconnected and verified the token receives 401.",
+      "status": "captured",
+      "sha256": "ffc32061330032a8311b8555da0edcbdf4016b17ff4224d42d7b6c5283906498"
+    },
+    {
+      "name": "chat-mobile",
+      "title": "Chat — mobile",
+      "file": "chat-mobile.webp",
+      "width": 390,
+      "height": 844,
+      "route": "/chat",
+      "seed": "Completed local merchant purchase in the actual chat, resized to 390 × 844 before requesting the second task. Receipt remains labelled simulated.",
+      "status": "captured",
+      "sha256": "8eccb56b3ce33a3eb7366c5e6b984424e1c69843365786270b106496c3dabd6d"
+    }
+  ],
+  "providerEvidence": {
+    "prices": {
+      "fixture": "e2e/fixtures/landing-token-snapshot.json",
+      "provider": "Birdeye",
+      "endpoint": "https://public-api.birdeye.so/defi/v3/ohlcv",
+      "observedAt": 1789298790282,
+      "dayPoints": 96,
+      "weekPoints": 168,
+      "requestsTotal": 6,
+      "notes": "Shipped liveBirdeye adapter after correcting the documented unix_time timestamp. Real unpadded USD closes; the spot-price request returned 429, so token remains null."
+    },
+    "browser": {
+      "adapter": "packages/browser/src/cloud.ts (CloudBrowser), cloudApi v3",
+      "capture": "Playwright local /browser, with browser WebSocket state and viewer URL forwarded from the live adapter. Provider viewer rendered directly; no replacement HTML or pixels. agentNavigate opened the public IANA Example Domains page. Take the page changed actual control to human; Resume appeared.",
+      "timeoutMinutes": 2,
+      "sessionsCreated": 1,
+      "modelRuns": 0,
+      "proxy": false,
+      "cleanup": "Provider status stopped confirmed; temporary profile deleted.",
+      "reportedBrowserCostUsd": "0.0003333333333333333333333333333",
+      "reportedProxyCostUsd": "0",
+      "limitation": "Provider iframe raised a sandboxed document.cookie access error after rendering. Capture, takeover and shutdown assertions passed; the temporary live script’s final zero-page-errors assertion did not. The iframe sandbox was not weakened."
+    }
+  },
+  "captureNotes": "Capture used the normal e2e server settings on 3540/3541 with a temporary isolated Vite cache and HMR disabled to avoid concurrent development reloads. Playwright waits for a PNG paint before Chromium encodes the same viewport as WebP."
 }

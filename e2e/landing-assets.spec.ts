@@ -1,76 +1,220 @@
+import { writeFile } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
+import type { Page, TestInfo } from "@playwright/test";
+import { Schema } from "effect";
 
-import type { BrowserState } from "../packages/protocol/src/browser";
+import { TokenSnapshotResult } from "../packages/protocol/src/trading-market";
+import {
+  WatchlistCaptured,
+  WatchlistDetails,
+} from "../packages/protocol/src/watchlist";
+import recordedSnapshot from "./fixtures/landing-token-snapshot.json" with { type: "json" };
+import { fundCredits } from "./fund-credits";
+import { startMerchant } from "./merchant-fixture";
 
-/** Captures the actual browser chrome around an explicitly synthetic merchant. */
-test("landing media captures the shared browser and a saved watchlist item", async ({
-  page,
-}, testInfo) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.route("**/api/browser/viewer", async (route) => {
-    await route.fulfill({
-      json: { v: 1, url: "https://live.browser-use.com/froggy-landing-demo" },
-    });
+/** Chromium's encoder preserves the real viewport without a mockup or image overlay. */
+const capture = async (page: Page, info: TestInfo, name: string) => {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
   });
-  await page.route(
-    "https://live.browser-use.com/froggy-landing-demo",
-    async (route) => {
-      await route.fulfill({
-        contentType: "text/html",
-        body: `<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Demo merchant</title><style>body{background:#f2f0e5;color:#214436;margin:0;font:16px system-ui}header{padding:28px 35px;border-bottom:1px solid #ced8c4;display:flex;justify-content:space-between}main{padding:55px 40px}small{letter-spacing:2px;font-size:11px}h1{font-size:48px;letter-spacing:-2px;line-height:1.1;max-width:420px;margin:22px 0}p{line-height:1.7;max-width:400px}.product{margin-top:35px;padding:35px;border-radius:20px;background:#dce8ce;display:flex;align-items:center;gap:28px}.plant{font-size:100px}strong{font-size:24px;display:block}.note{padding:18px;background:#214436;color:#fff;font-size:12px}button{background:#214436;color:#fff;border:0;padding:14px 20px;border-radius:40px;margin-top:20px}</style></head><body><div class="note">DEMONSTRATION STORE · No real purchase or browser session</div><header><b>little things.</b><span>For a happier desk</span></header><main><small>A LITTLE GREEN GOES A LONG WAY</small><h1>Make room for something good.</h1><p>A small companion for the place where your big ideas begin.</p><div class="product"><span class="plant" aria-hidden="true">🌱</span><div><strong>The desk garden</strong><p>Example product · $24.00</p><button>View details</button></div></div></main></body></html>`,
-      });
-    }
+  // Playwright waits for the screenshot paint lifecycle before Chromium encodes WebP.
+  await page.screenshot({
+    path: info.outputPath(`${name}.png`),
+    animations: "disabled",
+  });
+  const session = await page.context().newCDPSession(page);
+  const shot = await session.send("Page.captureScreenshot", {
+    format: "webp",
+    quality: 95,
+    captureBeyondViewport: false,
+  });
+  await writeFile(
+    info.outputPath(`${name}.webp`),
+    Buffer.from(shot.data, "base64")
   );
-  await page.routeWebSocket("**/ws/browser", (socket) => {
-    const state: BrowserState = {
-      activeTabId: null,
-      error: null,
-      interaction: "human",
-      queue: null,
-      status: "running",
-      tabs: [],
-      viewport: { width: 1280, height: 800 },
-      cloud: {
-        control: "human",
-        viewerReady: true,
-        expiresAt: Date.now() + 3_600_000,
-        idleExpiresAt: Date.now() + 600_000,
-        stubbed: true,
-      },
-    };
-    socket.send(JSON.stringify({ v: 1, type: "browser.state", state }));
+  await session.detach();
+};
+
+test("landing screens come from local app flows", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      errors.push(message.text());
+    }
   });
-  await page.goto("/browser");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page
+    .getByRole("textbox", { name: "Message" })
+    .fill("Find the cheapest USDC borrowing options and help me compare them.");
+  await capture(page, info, "home");
+  await fundCredits(page);
+  const token = await page.evaluate(() =>
+    localStorage.getItem("froggy.local-identity")
+  );
+  const headers = { authorization: `Bearer ${token}` };
+
+  const merchant = await startMerchant();
+  try {
+    await page
+      .getByRole("textbox", { name: "Message" })
+      .fill(`Buy ${merchant.url} for at most five cents`);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const approval = page.getByLabel("Approve URL purchase", { exact: true });
+    await expect(approval).toBeVisible({ timeout: 20_000 });
+    await approval.getByRole("button", { name: /^Approve /u }).click();
+    await expect(page.getByLabel(/^Receipt:/u).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("log")).toHaveAttribute("aria-busy", "false", {
+      timeout: 20_000,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('[data-slot="message-scroller-viewport"]').hover();
+    await page.mouse.wheel(0, -2000);
+    await page
+      .getByLabel(/^Receipt:/u)
+      .first()
+      .scrollIntoViewIfNeeded();
+    await capture(page, info, "chat-mobile");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // A second real task holds at approval, keeping the previous amount and receipt in view.
+    await page
+      .getByRole("textbox", { name: "Message" })
+      .fill("Send 0.004 USDC to 0x0000000000000000000000000000000000000001");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(page.getByLabel(/^Approve .* to /u)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("log")).toHaveAttribute("aria-busy", "true");
+    await page.getByText(/Froggy paused, waiting for your answer/u).waitFor();
+    await page.locator('[data-slot="message-scroller-viewport"]').hover();
+    await page.mouse.wheel(0, -2000);
+    await expect(async () => {
+      await page
+        .getByLabel(/^Receipt:/u)
+        .first()
+        .scrollIntoViewIfNeeded();
+      await expect(page.getByLabel(/^Receipt:/u).first()).toBeInViewport();
+    }).toPass();
+    await capture(page, info, "chat");
+  } finally {
+    await merchant.stop();
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("link", { name: "Your money", exact: true }).click();
   await expect(
     page
-      .frameLocator("iframe")
-      .getByRole("heading", { name: "Make room for something good." })
+      .getByRole("banner")
+      .getByRole("button", { name: "Stop the run", exact: true })
   ).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("browser.png") });
+  await page.getByText("Credit limits", { exact: true }).click();
+  await expect(page.getByLabel("Most per task (credits)")).toBeVisible();
+  await expect(page.locator('[data-slot="credit-total"]')).toHaveText("100");
+  await capture(page, info, "wallet");
+  await page
+    .getByRole("banner")
+    .getByRole("button", { name: "Stop the run", exact: true })
+    .click();
+
+  const snapshot =
+    Schema.decodeUnknownSync(TokenSnapshotResult)(recordedSnapshot);
+  const savedResponse = await page.request.post("/api/watchlist/capture", {
+    headers,
+    data: {
+      v: 2,
+      title: "USDC · saved market research",
+      notes:
+        "Recorded Birdeye history on Base. Saved for research, not a live quote.",
+      source: {
+        _tag: "token",
+        network: "eip155:8453",
+        address: snapshot.address,
+      },
+      enrich: false,
+      acceptedPrice: 0,
+    },
+  });
+  expect(savedResponse.ok()).toBe(true);
+  const saved = Schema.decodeUnknownSync(WatchlistCaptured)(
+    await savedResponse.json()
+  );
+  // Replay recorded provider output, as in watchlist-capture.spec.ts. The saved
+  // item and its metadata still come from the app; no market values are invented.
+  await page.route(
+    `**/api/watchlist/${saved.item.id}/details`,
+    async (route) => {
+      const response = await route.fetch();
+      const details = Schema.decodeUnknownSync(WatchlistDetails)(
+        await response.json()
+      );
+      await route.fulfill({ json: { ...details, snapshot } });
+    }
+  );
   await page.goto("/watchlist");
-  await page.getByRole("button", { name: "Add item", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("What are you saving?").selectOption("product");
-  await dialog
-    .getByLabel("Website URL")
-    .fill("https://example.com/desk-garden");
-  await dialog
-    .getByLabel("Name", { exact: true })
-    .fill("The desk garden · demo");
-  await dialog
-    .getByLabel(/Details/u)
-    .fill(
-      "A little green for the workspace. Demonstration item, no monitoring or purchase enabled."
-    );
-  await dialog.getByRole("button", { name: "Save item" }).click();
-  // Saving now confirms inside the dialog and offers an alert; the capture
-  // wants the list behind it, so dismiss rather than answer the offer.
-  await expect(dialog.getByText("Saved", { exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).not.toBeVisible();
+  await page
+    .getByRole("link", { name: "USDC · saved market research", exact: true })
+    .click();
   await expect(
-    page.getByRole("link", { name: /The desk garden/u })
+    page.getByRole("region", { name: "Price history", exact: true })
   ).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("watchlist.png") });
+  await expect(
+    page
+      .getByRole("region", { name: "Price history", exact: true })
+      .locator("svg.recharts-surface")
+  ).toBeVisible();
+  await capture(page, info, "watchlist");
+
+  await page.goto("/browser");
+  await expect(
+    page.getByRole("button", { name: "Take the page", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText("Browser Use is stubbed.", { exact: false })
+  ).toBeVisible();
+  await capture(page, info, "browser-unavailable");
+
+  await page.goto("/agents");
+  await page
+    .getByText("Advanced: connect with a token", { exact: true })
+    .click();
+  await page.getByLabel("Agent name").fill("Research MCP client · local demo");
+  await page.getByRole("button", { name: "Create connection" }).click();
+  const credential = page.getByRole("textbox", { name: "Connection token" });
+  await expect(credential).toHaveValue(/^fgy_/u);
+  const secret = await credential.inputValue();
+  const connected = await page.request.post("/mcp", {
+    headers: { authorization: `Bearer ${secret}` },
+    data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+  });
+  expect(connected.ok()).toBe(true);
+  await page
+    .getByRole("button", { name: "Refresh status", exact: true })
+    .click();
+  const disconnect = page.getByRole("button", {
+    name: "Disconnect Research MCP client · local demo",
+    exact: true,
+  });
+  await disconnect.scrollIntoViewIfNeeded();
+  await expect(disconnect).toBeInViewport();
+  await expect(credential).toBeInViewport();
+  await capture(page, info, "connections");
+  // The publicly pictured token only ever authenticates this disposable stub server.
+  await page
+    .getByRole("button", {
+      name: "Disconnect Research MCP client · local demo",
+      exact: true,
+    })
+    .click();
+  const revoked = await page.request.post("/mcp", {
+    headers: { authorization: `Bearer ${secret}` },
+    data: { jsonrpc: "2.0", id: 2, method: "tools/list" },
+  });
+  expect(revoked.status()).toBe(401);
+  expect(errors).toEqual([]);
 });

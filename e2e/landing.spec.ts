@@ -56,15 +56,37 @@ for (const concept of concepts) {
       });
       await page.locator("#setup").scrollIntoViewIfNeeded();
       await expect(page.locator(".landing-steps li")).toHaveCount(5);
-      await page.locator(".landing-steps img").evaluateAll(async (images) => {
-        await Promise.all(
-          images.map(async (image) => {
-            if (image instanceof HTMLImageElement) {
-              await image.decode();
-            }
-          })
-        );
+      await expect(page.locator(".landing-step-icon")).toHaveCount(5);
+      await expect(page.locator(".landing-feature-art img")).toHaveCount(6);
+      await expect(
+        page.locator(".landing-feature-frog, .landing-closing > img")
+      ).toHaveCount(0);
+      const screens = page.locator(".landing-feature-art img");
+      const verifyScreen = async (index: number): Promise<void> => {
+        if (index >= (await screens.count())) {
+          return;
+        }
+        const screen = screens.nth(index);
+        await screen.scrollIntoViewIfNeeded();
+        await screen.evaluate(async (image: HTMLImageElement) => {
+          await image.decode();
+          if (
+            image.naturalWidth !==
+            (image.currentSrc.includes("chat-mobile") ? 390 : 1440)
+          ) {
+            throw new Error(
+              `Unexpected screenshot dimensions: ${image.currentSrc}`
+            );
+          }
+        });
+        await verifyScreen(index + 1);
+      };
+      await verifyScreen(0);
+      await page.locator("#possibilities").scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: testInfo.outputPath(`${concept}-features-${width}.png`),
       });
+      await page.locator("#setup").scrollIntoViewIfNeeded();
       await page.screenshot({
         path: testInfo.outputPath(`${concept}-setup-${width}.png`),
       });

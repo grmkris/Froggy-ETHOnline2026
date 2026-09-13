@@ -386,7 +386,7 @@ export const liveBirdeye = (options: BirdeyeOptions): Birdeye => {
           data: Schema.Struct({
             items: Schema.Array(
               Schema.Struct({
-                unixTime: Schema.Int,
+                unix_time: Schema.Int,
                 c: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
               })
             ),
@@ -396,10 +396,10 @@ export const liveBirdeye = (options: BirdeyeOptions): Birdeye => {
       const points = [
         ...new Map(
           result.data.items
-            .filter((point) => point.unixTime >= from && point.unixTime <= to)
+            .filter((point) => point.unix_time >= from && point.unix_time <= to)
             .map((point) => [
-              point.unixTime,
-              { at: point.unixTime * 1000, close: point.c },
+              point.unix_time,
+              { at: point.unix_time * 1000, close: point.c },
             ])
         ).values(),
       ]
