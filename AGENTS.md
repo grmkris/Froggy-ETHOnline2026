@@ -21,7 +21,7 @@ User instructions override repository skills. Skills inform implementation; they
 - TypeScript: strict TS7. Bun transpiles but does not replace type checking.
 - Format/lint: Ultracite — Oxfmt, Oxlint, type-aware tsgolint, anti-slop.
 - Tests: `bun test`. Browser flows: Playwright.
-- Run `bun run check:fast` during work and `bun run check` before declaring completion. Run `bun run e2e` for visible or browser-facing changes.
+- Run `bun run check:fast` during work and `bun run check` before declaring completion. E2E is opt-in: run `bun run e2e` only when the user explicitly requests it. It does not block commits, pushes, CI, or deployment.
 - Do not install Git hooks automatically. `bun run hooks:install` is opt-in.
 
 ## Dependency direction

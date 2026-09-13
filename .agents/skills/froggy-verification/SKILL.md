@@ -7,7 +7,7 @@ description: Verify a change to this repository, from the local gate through the
 
 `bun run check` is the gate: format, type-aware lint, TypeScript across every project, package boundaries, agent-file validation, tests, and dead-code detection. It must pass before a commit, and it passes on a fully-stubbed build.
 
-Run `bun run e2e` for anything the browser can see.
+E2E is opt-in. Run `bun run e2e` only when the user explicitly requests it; do not start browser tests automatically for visible changes. E2E does not block commits, pushes, CI, or deployment. CI retains the full `bun run check` gate, Postgres persistence checks, and the application build.
 
 The gate is deliberately strict, and two exceptions to it are written down rather than silent: `docs/decisions/0004` for the CDP boundary, and the scoped blocks in `oxlint.config.ts` for the Privy loader and two SDK bridges. Widen one by editing that file and saying why, not with a disable comment.
 

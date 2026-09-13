@@ -44,7 +44,13 @@ Open `http://localhost:3000`. The Bun server listens on `:3001`; the dev server 
 ## Verify it
 
 ```bash
-bun run check              # format, type-aware lint, TS, boundaries, tests, knip
+bun run check              # format, type-aware lint, TS, boundaries, unit tests, knip
+bun run build
+```
+
+CI also verifies Postgres migrations and persistence. E2E is opt-in and does not block commits, pushes, CI, or Railway deployment. Run it only when explicitly requested:
+
+```bash
 bun run e2e:install        # one-time local Chromium
 bun run e2e
 ```
