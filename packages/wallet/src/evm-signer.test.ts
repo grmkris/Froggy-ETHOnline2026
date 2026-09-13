@@ -2,11 +2,7 @@ import { expect, spyOn, test } from "bun:test";
 
 import { APIError, PrivyClient } from "@privy-io/node";
 
-import {
-  privyAgentSigner,
-  privyOwnerSigner,
-  PrivySignerRefusedError,
-} from "./evm-signer";
+import { privyAgentSigner, PrivySignerRefusedError } from "./evm-signer";
 import type { SignatureOptionsResolver } from "./evm-signer";
 
 const wallet = {
@@ -45,18 +41,6 @@ const factories = [
           policyId: "test-policy",
           quorumId: "test-quorum",
         },
-        wallet,
-        signatureOptionsFor,
-      }),
-  },
-  {
-    name: "owner",
-    create: (
-      client: PrivyClient,
-      signatureOptionsFor: SignatureOptionsResolver
-    ) =>
-      privyOwnerSigner(client, {
-        accessToken: "test-token",
         wallet,
         signatureOptionsFor,
       }),

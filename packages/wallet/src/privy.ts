@@ -22,21 +22,11 @@ import { createSolanaKitSigner } from "@privy-io/node/solana-kit";
 import { address as solanaAddress } from "@solana/kit";
 import type { TransactionPartialSigner } from "@solana/kit";
 
-import { grantAgentSigner, revokeAgentSigner } from "./agent-signer";
+import { grantAgentSigner } from "./agent-signer";
 import type { AgentGrant, AgentKey, UserWallet } from "./agent-signer";
-import type {
-  SignatureOptionsResolver,
-  AgentEvmSigner,
-  AgentTypedDataSigner,
-} from "./evm-signer";
+import type { SignatureOptionsResolver, AgentEvmSigner } from "./evm-signer";
 import { privyAgentSigner } from "./evm-signer";
-import {
-  privyCreateSolanaWallet,
-  privyOwnerEvmSigner,
-  privyOwnerTradeSigner,
-  privyOwnerSolanaSigner,
-  privyPaymentWallets,
-} from "./owner-payments";
+import { privyCreateSolanaWallet, privyPaymentWallets } from "./owner-payments";
 import type { OwnerPaymentRequest, PaymentWallets } from "./owner-payments";
 import { mintPersonPolicy } from "./person-policy-mint";
 import type {
@@ -87,18 +77,6 @@ export interface PrivyServer {
     request: OwnerPaymentRequest
   ) => Promise<UserWallet | null>;
   readonly paymentWallets: (did: string) => Promise<PaymentWallets>;
-  /** Single-use owner authority, created only after a human purchase approval. */
-  readonly ownerEvmSigner: (
-    request: OwnerPaymentRequest
-  ) => Promise<AgentTypedDataSigner | null>;
-  readonly ownerTradeSigner: (
-    request: OwnerPaymentRequest
-  ) => Promise<Pick<AgentEvmSigner, "address" | "signTransaction"> | null>;
-  readonly ownerSolanaSigner: (
-    request: OwnerPaymentRequest
-  ) => Promise<TransactionPartialSigner | null>;
-  /** Remove the signer. This is what freezing does, and it is a revocation. */
-  readonly revokeAgent: (request: AgentGrantRequest) => Promise<AgentGrant>;
   /**
    * A signer for this wallet under the agent key and its policy, or null
    * when no agent key is configured. Never the user's own authority.
@@ -226,19 +204,6 @@ export const livePrivyServer = (options: LivePrivyOptions): PrivyServer => {
     createSolanaWallet: async (request) =>
       await privyCreateSolanaWallet(client, request),
     paymentWallets: async (did) => await privyPaymentWallets(client, did),
-    ownerEvmSigner: async (request) =>
-      await privyOwnerEvmSigner(client, request, options.signatureOptionsFor),
-    ownerTradeSigner: async (request) =>
-      await privyOwnerTradeSigner(client, request),
-    ownerSolanaSigner: async (request) =>
-      await privyOwnerSolanaSigner(client, request),
-
-    revokeAgent: async (request) =>
-      await revokeAgentSigner(client, {
-        accessToken: request.accessToken,
-        appId: options.appId,
-        did: request.did,
-      }),
 
     solanaSignerFor: (wallet) =>
       options.agent === null
@@ -320,9 +285,6 @@ export const stubPrivyServer = (): PrivyServer => ({
   createSolanaWallet: async () => await Promise.resolve(null),
   paymentWallets: async () =>
     await Promise.resolve({ ethereum: null, solana: null }),
-  ownerEvmSigner: async () => await Promise.resolve(null),
-  ownerTradeSigner: async () => await Promise.resolve(null),
-  ownerSolanaSigner: async () => await Promise.resolve(null),
   hederaKeys: null,
   // Loud, like every stub: a policy id that could pass for a real one would
   // make the screen claim the agent is held to rules that do not exist.
@@ -335,10 +297,6 @@ export const stubPrivyServer = (): PrivyServer => ({
   },
   signerFor: () => null,
   solanaSignerFor: () => null,
-  revokeAgent: async () => {
-    await Promise.resolve();
-    return { attached: false, policyIds: [], reason: null, wallet: null };
-  },
   verify: async (accessToken) => {
     await Promise.resolve();
     if (accessToken.trim() === "") {

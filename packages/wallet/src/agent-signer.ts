@@ -6,12 +6,11 @@
  *
  *   - Privy mints the wallet **at login**, owned by the user's own key quorum.
  *     We never see its key and cannot move funds with the app secret alone.
- *   - We then ask to be added as an **additional signer**, under a policy that
- *     is default-deny. That request has to be authorized by the wallet's
- *     current owner — the user — which is why it carries their access token
- *     rather than only our app secret. The user is granting, not us taking.
- *   - Freezing removes the signer. It is a revocation at Privy, not a boolean
- *     in our database that our own code has to remember to check.
+ *   - The person adds us as an **additional signer**, under a policy that is
+ *     default-deny, from their own browser: Privy asks them directly and our
+ *     app secret cannot do it for them. The user is granting, not us taking.
+ *   - Removing the signer is likewise theirs to do, in the browser; it is a
+ *     revocation at Privy, not a boolean in our database.
  *
  * The policy allows exactly what `docs/privy-agent-policy.json` says and
  * nothing else: today an EIP-712 `TransferWithAuthorization` to the Graph's
@@ -21,7 +20,6 @@
  * do not run. That is the difference between a leash and a promise.
  */
 
-import { generateAuthorizationSignatures } from "@privy-io/node";
 import type { PrivyClient } from "@privy-io/node";
 
 /** Everything needed to act as the agent. All three, or the feature is off. */
@@ -64,11 +62,6 @@ export interface AgentGrant {
   readonly wallet: UserWallet | null;
 }
 
-const PRIVY_API = "https://api.privy.io";
-
-/** Requests expire in a minute. Long enough for a retry, short enough to matter. */
-const REQUEST_TTL_MS = 60_000;
-
 /**
  * What went wrong, as a sentence the user can read.
  *
@@ -104,52 +97,6 @@ const embeddedWalletFor = async (
     }
   }
   return null;
-};
-
-/**
- * PATCH the wallet, authorized by the user.
- *
- * The signature is computed over the exact method, URL and body, so it cannot
- * be replayed against a different request — which is why the body is built
- * once here and passed to both the signer and the call.
- */
-const updateWallet = async (
-  client: PrivyClient,
-  input: {
-    readonly accessToken: string;
-    readonly appId: string;
-    readonly body: {
-      readonly additional_signers: {
-        readonly signer_id: string;
-        readonly override_policy_ids?: string[];
-      }[];
-    };
-    readonly walletId: string;
-  }
-): Promise<void> => {
-  const expiry = Date.now() + REQUEST_TTL_MS;
-  const signatures = await generateAuthorizationSignatures(client, {
-    // The *user's* token signs this. Our app secret alone cannot add a signer
-    // to a wallet we do not own, and that is the point rather than a limitation.
-    authorizationContext: { user_jwts: [input.accessToken] },
-    input: {
-      body: input.body,
-      headers: {
-        "privy-app-id": input.appId,
-        "privy-request-expiry": String(expiry),
-      },
-      method: "PATCH",
-      url: `${PRIVY_API}/v1/wallets/${input.walletId}`,
-      version: 1,
-    },
-  });
-  await client.wallets()._update(input.walletId, {
-    ...input.body,
-    // Comma-separated when a quorum needs more than one. Ours needs one, but
-    // joining rather than indexing means a threshold change is configuration.
-    "privy-authorization-signature": signatures.join(","),
-    "privy-request-expiry": String(expiry),
-  });
 };
 
 const UNRECOGNISED = "Privy refused the grant for an unrecognised reason.";
@@ -208,15 +155,11 @@ export const grantAgentSigner = async (
       // this side reports what it found and lets them decide.
       return { attached: true, policyIds: existing, reason: null, wallet };
     }
-    // Not granted from here. The server-side grant needs Privy's JWT exchange,
-    // which this app has refused since 7 September behind a dashboard toggle
-    // that does not exist for it — every attempt answered `400 Invalid JWT
-    // token provided`, once per authenticated request, and put that sentence in
-    // front of the person as the reason their agent could not pay. The browser
-    // asks Privy directly and works; this side reads the answer.
-    //
-    // `updateWallet` is kept because revoking still uses it and would start
-    // working the day the toggle appears.
+    // Not granted from here. The server-side grant needed Privy's user-JWT
+    // exchange, which this app has refused since 7 September (`400 Invalid JWT
+    // token provided`, for everyone). The browser asks Privy directly and
+    // works; this side only reads the answer. No server code signs for the
+    // person any more (decision 0038), so nothing here holds their credential.
     return {
       attached: false,
       policyIds: [],
@@ -234,47 +177,6 @@ export const grantAgentSigner = async (
       policyIds: [],
       reason: error instanceof Error ? describe(error) : UNRECOGNISED,
       wallet,
-    };
-  }
-};
-
-/**
- * Take the signature away.
- *
- * An empty `additional_signers` list is the revocation. After this the agent
- * cannot sign anything for this wallet even if every other check in our own
- * code were bypassed, because the refusal happens inside Privy.
- */
-export const revokeAgentSigner = async (
-  client: PrivyClient,
-  input: {
-    readonly accessToken: string;
-    readonly appId: string;
-    readonly did: string;
-  }
-): Promise<AgentGrant> => {
-  try {
-    const wallet = await embeddedWalletFor(client, input.did);
-    if (wallet === null) {
-      return { attached: false, policyIds: [], reason: null, wallet: null };
-    }
-    await updateWallet(client, {
-      accessToken: input.accessToken,
-      appId: input.appId,
-      body: { additional_signers: [] },
-      walletId: wallet.id,
-    });
-    return { attached: false, policyIds: [], reason: null, wallet };
-  } catch (error) {
-    // A revocation that failed must not read as a revocation that worked.
-    return {
-      attached: true,
-      policyIds: [],
-      reason:
-        error instanceof Error
-          ? describe(error)
-          : "The agent's signer could not be removed.",
-      wallet: null,
     };
   }
 };
