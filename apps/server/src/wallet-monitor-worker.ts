@@ -1,7 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 
-import { WalletActivityId } from "@froggy/domain";
+import { EvmAddress, WalletActivityId } from "@froggy/domain";
 import type {
   OnchainAlertRule,
   UserId,
@@ -11,6 +11,7 @@ import type {
 } from "@froggy/domain";
 import type { WalletStreamBlock, WalletStreamMessage } from "@froggy/graph";
 import type { WalletActivityTransaction, WalletAlert } from "@froggy/wallet";
+import { Schema } from "effect";
 
 import { activityUpdate, correctionUpdate } from "./updates";
 import {
@@ -127,7 +128,7 @@ const advanceActivities = async (
             activity.network,
             "activity",
             key,
-            walletActivityText(activity, deps.appUrl),
+            walletActivityText(activity, deps.appUrl, item.title),
             now,
             [activity.id]
           )
@@ -208,6 +209,9 @@ const commitWatchActivity = async (
       monitorRevision: monitor.revision,
       network: deps.network,
       wallet: item.source.address,
+      transactionFrom: Schema.decodeUnknownSync(EvmAddress)(
+        candidate.transactionFrom
+      ),
       transactionHash: candidate.hash,
       blockHash: block.hash,
       blockNumber: block.number,

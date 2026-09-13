@@ -369,8 +369,12 @@ export {
   WalletMonitor,
   WalletMonitorCoverage,
   WalletMonitorStatus,
+  flowAmount,
+  flowAsset,
+  foreignSigner,
   monitorCoverage,
   monitorStartBlock,
+  shortAddress,
   supportedPresence,
   WALLET_MONITOR_DURATION_MS,
   WALLET_MONITOR_USER_LIMIT,
@@ -378,6 +382,7 @@ export {
 } from "./wallet-monitor";
 
 export { WalletMonitorId, WalletActivityId } from "./id";
+export type { FlowAsset } from "./wallet-monitor";
 
 export { OnchainAlertRuleId } from "./id";
 export {

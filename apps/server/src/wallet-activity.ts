@@ -1,4 +1,11 @@
-import { EvmAddress, WalletActivityFlow } from "@froggy/domain";
+import {
+  EvmAddress,
+  WalletActivityFlow,
+  flowAmount,
+  flowAsset,
+  foreignSigner,
+  shortAddress,
+} from "@froggy/domain";
 import type {
   OnchainNetwork,
   WalletActivity,
@@ -453,30 +460,78 @@ export const describeWalletActivity = async (
     complete: !tx.truncated,
   };
 };
-export const flowLine = (flow: WalletActivity["flows"][number]): string => {
-  const raw = flow.amount.padStart((flow.decimals ?? 0) + 1, "0");
-  const amount =
-    flow.decimals !== null && flow.decimals > 0
-      ? `${raw.slice(0, -flow.decimals)}.${raw.slice(-flow.decimals)}`.replace(
-          /\.?0+$/u,
-          ""
-        )
-      : raw;
-  const label =
-    flow.symbol ??
-    (flow.asset === "native"
-      ? "ETH"
-      : `${flow.asset.slice(0, 8)}…${flow.asset.slice(-4)}`);
-  return `${flow.direction === "sent" ? "Sent" : "Received"} ${amount} ${label}${flow.decimals === null ? " (raw units)" : ""}`;
+const chainName = (network: string): string =>
+  network === "eip155:4663" ? "Robinhood" : "Base";
+const explorer = (network: string): string =>
+  network === "eip155:4663" ? "robinhoodchain.blockscout.com" : "basescan.org";
+/** "0.1 USDC", "100000 raw units of token 0x9aae…be43": the amount and what it is. */
+export const flowWords = (flow: WalletActivityFlow, network: string): string =>
+  `${flowAmount(flow)} ${flowAsset(flow, network).label}`;
+export const flowLine = (flow: WalletActivityFlow, network: string): string =>
+  flow.direction === "sent"
+    ? `Sent ${flowWords(flow, network)} to ${shortAddress(flow.counterparty)}`
+    : `Received ${flowWords(flow, network)} from ${shortAddress(flow.counterparty)}`;
+const UNVERIFIED_TOKEN =
+  "Unverified token: no known symbol, or a lookalike name. Such tokens are used for address poisoning; never copy an address from this alert.";
+/**
+ * The movements, then the two cautions a person needs before acting on them:
+ * that the wallet's own key did not sign, and that a token is not what it
+ * calls itself. Capped at six movements like every other tool output.
+ */
+export const activityLines = (
+  activity: Pick<
+    WalletActivity,
+    "flows" | "network" | "wallet" | "transactionFrom"
+  >
+): string[] => {
+  const lines = activity.flows
+    .slice(0, 6)
+    .map((flow) => flowLine(flow, activity.network));
+  if (activity.flows.length > 6) {
+    lines.push(`+${activity.flows.length - 6} more movements`);
+  }
+  const signer = foreignSigner(activity);
+  if (signer !== null) {
+    lines.push(
+      `Sent by ${shortAddress(signer)}, not signed by the watched wallet: a contract acted for it, or a third party reported a movement it never made.`
+    );
+  }
+  if (
+    activity.flows.some(
+      (flow) => flowAsset(flow, activity.network).doubt !== null
+    )
+  ) {
+    lines.push(UNVERIFIED_TOKEN);
+  }
+  return lines;
+};
+/** "Watch: Base contract 0x0Cf8…67F6 activity": which of the person's watches this is about. */
+const watchLine = (
+  activity: Pick<WalletActivity, "wallet">,
+  title: string
+): string => {
+  const lower = title.toLowerCase();
+  const named =
+    lower.includes(activity.wallet.toLowerCase()) ||
+    lower.includes(shortAddress(activity.wallet).toLowerCase());
+  return `Watch: ${title}${named ? "" : ` (${shortAddress(activity.wallet)})`}`;
 };
 
 export const walletActivityText = (
   activity: WalletActivity,
-  appUrl: string
+  appUrl: string,
+  title: string
 ): string => {
+  const link = `${appUrl}/watchlist/${activity.itemId}`;
   if (activity.kind === "price" && activity.price) {
     const { price } = activity;
-    return `${price.initiallyMatched ? "Price already" : "Price moved"} ${price.comparison} ${price.threshold} ${price.quoteCurrency}\nObserved ${price.observation.price} ${price.quoteCurrency} · ${price.sourceLabel} · ${activity.network === "eip155:4663" ? "Robinhood" : "Base"} · provisional\n${appUrl}/watchlist/${activity.itemId}`;
+    return [
+      `Price alert · ${chainName(activity.network)} · provisional`,
+      `Watch: ${title}`,
+      `${price.initiallyMatched ? "Price already" : "Price moved"} ${price.comparison} ${price.threshold} ${price.quoteCurrency}`,
+      `Observed ${price.observation.price} ${price.quoteCurrency} · ${price.sourceLabel}`,
+      link,
+    ].join("\n");
   }
   const titles = {
     swap: "Wallet swap",
@@ -484,9 +539,13 @@ export const walletActivityText = (
     activity: "Wallet activity",
     price: "Price alert",
   };
-  const title = titles[activity.kind];
-  const lines = activity.flows.slice(0, 6).map(flowLine);
-  return `${title} · ${activity.network === "eip155:4663" ? "Robinhood" : "Base"} · provisional\n${lines.join("\n")}${activity.flows.length > 6 ? `\n+${activity.flows.length - 6} more movements` : ""}\nhttps://${activity.network === "eip155:4663" ? "robinhoodchain.blockscout.com" : "basescan.org"}/tx/${activity.transactionHash}\n${appUrl}/watchlist/${activity.itemId}`;
+  return [
+    `${titles[activity.kind]} · ${chainName(activity.network)} · provisional`,
+    watchLine(activity, title),
+    ...activityLines(activity),
+    `https://${explorer(activity.network)}/tx/${activity.transactionHash}`,
+    link,
+  ].join("\n");
 };
 
 export const walletActivityMatches = (

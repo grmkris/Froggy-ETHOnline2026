@@ -10,6 +10,7 @@ import {
   WatchlistItemId,
 } from "./id";
 import { UserId } from "./identity";
+import { KNOWN_ASSETS, knownAsset } from "./money";
 import {
   PriceObservation,
   PriceQuoteCurrency,
@@ -120,6 +121,85 @@ export const WalletActivityFlow = Schema.Struct({
   ),
 });
 export type WalletActivityFlow = typeof WalletActivityFlow.Type;
+/** `0x0Cf8…67F6`: enough to recognise an address a person already knows, never enough to copy. */
+export const shortAddress = (address: string): string =>
+  `${address.slice(0, 6)}…${address.slice(-4)}`;
+/** A flow's amount in the token's own decimals, or its raw units when the token reported none. */
+export const flowAmount = (
+  flow: Pick<WalletActivityFlow, "amount" | "decimals">
+): string => {
+  if (flow.decimals === null) {
+    return `${flow.amount} raw units of`;
+  }
+  if (flow.decimals === 0) {
+    return flow.amount;
+  }
+  const digits = flow.amount.padStart(flow.decimals + 1, "0");
+  return `${digits.slice(0, -flow.decimals)}.${digits.slice(-flow.decimals)}`.replace(
+    /\.?0+$/u,
+    ""
+  );
+};
+export interface FlowAsset {
+  /** What to print after the amount. */
+  readonly label: string;
+  /**
+   * Why the label is not to be trusted: the contract reported no symbol, or
+   * a symbol that imitates a known asset on this network or hides
+   * non-Latin characters. Null for the chain's own coin, an asset in the
+   * known-asset table, or an ordinary self-reported symbol.
+   */
+  readonly doubt: "no_symbol" | "lookalike" | null;
+}
+const PLAIN_TEXT = /^[ -~]*$/u;
+/**
+ * What to call a token in an alert. Address-poisoning tokens copy a real
+ * symbol, so a symbol is trusted only when the contract is the one the
+ * known-asset table names; anything else that claims a known symbol, or
+ * carries characters a person cannot tell from Latin ones, is a lookalike.
+ */
+export const flowAsset = (
+  flow: Pick<WalletActivityFlow, "asset" | "symbol">,
+  network: string
+): FlowAsset => {
+  if (flow.asset === "native") {
+    return { label: "ETH", doubt: null };
+  }
+  const known = knownAsset(flow.asset, network);
+  if (known !== undefined) {
+    return { label: known.symbol, doubt: null };
+  }
+  const symbol = flow.symbol?.trim() ?? "";
+  if (symbol === "") {
+    return { label: `token ${shortAddress(flow.asset)}`, doubt: "no_symbol" };
+  }
+  const imitates = Object.values(KNOWN_ASSETS).some(
+    (asset) =>
+      asset.network === network &&
+      asset.symbol.toLowerCase() === symbol.toLowerCase()
+  );
+  if (imitates || !PLAIN_TEXT.test(symbol)) {
+    return {
+      label: `"${symbol}" ${shortAddress(flow.asset)}`,
+      doubt: "lookalike",
+    };
+  }
+  return { label: symbol, doubt: null };
+};
+/**
+ * The signer to name when something left the wallet in a transaction the
+ * wallet did not sign. A contract may act for a smart account, and a scam
+ * token may emit a transfer "from" a wallet that never called it; either
+ * way the person should know the wallet's own key was not involved.
+ */
+export const foreignSigner = (
+  activity: Pick<WalletActivity, "wallet" | "transactionFrom" | "flows">
+): string | null =>
+  activity.transactionFrom !== undefined &&
+  activity.transactionFrom.toLowerCase() !== activity.wallet.toLowerCase() &&
+  activity.flows.some((flow) => flow.direction === "sent")
+    ? activity.transactionFrom
+    : null;
 export const WalletActivity = Schema.Struct({
   v: Schema.Literal(1),
   id: WalletActivityId,
@@ -128,6 +208,8 @@ export const WalletActivity = Schema.Struct({
   monitorRevision: Schema.Int,
   network: OnchainNetwork,
   wallet: EvmAddress,
+  /** Who signed the transaction. Absent on rows written before it was recorded. */
+  transactionFrom: Schema.optional(EvmAddress),
   transactionHash: Schema.NullOr(hash),
   blockHash: hash,
   blockNumber,

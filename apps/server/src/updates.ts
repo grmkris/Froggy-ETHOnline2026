@@ -9,7 +9,7 @@ import type {
 import type { AppServerMessage, Notice } from "@froggy/protocol";
 import type { Store } from "@froggy/wallet";
 
-import { flowLine } from "./wallet-activity";
+import { activityLines, flowWords } from "./wallet-activity";
 
 export interface Updates {
   readonly file: (owner: UserId, update: Update) => Promise<Update>;
@@ -73,13 +73,16 @@ export const activityUpdate = (
   if (activity.kind === "price") {
     return priceUpdate(item, activity);
   }
-  const lines = activity.flows.slice(0, 6).map(flowLine);
+  const lines = activityLines(activity);
   const sent = activity.flows.find((flow) => flow.direction === "sent");
   const received = activity.flows.find((flow) => flow.direction === "received");
-  const title =
-    activity.kind === "swap" && sent && received
-      ? `${item.title} swapped ${flowLine(sent).slice(5)} for ${flowLine(received).slice(9)}`
-      : `${item.title} ${lines[0]?.toLowerCase() ?? "had onchain activity"}`;
+  const [first] = activity.flows;
+  let title = `${item.title} had onchain activity`;
+  if (activity.kind === "swap" && sent && received) {
+    title = `${item.title} swapped ${flowWords(sent, activity.network)} for ${flowWords(received, activity.network)}`;
+  } else if (first) {
+    title = `${item.title} ${first.direction} ${flowWords(first, activity.network)}`;
+  }
   return record({
     kind: "activity",
     key: `activity:${activity.id}`,

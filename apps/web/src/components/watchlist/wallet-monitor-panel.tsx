@@ -1,4 +1,11 @@
-import { supportedPresence, listChainNames } from "@froggy/domain";
+import {
+  flowAmount,
+  flowAsset,
+  foreignSigner,
+  listChainNames,
+  shortAddress,
+  supportedPresence,
+} from "@froggy/domain";
 import type {
   OnchainAlertCondition,
   OnchainAlertRule,
@@ -68,19 +75,6 @@ const delivery = {
   failed: "Telegram delivery failed",
   summarized: "Included in Telegram summary",
 } as const;
-const flowAmount = (flow: WalletActivity["flows"][number]): string => {
-  if (flow.decimals === null) {
-    return `${flow.amount} raw units`;
-  }
-  if (flow.decimals === 0) {
-    return flow.amount;
-  }
-  const digits = flow.amount.padStart(flow.decimals + 1, "0");
-  return `${digits.slice(0, -flow.decimals)}.${digits.slice(-flow.decimals)}`.replace(
-    /\.?0+$/u,
-    ""
-  );
-};
 const assetLabel = (value: string | null): string => {
   if (value === null) {
     return "any token";
@@ -492,6 +486,10 @@ export const ActivityCard = ({
   readonly activity: WalletActivity;
 }) => {
   const quote = activity.price?.quoteCurrency ?? "";
+  const signer = foreignSigner(activity);
+  const doubtful = activity.flows.some(
+    (flow) => flowAsset(flow, activity.network).doubt !== null
+  );
   return (
     <article className="motion-safe:animate-in motion-safe:fade-in flex min-w-0 flex-col gap-2 rounded-xl border p-4 duration-300">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -547,7 +545,9 @@ export const ActivityCard = ({
             <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span className="break-all">
               {flow.direction === "sent" ? "Sent" : "Received"}{" "}
-              {flowAmount(flow)} {flow.symbol ?? flow.asset}
+              {flowAmount(flow)} {flowAsset(flow, activity.network).label}
+              {flow.direction === "sent" ? " to " : " from "}
+              {shortAddress(flow.counterparty)}
             </span>
           </p>
         );
@@ -555,6 +555,18 @@ export const ActivityCard = ({
       {activity.flows.length > 8 ? (
         <p className="text-muted-foreground text-xs">
           +{activity.flows.length - 8} movements in this transaction.
+        </p>
+      ) : null}
+      {signer === null ? null : (
+        <p className="text-muted-foreground text-xs">
+          Sent by {shortAddress(signer)}, not signed by this wallet: a contract
+          acted for it, or a third party reported a movement it never made.
+        </p>
+      )}
+      {doubtful ? (
+        <p className="text-muted-foreground text-xs">
+          Unverified token: no known symbol, or a lookalike name. Such tokens
+          are used for address poisoning; never copy an address from here.
         </p>
       ) : null}
       {activity.complete ? null : (

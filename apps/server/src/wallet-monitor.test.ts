@@ -20,6 +20,7 @@ import { Schema } from "effect";
 import {
   describeWalletActivity,
   walletActivityMatches,
+  walletActivityText,
 } from "./wallet-activity";
 import {
   configureOnchainMonitor,
@@ -532,6 +533,53 @@ describe("wallet trade attribution", () => {
     expect(s.alerts.filter((alert) => alert.kind === "activity")).toEqual([]);
   });
 
+  test("an alert names the watch, the counterparty, and a signer that was not the wallet", async () => {
+    const s = setup();
+    const item = await trackWallet(s.deps, owner, input, options);
+    const fence = await s.fence();
+    // A stranger's transaction reports the wallet "sending" a token it never touched.
+    const poisoned = transaction({
+      hash: hash("b"),
+      transactionFrom: recipient,
+      transfers: [
+        {
+          asset: token,
+          from: wallet,
+          to: recipient,
+          amount: "100000",
+          ordinal: "20",
+          callIndex: 2,
+          callKnown: true,
+          logIndex: 1,
+        },
+      ],
+    });
+    await commitWalletBlock(s.deps, fence, s.block(1001, [poisoned]));
+    await commitWalletBlock(s.deps, fence, s.block(1003));
+    await dispatchWalletAlerts(s.deps);
+    const alert = s.alerts.find((entry) => entry.kind === "activity");
+    expect(alert?.text).toContain(`Watch: ${item.title}`);
+    expect(alert?.text).toContain(
+      `Sent 0.1 TEST to ${recipient.slice(0, 6)}…${recipient.slice(-4)}`
+    );
+    expect(alert?.text).toContain("not signed by the watched wallet");
+    expect(alert?.text).toContain(`/watchlist/${item.id}`);
+    const [activity] = await s.store.walletActivity.list(owner, item.id);
+    expect(activity?.transactionFrom).toBe(recipient);
+    // The wallet's own transaction carries no such caution, and an unnamed token is marked.
+    const own = {
+      ...activity,
+      transactionFrom: wallet,
+      flows: [{ ...activity.flows[0], symbol: null }],
+    };
+    const text = walletActivityText(own, "https://froggy.example", item.title);
+    expect(text).not.toContain("not signed by the watched wallet");
+    expect(text).toContain(`token ${token.slice(0, 6)}…${token.slice(-4)}`);
+    expect(text).toContain("Unverified token");
+    expect(text.startsWith("Wallet transfer · Base · provisional\n")).toBe(
+      true
+    );
+  });
   test("a sponsor or router is not substituted for the watched wallet", async () => {
     const s = setup();
     const tx = transaction();
