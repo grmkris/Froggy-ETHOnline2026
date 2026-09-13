@@ -11,7 +11,7 @@ interface Capability {
 }
 
 /** The same catalogue selects model tools and checks execution authority. */
-const CAPABILITIES: readonly Capability[] = [
+export const CAPABILITIES: readonly Capability[] = [
   {
     names: [
       "browser_navigate",

@@ -34,6 +34,7 @@ import {
   decodeUserId,
   OAuthScope,
   Purchase,
+  TaskKind,
   WalletConnection,
   WalletRequest,
 } from "@froggy/domain";
@@ -1049,6 +1050,37 @@ export const postgresStore = (sql: Sql): Store => {
       },
     },
     tasks: {
+      usage: async (userId) => {
+        const rows = await sql<
+          {
+            kind: string;
+            service: string | null;
+            calls: number;
+            captured_units: string;
+            last_at: string;
+          }[]
+        >`
+          select kind, input->>'service' as service, count(*)::int as calls,
+            coalesce(sum(price_credit_units) filter (where charge_status = 'captured'), 0)::bigint as captured_units,
+            (extract(epoch from max(created_at)) * 1000)::bigint as last_at
+          from tasks
+          where user_id = ${userId}
+          group by kind, input->>'service'`;
+        return rows.flatMap((row) => {
+          const kind = Schema.decodeUnknownResult(TaskKind)(row.kind);
+          return Result.isSuccess(kind)
+            ? [
+                {
+                  kind: kind.success,
+                  service: row.service,
+                  calls: row.calls,
+                  capturedUnits: Number(row.captured_units),
+                  lastAt: Number(row.last_at),
+                },
+              ]
+            : [];
+        });
+      },
       activeBrowses: async () => {
         const rows = await database
           .select()

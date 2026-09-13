@@ -101,6 +101,7 @@ import {
 } from "./tasks";
 import type { TaskCaller, TaskDeps } from "./tasks";
 import type { TelegramPager } from "./telegram/pager";
+import { handleToolCatalog } from "./tool-catalog";
 import { handleTrades } from "./trade-routes";
 import { renderUnlock } from "./unlock";
 import type { UnlockTokens } from "./unlock";
@@ -858,6 +859,9 @@ const handleGranted = async (
   const agents = await handleAgents(deps, request, userId, pathname);
   if (agents !== null) {
     return agents;
+  }
+  if (pathname === "/api/tools" && request.method === "GET") {
+    return await handleToolCatalog(deps.services, userId);
   }
   const wallet = await handleWalletRoutes(
     {

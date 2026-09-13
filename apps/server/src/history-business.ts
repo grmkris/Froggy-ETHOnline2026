@@ -24,18 +24,27 @@ const purchaseEvidence = (purchase: Purchase): HistoryBusiness => ({
   error:
     purchase.error === null ? null : historyPreview(purchase.error, 1000).text,
 });
-const taskEvidence = (task: Task): HistoryBusiness => ({
-  kind: "task",
-  id: task.id,
-  status: task.status,
-  payment: null,
-  delivery: task.status === "done" ? "Result recorded" : task.status,
-  quotedUsdMicros: task.priceUsdMicros,
-  receiptIds: [],
-  saleId: task.saleId,
-  approval: null,
-  error: task.error === null ? null : historyPreview(task.error, 1000).text,
-});
+const taskEvidence = (task: Task): HistoryBusiness => {
+  const evidence: HistoryBusiness = {
+    kind: "task",
+    id: task.id,
+    status: task.status,
+    payment: null,
+    delivery: task.status === "done" ? "Result recorded" : task.status,
+    quotedUsdMicros: task.priceUsdMicros,
+    receiptIds: [],
+    saleId: task.saleId,
+    approval: null,
+    error: task.error === null ? null : historyPreview(task.error, 1000).text,
+  };
+  const priced =
+    task.priceCreditUnits === undefined
+      ? evidence
+      : { ...evidence, priceCreditUnits: task.priceCreditUnits };
+  return task.chargeStatus === undefined
+    ? priced
+    : { ...priced, chargeStatus: task.chargeStatus };
+};
 /** Join actual identifiers only. A successful call or a price is not settlement. */
 export const historyBusiness = async (
   store: Store,

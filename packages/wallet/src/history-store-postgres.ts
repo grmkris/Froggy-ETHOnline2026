@@ -323,6 +323,20 @@ export const postgresHistoryStore = (sql: Sql): HistoryStore => {
         hasMore: found.length > 50,
       };
     },
+    toolUsage: async (userId) => {
+      const rows = await sql<
+        { name: string; calls: number; last_at: string }[]
+      >`
+        select data->>'name' as name, count(*)::int as calls, max(created_at)::bigint as last_at
+        from tool_executions
+        where user_id = ${userId} and data->>'name' is not null
+        group by data->>'name'`;
+      return rows.map((row) => ({
+        name: row.name,
+        calls: row.calls,
+        lastAt: Number(row.last_at),
+      }));
+    },
     forget: async (userId) => {
       await database.transaction(async (tx) => {
         await tx

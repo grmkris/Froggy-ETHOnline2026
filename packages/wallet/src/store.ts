@@ -32,6 +32,7 @@ import type {
   ScheduleId,
   ScheduleStatus,
   TaskId,
+  TaskKind,
   TelegramPairing,
   UserId,
   WalletConnectionId,
@@ -295,6 +296,14 @@ export const BrowserProfileRecord = Schema.Struct({
 });
 export type BrowserProfileRecord = typeof BrowserProfileRecord.Type;
 
+export interface TaskUsageRow {
+  readonly kind: TaskKind;
+  /** The service a `service` task bought; null for briefs and browses. */
+  readonly service: string | null;
+  readonly calls: number;
+  readonly capturedUnits: number;
+  readonly lastAt: number;
+}
 export interface Store {
   readonly credits: CreditStore;
   readonly browsers: {
@@ -462,6 +471,11 @@ export interface Store {
   };
   /** Delegated tasks, per person. A key seen before returns the earlier task. */
   readonly tasks: {
+    /**
+     * How often each priced thing ran and what it captured, one row per
+     * task kind and service. Reservations still held are not spend.
+     */
+    readonly usage: (userId: UserId) => Promise<readonly TaskUsageRow[]>;
     readonly activeBrowses: () => Promise<
       readonly { readonly userId: UserId; readonly task: Task }[]
     >;
@@ -764,6 +778,13 @@ export const readReceipts = (documents: readonly unknown[]): Receipt[] => {
     }
   }
   return receipts;
+};
+
+/** The service a task bought, read from the request it stored; briefs and browses have none. */
+const ServiceInput = Schema.Struct({ service: Schema.String });
+const taskService = (task: Task): string | null => {
+  const decoded = Schema.decodeUnknownResult(ServiceInput)(task.input);
+  return Result.isSuccess(decoded) ? decoded.success.service : null;
 };
 
 export const memoryStore = (): Store => {
@@ -1255,6 +1276,29 @@ export const memoryStore = (): Store => {
       },
     },
     tasks: {
+      usage: async (userId) => {
+        await Promise.resolve();
+        const totals = new Map<string, TaskUsageRow>();
+        for (const task of [...tasks.values()].filter(
+          (entry) => entry.userId === userId
+        )) {
+          const service = taskService(task);
+          const key = `${task.kind}:${service ?? ""}`;
+          const current = totals.get(key);
+          totals.set(key, {
+            kind: task.kind,
+            service,
+            calls: (current?.calls ?? 0) + 1,
+            capturedUnits:
+              (current?.capturedUnits ?? 0) +
+              (task.chargeStatus === "captured"
+                ? (task.priceCreditUnits ?? 0)
+                : 0),
+            lastAt: Math.max(current?.lastAt ?? 0, task.createdAt),
+          });
+        }
+        return [...totals.values()];
+      },
       activeBrowses: async () =>
         await Promise.resolve(
           [...tasks.values()]

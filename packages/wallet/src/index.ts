@@ -50,6 +50,7 @@ export type {
   Store,
   PurchasePatch,
   OwnedWalletRequest,
+  TaskUsageRow,
   WalletRequestPatch,
 } from "./store";
 export { postgresStore } from "./store-postgres";
@@ -102,6 +103,7 @@ export type {
   HistoryStore,
   HistoryTransaction,
   HistoryFilter,
+  ToolUsageRow,
 } from "./history-store";
 
 export type { TelegramCacheMessage } from "./history-store";

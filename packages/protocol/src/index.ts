@@ -96,6 +96,15 @@ export {
 export { SetupRequest, SetupState } from "./setup";
 
 export { AgentConnection, AgentDetail, AgentInvocationView } from "./agents";
+export {
+  ToolAvailability,
+  ToolCatalog,
+  ToolCatalogEntry,
+  ToolCatalogGroup,
+  ToolPrice,
+  ToolSurface,
+  ToolUsage,
+} from "./tool-catalog";
 
 export {
   PurchaseAnswer,

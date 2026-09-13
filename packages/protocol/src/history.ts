@@ -1,5 +1,7 @@
 import {
   ApprovalId,
+  CreditChargeStatus,
+  CreditUnits,
   HistoryRecord,
   PurchaseId,
   Receipt,
@@ -16,6 +18,9 @@ export const HistoryBusiness = Schema.Struct({
   payment: Schema.NullOr(Schema.String),
   delivery: Schema.String,
   quotedUsdMicros: Schema.NullOr(Schema.Number),
+  /** The credit reservation behind a task, when it has one: a quote is not a charge. */
+  priceCreditUnits: Schema.optional(CreditUnits),
+  chargeStatus: Schema.optional(CreditChargeStatus),
   receiptIds: Schema.Array(ReceiptId),
   saleId: Schema.NullOr(SaleId),
   approval: Schema.NullOr(

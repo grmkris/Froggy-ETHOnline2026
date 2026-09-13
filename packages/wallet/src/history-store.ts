@@ -49,6 +49,12 @@ export const TelegramCacheMessage = Schema.Struct({
   metadata: Schema.Struct({ dateSent: Schema.String }),
 });
 export type TelegramCacheMessage = typeof TelegramCacheMessage.Type;
+/** How often one tool ran for a person, by its recorded name. Money is not here: see `tasks.usage`. */
+export interface ToolUsageRow {
+  readonly name: string;
+  readonly calls: number;
+  readonly lastAt: number;
+}
 export interface HistoryStore {
   readonly subscribe: (
     listener: (userId: UserId, sequence: number) => void
@@ -80,6 +86,8 @@ export interface HistoryStore {
     readonly cursor: number;
     readonly hasMore: boolean;
   }>;
+  /** Every recorded tool execution of this person's, counted by name. */
+  readonly toolUsage: (userId: UserId) => Promise<readonly ToolUsageRow[]>;
   readonly forget: (userId: UserId) => Promise<void>;
 }
 type HistoryBackend = Omit<HistoryStore, "subscribe">;
@@ -372,6 +380,23 @@ export const memoryHistoryStore = (): HistoryStore => {
         cursor: page.at(-1)?.sequence ?? after,
         hasMore: found.length > 50,
       };
+    },
+    toolUsage: async (userId) => {
+      await Promise.resolve();
+      const totals = new Map<string, ToolUsageRow>();
+      for (const record of (
+        rows.get(userId) ?? new Map<HistoryId, HistoryRecord>()
+      ).values()) {
+        if (record.kind === "execution") {
+          const current = totals.get(record.name);
+          totals.set(record.name, {
+            name: record.name,
+            calls: (current?.calls ?? 0) + 1,
+            lastAt: Math.max(current?.lastAt ?? 0, record.createdAt),
+          });
+        }
+      }
+      return [...totals.values()];
     },
     forget: async (userId) => {
       await store.transaction(userId, async () => {

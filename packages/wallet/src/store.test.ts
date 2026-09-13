@@ -17,6 +17,8 @@ import {
   WalletRequestId,
   ApprovalId,
   EvmAddress,
+  ExecutionId,
+  creditUnits,
   parQuote,
   usdMicros,
   userId,
@@ -216,6 +218,94 @@ describe("memoryStore sales, tasks and agent tokens", () => {
     expect(
       await store.tasks.byId(userId("did:privy:bob"), created.id)
     ).toBeNull();
+  });
+
+  it("counts task usage per service with captured credits only, and tool calls by name", async () => {
+    const store = memoryStore();
+    const bob = userId("did:privy:bob");
+    await store.tasks.create(ALICE, {
+      ...task("search-1"),
+      kind: "service",
+      input: { v: 2, service: "web_search", prompt: "trains" },
+      priceCreditUnits: creditUnits(10_000),
+      chargeStatus: "captured",
+    });
+    await store.tasks.create(ALICE, {
+      ...task("search-2"),
+      kind: "service",
+      input: { v: 2, service: "web_search", prompt: "planes" },
+      priceCreditUnits: creditUnits(10_000),
+      chargeStatus: "reserved",
+      createdAt: NOW + 10,
+    });
+    await store.tasks.create(ALICE, task("brief-1"));
+    await store.tasks.create(bob, {
+      ...task("search-3"),
+      kind: "service",
+      input: { v: 2, service: "web_search", prompt: "boats" },
+      priceCreditUnits: creditUnits(10_000),
+      chargeStatus: "captured",
+    });
+    const usage = await store.tasks.usage(ALICE);
+    expect(usage).toContainEqual({
+      kind: "service",
+      service: "web_search",
+      calls: 2,
+      capturedUnits: 10_000,
+      lastAt: NOW + 10,
+    });
+    expect(usage).toContainEqual({
+      kind: "brief",
+      service: null,
+      calls: 1,
+      capturedUnits: 0,
+      lastAt: NOW,
+    });
+    expect(usage).toHaveLength(2);
+    await store.history.transaction(ALICE, async (tx) => {
+      await Promise.all(
+        ["email_read", "email_read", "notify"].map(
+          async (name, index) =>
+            await tx.save(
+              {
+                v: 1,
+                kind: "execution",
+                id: ExecutionId.generate(),
+                revision: 0,
+                source: "web",
+                conversationId: null,
+                runId: null,
+                invocationId: null,
+                connectionId: null,
+                toolCallId: `call-${index}`,
+                name,
+                input: "",
+                result: "",
+                truncated: false,
+                redacted: false,
+                status: "completed",
+                outcome: "ok",
+                createdAt: NOW + index,
+                updatedAt: NOW + index,
+                finishedAt: NOW + index,
+                taskId: null,
+                purchaseId: null,
+                receiptIds: [],
+                artifactIds: [],
+              },
+              0
+            )
+        )
+      );
+    });
+    const calls = await store.history.toolUsage(ALICE);
+    expect(calls).toContainEqual({
+      name: "email_read",
+      calls: 2,
+      lastAt: NOW + 1,
+    });
+    expect(calls).toContainEqual({ name: "notify", calls: 1, lastAt: NOW + 2 });
+    expect(await store.history.toolUsage(bob)).toEqual([]);
   });
 
   it("looks a token up by its hash until it is revoked, and never returns the hash", async () => {
