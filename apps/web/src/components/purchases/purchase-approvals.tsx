@@ -51,8 +51,11 @@ const approvalFor = (purchase: PurchaseTicket): ApprovalRequest => ({
 
 export const PurchaseApprovals = ({
   api,
+  inline = false,
 }: {
   readonly api: PurchasesApi;
+  /** Inside a page rather than across the top of the workspace. */
+  readonly inline?: boolean;
 }): ReactElement | null => {
   const answering = useRef(false);
   const pending =
@@ -89,9 +92,19 @@ export const PurchaseApprovals = ({
   return (
     <section
       aria-label="Purchase approvals"
-      className="border-border bg-background max-h-[45dvh] shrink-0 overflow-y-auto overscroll-contain border-b px-[26px] py-3"
+      className={
+        inline
+          ? "flex flex-col gap-3"
+          : "border-border bg-background max-h-[45dvh] shrink-0 overflow-y-auto overscroll-contain border-b px-[26px] py-3"
+      }
     >
-      <div className="mx-auto flex max-w-4xl flex-col gap-3">
+      <div
+        className={
+          inline
+            ? "flex flex-col gap-3"
+            : "mx-auto flex max-w-4xl flex-col gap-3"
+        }
+      >
         {api.purchases.isError ? (
           <p className="text-destructive text-sm" role="alert">
             Couldn’t refresh purchase approvals. {api.purchases.error.message}

@@ -60,6 +60,12 @@ export const WorkspaceLayout = (): ReactElement => {
   const welcome = useLocation({
     select: (location) => location.pathname === "/welcome",
   });
+  // The Activity tab answers purchases inside "Needs you"; one ticket, one place.
+  const activityTab = useLocation({
+    select: (location) =>
+      location.pathname === "/activity" &&
+      !/(?:\?|&)tab=(?:agents|tools)(?:&|$)/u.test(location.searchStr),
+  });
   const [browserRequested, setBrowserRequested] = useState(false);
   const showBrowser = useCallback(() => {
     setBrowserRequested(true);
@@ -255,7 +261,7 @@ export const WorkspaceLayout = (): ReactElement => {
                   waiting={app.approvals.length + pendingPurchases}
                 >
                   <ActiveBrowseTask />
-                  <PurchaseApprovals api={purchases} />
+                  {activityTab ? null : <PurchaseApprovals api={purchases} />}
                   <TradeNotice api={trades} />
                   <Outlet />
                 </AppFrame>

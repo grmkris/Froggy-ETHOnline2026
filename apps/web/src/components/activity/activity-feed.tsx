@@ -3,6 +3,8 @@ import type {
   HistoryExecution,
   HistoryId,
   HistoryRecord,
+  HistoryRun,
+  HistorySource,
 } from "@froggy/domain";
 import type { HistoryBusiness } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
@@ -22,13 +24,14 @@ import {
 import { Skeleton } from "@froggy/ui/components/skeleton";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Schema } from "effect";
-import { ArrowLeftIcon, CopyIcon } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeftIcon, ChevronRightIcon, CopyIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import { useAgentTokens } from "../../hooks/use-agent-tokens";
 import { useMediaQuery } from "../../hooks/use-media-query";
 import { useChatSurface } from "../../lib/chat-context";
+import { creditChargeWords, formatCredits } from "../../lib/credit-view";
 import {
   useHistoryDetail,
   useHistoryPage,
@@ -37,6 +40,7 @@ import {
 import { useWorkspace } from "../../lib/workspace-context";
 import { ReceiptTicket } from "../cards/receipt-ticket";
 import { MarkdownText } from "../stream/markdown-text";
+import { NeedsYou } from "./needs-you";
 
 const titleOf = (record: HistoryRecord): string => {
   switch (record.kind) {
@@ -90,99 +94,6 @@ const RecordLink = ({
     </span>
   </Link>
 );
-const ActivityRows = ({ path }: { readonly path: string }): ReactElement => {
-  const [cursors, setCursors] = useState<string[]>([]);
-  const before = cursors.at(-1);
-  const page = useHistoryPage(
-    before === undefined ? path : `${path}&before=${encodeURIComponent(before)}`
-  );
-  if (page.isPending) {
-    return <Skeleton className="h-48 w-full" />;
-  }
-  if (page.isError) {
-    return (
-      <p role="alert">
-        Activity could not be loaded.{" "}
-        <Button
-          onClick={() => {
-            void page.refetch();
-          }}
-          variant="outline"
-        >
-          Retry
-        </Button>
-      </p>
-    );
-  }
-  const polls = page.records.filter(
-    (record) =>
-      record.kind === "execution" && /(?:status|list)$/u.test(record.name)
-  );
-  const primary = page.records.filter(
-    (record) =>
-      !polls.includes(record) &&
-      !(record.kind === "execution" && record.runId !== null)
-  );
-  return (
-    <>
-      {page.records.length === 0 ? (
-        <p className="text-muted-foreground py-12 text-center">
-          No activity matches these filters.
-        </p>
-      ) : null}
-      <ul className="divide-border divide-y">
-        {primary.map((record) => (
-          <li key={record.id}>
-            <RecordLink record={record} />
-          </li>
-        ))}
-      </ul>
-      {polls.length > 0 ? (
-        <details className="bg-muted rounded-xl p-3">
-          <summary className="cursor-pointer text-sm">
-            Status and list checks ({polls.length})
-          </summary>
-          <p className="text-muted-foreground my-2 text-xs">
-            Checks are recorded individually. They are not additional payment
-            receipts.
-          </p>
-          <ul>
-            {polls.map((record) => (
-              <li key={record.id}>
-                <RecordLink record={record} />
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-      <div className="flex items-center justify-between gap-2">
-        {cursors.length > 0 ? (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setCursors((current) => current.slice(0, -1));
-            }}
-          >
-            Newer activity
-          </Button>
-        ) : null}
-        {page.cursor === null ? null : (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              const next = page.cursor;
-              if (next !== null) {
-                setCursors((current) => [...current, next]);
-              }
-            }}
-          >
-            Older activity
-          </Button>
-        )}
-      </div>
-    </>
-  );
-};
 const Artifact = ({ id }: { readonly id: HistoryId }): ReactElement => {
   const detail = useHistoryDetail(id);
   if (detail.isPending) {
@@ -235,6 +146,363 @@ const messageText = (record: HistoryRecord): string =>
         })
         .join("\n")
     : "";
+const SOURCE_WORDS: Record<typeof HistorySource.Type, string> = {
+  web: "Chat",
+  telegram: "Telegram",
+  agent: "Agent",
+  schedule: "Schedule",
+};
+const RUN_TITLES: Record<typeof HistorySource.Type, string> = {
+  web: "Chat request",
+  telegram: "Telegram request",
+  agent: "Agent run",
+  schedule: "Scheduled run",
+};
+const clock = (at: number): string =>
+  new Date(at).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+const seconds = (from: number, to: number | null): string =>
+  to === null ? "" : ` · ${((to - from) / 1000).toFixed(1)} s`;
+const dayLabel = (at: number, now: number): string => {
+  const day = new Date(at).toDateString();
+  if (day === new Date(now).toDateString()) {
+    return "Today";
+  }
+  if (day === new Date(now - 86_400_000).toDateString()) {
+    return "Yesterday";
+  }
+  return new Date(at).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+};
+const toolWords = (name: string): string =>
+  name.replace(/^froggy_/u, "").replaceAll("_", " ");
+
+/** One tool call under its run: what ran, how long, and what it cost in credits. */
+const ExecutionLine = ({
+  business,
+  execution,
+}: {
+  readonly business: readonly HistoryBusiness[];
+  readonly execution: HistoryExecution;
+}): ReactElement => {
+  const task =
+    execution.taskId === null
+      ? undefined
+      : business.find(
+          (item) => item.kind === "task" && item.id === execution.taskId
+        );
+  let cost: string | null = null;
+  if (task !== undefined) {
+    cost =
+      task.priceCreditUnits === undefined
+        ? `${formatCredits(task.quotedUsdMicros ?? 0)} quoted`
+        : `${formatCredits(task.priceCreditUnits)} ${creditChargeWords(task.chargeStatus)}`;
+  }
+  return (
+    <li>
+      <Link
+        className="hover:bg-muted focus-visible:ring-ring flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 text-sm outline-none focus-visible:ring-2"
+        search={{ record: execution.id }}
+        to="/activity"
+      >
+        <span className="font-medium">{toolWords(execution.name)}</span>
+        <Badge variant="outline">{execution.status}</Badge>
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {seconds(execution.createdAt, execution.finishedAt).replace(
+            " · ",
+            ""
+          )}
+        </span>
+        {cost === null ? null : (
+          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+            {cost}
+          </span>
+        )}
+      </Link>
+    </li>
+  );
+};
+
+/** A run folds open to its request and the tool calls it made, read once when opened. */
+const RunRow = ({ record }: { readonly record: HistoryRun }): ReactElement => {
+  const [open, setOpen] = useState(false);
+  const detail = useHistoryDetail(open ? record.id : null);
+  const related = detail.data?.related ?? [];
+  const executions = related
+    .filter((item): item is HistoryExecution => item.kind === "execution")
+    .toSorted((a, b) => a.createdAt - b.createdAt);
+  const request = related.find(
+    (item) => item.kind === "message" && item.role === "user"
+  );
+  return (
+    <li className="flex flex-col">
+      <div className="flex items-start gap-2 py-2">
+        <Button
+          aria-expanded={open}
+          aria-label={open ? "Hide tool calls" : "Show tool calls"}
+          className="mt-1.5 shrink-0"
+          onClick={() => {
+            setOpen(!open);
+          }}
+          size="icon-xs"
+          variant="ghost"
+        >
+          <ChevronRightIcon
+            aria-hidden
+            className={
+              open ? "rotate-90 transition-transform" : "transition-transform"
+            }
+          />
+        </Button>
+        <Link
+          className="hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 flex-col gap-1 rounded-xl px-2 py-1.5 outline-none focus-visible:ring-2"
+          search={{ record: record.id }}
+          to="/activity"
+        >
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{SOURCE_WORDS[record.source]}</Badge>
+            <span className="font-medium">{RUN_TITLES[record.source]}</span>
+            <Badge variant="outline">{record.status}</Badge>
+          </span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            <time dateTime={new Date(record.createdAt).toISOString()}>
+              {clock(record.createdAt)}
+            </time>
+            {seconds(record.createdAt, record.finishedAt)}
+          </span>
+        </Link>
+      </div>
+      {open ? (
+        <div className="border-border mb-3 ml-3 flex flex-col gap-2 border-l-2 pl-4">
+          {detail.isPending ? <Skeleton className="h-10 w-full" /> : null}
+          {detail.isError ? (
+            <p className="text-sm" role="alert">
+              Tool calls could not be loaded.
+            </p>
+          ) : null}
+          {request === undefined ? null : (
+            <p className="text-muted-foreground line-clamp-2 text-sm">
+              {messageText(request)}
+            </p>
+          )}
+          {detail.data !== undefined && executions.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No tool calls in this run.
+            </p>
+          ) : null}
+          {executions.length === 0 ? null : (
+            <ul className="flex flex-col">
+              {executions.map((execution) => (
+                <ExecutionLine
+                  business={detail.data?.business ?? []}
+                  execution={execution}
+                  key={execution.id}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+};
+
+/** A call an outside agent made on its own, named for the connection that made it. */
+const AgentRow = ({
+  connections,
+  record,
+}: {
+  readonly connections: ReadonlyMap<string, string>;
+  readonly record: HistoryExecution;
+}): ReactElement => {
+  const name =
+    record.connectionId === null
+      ? "Agent"
+      : (connections.get(record.connectionId) ?? "Agent");
+  const preview = record.result || record.input;
+  return (
+    <li>
+      <Link
+        className="hover:bg-muted focus-visible:ring-ring flex flex-col gap-1 rounded-xl px-2 py-3 outline-none focus-visible:ring-2"
+        search={{ record: record.id }}
+        to="/activity"
+      >
+        <span className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{name}</Badge>
+          <span className="font-medium">{toolWords(record.name)}</span>
+          <Badge variant="outline">{record.status}</Badge>
+        </span>
+        {preview === "" ? null : (
+          <span className="text-muted-foreground line-clamp-2 text-sm">
+            {preview}
+          </span>
+        )}
+        <span className="text-muted-foreground text-xs tabular-nums">
+          <time dateTime={new Date(record.createdAt).toISOString()}>
+            {clock(record.createdAt)}
+          </time>
+          {seconds(record.createdAt, record.finishedAt)}
+        </span>
+      </Link>
+    </li>
+  );
+};
+
+const rowFor = (
+  record: HistoryRecord,
+  connections: ReadonlyMap<string, string>
+): ReactElement => {
+  if (record.kind === "run") {
+    return <RunRow key={record.id} record={record} />;
+  }
+  if (record.kind === "execution" && record.source === "agent") {
+    return (
+      <AgentRow connections={connections} key={record.id} record={record} />
+    );
+  }
+  return (
+    <li key={record.id}>
+      <RecordLink record={record} />
+    </li>
+  );
+};
+
+interface Day {
+  readonly key: string;
+  readonly label: string;
+  readonly records: HistoryRecord[];
+}
+const byDay = (records: readonly HistoryRecord[], now: number): Day[] => {
+  const days: Day[] = [];
+  for (const record of records) {
+    const key = new Date(record.createdAt).toDateString();
+    const last = days.at(-1);
+    if (last?.key === key) {
+      last.records.push(record);
+    } else {
+      days.push({
+        key,
+        label: dayLabel(record.createdAt, now),
+        records: [record],
+      });
+    }
+  }
+  return days;
+};
+
+const ActivityRows = ({
+  connections,
+  path,
+}: {
+  readonly connections: ReadonlyMap<string, string>;
+  readonly path: string;
+}): ReactElement => {
+  const [cursors, setCursors] = useState<string[]>([]);
+  const before = cursors.at(-1);
+  const page = useHistoryPage(
+    before === undefined ? path : `${path}&before=${encodeURIComponent(before)}`
+  );
+  if (page.isPending) {
+    return <Skeleton className="h-48 w-full" />;
+  }
+  if (page.isError) {
+    return (
+      <p role="alert">
+        Activity could not be loaded.{" "}
+        <Button
+          onClick={() => {
+            void page.refetch();
+          }}
+          variant="outline"
+        >
+          Retry
+        </Button>
+      </p>
+    );
+  }
+  const polls = page.records.filter(
+    (record) =>
+      record.kind === "execution" && /(?:status|list)$/u.test(record.name)
+  );
+  const primary = page.records.filter(
+    (record) =>
+      !polls.includes(record) &&
+      !(record.kind === "execution" && record.runId !== null)
+  );
+  // The query's own clock: "Today" is measured from when the page was read.
+  const days = byDay(primary, page.dataUpdatedAt);
+  return (
+    <>
+      {page.records.length === 0 ? (
+        <p className="text-muted-foreground py-12 text-center">
+          No activity matches these filters.
+        </p>
+      ) : null}
+      {days.map((day) => (
+        <section
+          aria-label={day.label}
+          className="flex flex-col gap-1"
+          key={day.key}
+        >
+          <h4 className="text-muted-foreground bg-background sticky top-0 z-10 py-1 text-xs font-medium tracking-wide uppercase">
+            {day.label}
+          </h4>
+          <ul className="divide-border divide-y">
+            {day.records.map((record) => rowFor(record, connections))}
+          </ul>
+        </section>
+      ))}
+      {polls.length > 0 ? (
+        <details className="bg-muted rounded-xl p-3">
+          <summary className="cursor-pointer text-sm">
+            Status and list checks ({polls.length})
+          </summary>
+          <p className="text-muted-foreground my-2 text-xs">
+            Checks are recorded individually. They are not additional payment
+            receipts.
+          </p>
+          <ul>
+            {polls.map((record) => (
+              <li key={record.id}>
+                <RecordLink record={record} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      <div className="flex items-center justify-between gap-2">
+        {cursors.length > 0 ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setCursors((current) => current.slice(0, -1));
+            }}
+          >
+            Newer activity
+          </Button>
+        ) : null}
+        {page.cursor === null ? null : (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              const next = page.cursor;
+              if (next !== null) {
+                setCursors((current) => [...current, next]);
+              }
+            }}
+          >
+            Older activity
+          </Button>
+        )}
+      </div>
+    </>
+  );
+};
 const MessageEvidence = ({
   record,
 }: {
@@ -523,12 +791,25 @@ export const ActivityFeed = (): ReactElement => {
   const [status, setStatus] = useState("");
   const [connection, setConnection] = useState("");
   const [since, setSince] = useState("");
+  const connections = useMemo(
+    () =>
+      new Map<string, string>([
+        ...(agents.data?.agents ?? []).map(
+          (agent) => [agent.id, agent.label] as const
+        ),
+        ...(agents.data?.grants ?? []).map(
+          (grant) => [grant.id, grant.clientName] as const
+        ),
+      ]),
+    [agents.data]
+  );
   const close = () => {
     void navigate({ to: "/activity", search: {} });
   };
   const path = `/api/activity?limit=30&source=${source}&status=${status}&connectionId=${encodeURIComponent(connection)}&since=${since === "" ? "" : new Date(since).getTime()}`;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
+      <NeedsYou />
       {app.connected && !stale ? null : (
         <output className="text-muted-foreground text-sm">
           Updates are delayed. Showing the last saved snapshot.
@@ -613,7 +894,7 @@ export const ActivityFeed = (): ReactElement => {
       </FieldGroup>
       <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className={record === undefined ? "md:col-span-2" : undefined}>
-          <ActivityRows key={path} path={path} />
+          <ActivityRows connections={connections} key={path} path={path} />
         </section>
         {record !== undefined && !phone ? (
           <aside className="bg-card border-border sticky top-0 rounded-2xl border p-5">
