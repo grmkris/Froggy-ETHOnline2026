@@ -4,6 +4,8 @@ import { WatchlistCreate, WatchlistPatch } from "@froggy/protocol";
 import type { Store } from "@froggy/wallet";
 import { Schema } from "effect";
 
+import { invalidateItemMonitor } from "./monitoring";
+
 type WatchlistResponse =
   | WatchlistItem
   | { readonly v: 1; readonly items: readonly WatchlistItem[] }
@@ -51,7 +53,7 @@ export const saveWatchlistItem = async (
   });
 
 export const handleWatchlist = async (
-  store: Pick<Store, "watchlist">,
+  store: Store,
   request: Request,
   owner: UserId,
   pathname: string
@@ -137,6 +139,9 @@ export const handleWatchlist = async (
         { v: 1, error: "This item changed. Reload it before editing." },
         409
       );
+    }
+    if (result.archived || decoded.success.notes !== undefined) {
+      await invalidateItemMonitor(store, owner, result);
     }
     return reply(result);
   }

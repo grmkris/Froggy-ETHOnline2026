@@ -19,6 +19,11 @@ import type { ReactElement } from "react";
 import { ScheduleList } from "../components/settings/schedule-list";
 import { SaveItem } from "../components/watchlist/item-form";
 import { marketPrice } from "../components/watchlist/market-results";
+import {
+  MonitoringBudget,
+  ExistingMonitoring,
+  ItemMonitoring,
+} from "../components/watchlist/monitoring-panel";
 import { ReminderForm } from "../components/watchlist/reminder-form";
 import { TokenDiscovery } from "../components/watchlist/token-discovery";
 import {
@@ -105,8 +110,7 @@ const ItemDetail = ({
           {item.source._tag === "token" ? item.source.address : item.source.url}
         </p>
         <p className="text-muted-foreground text-xs">
-          Saved {new Date(item.createdAt).toLocaleDateString()}. No automatic
-          price checks.
+          Saved {new Date(item.createdAt).toLocaleDateString()}.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -215,6 +219,8 @@ export const WatchlistPage = (): ReactElement => {
               </div>
             </header>
             {discoveryOpen ? <TokenDiscovery /> : null}
+            <MonitoringBudget />
+            <ExistingMonitoring />
             <WatchlistItems />
             <section
               className="border-border flex flex-col gap-3 border-t pt-6"
@@ -252,7 +258,10 @@ export const WatchlistPage = (): ReactElement => {
               </div>
             ) : null}
             {!list.isPending && item !== undefined ? (
-              <ItemDetail item={item} />
+              <>
+                <ItemDetail item={item} />
+                {item.archived ? null : <ItemMonitoring item={item} />}
+              </>
             ) : null}
           </>
         )}

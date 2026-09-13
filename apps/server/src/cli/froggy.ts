@@ -32,6 +32,7 @@ import { createInterface } from "node:readline";
 import { createInterface as createPrompt } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { OAUTH_SCOPES, OAuthScope } from "@froggy/domain";
 import { Predicate, Schema } from "effect";
 
 const Ticket = Schema.Struct({ id: Schema.String, title: Schema.String });
@@ -99,6 +100,7 @@ interface Options {
   readonly json: boolean;
   readonly manual: boolean;
   readonly requestKey: string;
+  readonly scopes: string;
   readonly url: string;
   readonly wait: boolean;
 }
@@ -123,7 +125,8 @@ const CREDENTIALS_PATH = path.join(
 
 const usage = `froggy — let Froggy do a paid task for you
 
-  froggy login [--url=<froggy>] [--manual]   sign in with the person's Froggy account
+  froggy login [--url=<froggy>] [--manual] [--all-tools]
+                                 sign in with the person's Froggy account
   froggy logout                  revoke this sign-in and forget it
   froggy brief <SYMBOL>          a lending brief: cheapest borrow and best supply
                                  for one token across twelve standardized markets
@@ -141,7 +144,9 @@ paste the code the page shows. Credentials live in ~/.config/froggy/credentials.
 (mode 600) and refresh themselves. FROGGY_URL names the server when --url is not
 given; FROGGY_TOKEN, a token the person minted, overrides the sign-in entirely.
 Flags: --json, --no-wait, --idempotency-key=<stable-request-id> (reuse for the
-same request).
+same request). Login accepts --all-tools to request every supported permission,
+or --scopes="browse pay email:read" for a smaller set. Both use the person's
+consent screen; neither changes spending limits or existing grants.
 
 A task is paid in HBAR from the person's Froggy wallet before it runs; the
 receipt and the sale id come back with the task. If the wallet refuses, the
@@ -160,6 +165,25 @@ const flagValue = (flags: ReadonlySet<string>, name: string): string | null =>
   [...flags]
     .find((flag) => flag.startsWith(`${name}=`))
     ?.slice(name.length + 1) ?? null;
+
+const requestedScopes = (flags: ReadonlySet<string>): string => {
+  const selected = flagValue(flags, "--scopes");
+  if (flags.has("--all-tools")) {
+    if (selected !== null) {
+      return fail("Choose --all-tools or --scopes, not both.");
+    }
+    return OAUTH_SCOPES.join(" ");
+  }
+  if (selected === null) {
+    return SCOPES;
+  }
+  const values = [...new Set(selected.trim().split(/[\s,]+/u))];
+  const decoded = Schema.decodeUnknownResult(Schema.Array(OAuthScope))(values);
+  if (decoded._tag === "Failure" || values.length === 0) {
+    return fail(`Supported scopes: ${OAUTH_SCOPES.join(" ")}`);
+  }
+  return decoded.success.join(" ");
+};
 
 const trimUrl = (url: string): string => url.replace(/\/+$/u, "");
 
@@ -221,6 +245,7 @@ const optionsFrom = async (argv: readonly string[]): Promise<Parsed> => {
       json: flags.has("--json"),
       manual: flags.has("--manual"),
       requestKey: flagValue(flags, "--idempotency-key") ?? crypto.randomUUID(),
+      scopes: requestedScopes(flags),
       url,
       wait: !flags.has("--no-wait"),
     },
@@ -583,7 +608,7 @@ const login = async (options: Options): Promise<void> => {
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
-  authorize.searchParams.set("scope", SCOPES);
+  authorize.searchParams.set("scope", options.scopes);
   authorize.searchParams.set("state", state);
   authorize.searchParams.set("resource", `${url}/mcp`);
   console.error(

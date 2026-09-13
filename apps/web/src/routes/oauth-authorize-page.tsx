@@ -28,6 +28,36 @@ interface ScopeCopy {
 
 const SCOPE_COPY: ReadonlyMap<OAuthScope, ScopeCopy> = new Map([
   [
+    "watchlist:read",
+    {
+      title: "Read your watchlist",
+      detail: "Read saved items and their observations.",
+    },
+  ],
+  [
+    "watchlist:write",
+    {
+      title: "Manage saved items",
+      detail:
+        "Save, edit, and archive items. Monitoring needs separate automation permission.",
+    },
+  ],
+  [
+    "automation",
+    {
+      title: "Manage automation",
+      detail:
+        "Configure and pause checks within your monitoring budget. Cannot raise limits.",
+    },
+  ],
+  [
+    "notifications",
+    {
+      title: "Notify you",
+      detail: "Send updates to Froggy and your paired Telegram chat.",
+    },
+  ],
+  [
     "email:read",
     {
       title: "Read your whole email mailbox",
@@ -125,10 +155,10 @@ const requestFromSearch = (search: string): AuthorizeRequest | null => {
   };
 };
 
-/** The scopes the client asked for, in the page's order; all of them when it named none. */
+/** Keep legacy permissions when omitted; extra capabilities require an explicit request. */
 const requestedScopes = (scope: string | undefined): readonly OAuthScope[] => {
   if (scope === undefined || scope.trim() === "") {
-    return OAUTH_SCOPES.filter((candidate) => !candidate.startsWith("email:"));
+    return ["brief", "browse", "pay", "services", "history"];
   }
   const names = new Set(scope.split(" "));
   return OAUTH_SCOPES.filter((known) => names.has(known));

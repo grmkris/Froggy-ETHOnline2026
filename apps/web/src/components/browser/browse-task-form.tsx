@@ -1,6 +1,7 @@
 import { TaskId, TaskStatus } from "@froggy/domain";
 import {
   BrowseBudget,
+  TaskOutcome,
   BrowseChallenge,
   BrowseQuoteResponse,
 } from "@froggy/protocol";
@@ -45,7 +46,32 @@ const Signed = Schema.Struct({
   header: Schema.String,
 });
 const ErrorResponse = Schema.Struct({ error: Schema.String });
-const ResultText = Schema.Struct({ text: Schema.String });
+const ResultText = Schema.Struct({
+  text: Schema.String,
+  outcome: Schema.optionalKey(TaskOutcome),
+});
+const TaskResult = ({
+  result,
+}: {
+  readonly result: unknown;
+}): ReactElement | null => {
+  const text = Schema.decodeUnknownResult(ResultText)(result);
+  if (text._tag === "Failure") {
+    return null;
+  }
+  return (
+    <>
+      <p className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
+        {text.success.text}
+      </p>
+      {text.success.outcome === undefined ? null : (
+        <p className="text-muted-foreground text-sm">
+          Goal {text.success.outcome.status}: {text.success.outcome.reason}
+        </p>
+      )}
+    </>
+  );
+};
 type GetToken = () => Promise<string | null>;
 interface BrowseRequest {
   readonly kind: "browse";
@@ -338,7 +364,6 @@ export const BrowseTaskForm = ({
     }
   };
   if (task !== null) {
-    const text = Schema.decodeUnknownResult(ResultText)(task.result);
     return (
       <div className="flex flex-col gap-2 px-3 pb-3">
         <p className="text-sm">
@@ -357,11 +382,7 @@ export const BrowseTaskForm = ({
             {error}
           </p>
         )}
-        {text._tag === "Success" ? (
-          <p className="max-h-60 overflow-auto text-sm whitespace-pre-wrap">
-            {text.success.text}
-          </p>
-        ) : null}
+        <TaskResult result={task.result} />
         <Button size="sm" variant="outline" onClick={revealBrowser}>
           Open browser
         </Button>

@@ -126,11 +126,18 @@ interface PurchaseContext {
   readonly connectionId?: AgentConnectionId | null;
   readonly runId?: RunIdValue;
   readonly interactive?: boolean;
+  /** Server-owned checks may stop a detached purchase before it spends. */
+  readonly beforePayment?: () => Promise<void>;
   /** Called only by the request that created the task, never an idempotent replay. */
   readonly onCreated?: (id: TaskId) => void;
 }
 
 const errorText = (error: Error): string => error.message.slice(0, 1000);
+const checkPurchaseCurrent = async (
+  context: PurchaseContext
+): Promise<void> => {
+  await context.beforePayment?.();
+};
 const requestEquals = Schema.toEquivalence(ServiceRequest);
 const sameRequest = (task: Task, request: ServiceRequest): boolean => {
   const decoded = Schema.decodeUnknownResult(ServiceRequest)(task.input);
@@ -270,6 +277,7 @@ export const purchaseService = async (
       });
       // Opening an account funds its whole credit, including the amount about to be reserved.
       const openingUsdMicros = session.pocket ?? 0;
+      await checkPurchaseCurrent(context);
       const outcome = await session.spend({
         amount,
         host: new URL(resource).host,
@@ -283,6 +291,21 @@ export const purchaseService = async (
         purpose: card.title,
         runId,
         settle: async () => {
+          try {
+            await checkPurchaseCurrent(context);
+          } catch (error) {
+            return {
+              ok: false,
+              sent: false,
+              network: requirement.network,
+              stubbed: card.status === "demo",
+              transactionId: null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "The check was stopped before payment.",
+            };
+          }
           const payer = await services.hederaPayerFor({
             userId: session.userId,
             openingUsdMicros,

@@ -29,13 +29,14 @@ import type { ReactElement } from "react";
 import { useServiceApi } from "../../hooks/use-service-api";
 import { networkWords } from "../../lib/mandate-words";
 import { useWatchlist } from "../../lib/watchlist-client";
+import { MonitorSetup, MonitoringBudget } from "./monitoring-panel";
 
 const ItemForm = ({
   item,
   onSaved,
 }: {
   readonly item?: WatchlistItem | undefined;
-  readonly onSaved: () => void;
+  readonly onSaved: (saved: WatchlistItem) => void;
 }): ReactElement => {
   const { save, patch } = useWatchlist();
   const { catalog } = useServiceApi();
@@ -208,6 +209,7 @@ export const SaveItem = ({
   readonly item?: WatchlistItem;
 }): ReactElement => {
   const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState<WatchlistItem | null>(null);
   const [formItem, setFormItem] = useState(item);
   return (
     <Dialog
@@ -215,6 +217,7 @@ export const SaveItem = ({
       onOpenChange={(next) => {
         if (next) {
           setFormItem(item);
+          setSaved(null);
         }
         setOpen(next);
       }}
@@ -242,12 +245,36 @@ export const SaveItem = ({
             Tokens, trips, things you want. All in one place.
           </DialogDescription>
         </DialogHeader>
-        <ItemForm
-          item={formItem}
-          onSaved={() => {
-            setOpen(false);
-          }}
-        />
+        {saved ? (
+          <div className="flex flex-col gap-5">
+            <MonitorSetup
+              item={saved}
+              onDone={() => {
+                setOpen(false);
+              }}
+            />
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+              }}
+            >
+              Save without monitoring
+            </Button>
+            <MonitoringBudget />
+          </div>
+        ) : (
+          <ItemForm
+            item={formItem}
+            onSaved={(next) => {
+              if (item) {
+                setOpen(false);
+              } else {
+                setSaved(next);
+              }
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

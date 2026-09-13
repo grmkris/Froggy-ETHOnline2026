@@ -1,5 +1,6 @@
 import {
   AgentInvocation,
+  quotePaymentState,
   ConversionId,
   Mandate,
   Purchase,
@@ -54,6 +55,8 @@ import type { HistoryStore } from "./history-store";
 import { memoryHistoryStore } from "./history-store";
 import { memoryLaunchStore } from "./launch-store";
 import type { LaunchStore } from "./launch-store";
+import { memoryMonitoringStore } from "./monitoring-store";
+import type { MonitoringStore } from "./monitoring-store";
 import { memoryTradingStore } from "./trading-store";
 import type { TradingStore } from "./trading-store";
 import { memoryWatchlistStore } from "./watchlist-store";
@@ -284,6 +287,7 @@ export interface Store {
     ) => Promise<void>;
   };
   readonly watchlist: WatchlistStore;
+  readonly monitoring: MonitoringStore;
   readonly history: HistoryStore;
   readonly trading: TradingStore;
   readonly launches: LaunchStore;
@@ -432,6 +436,9 @@ export interface Store {
   };
   /** Delegated tasks, per person. A key seen before returns the earlier task. */
   readonly tasks: {
+    readonly activeBrowses: () => Promise<
+      readonly { readonly userId: UserId; readonly task: Task }[]
+    >;
     readonly claim: (
       userId: UserId,
       id: TaskId,
@@ -729,6 +736,7 @@ export const memoryStore = (): Store => {
   const browsers = new Map<UserId, BrowserProfileRecord>();
   const history = memoryHistoryStore();
   const watchlist = memoryWatchlistStore();
+  const monitoring = memoryMonitoringStore();
   const purchases = new Map<
     PurchaseId,
     { userId: UserId; purchase: Purchase }
@@ -781,6 +789,7 @@ export const memoryStore = (): Store => {
     },
     history,
     watchlist,
+    monitoring,
     trading: memoryTradingStore(),
     launches: memoryLaunchStore(),
     purchases: {
@@ -1192,6 +1201,24 @@ export const memoryStore = (): Store => {
       },
     },
     tasks: {
+      activeBrowses: async () =>
+        await Promise.resolve(
+          [...tasks.values()]
+            .filter(
+              (task) =>
+                task.kind === "browse" &&
+                ([
+                  "paid",
+                  "running",
+                  "paused",
+                  "awaiting_approval",
+                  "uncertain",
+                ].includes(task.status) ||
+                  (task.status === "quoted" &&
+                    quotePaymentState(task) !== null))
+            )
+            .map((task) => ({ userId: task.userId, task }))
+        ),
       claim: async (userId, id, expected, patch) => {
         await Promise.resolve();
         const row = tasks.get(id);
@@ -1431,6 +1458,7 @@ export const memoryStore = (): Store => {
     },
     forget: async (userId) => {
       await watchlist.forget(userId);
+      await monitoring.forget(userId);
       browsers.delete(userId);
       setupSeen.delete(userId);
       await history.clearTelegramCache(userId);

@@ -272,6 +272,10 @@ describe("metadata", () => {
       "history",
       "email:read",
       "email:draft",
+      "watchlist:read",
+      "watchlist:write",
+      "automation",
+      "notifications",
     ]);
     expect(body.authorization_response_iss_parameter_supported).toBe(true);
   });

@@ -83,3 +83,5 @@ export class Database extends Context.Service<
     })
   );
 }
+
+export { monitoringAccounts } from "./schema";

@@ -804,3 +804,10 @@ export const savedItems = pgTable(
   },
   (table) => [index("saved_items_owner").on(table.userId)]
 );
+
+export const monitoringAccounts = pgTable("monitoring_accounts", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.did),
+  document: jsonb("document").notNull(),
+});

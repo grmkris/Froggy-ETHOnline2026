@@ -16,7 +16,9 @@ describe("the skill text", () => {
       "claude mcp add --transport http froggy https://froggy.test/mcp"
     );
     expect(mine).toContain("https://froggy.test/froggy-cli.js");
-    expect(mine).toContain("login --url=https://froggy.test --manual");
+    expect(mine).toContain(
+      "login --url=https://froggy.test --all-tools --manual"
+    );
     expect(mine.indexOf("MCP by URL")).toBeLessThan(
       mine.indexOf("The CLI, signed in")
     );

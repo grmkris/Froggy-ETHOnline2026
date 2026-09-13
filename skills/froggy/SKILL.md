@@ -52,11 +52,11 @@ After connecting, list the tools and call `froggy_services` to check access with
 
 ```sh
 curl -fsSL https://your-froggy.example/froggy-cli.js -o ~/froggy.mjs
-node ~/froggy.mjs login --url=https://your-froggy.example
+node ~/froggy.mjs login --url=https://your-froggy.example --all-tools
 node ~/froggy.mjs help
 ```
 
-`login` opens the browser and listens on a loopback port. In a sandbox with no browser, run `node ~/froggy.mjs login --url=https://your-froggy.example --manual`: it prints a link for the person to open and asks you to paste the code the page shows. Credentials live in `~/.config/froggy/credentials.json` (mode 600) and refresh themselves; `node ~/froggy.mjs logout` revokes them.
+`login` opens the browser and listens on a loopback port. In a sandbox with no browser, run `node ~/froggy.mjs login --url=https://your-froggy.example --all-tools --manual`: it prints a link for the person to open and asks you to paste the code the page shows. Credentials live in `~/.config/froggy/credentials.json` (mode 600) and refresh themselves; `node ~/froggy.mjs logout` revokes them.
 
 ### 3. A token, for an unattended agent
 
@@ -67,7 +67,7 @@ export FROGGY_URL="https://your-froggy.example"
 export FROGGY_TOKEN="<the token the person minted>"
 ```
 
-It has every scope and does not expire until the person disconnects it. Keep it in your own environment only.
+It covers the original brief, browse, pay and services tools and does not expire until the person disconnects it. Email, watchlist, automation and notifications need an OAuth connection with explicit consent. Keep it in your own environment only.
 
 ## Use
 

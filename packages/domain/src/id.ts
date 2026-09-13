@@ -270,3 +270,8 @@ export type EmailWaitId = typeof EmailWaitId.Type;
 
 export const WatchlistItemId = makeIdSchema("wli", "WatchlistItemId");
 export type WatchlistItemId = typeof WatchlistItemId.Type;
+
+export const MonitorId = makeIdSchema("mon", "MonitorId");
+export type MonitorId = typeof MonitorId.Type;
+export const MonitorCheckId = makeIdSchema("mchk", "MonitorCheckId");
+export type MonitorCheckId = typeof MonitorCheckId.Type;

@@ -183,3 +183,11 @@ export {
 } from "./email";
 
 export { WatchlistCreate, WatchlistPatch, WatchlistList } from "./watchlist";
+
+export {
+  MonitoringBudgetRequest,
+  MonitorRequest,
+  MonitorAction,
+  MonitoringState,
+  TaskOutcome,
+} from "./monitoring";

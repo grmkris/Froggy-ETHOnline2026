@@ -5,6 +5,12 @@ import { postgresStore } from "@froggy/wallet";
 import { Schema } from "effect";
 import postgres from "postgres";
 
+import {
+  claimMonitor,
+  configureMonitor,
+  monitoringState,
+  setMonitoringBudget,
+} from "./monitoring";
 import { handleWatchlist, saveWatchlistItem } from "./watchlist-routes";
 
 const databaseUrl = process.env["FROGGY_TEST_DATABASE_URL"];
@@ -49,11 +55,36 @@ if (databaseUrl === undefined || databaseUrl === "") {
           .map((response) => response?.status)
           .toSorted((a, b) => (a ?? 0) - (b ?? 0))
       ).toEqual([200, 409]);
+      await setMonitoringBudget(first, alice, 1_000_000, "UTC");
+      await configureMonitor(
+        first,
+        alice,
+        {
+          itemId: item.id,
+          cadence: "daily",
+          timezone: "UTC",
+          context: "Two adults, same itinerary",
+          condition: { _tag: "change", field: "departure time" },
+        },
+        null,
+        0
+      );
+      const checks = await Promise.all([
+        claimMonitor(first, alice),
+        claimMonitor(second, alice),
+      ]);
+      expect(checks.filter(Boolean)).toHaveLength(1);
+      const aliceState = await monitoringState(second, alice);
+      const bobState = await monitoringState(first, bob);
+      expect(aliceState.checks).toHaveLength(1);
+      expect(bobState.checks).toHaveLength(0);
       await first.watchlist.forget(alice);
       expect(await second.watchlist.transact(alice, (book) => book.size)).toBe(
         0
       );
     } finally {
+      await first.monitoring.forget(alice);
+      await second.monitoring.forget(bob);
       await first.watchlist.forget(alice);
       await second.watchlist.forget(bob);
       await left.end();

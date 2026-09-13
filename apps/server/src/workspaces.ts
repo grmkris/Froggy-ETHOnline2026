@@ -158,6 +158,21 @@ export class Workspaces {
     this.deps = deps;
   }
 
+  isWatching(userId: UserId): boolean {
+    return (this.watchers.get(userId) ?? 0) > 0;
+  }
+
+  async releaseUnwatched(userId: UserId): Promise<void> {
+    const workspace = this.existing(userId);
+    if (
+      workspace &&
+      !this.isWatching(userId) &&
+      !this.deps.isBusy(workspace.session.id)
+    ) {
+      await workspace.browser.close();
+    }
+  }
+
   /** Browsers with a process behind them, as opposed to workspaces that exist. */
   get runningBrowsers(): number {
     return this.seated.size;

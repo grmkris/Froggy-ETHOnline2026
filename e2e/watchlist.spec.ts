@@ -24,6 +24,9 @@ for (const width of [1440, 390, 320]) {
     await dialog.getByLabel("Name", { exact: true }).fill("Weekend shoes");
     await dialog.getByLabel(/Details/u).fill("Size 42 · olive green");
     await dialog.getByRole("button", { name: "Save item" }).click();
+    await dialog
+      .getByRole("button", { name: "Save without monitoring" })
+      .click();
     await expect(dialog).not.toBeVisible();
     await page.reload();
     await page.getByRole("link", { name: /Weekend shoes/u }).click();
@@ -118,6 +121,11 @@ for (const [network, name] of [
       result.getByText("Simulated data", { exact: true })
     ).toBeVisible();
     await result.getByRole("button", { name: /^Save /u }).click();
+    const setup = page.getByRole("dialog");
+    await expect(setup.getByLabel("How often?")).toHaveValue("");
+    await setup
+      .getByRole("button", { name: "Save without monitoring" })
+      .click();
     await expect(
       result.getByRole("link", { name: /^Open saved /u })
     ).toBeVisible();

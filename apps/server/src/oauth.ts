@@ -445,12 +445,14 @@ const CHALLENGE_MAX = 128;
 
 const decodeScope = Schema.decodeUnknownResult(OAuthScope);
 
-/** The scopes a space-separated list names, all of them when absent, null on an unknown one. */
+/** The scopes a space-separated list names; original scopes when absent, null on an unknown one. */
 const requestedScopes = (
   scope: string | undefined
 ): readonly OAuthScope[] | null => {
   if (scope === undefined || scope.trim() === "") {
-    return OAUTH_SCOPES.filter((candidate) => !candidate.startsWith("email:"));
+    return OAUTH_SCOPES.filter((candidate) =>
+      ["brief", "browse", "pay", "services", "history"].includes(candidate)
+    );
   }
   const names = scope.split(" ").filter((name) => name !== "");
   const scopes: OAuthScope[] = [];

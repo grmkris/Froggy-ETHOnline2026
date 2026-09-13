@@ -29,6 +29,7 @@ import type { GrantDeps } from "./grants";
 import { recordHistoryWait } from "./history-sources";
 import { InteractionRegistry } from "./interactions";
 import { digestJob, promptJob, runScheduledFor } from "./jobs";
+import { createMonitoringRunner } from "./monitoring-runner";
 import { createNotices } from "./notices";
 import { PersonPolicies } from "./person-policies";
 import { createQuotes } from "./quotes";
@@ -472,9 +473,21 @@ class FroggyServer extends Context.Service<
         },
         store: services.store,
       });
+      const monitoringRunner = createMonitoringRunner({
+        budget,
+        interactions,
+        notices,
+        oracleUrl,
+        runs,
+        services,
+        tasksUrl: `${environment.appOrigin}/api/tasks`,
+        unlocks,
+        workspaces,
+      });
       const scheduleTick = setInterval(() => {
         detached("schedule tick", async () => {
           await ticker.tick();
+          await monitoringRunner.tick();
         });
       }, SCHEDULE_TICK_MS);
 

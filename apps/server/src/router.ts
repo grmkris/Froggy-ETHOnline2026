@@ -61,6 +61,7 @@ import type { InteractionRegistry } from "./interactions";
 import { digestJob, runScheduledFor } from "./jobs";
 import type { JobDeps, JobReport } from "./jobs";
 import { handleMcp } from "./mcp";
+import { handleMonitoring } from "./monitoring-routes";
 import type { Notices } from "./notices";
 import {
   handleOAuth,
@@ -520,7 +521,8 @@ const handleMcpRoute = async (
     deps.services,
     workspace.session,
     resolved.caller,
-    request
+    request,
+    deps.notices
   );
 };
 
@@ -824,6 +826,14 @@ const handleEmailOrHistory = async (
   request: Request,
   caller: TaskCaller
 ) => {
+  const monitoring = await handleMonitoring(
+    deps.services.store,
+    caller,
+    request
+  );
+  if (monitoring !== null) {
+    return monitoring;
+  }
   const email = await handleEmail(deps.services, caller, request);
   if (email !== null) {
     return email;

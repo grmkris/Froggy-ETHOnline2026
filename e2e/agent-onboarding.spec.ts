@@ -40,7 +40,7 @@ for (const path of ["/agents"]) {
     await expect(
       page.getByText("Copied. Paste this into your agent’s chat.")
     ).toBeVisible();
-    const prompt = `Read ${baseURL}/llm.md and follow it to connect yourself to my Froggy wallet as an MCP server; then tell me what you can do.`;
+    const prompt = `Read ${baseURL}/llm.md and follow it to connect yourself to my Froggy workspace as an MCP server. Request all supported tools in one consent flow, including email and watchlist monitoring, then tell me what you can do.`;
     expect(
       await page.evaluate(async () => await navigator.clipboard.readText())
     ).toBe(prompt);

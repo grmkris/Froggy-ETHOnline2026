@@ -35,7 +35,7 @@ import {
   ScheduleId,
   TaskId,
 } from "@froggy/domain";
-import type { Evidence } from "@froggy/domain";
+import type { AgentConnectionId, Evidence } from "@froggy/domain";
 import {
   describeCheapestBorrow,
   describeDiscovery,
@@ -46,6 +46,7 @@ import {
 import type { Deployment, GraphClient, GraphSnapshot } from "@froggy/graph";
 import { EVM_NETWORK_LABELS } from "@froggy/payments";
 import {
+  TaskOutcome,
   AddressLookupInput,
   ScheduleRequestBody,
   TradePositionsInput,
@@ -57,9 +58,12 @@ import {
   TokenResearchInput,
 } from "@froggy/protocol";
 import type { ServiceRequest, GraphQueryOutput } from "@froggy/protocol";
+import type { ToolSet } from "ai";
 import { tool } from "ai";
 import { Schema } from "effect";
 
+import type { ToolSurface } from "./capabilities";
+import { canUseTool, connectionScopes } from "./capabilities";
 import { describeProbe, probeUrl } from "./directory";
 import { buildEmailTools } from "./email-tools";
 import type { Notices } from "./notices";
@@ -96,6 +100,7 @@ import { unlockPath } from "./unlock";
 import type { UnlockTokens } from "./unlock";
 import { sendUsdc } from "./usdc-transfer";
 import { saveWatchlistItem } from "./watchlist-routes";
+import { buildWorkspaceTools } from "./workspace-tools";
 import type { Workspaces } from "./workspaces";
 
 const OUTPUT_CAP = 50_000;
@@ -194,6 +199,10 @@ const graphQueryRefusal = (symbol: string, text: string): GraphQueryOutput => ({
 });
 
 export interface ToolDeps {
+  readonly allowedTools?: readonly string[] | undefined;
+  readonly reportOutcome?: ((outcome: TaskOutcome) => void) | undefined;
+  readonly connectionId?: AgentConnectionId | null;
+  readonly surface?: ToolSurface;
   readonly paidBrowse?: boolean | undefined;
   readonly budgetUsdMicros?: number | undefined;
   /** This caller's own Chrome. One per signed-in user, never shared. */
@@ -280,7 +289,7 @@ export const typedByPerson = (address: string, userText: string): boolean =>
   address.trim() !== "" &&
   userText.toLowerCase().includes(address.trim().toLowerCase());
 
-export const buildTools = (deps: ToolDeps) => {
+const buildRawTools = (deps: ToolDeps) => {
   const { browser, services, session } = deps;
   const { evmNetwork } = services.environment;
   const evmLabel = EVM_NETWORK_LABELS[evmNetwork];
@@ -475,6 +484,20 @@ export const buildTools = (deps: ToolDeps) => {
   return {
     ...buildEmailTools(deps),
     ...buildResearchTools(services, session.userId),
+    ...buildWorkspaceTools(
+      services.store,
+      session.userId,
+      deps.connectionId ?? null
+    ),
+    task_report: tool({
+      description:
+        "Report the actual task outcome before ending. Completed requires observed evidence. Use blocked for missing permission, login, CAPTCHA, or human input. Never report a signup completed without seeing verification succeed. Monitoring must include a current observation, source URL, and evidence; do not invent values.",
+      inputSchema: std(TaskOutcome),
+      execute: async (outcome) => {
+        deps.reportOutcome?.(outcome);
+        return await Promise.resolve({ v: 1, recorded: true });
+      },
+    }),
     watchlist_save: tool({
       description:
         "Save a token (exact chain and address), product, flight or public URL when the person asks. Notes retain variants and itinerary. This only saves an item: it never starts monitoring, checks a price or changes spending authority.",
@@ -1137,7 +1160,8 @@ export const buildTools = (deps: ToolDeps) => {
           services.store,
           session.userId,
           input,
-          Date.now()
+          Date.now(),
+          deps.connectionId ?? null
         );
         return outcome.kind === "created"
           ? describeSchedule(outcome.schedule, outcome.timezoneDefaulted)
@@ -1173,4 +1197,70 @@ export const buildTools = (deps: ToolDeps) => {
       inputSchema: std(Schema.Struct({ scheduleId: ScheduleId })),
     }),
   };
+};
+
+const assertToolPermission = async (
+  deps: ToolDeps,
+  name: string
+): Promise<void> => {
+  const scopes = await connectionScopes(
+    deps.services.store,
+    deps.session.userId,
+    deps.connectionId ?? null
+  );
+  if (
+    !canUseTool(
+      name,
+      deps.surface ?? (deps.paidBrowse === true ? "browse" : "chat"),
+      scopes
+    )
+  ) {
+    throw new Error(
+      `Tool ${name} is unavailable on this surface or lacks explicit permission. Review this connection in Agents.`
+    );
+  }
+  if (deps.allowedTools && !deps.allowedTools.includes(name)) {
+    throw new Error("This job did not authorize that capability.");
+  }
+};
+
+export const buildTools = (
+  deps: ToolDeps
+): ReturnType<typeof buildRawTools> => {
+  const built = buildRawTools(deps);
+  const view: ToolSet = built;
+  for (const [name, definition] of Object.entries(view)) {
+    const { execute, toModelOutput } = definition;
+    if (toModelOutput && name.startsWith("email_")) {
+      definition.toModelOutput = async (
+        input: Parameters<NonNullable<typeof toModelOutput>>[0]
+      ) => {
+        await assertToolPermission(deps, name);
+        const output = await toModelOutput(input);
+        await assertToolPermission(deps, name);
+        return output;
+      };
+    }
+    if (!execute) {
+      continue;
+    }
+    definition.execute = async (input, options) => {
+      await assertToolPermission(deps, name);
+      const result: unknown = await execute(input, options);
+      if (name.startsWith("email_")) {
+        await assertToolPermission(deps, name);
+      }
+      const textResult = Schema.decodeUnknownResult(Schema.String)(result);
+      if (textResult._tag === "Success") {
+        return cap(textResult.success);
+      }
+      return JSON.stringify(result).length <= OUTPUT_CAP
+        ? result
+        : {
+            v: 1,
+            error: "Tool result exceeds the output limit. Narrow your query.",
+          };
+    };
+  }
+  return built;
 };

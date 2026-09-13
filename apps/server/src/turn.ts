@@ -12,7 +12,8 @@ import type { BrowserHandle } from "@froggy/browser";
  * socket close would kill a turn between reserving a spend and writing its
  * receipt.
  */
-import type { HistoryRun, SessionId } from "@froggy/domain";
+import type { AgentConnectionId, HistoryRun, SessionId } from "@froggy/domain";
+import type { TaskOutcome } from "@froggy/protocol";
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -24,6 +25,8 @@ import {
 import type { UIMessage, UIMessageChunk, ToolSet } from "ai";
 
 import type { ModelBudget } from "./budget";
+import type { ToolSurface } from "./capabilities";
+import { canUseTool, connectionScopes } from "./capabilities";
 import { detached } from "./detached";
 import { acceptHistory, checkpointHistory, historyTools } from "./history";
 import type { HistoryInput } from "./history";
@@ -49,7 +52,6 @@ const STEP_CAP = 12;
 
 interface PaidSettings {
   maxOutputTokens?: number;
-  activeTools?: (keyof ReturnType<typeof buildTools>)[];
 }
 
 const ownAddressesLine = (
@@ -146,6 +148,9 @@ Be brief. Narrate what you are about to do before you do it, because the person
 is watching the page change.`;
 
 export interface TurnDeps {
+  readonly reportOutcome?: ((outcome: TaskOutcome) => void) | undefined;
+  readonly connectionId?: AgentConnectionId | null;
+  readonly surface?: ToolSurface;
   readonly paidBrowse?: {
     readonly beforeStep: (promptBytes: number) => Promise<void>;
     readonly afterStep: (usage: {
@@ -217,7 +222,17 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   const run = deps.runs.start(input.sessionId, accepted.run.id);
   // The same tool set goes to the conversion and to the model: a tool's
   // `toModelOutput` is applied by the conversion, so the two must agree.
+  const surface = deps.surface ?? (deps.paidBrowse ? "browse" : "chat");
+  const scopes = await connectionScopes(
+    deps.services.store,
+    userId,
+    deps.connectionId ?? null
+  );
   const toolDeps = {
+    surface,
+    reportOutcome: deps.reportOutcome,
+    allowedTools: deps.activeTools,
+    connectionId: deps.connectionId ?? null,
     browser: deps.browser,
     paidBrowse: deps.paidBrowse !== undefined,
     interactive: deps.interactive ?? true,
@@ -253,14 +268,6 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
   const paidSettings: PaidSettings = {};
   if (deps.paidBrowse !== undefined) {
     paidSettings.maxOutputTokens = 2048;
-    paidSettings.activeTools = [
-      "browser_navigate",
-      "browser_snapshot",
-      "browser_click",
-      "browser_type",
-      "x402_fetch",
-      "wallet_status",
-    ];
   }
   const taskContext = await researchTaskContext(
     deps.services.store,
@@ -281,9 +288,12 @@ export const startTurn = async (deps: TurnDeps, input: TurnInput) => {
           systemPrompt(deps.oracleUrl, deps.session.ownEvmAddresses())) +
         (deps.paidBrowse === undefined
           ? "\nFor browser work, call browse_task with the complete user goal. The person chooses and pays a task budget in that card. Do not call low-level browser tools outside a paid task."
-          : ""),
-      activeTools:
-        deps.activeTools === undefined ? undefined : [...deps.activeTools],
+          : "\nBefore ending a browser task, call task_report with the actual outcome and observed evidence. Model termination is not proof of success."),
+      activeTools: Object.keys(tools).filter(
+        (name) =>
+          canUseTool(name, surface, scopes) &&
+          (deps.activeTools === undefined || deps.activeTools.includes(name))
+      ),
       ...paidSettings,
       messages: await convertToModelMessages(accepted.messages, { tools }),
       model: createModel(deps.services.environment, {

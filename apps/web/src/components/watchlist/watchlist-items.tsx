@@ -1,4 +1,4 @@
-import type { WatchlistItem } from "@froggy/domain";
+import type { Monitor, WatchlistItem } from "@froggy/domain";
 import { Button } from "@froggy/ui/components/button";
 import {
   Empty,
@@ -24,6 +24,7 @@ import type { ReactElement } from "react";
 import { useServiceApi } from "../../hooks/use-service-api";
 import { networkWords } from "../../lib/mandate-words";
 import { snapshotForItem } from "../../lib/market-snapshots";
+import { useMonitoring } from "../../lib/monitoring-client";
 import { useWatchlist } from "../../lib/watchlist-client";
 import { marketPrice } from "./market-results";
 
@@ -60,12 +61,33 @@ const emptyTitle = (query: string, archived: boolean): string => {
   return archived ? "No archived items" : "Your next obsession goes here";
 };
 
+const monitoringLabel = (
+  item: WatchlistItem,
+  monitor: Monitor | undefined
+): string => {
+  if (item.archived) {
+    return "Archived";
+  }
+  if (!monitor) {
+    return "Saved";
+  }
+  return {
+    scheduled: "Monitoring",
+    checking: "Checking now",
+    needs_help: "Needs your help",
+    budget_exhausted: "Budget reached",
+    failed: "Check failed",
+    paused: "Monitoring paused",
+  }[monitor.status];
+};
+
 export const WatchlistItems = ({
   compact = false,
 }: {
   readonly compact?: boolean;
 }): ReactElement => {
   const { list } = useWatchlist();
+  const { state: monitoring } = useMonitoring();
   const { tasks } = useServiceApi();
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
@@ -134,7 +156,7 @@ export const WatchlistItems = ({
       ) : null}
       {items.length > 0 ? (
         <p className="text-muted-foreground text-xs">
-          Saved for later. Automatic price checks are not running.
+          Open an item to review its monitoring settings and latest result.
         </p>
       ) : null}
       <ul className="bg-card flex flex-col divide-y rounded-xl border">
@@ -169,7 +191,12 @@ export const WatchlistItems = ({
                     {item.notes ? ` · ${item.notes}` : ""}
                   </span>
                   <span className="text-muted-foreground text-[11px]">
-                    {item.archived ? "Archived" : "Saved"}
+                    {monitoringLabel(
+                      item,
+                      monitoring.data?.monitors.find(
+                        (monitor) => monitor.itemId === item.id
+                      )
+                    )}
                   </span>
                 </span>
                 <ChevronRightIcon

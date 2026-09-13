@@ -1,14 +1,24 @@
+import type { WatchlistItem } from "@froggy/domain";
 import { WatchlistInput } from "@froggy/domain";
 import type { MarketSearchResult, TokenInspectResult } from "@froggy/protocol";
 import { Badge } from "@froggy/ui/components/badge";
 import { Button } from "@froggy/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@froggy/ui/components/dialog";
 import { Link } from "@tanstack/react-router";
 import { Schema } from "effect";
 import { BookmarkIcon, CheckIcon } from "lucide-react";
+import { useState } from "react";
 import type { ReactElement } from "react";
 
 import { networkWords } from "../../lib/mandate-words";
 import { useWatchlist } from "../../lib/watchlist-client";
+import { MonitorSetup, MonitoringBudget } from "./monitoring-panel";
 
 export const marketPrice = (price: number | null): string =>
   price === null
@@ -27,6 +37,7 @@ const SaveToken = ({
   readonly network: string;
 }): ReactElement | null => {
   const { save, list } = useWatchlist();
+  const [offer, setOffer] = useState<WatchlistItem | null>(null);
   const saved = list.data?.items.find(
     (item) =>
       !item.archived &&
@@ -42,8 +53,8 @@ const SaveToken = ({
   if (decoded._tag === "Failure") {
     return null;
   }
-  if (saved !== undefined) {
-    return (
+  const savedLink =
+    saved === undefined ? null : (
       <Link
         className="saved-feedback text-brand flex min-h-11 min-w-24 items-center justify-center gap-1 rounded-xl text-xs font-medium focus-visible:ring-2"
         aria-label={`Open saved ${token.symbol ?? token.name ?? "token"}`}
@@ -54,22 +65,57 @@ const SaveToken = ({
         Saved
       </Link>
     );
-  }
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button
-        aria-label={`Save ${token.symbol ?? token.name ?? "token"}`}
-        disabled={save.isPending || list.isPending || list.isError}
-        onClick={() => {
-          save.mutate(decoded.success);
+      {savedLink ?? (
+        <Button
+          aria-label={`Save ${token.symbol ?? token.name ?? "token"}`}
+          disabled={save.isPending || list.isPending || list.isError}
+          onClick={() => {
+            save.mutate(decoded.success, { onSuccess: setOffer });
+          }}
+          className="min-h-11 min-w-24"
+          size="sm"
+          variant="outline"
+        >
+          <BookmarkIcon data-icon="inline-start" />
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
+      )}
+      <Dialog
+        open={offer !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOffer(null);
+          }
         }}
-        className="min-h-11 min-w-24"
-        size="sm"
-        variant="outline"
       >
-        <BookmarkIcon data-icon="inline-start" />
-        {save.isPending ? "Saving…" : "Save"}
-      </Button>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Keep an eye on this token</DialogTitle>
+            <DialogDescription>
+              Saved. Choose when to check and what should catch your attention.
+            </DialogDescription>
+          </DialogHeader>
+          {offer ? (
+            <MonitorSetup
+              item={offer}
+              onDone={() => {
+                setOffer(null);
+              }}
+            />
+          ) : null}
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setOffer(null);
+            }}
+          >
+            Save without monitoring
+          </Button>
+          <MonitoringBudget />
+        </DialogContent>
+      </Dialog>
       {save.isError ? (
         <p className="text-destructive text-xs" role="alert">
           {save.error.message}

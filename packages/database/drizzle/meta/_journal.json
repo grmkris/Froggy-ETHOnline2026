@@ -169,6 +169,13 @@
       "when": 1789243182963,
       "tag": "0023_familiar_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789252565771,
+      "tag": "0024_pretty_black_knight",
+      "breakpoints": true
     }
   ]
 }

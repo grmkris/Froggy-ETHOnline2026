@@ -12,6 +12,7 @@ import {
 import { Schema } from "effect";
 
 import { trackAgentInvocation, recordMcpDiagnostic } from "./agent-invocations";
+import { connectionScopes } from "./capabilities";
 import {
   emailToolDefinitions,
   invokeEmailTool,
@@ -19,6 +20,7 @@ import {
 } from "./email-tools";
 import { decodeHistoryJson } from "./history";
 import { ExternalHistoryInput, externalHistory } from "./history-retrieval";
+import type { Notices } from "./notices";
 import { boundedBytes } from "./outbound";
 import { PurchaseToolInput, purchaseToolResult } from "./purchase-tool";
 import { ResearchReadInput } from "./research-data";
@@ -47,6 +49,10 @@ import {
   TradeStatusInput,
   tradeToolResult,
 } from "./trading/tools";
+import {
+  workspaceToolDefinitions,
+  invokeWorkspaceTool,
+} from "./workspace-tools";
 
 const Envelope = Schema.Struct({
   jsonrpc: Schema.Literals(["2.0"]),
@@ -93,6 +99,12 @@ const tools = [
     description: `Included bounded ${name.replaceAll("_", " ")}. Research only; no spending or execution authority.`,
     inputSchema: inputSchema(schema),
     annotations: { readOnlyHint: true },
+  })),
+  ...workspaceToolDefinitions.map((entry) => ({
+    name: `froggy_${entry.name}`,
+    description: entry.description,
+    inputSchema: inputSchema(entry.schema),
+    annotations: { readOnlyHint: !entry.writes },
   })),
   ...emailToolDefinitions.map((entry) => ({
     name: entry.name,
@@ -510,6 +522,12 @@ const classifyCall = (name: string) => {
   if (name === "froggy_history") {
     scope = "history";
   }
+  const workspace = workspaceToolDefinitions.find(
+    (entry) => `froggy_${entry.name}` === name
+  );
+  if (workspace) {
+    ({ scope } = workspace);
+  }
   const email = emailToolDefinitions.find((entry) => entry.name === name);
   if (email) {
     ({ scope } = email);
@@ -583,6 +601,26 @@ const invokeResearch = async (
 };
 const missingScope = (caller: TaskCaller, scope: OAuthScope): boolean =>
   caller.scopes !== null && !caller.scopes.has(scope);
+const emailMcpScopes = async (
+  services: Services,
+  caller: TaskCaller,
+  name: string
+): Promise<ReadonlySet<OAuthScope> | undefined> => {
+  const definition = emailToolDefinitions.find((entry) => entry.name === name);
+  if (!definition) {
+    throw new Error("Unknown email tool.");
+  }
+  const scopes = await connectionScopes(
+    services.store,
+    caller.userId,
+    caller.grantId ?? caller.agentTokenId
+  );
+  if (scopes !== null && !scopes.has(definition.scope)) {
+    throw new Error(`Explicit ${definition.scope} permission is required.`);
+  }
+  return scopes ?? undefined;
+};
+
 const invokeEmailMcp = async (
   services: Services,
   caller: TaskCaller,
@@ -595,19 +633,22 @@ const invokeEmailMcp = async (
     call.name,
     async (invocation) => {
       try {
+        const scopes = await emailMcpScopes(services, caller, call.name);
         const text = await invokeEmailTool(
           services,
           caller.userId,
           call.name,
           Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
-          caller.scopes
+          scopes
         );
+        await emailMcpScopes(services, caller, call.name);
         if (call.name === "froggy_email_file_read") {
           const attachment = await readEmailAttachment(
             services,
             caller.userId,
             Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {})
           );
+          await emailMcpScopes(services, caller, call.name);
           invocation.outcome = "completed";
           return {
             content: [
@@ -645,12 +686,86 @@ const invokeEmailMcp = async (
     }
   );
 
+const invokeWorkspaceMcp = async (
+  services: Services,
+  caller: TaskCaller,
+  call: typeof Call.Type,
+  notices?: Notices
+): Promise<ToolResult> =>
+  await trackAgentInvocation(
+    services,
+    caller,
+    "mcp",
+    call.name,
+    async (invocation) => {
+      try {
+        const definition = workspaceToolDefinitions.find(
+          (entry) => `froggy_${entry.name}` === call.name
+        );
+        const scopes = await connectionScopes(
+          services.store,
+          caller.userId,
+          caller.grantId ?? caller.agentTokenId
+        );
+        if (!definition || (scopes !== null && !scopes.has(definition.scope))) {
+          throw new Error(
+            `Explicit ${definition?.scope ?? "workspace"} permission is required. Reconnect in Agents.`
+          );
+        }
+        const result = await invokeWorkspaceTool(
+          services.store,
+          caller.userId,
+          caller.grantId ?? caller.agentTokenId,
+          call.name,
+          Schema.decodeUnknownSync(Schema.Json)(call.arguments ?? {}),
+          notices
+        );
+        invocation.outcome = "completed";
+        const text = JSON.stringify(result);
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                text.length <= 50_000
+                  ? text
+                  : "Result too large. Narrow your query.",
+            },
+          ],
+          isError: false,
+        };
+      } catch (error) {
+        invocation.outcome = "refused";
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                error instanceof Error
+                  ? error.message
+                  : "Workspace operation refused.",
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
 const invokeTool = async (
   services: Services,
   session: WorkspaceSession,
   caller: TaskCaller,
-  call: typeof Call.Type
+  call: typeof Call.Type,
+  notices?: Notices
 ): Promise<ToolResult> => {
+  if (
+    workspaceToolDefinitions.some(
+      (entry) => `froggy_${entry.name}` === call.name
+    )
+  ) {
+    return await invokeWorkspaceMcp(services, caller, call, notices);
+  }
   if (call.name.startsWith("froggy_email_")) {
     return await invokeEmailMcp(services, caller, call);
   }
@@ -832,7 +947,8 @@ export const handleMcp = async (
   services: Services,
   session: WorkspaceSession,
   caller: TaskCaller,
-  request: Request
+  request: Request,
+  notices?: Notices
 ): Promise<Response> => {
   const origin = request.headers.get("origin");
   if (
@@ -908,7 +1024,16 @@ export const handleMcp = async (
     return respond({});
   }
   if (message.method === "tools/list") {
-    return respond({ tools });
+    const scopes = await connectionScopes(
+      services.store,
+      caller.userId,
+      caller.grantId ?? caller.agentTokenId
+    );
+    return respond({
+      tools: tools.filter(
+        (entry) => scopes === null || scopes.has(classifyCall(entry.name).scope)
+      ),
+    });
   }
   if (message.method !== "tools/call") {
     return error(-32_601, "Method not found");
@@ -918,5 +1043,7 @@ export const handleMcp = async (
     await recordMcpDiagnostic(services, caller, "tool_parameters");
     return error(-32_602, "Invalid tool parameters");
   }
-  return respond(await invokeTool(services, session, caller, call.success));
+  return respond(
+    await invokeTool(services, session, caller, call.success, notices)
+  );
 };

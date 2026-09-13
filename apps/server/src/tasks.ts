@@ -13,7 +13,6 @@
  * whose receipt says paid, failed, not refunded.
  */
 
-import { RunId, SaleId, TaskId, usdMicros } from "@froggy/domain";
 import type {
   AgentConnectionId,
   OAuthGrantId,
@@ -25,6 +24,14 @@ import type {
   UserId,
   UsdMicros,
 } from "@froggy/domain";
+import {
+  quotePaymentState,
+  MonitorCheckId,
+  RunId,
+  SaleId,
+  TaskId,
+  usdMicros,
+} from "@froggy/domain";
 import { describeBestSupply, describeCheapestBorrow } from "@froggy/graph";
 import {
   decodePaymentChallenge,
@@ -33,6 +40,7 @@ import {
   paymentFrom,
 } from "@froggy/payments";
 import type { PaymentChallenge } from "@froggy/payments";
+import type { TaskOutcome } from "@froggy/protocol";
 import type { UIMessage } from "ai";
 import { Schema } from "effect";
 
@@ -42,11 +50,14 @@ import {
   handleBrowseQuote,
   QuotedBrowseInput,
   storedBrowseQuote,
+  serializeBrowsePayment,
 } from "./browse-quotes";
 import type { ModelBudget } from "./budget";
 import { ModelBudgetExhaustedError } from "./budget";
+import { connectionScopes } from "./capabilities";
 import { detached } from "./detached";
 import type { InteractionRegistry } from "./interactions";
+import { assertMonitorCurrent, monitoringState } from "./monitoring";
 import type { Notices } from "./notices";
 import { insufficientScope } from "./oauth";
 import type { ChatRunRegistry } from "./runs";
@@ -104,6 +115,8 @@ const PayBody = Schema.Struct({
 const decodePayBody = Schema.decodeUnknownResult(PayBody);
 
 export interface TaskDeps {
+  readonly unattended?: boolean;
+  readonly monitorCheckId?: MonitorCheckId;
   readonly budget: ModelBudget;
   readonly interactions: InteractionRegistry;
   /** For the `notify` tool inside a browse turn. */
@@ -239,7 +252,9 @@ const taskView = (
   deps: TaskDeps,
   workspace: Workspace
 ): TaskView => {
-  const pending = deps.interactions.pendingFor(workspace.session.userId);
+  const pending = deps.interactions
+    .pendingFor(workspace.session.userId)
+    .filter((request) => task.runId !== null && request.runId === task.runId);
   const awaiting = task.status === "running" && pending.length > 0;
   const receipts =
     task.runId === null
@@ -358,6 +373,11 @@ const runBrowse = async (
   task: Task,
   instruction: string
 ): Promise<boolean> => {
+  const monitorId = Schema.decodeUnknownResult(MonitorCheckId)(
+    task.input["monitorCheckId"]
+  );
+  const monitorCheckId =
+    monitorId._tag === "Success" ? monitorId.success : null;
   const now = deps.now ?? Date.now;
   const { session } = workspace;
   const { userId } = session;
@@ -391,13 +411,18 @@ const runBrowse = async (
   const active = { paused: false };
   activeBrowses.set(session.id, active);
   let reserved = 0;
+  let outcome: TaskOutcome = {
+    status: "incomplete",
+    reason: "The agent did not provide evidence of completion.",
+    evidence: "",
+  };
   const save = async (): Promise<void> => {
     progress = {
       ...progress,
       activeMs: activeMs(),
     };
     await deps.services.store.tasks.update(userId, task.id, {
-      result: { progress, stubbed },
+      result: { progress, stubbed, outcome },
       updatedAt: now(),
     });
   };
@@ -409,6 +434,12 @@ const runBrowse = async (
   try {
     const turn = await startTurn(
       {
+        surface: monitorCheckId === null ? "browse" : "monitor",
+        interactive: deps.unattended !== true,
+        reportOutcome: (reported) => {
+          outcome = reported;
+        },
+        connectionId: task.connectionId,
         browser: workspace.browser,
         budget: deps.budget,
         notices: deps.notices,
@@ -421,6 +452,29 @@ const runBrowse = async (
         workspaces: deps.workspaces,
         paidBrowse: {
           beforeStep: async (promptBytes) => {
+            if (
+              deps.unattended === true &&
+              monitorCheckId !== null &&
+              deps.workspaces.isWatching(userId)
+            ) {
+              active.paused = true;
+            }
+            if (monitorCheckId !== null) {
+              const state = await monitoringState(deps.services.store, userId);
+              const check = state.checks.find(
+                (entry) => entry.id === monitorCheckId
+              );
+              const monitor = state.monitors.find(
+                (entry) => entry.id === check?.monitorId
+              );
+              if (
+                !monitor ||
+                monitor.status === "paused" ||
+                monitor.revision !== check?.revision
+              ) {
+                active.paused = true;
+              }
+            }
             if (active.paused) {
               throw new Error("Paused for human control.");
             }
@@ -499,12 +553,15 @@ const runBrowse = async (
           "Browsing stopped. Its paid allowance was not refunded."
         );
       }
+      const paused =
+        active.paused ||
+        (monitorCheckId !== null && outcome.status === "blocked");
       await deps.services.store.tasks.update(userId, task.id, {
-        result: { text: progress.summary, progress, stubbed },
-        status: active.paused ? "paused" : "done",
+        result: { text: progress.summary, progress, stubbed, outcome },
+        status: paused ? "paused" : "done",
         updatedAt: now(),
       });
-      return !active.paused;
+      return !paused;
     } finally {
       clearInterval(timer);
     }
@@ -577,7 +634,8 @@ const execute = (deps: TaskDeps, workspace: Workspace, task: Task): void => {
 
 export const resumeBrowseTask = async (
   deps: TaskDeps,
-  userId: UserId
+  userId: UserId,
+  taskId?: TaskId
 ): Promise<void> => {
   const workspace = await deps.workspaces.hydrate(userId);
   if (
@@ -592,6 +650,7 @@ export const resumeBrowseTask = async (
   const task = tasks.find(
     (entry) =>
       entry.kind === "browse" &&
+      (taskId === undefined || entry.id === taskId) &&
       entry.saleId !== null &&
       (entry.status === "paused" ||
         entry.status === "running" ||
@@ -798,6 +857,39 @@ const performTaskPost = async (
   }
   const body = decoded.success;
   invocation.name = body.kind;
+  if (
+    body.kind === "browse" &&
+    deps.monitorCheckId === undefined &&
+    /\b(?:email|inbox|verification code|confirmation code)\b/iu.test(
+      body.instruction
+    )
+  ) {
+    const scopes = await connectionScopes(
+      deps.services.store,
+      caller.userId,
+      callerConnection(caller)
+    );
+    if (scopes !== null && !scopes.has("email:read")) {
+      return json(
+        {
+          error:
+            "This task requires email:read permission. Reconnect in Agents and enable email access before purchasing. Nothing was charged.",
+        },
+        403
+      );
+    }
+    const { email } = deps.services;
+    const emailStatus = await email?.status(caller.userId);
+    if (emailStatus?.mailbox?.active !== true) {
+      return json(
+        {
+          error:
+            "Configure your email in Account before purchasing this task. Nothing was charged.",
+        },
+        409
+      );
+    }
+  }
   // A grant buys only the kinds the person left on; the scope is the kind.
   if (caller.scopes !== null && !caller.scopes.has(body.kind)) {
     return insufficientScope(body.kind);
@@ -814,6 +906,28 @@ const performTaskPost = async (
       },
       (task) => taskView(task, deps, workspace)
     );
+  }
+  if (body.kind === "browse") {
+    return await serializeBrowsePayment(caller.userId, async () => {
+      const activeTasks = await deps.services.store.tasks.activeBrowses();
+      const active = activeTasks.some((row) => row.userId === caller.userId);
+      if (active) {
+        return json(
+          {
+            error: "Another browser task is active. Nothing else was charged.",
+          },
+          409
+        );
+      }
+      return await postLegacyTask(
+        deps,
+        request,
+        workspace,
+        caller,
+        invocation,
+        body
+      );
+    });
   }
   return await postLegacyTask(
     deps,
@@ -967,6 +1081,28 @@ const validateQuotePayment = async (
     if (quoted === null || quoted.status !== "quoted") {
       return json({ error: "That quote is not payable." }, 409);
     }
+    if (quotePaymentState(quoted) === "signing") {
+      return json(
+        {
+          error:
+            "A signing attempt is still unconfirmed. Do not sign or purchase again.",
+        },
+        409
+      );
+    }
+    const activeTasks = await deps.services.store.tasks.activeBrowses();
+    const active = activeTasks.find(
+      (row) => row.userId === caller.userId && row.task.id !== quoted.id
+    );
+    if (active !== undefined) {
+      return json(
+        {
+          error:
+            "Another browser task is active. Open its task card before purchasing again.",
+        },
+        409
+      );
+    }
     const saved = storedBrowseQuote(quoted);
     const decodedSaved = decodePaymentChallenge(saved.challenge);
     if (
@@ -993,8 +1129,57 @@ const validateQuotePayment = async (
  */
 const personAnswered = (
   caller: TaskCaller,
-  quoteTaskId: TaskId | undefined
-): boolean => caller.agentTokenId === null && quoteTaskId !== undefined;
+  quoteTaskId: TaskId | undefined,
+  unattended = false
+): boolean =>
+  !unattended &&
+  caller.agentTokenId === null &&
+  caller.grantId === null &&
+  quoteTaskId !== undefined;
+
+const saveQuoteSigning = async (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined,
+  signing: boolean
+): Promise<void> => {
+  if (id !== undefined) {
+    await deps.services.store.tasks.update(caller.userId, id, {
+      result: signing ? { paymentSigning: true } : null,
+      updatedAt: (deps.now ?? Date.now)(),
+    });
+  }
+};
+
+const paymentApproved = (
+  deps: TaskDeps,
+  caller: TaskCaller,
+  id: TaskId | undefined
+): boolean => deps.unattended !== true && personAnswered(caller, id);
+
+const monitorPaymentFailure = async (
+  deps: TaskDeps,
+  caller: TaskCaller
+): Promise<string | null> => {
+  if (deps.monitorCheckId === undefined) {
+    return null;
+  }
+  try {
+    const state = await monitoringState(deps.services.store, caller.userId);
+    const check = state.checks.find(
+      (entry) => entry.id === deps.monitorCheckId
+    );
+    if (check === undefined) {
+      return "This monitoring check no longer exists. Nothing was signed.";
+    }
+    await assertMonitorCurrent(deps.services.store, caller.userId, check);
+    return null;
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : "This monitoring check is no longer active. Nothing was signed.";
+  }
+};
 
 const performWalletPay = async (
   deps: TaskDeps,
@@ -1049,6 +1234,7 @@ const performWalletPay = async (
     );
   }
   let header: string | null = null;
+  let unsignedPaymentStatus = 402;
   const spend: SpendRequest = {
     amount,
     host: new URL(deps.tasksUrl).host,
@@ -1057,16 +1243,30 @@ const performWalletPay = async (
       body.success.quoteTaskId === undefined
         ? `pay:${caller.agentTokenId ?? "person"}:${requirement.payTo}:${requirement.amount}:${Date.now()}`
         : `pay:quote:${body.success.quoteTaskId}`,
-    approved: personAnswered(caller, body.success.quoteTaskId),
-    interactive: true,
+    approved: paymentApproved(deps, caller, body.success.quoteTaskId),
+    interactive: deps.unattended !== true,
     payeeId: requirement.payTo,
     payeeLabel: `${requirement.payTo} (x402, signed for an agent)`,
     provenance: "server",
     purpose: `a payment header for ${requirement.amount} ${requirement.asset} on ${requirement.network}`,
     runId: RunId.generate(),
     settle: async () => {
+      const stopped = await monitorPaymentFailure(deps, caller);
+      if (stopped !== null) {
+        unsignedPaymentStatus = 403;
+        return {
+          error: stopped,
+          network: requirement.network,
+          ok: false,
+          sent: false,
+          stubbed: deps.services.environment.modes.hedera === "stub",
+          transactionId: null,
+        };
+      }
+      await saveQuoteSigning(deps, caller, body.success.quoteTaskId, true);
       const attempt = await payer.pay(challenge.success);
       if (attempt.header === null) {
+        await saveQuoteSigning(deps, caller, body.success.quoteTaskId, false);
         return {
           error: attempt.error ?? "no payment could be built",
           network: requirement.network,
@@ -1102,7 +1302,7 @@ const performWalletPay = async (
           error: result.receipt.failure ?? "no payment was signed",
           receipt: result.receipt,
         },
-        402
+        unsignedPaymentStatus
       );
     }
     if (body.success.quoteTaskId !== undefined) {
@@ -1139,5 +1339,9 @@ export const handleWalletPay = async (
     "pay",
     "wallet.pay",
     "POST",
-    async () => await performWalletPay(deps, request, workspace, caller)
+    async () =>
+      await serializeBrowsePayment(
+        caller.userId,
+        async () => await performWalletPay(deps, request, workspace, caller)
+      )
   );
