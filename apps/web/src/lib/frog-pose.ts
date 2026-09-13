@@ -66,3 +66,19 @@ export const copyForHome = (needsUser: number, busy: boolean): string => {
   }
   return "Nothing needs you.";
 };
+
+/**
+ * The sticker on Home's art: the landing's own words when nothing is waiting,
+ * the count when something is. Two short lines, because it is a circle.
+ */
+export const stickerForHome = (
+  needsUser: number
+): readonly [string, string] => {
+  if (needsUser > 1) {
+    return [`${needsUser} things`, "need you."];
+  }
+  if (needsUser === 1) {
+    return ["1 thing", "needs you."];
+  }
+  return ["Think big.", "Hop to it."];
+};

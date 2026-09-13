@@ -9,6 +9,7 @@ import {
   poseForHome,
   poseForTask,
   STOPPED_BY_YOU,
+  stickerForHome,
 } from "./frog-pose";
 
 const STATUSES: readonly TaskStatus[] = [
@@ -71,5 +72,13 @@ describe("frog pose from TaskStatus", () => {
     expect(copyForHome(0, true)).toBe("Working on it.");
     expect(poseForHome(0, false)).toBe("idle");
     expect(copyForHome(0, false)).toBe("Nothing needs you.");
+  });
+});
+
+describe("stickerForHome", () => {
+  it("keeps the landing's words until something is waiting", () => {
+    expect(stickerForHome(0)).toEqual(["Think big.", "Hop to it."]);
+    expect(stickerForHome(1)).toEqual(["1 thing", "needs you."]);
+    expect(stickerForHome(3)).toEqual(["3 things", "need you."]);
   });
 });
