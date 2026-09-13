@@ -41,6 +41,7 @@ export const usePersistentChat = (client: HistoryClient) => {
   const [id, setId] = useState(
     () => routeConversation(pathname) ?? ConversationId.generate()
   );
+  const [previousPathname, setPreviousPathname] = useState(pathname);
   const [savedId, setSavedId] = useState(() => routeConversation(pathname));
   const saved = savedId === id;
   const [crossThreadHistory, setCrossThreadHistory] = useState(false);
@@ -64,15 +65,20 @@ export const usePersistentChat = (client: HistoryClient) => {
       });
     }
   }, [id, navigate, pathname, saved]);
-  const selected = routeConversation(pathname);
-  if (selected !== null && selected !== id) {
-    setId(selected);
-    setSavedId(selected);
-    setLoading(true);
-    setHistoryError(null);
-    setRecords([]);
-    setReceipts([]);
-    setOlder(null);
+  // New chat changes the id before navigation commits. Only a changed route
+  // may select saved history, or the old URL would undo that fresh chat.
+  if (pathname !== previousPathname) {
+    setPreviousPathname(pathname);
+    const selected = routeConversation(pathname);
+    if (selected !== null && selected !== id) {
+      setId(selected);
+      setSavedId(selected);
+      setLoading(true);
+      setHistoryError(null);
+      setRecords([]);
+      setReceipts([]);
+      setOlder(null);
+    }
   }
   const entry = useMemo(
     () => client.page(`/api/conversations/${id}/messages?limit=50`),
