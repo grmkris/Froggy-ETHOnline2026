@@ -20,15 +20,25 @@ import { useCallback, useEffect } from "react";
 import { useSessionToken } from "./session-token";
 import { useWorkspace } from "./workspace-context";
 
+/** The filter chips: everything, one source kind, or the ones that need the person. */
+export type WatchlistKind =
+  | "all"
+  | "wallet"
+  | "token"
+  | "product"
+  | "flight"
+  | "link";
 interface WatchlistView {
   readonly justTracked: readonly WatchlistItemId[];
   readonly query: string;
+  readonly kind: WatchlistKind;
   readonly archived: boolean;
   readonly attention: boolean;
 }
 const INITIAL_VIEW: WatchlistView = {
   justTracked: [],
   query: "",
+  kind: "all",
   archived: false,
   attention: false,
 };
