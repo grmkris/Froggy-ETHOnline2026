@@ -5,7 +5,8 @@
  * was set and what was left for later. "Connect your own assistant" ends on
  * the sentence to paste, the same one Connections offers, and what the
  * consent screen will show. Both end with Finish, which is the one write:
- * this person has been welcomed.
+ * this person has been welcomed. Both also offer Connections, the page where
+ * an agent is connected and listed; taking it writes the same fact.
  */
 
 import { AgentToken, DigestSchedule, OAuthGrant } from "@froggy/domain";
@@ -13,7 +14,7 @@ import { Button } from "@froggy/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Result, Schema } from "effect";
 import { CheckIcon, TerminalIcon } from "lucide-react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { useCredits } from "../../hooks/use-credits";
 import { useSetup } from "../../hooks/use-setup";
@@ -79,7 +80,7 @@ const Row = ({
   done,
   label,
 }: {
-  readonly detail: string;
+  readonly detail: ReactNode;
   readonly done: boolean;
   readonly label: string;
 }): ReactElement => (
@@ -110,6 +111,7 @@ export const ReadyHere = ({
   busy,
   connected,
   onFinish,
+  onOpenConnections,
   onSend,
   onStop,
 }: {
@@ -117,6 +119,8 @@ export const ReadyHere = ({
   readonly busy: boolean;
   readonly connected: boolean;
   readonly onFinish: () => void;
+  /** Ends the flow on Connections, where an agent is connected. */
+  readonly onOpenConnections: () => void;
   /** A first task, typed or picked: the flow ends and the conversation opens. */
   readonly onSend: (text: string) => void;
   readonly onStop: () => void;
@@ -194,9 +198,21 @@ export const ReadyHere = ({
           />
           <Row
             detail={
-              setUp.assistants !== null && setUp.assistants > 0
-                ? `${setUp.assistants} connected. Connections lists them.`
-                : "Not connected. Connections › Connect one."
+              setUp.assistants !== null && setUp.assistants > 0 ? (
+                `${setUp.assistants} connected. Connections lists them.`
+              ) : (
+                <>
+                  Not connected.{" "}
+                  <Button
+                    className="h-auto p-0 text-xs"
+                    onClick={onOpenConnections}
+                    size="sm"
+                    variant="link"
+                  >
+                    Open Connections to connect one
+                  </Button>
+                </>
+              )
             }
             done={setUp.assistants !== null && setUp.assistants > 0}
             label="Your assistant"
@@ -238,9 +254,12 @@ const NEXT = [
 
 export const ReadyAssistant = ({
   onFinish,
+  onOpenConnections,
   origin,
 }: {
   readonly onFinish: () => void;
+  /** Ends the flow on Connections, where the connected agent will be listed. */
+  readonly onOpenConnections: () => void;
   /** Where the MCP server answers: the deployment's, or this page's when it has not said. */
   readonly origin: string;
 }): ReactElement => {
@@ -294,6 +313,15 @@ export const ReadyAssistant = ({
         primary={
           <Button className="min-h-11" onClick={onFinish}>
             Finish
+          </Button>
+        }
+        secondary={
+          <Button
+            className="min-h-11"
+            onClick={onOpenConnections}
+            variant="outline"
+          >
+            Open Connections
           </Button>
         }
       />

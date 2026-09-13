@@ -280,14 +280,23 @@ const Connect = () => {
           Copy connection instructions
         </Button>
         <output className="landing-copy-status">{feedback}</output>
-        <a
-          className="landing-text-link"
-          href="/skill.md"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Read the connection guide <ArrowUpRightIcon size={16} />
-        </a>
+        <div className="mt-2 flex flex-col items-start">
+          <Link
+            className="landing-text-link"
+            search={{ tab: "agents" }}
+            to="/activity"
+          >
+            Open Connections to connect your agent <ArrowRightIcon size={16} />
+          </Link>
+          <a
+            className="landing-text-link"
+            href="/skill.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Read the connection guide <ArrowUpRightIcon size={16} />
+          </a>
+        </div>
       </div>
       <div className="landing-connect-diagram" data-media-slot="connections">
         <div className="landing-agent-source">
@@ -493,6 +502,9 @@ const LandingFooter = () => (
       <a href="/skill.md" target="_blank" rel="noreferrer">
         Connection guide <ArrowUpRightIcon size={15} />
       </a>
+      <Link search={{ tab: "agents" }} to="/activity">
+        Connections <ArrowRightIcon size={15} />
+      </Link>
     </footer>
   </>
 );

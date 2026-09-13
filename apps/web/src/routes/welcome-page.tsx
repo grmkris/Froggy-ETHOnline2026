@@ -10,7 +10,8 @@
  *
  * Every way out writes the same fact, that this person has been welcomed,
  * and lands on Home — or in the conversation, when the last screen's
- * composer was used.
+ * composer was used, or on Connections, when the person asked to connect
+ * an agent from the last screen.
  */
 
 import { useNavigate } from "@tanstack/react-router";
@@ -45,6 +46,14 @@ export const WelcomePage = (): ReactElement => {
     markSeen();
     send(text);
     void navigate({ replace: true, to: "/chat" });
+  };
+  const openConnections = (): void => {
+    markSeen();
+    void navigate({
+      replace: true,
+      search: { tab: "agents" },
+      to: "/activity",
+    });
   };
   const origin =
     app.mcpUrl === null ? window.location.origin : new URL(app.mcpUrl).origin;
@@ -96,6 +105,7 @@ export const WelcomePage = (): ReactElement => {
           busy={busy}
           connected={app.connected}
           onFinish={finish}
+          onOpenConnections={openConnections}
           onSend={start}
           onStop={() => {
             stopRun.stop();
@@ -103,7 +113,11 @@ export const WelcomePage = (): ReactElement => {
         />
       ) : null}
       {step === 4 && door === "assistant" ? (
-        <ReadyAssistant onFinish={finish} origin={origin} />
+        <ReadyAssistant
+          onFinish={finish}
+          onOpenConnections={openConnections}
+          origin={origin}
+        />
       ) : null}
     </WelcomeFrame>
   );
